@@ -9,7 +9,7 @@ from .thinker import Thinker
 from .writer import Writer
 
 
-class Scientist:
+class TinyScientist:
     def __init__(
         self,
         model: str,
