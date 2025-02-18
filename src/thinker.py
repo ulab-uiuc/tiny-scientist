@@ -4,7 +4,6 @@ import os.path as osp
 import time
 from typing import Dict, List, Optional
 
-import backoff
 import requests
 import yaml
 
@@ -295,11 +294,6 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
         with open(osp.join(self.base_dir, "ideas.json"), "w") as f:
             json.dump(ideas, f, indent=4)
 
-    @backoff.on_exception(
-        backoff.expo,
-        requests.exceptions.HTTPError,
-        on_backoff=self._on_backoff
-    )
     def _search_for_papers(
         self,
         query: str,
