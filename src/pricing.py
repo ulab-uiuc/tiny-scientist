@@ -34,16 +34,16 @@ def calculate_pricing(model: str, input_tokens: int, output_tokens: int) -> floa
                 model = m
             else:
                 raise ValueError(f"Pricing for '{model}' is not found.")
-    
+
     input_price, output_price = MODEL_PRICING[model]
-    
+
     # Check if pricing data is available
     if input_price is None or output_price is None:
         raise ValueError(f"Pricing for '{model}' is unavailable.")
-    
+
     # The pricing is per million (1,000,000) tokens.
     input_cost = (input_tokens / 1000000) * input_price
     output_cost = (output_tokens / 1000000) * output_price
-    
+
     total_cost = input_cost + output_cost
     return total_cost
