@@ -1,17 +1,25 @@
 [tool.poetry]
-name = "python-project-template"
+name = "tiny-scientist"
 version = "0.0.1"
-description = "A template for python-based research project"
+description = "A minimal example to help user get a paper"
 authors = ["Haofei Yu <yuhaofei44@gmail.com>"]
 license = "Apache 2.0 License"
 readme = "README.md"
 
 
 [tool.poetry.dependencies]
-python = ">=3.8, <3.12"
+python = ">=3.9, <3.12"
 mypy = "^1.8.0"
 beartype = "*"
 pydantic = "^2.8.2"
+requests = "^2.28.0"
+pyyaml = "^6.0"
+backoff = "*"
+pyalex = "*"
+pymupdf = "^1.22.3"
+pymupdf4llm = "*"
+pypdf = "^3.12.0"
+
 
 
 [tool.poetry.group.dev.dependencies]
