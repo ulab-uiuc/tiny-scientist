@@ -1,15 +1,18 @@
-import os
 import json
+import os
+
 import numpy as np
-import yaml
-from pypdf import PdfReader
 import pymupdf
 import pymupdf4llm
+import yaml
+from pypdf import PdfReader
+
 from .llm import (
-    get_response_from_llm,
-    get_batch_responses_from_llm,
     extract_json_between_markers,
+    get_batch_responses_from_llm,
+    get_response_from_llm,
 )
+
 
 class Reviewer:
     def __init__(self, model, client, temperature=0.75):
@@ -17,13 +20,13 @@ class Reviewer:
         self.model = model
         self.client = client
         self.temperature = temperature
-        
+
         # Load prompt templates
         current_dir = os.path.dirname(__file__)
         yaml_path = os.path.join(current_dir, "reviewer.yaml")
         with open(yaml_path, "r") as f:
             prompt_templates = yaml.safe_load(f)
-        
+
         # Initialize prompt templates
         self.reviewer_system_prompt_base = prompt_templates.get("reviewer_system_prompt_base")
         self.reviewer_system_prompt_neg = prompt_templates.get("reviewer_system_prompt_neg")
@@ -35,7 +38,7 @@ class Reviewer:
         self.reviewer_reflection_prompt = prompt_templates.get("reviewer_reflection_prompt")
         self.meta_reviewer_system_prompt = prompt_templates.get("meta_reviewer_system_prompt")
         self.improvement_prompt = prompt_templates.get("improvement_prompt")
-        
+
         # Initialize fewshot examples paths
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
         self.fewshot_papers = [
@@ -81,7 +84,7 @@ class Reviewer:
                 num_reflections,
                 return_msg_history
             )
-        
+
         # Handle single review
         return self._perform_single_review(
             base_prompt,
@@ -111,18 +114,18 @@ class Reviewer:
             temperature=self.temperature,
             n_responses=num_reviews_ensemble,
         )
-        
+
         parsed_reviews = self._parse_ensemble_reviews(llm_review)
         review = self._get_meta_review(len(parsed_reviews), parsed_reviews)
-        
+
         if review is None:
             review = parsed_reviews[0]
-            
+
         review = self._aggregate_scores(review, parsed_reviews)
-        
+
         if num_reflections > 1:
             review = self._perform_reflections(review, num_reflections, reviewer_system_prompt)
-            
+
         if return_msg_history:
             msg_history = msg_histories[0][:-1]
             msg_history += [
@@ -132,7 +135,7 @@ class Reviewer:
                 }
             ]
             return review, msg_history
-            
+
         return review
 
     def _perform_single_review(
@@ -154,13 +157,13 @@ class Reviewer:
             temperature=self.temperature,
         )
         review = extract_json_between_markers(llm_review)
-        
+
         if num_reflections > 1:
             review = self._perform_reflections(review, num_reflections, reviewer_system_prompt)
-            
+
         if return_msg_history:
             return review, msg_history
-            
+
         return review
 
     def _parse_ensemble_reviews(self, llm_review):
@@ -186,7 +189,7 @@ class Reviewer:
             "Overall": (1, 10),
             "Confidence": (1, 5),
         }
-        
+
         for score, limits in score_limits.items():
             scores = [
                 r[score] for r in parsed_reviews
@@ -194,7 +197,7 @@ class Reviewer:
             ]
             if scores:
                 review[score] = int(round(np.mean(scores)))
-                
+
         return review
 
     def _perform_reflections(self, review, num_reflections, reviewer_system_prompt):
@@ -220,7 +223,7 @@ class Reviewer:
         review_text = ""
         for i, r in enumerate(reviews):
             review_text += f"\nReview {i + 1}/{reviewer_count}:\n```\n{json.dumps(r)}\n```\n"
-            
+
         base_prompt = self.neurips_form + review_text
         llm_review, _ = get_response_from_llm(
             base_prompt,
@@ -238,7 +241,7 @@ class Reviewer:
         fewshot_prompt = "\nBelow are some sample reviews, copied from previous machine learning conferences.\n"
         fewshot_prompt += "Note that while each review is formatted differently according to each reviewer's style, "
         fewshot_prompt += "the reviews are well-structured and therefore easy to navigate.\n"
-        
+
         for paper, review in zip(self.fewshot_papers[:num_fs_examples], self.fewshot_reviews[:num_fs_examples]):
             txt_path = paper.replace(".pdf", ".txt")
             if os.path.exists(txt_path):
@@ -248,7 +251,7 @@ class Reviewer:
                 paper_text = self.load_paper(paper)
             review_text = self.load_review(review)
             fewshot_prompt += f"\nPaper:\n```\n{paper_text}\n```\n\nReview:\n```\n{review_text}\n```\n"
-            
+
         return fewshot_prompt
 
     @staticmethod

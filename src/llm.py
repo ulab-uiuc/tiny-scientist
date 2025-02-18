@@ -4,8 +4,8 @@ import re
 
 import anthropic
 import backoff
-import openai
 import google.generativeai as genai
+import openai
 from google.generativeai.types import GenerationConfig
 
 MAX_NUM_TOKENS = 4096

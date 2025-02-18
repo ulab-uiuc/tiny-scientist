@@ -2,17 +2,14 @@ import json
 import os
 import os.path as osp
 import time
-from typing import List, Dict, Union, Optional
+from typing import Dict, List, Optional
 
 import backoff
 import requests
 import yaml
 
-from .llm import (
-    get_response_from_llm,
-    get_batch_responses_from_llm,
-    extract_json_between_markers,
-)
+from .llm import extract_json_between_markers, get_response_from_llm
+
 
 class Thinker:
     def __init__(
@@ -29,12 +26,12 @@ class Thinker:
         self.base_dir = base_dir
         self.temperature = temperature
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
-        
+
         # Load prompt templates
         yaml_path = os.path.join(os.path.dirname(__file__), "thinker.yaml")
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
-            
+
         # Load experiment code and task description
         with open(osp.join(base_dir, "experiment.py"), "r") as f:
             self.code = f.read()
@@ -54,7 +51,7 @@ class Thinker:
             return self._load_existing_ideas()
 
         idea_archive = self._load_seed_ideas()
-        
+
         for i in range(max_num_generations):
             print(f"\nGenerating idea {i + 1}/{max_num_generations}")
             try:
@@ -113,7 +110,7 @@ class Thinker:
                 continue
 
             print(f"\nChecking novelty of idea {idx}: {idea['Name']}")
-            
+
             novel = False
             msg_history = []
             papers_str = ""
@@ -123,14 +120,14 @@ class Thinker:
                     decision, query = self._process_novelty_iteration(
                         idea, papers_str, j + 1, max_num_iterations, msg_history
                     )
-                    
+
                     if decision is not None:
                         novel = decision
                         break
-                        
+
                     papers = self._search_for_papers(query, engine=engine)
                     papers_str = self._format_paper_results(papers)
-                    
+
                 except Exception as e:
                     print(f"Error: {e}")
                     continue
@@ -157,7 +154,7 @@ class Thinker:
             prev_ideas_string=prev_ideas_string,
             num_reflections=num_reflections,
         )
-        
+
         if include_scores:
             base_prompt += """
 Completed ideas have an additional "Score" field which indicates the assessment by an expert ML reviewer.
@@ -174,14 +171,14 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
             msg_history=msg_history,
             temperature=self.temperature,
         )
-        
+
         idea = extract_json_between_markers(text)
         if not idea:
             return None
-            
+
         if num_reflections > 1:
             idea = self._reflect_on_idea(idea, num_reflections, msg_history)
-            
+
         return idea
 
     def _reflect_on_idea(
@@ -204,16 +201,16 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
                 msg_history=msg_history,
                 temperature=self.temperature,
             )
-            
+
             new_idea = extract_json_between_markers(text)
             if not new_idea:
                 break
-                
+
             idea = new_idea
             if "I am done" in text:
                 print(f"Idea generation converged after {j + 2} iterations.")
                 break
-                
+
         return idea
 
     def _process_novelty_iteration(
@@ -338,7 +335,7 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
         print(f"Response Status Code: {rsp.status_code}")
         print(f"Response Content: {rsp.text[:500]}")
         rsp.raise_for_status()
-        
+
         results = rsp.json()
         if not results["total"]:
             return None
@@ -353,8 +350,8 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
     ) -> Optional[List[Dict]]:
         """Search papers using OpenAlex API."""
         import pyalex
-        from pyalex import Work, Works
-        
+        from pyalex import Works
+
         mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
         if mail:
             pyalex.config.email = mail
@@ -364,7 +361,7 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
         works = Works().search(query).get(per_page=result_limit)
         if not works:
             return None
-            
+
         papers = [self._extract_work_info(work) for work in works]
         return papers
 

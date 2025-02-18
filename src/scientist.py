@@ -1,11 +1,13 @@
 import os
-import yaml
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
-from .thinker import Thinker
-from .reviewer import Reviewer
-from .writer import Writer
+import yaml
+
 from .coder import Coder
+from .reviewer import Reviewer
+from .thinker import Thinker
+from .writer import Writer
+
 
 class Scientist:
     def __init__(
@@ -23,12 +25,12 @@ class Scientist:
         self.client = client
         self.base_dir = base_dir
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
-        
+
         # Load prompts if provided
         if config_path:
             with open(config_path, 'r') as f:
                 self.prompts = yaml.safe_load(f)
-        
+
         # Initialize components
         self.thinker = Thinker(
             model=model,
@@ -36,13 +38,13 @@ class Scientist:
             base_dir=base_dir,
             s2_api_key=self.s2_api_key
         )
-        
+
         self.reviewer = Reviewer(
             model=model,
             client=client,
             temperature=0.75
         )
-        
+
         self.writer = Writer(
             model=model,
             client=client,
@@ -67,14 +69,14 @@ class Scientist:
             max_num_generations=max_num_generations,
             num_reflections=num_reflections
         )
-        
+
         # Check novelty if requested
         if check_novelty:
             ideas = self.thinker.check_idea_novelty(
                 ideas=ideas,
                 engine=engine
             )
-            
+
         return ideas
 
     def think_next(
@@ -92,14 +94,14 @@ class Scientist:
             num_reflections=num_reflections,
             max_attempts=max_attempts
         )
-        
+
         # Check novelty if requested
         if check_novelty:
             ideas = self.thinker.check_idea_novelty(
                 ideas=ideas,
                 engine=engine
             )
-            
+
         return ideas
 
     def code(
@@ -114,7 +116,7 @@ class Scientist:
             model=self.model,
             chat_history=chat_history
         )
-        
+
         return coder.perform_experiments(
             idea=idea,
             baseline_results=baseline_results
@@ -156,9 +158,10 @@ class Scientist:
 
 if __name__ == '__main__':
     # Example usage
-    from .llm import create_client, AVAILABLE_LLMS
     import argparse
-    
+
+    from .llm import AVAILABLE_LLMS, create_client
+
     parser = argparse.ArgumentParser(description="Run AI Scientist")
     parser.add_argument(
         "--model",
@@ -174,7 +177,7 @@ if __name__ == '__main__':
         help="Base directory for experiments"
     )
     args = parser.parse_args()
-    
+
     # Create client and scientist
     client, model = create_client(args.model)
     scientist = Scientist(
@@ -182,28 +185,28 @@ if __name__ == '__main__':
         client=client,
         base_dir=args.base_dir
     )
-    
+
     # Example workflow
     # 1. Generate ideas
     ideas = scientist.think(
         task_description="Improve language model training efficiency",
         code="# Your experiment code here"
     )
-    
+
     # 2. Implement an idea
     if ideas:
         success = scientist.code(
             idea=ideas[0],
             baseline_results={"baseline_loss": 2.5}
         )
-        
+
         # 3. Write paper if experiments successful
         if success:
             scientist.write(
                 idea=ideas[0],
                 folder_name=args.base_dir
             )
-            
+
             # 4. Review paper
             with open(os.path.join(args.base_dir, "latex/template.tex"), "r") as f:
                 paper_text = f.read()

@@ -4,13 +4,14 @@ import os.path as osp
 import shutil
 import subprocess
 import sys
-from typing import Tuple, Optional, Dict, Any
-import yaml
 from subprocess import TimeoutExpired
+from typing import Any, Dict, Optional, Tuple
 
+import yaml
 from aider.coders import Coder as AiderCoder
-from aider.models import Model
 from aider.io import InputOutput
+from aider.models import Model
+
 
 class Coder:
     def __init__(
@@ -27,12 +28,12 @@ class Coder:
         self.max_iters = max_iters
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
-        
+
         # Load prompts
         yaml_path = os.path.join(os.path.dirname(__file__), "coder.yaml")
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
-            
+
         # Setup Aider
         self.setup_aider(model, chat_history)
 
@@ -42,14 +43,14 @@ class Coder:
             yes=True,
             chat_history_file=chat_history or f"{self.base_dir}/aider.txt"
         )
-        
+
         if model == "deepseek-coder-v2-0724":
             main_model = Model("deepseek/deepseek-coder")
         elif model == "llama3.1-405b":
             main_model = Model("openrouter/meta-llama/llama-3.1-405b-instruct")
         else:
             main_model = Model(model)
-            
+
         self.coder = AiderCoder.create(
             main_model=main_model,
             fnames=[],  # Will be set per operation
@@ -70,17 +71,17 @@ class Coder:
             osp.join(self.base_dir, "experiment.py"),
             osp.join(self.base_dir, "notes.txt")
         ]
-        
+
         # Run experiments
         success = self._run_experiment_loop(idea, baseline_results)
         if not success:
             return False
-            
+
         # Create plots
         success = self._create_plots()
         if not success:
             return False
-            
+
         # Update notes
         self._update_notes()
         return True
@@ -93,7 +94,7 @@ class Coder:
         """Run the experiment loop with multiple iterations if needed."""
         current_iter = 0
         run = 1
-        
+
         # Initial prompt
         next_prompt = self.prompts["experiment_prompt"].format(
             title=idea["Title"],
@@ -101,25 +102,25 @@ class Coder:
             max_runs=self.max_runs,
             baseline_results=baseline_results,
         )
-        
+
         while run < self.max_runs + 1:
             if current_iter >= self.max_iters:
                 print("Max iterations reached")
                 return False
-                
+
             coder_out = self.coder.run(next_prompt)
             print(coder_out)
-            
+
             if "ALL_COMPLETED" in coder_out:
                 return True
-                
+
             return_code, next_prompt = self._run_single_experiment(run)
-            
+
             if return_code == 0:
                 run += 1
                 current_iter = 0
             current_iter += 1
-            
+
         return current_iter < self.max_iters
 
     def _run_single_experiment(
@@ -140,7 +141,7 @@ class Coder:
             "experiment.py",
             f"--out_dir=run_{run_num}",
         ]
-        
+
         try:
             result = subprocess.run(
                 command,
@@ -156,15 +157,15 @@ class Coder:
             if result.returncode != 0:
                 print(f"Run {run_num} failed with return code {result.returncode}")
                 self._cleanup_failed_run(run_num)
-                
+
                 stderr_output = result.stderr
                 if len(stderr_output) > self.max_stderr_output:
                     stderr_output = "..." + stderr_output[-self.max_stderr_output:]
-                    
+
                 return 1, self.prompts["experiment_error_prompt"].format(
                     error=stderr_output
                 )
-            
+
             # Load and format results
             with open(osp.join(self.base_dir, f"run_{run_num}", "final_info.json"), "r") as f:
                 results = json.load(f)
@@ -175,7 +176,7 @@ class Coder:
                 results=results,
                 next_run=run_num + 1
             )
-            
+
         except TimeoutExpired:
             print(f"Run {run_num} timed out after {timeout} seconds")
             self._cleanup_failed_run(run_num)
@@ -189,24 +190,24 @@ class Coder:
         self.coder.fnames = [
             osp.join(self.base_dir, "plot.py")
         ]
-        
+
         current_iter = 0
         next_prompt = self.prompts["plot_initial_prompt"]
-        
+
         while True:
             self.coder.run(next_prompt)
             return_code, next_prompt = self._run_plotting(timeout)
-            
+
             current_iter += 1
             if return_code == 0 or current_iter >= self.max_iters:
                 break
-                
+
         return return_code == 0
 
     def _run_plotting(self, timeout: int) -> Tuple[int, str]:
         """Run the plotting script."""
         command = ["python", "plot.py"]
-        
+
         try:
             result = subprocess.run(
                 command,
@@ -224,9 +225,9 @@ class Coder:
                 return 1, self.prompts["plot_error_prompt"].format(
                     error=result.stderr
                 )
-                
+
             return 0, ""
-            
+
         except TimeoutExpired:
             print(f"Plotting timed out after {timeout} seconds")
             return 1, self.prompts["plot_timeout_prompt"].format(

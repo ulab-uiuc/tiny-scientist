@@ -36,7 +36,7 @@ experiment_timeout_prompt: |
   Run timed out after {timeout} seconds
 
 plot_initial_prompt: |
-  Great job! Please modify `plot.py` to generate the most relevant plots for the final writeup. 
+  Great job! Please modify `plot.py` to generate the most relevant plots for the final writeup.
 
   In particular, be sure to fill in the "labels" dictionary with the correct names for each run that you want to plot.
 

@@ -1,20 +1,16 @@
-import json
 import os
 import os.path as osp
 import re
 import shutil
 import subprocess
 import time
-from typing import Optional, Tuple, List, Dict
+from typing import Dict, List, Optional, Tuple
 
 import backoff
 import requests
 import yaml
 
-from .llm import (
-    get_response_from_llm,
-    extract_json_between_markers,
-)
+from .llm import extract_json_between_markers, get_response_from_llm
 
 
 class PaperWriter:
@@ -32,7 +28,7 @@ class PaperWriter:
         self.base_dir = base_dir
         self.coder = coder
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
-        
+
         # Load prompts
         yaml_path = os.path.join(os.path.dirname(__file__), "writer.yaml")
         with open(yaml_path, "r") as f:
@@ -47,7 +43,7 @@ class PaperWriter:
         """Perform complete paper writeup process."""
         # Write initial sections
         self._write_abstract()
-        
+
         # Write main sections
         for section in [
             "Introduction",
@@ -58,16 +54,16 @@ class PaperWriter:
             "Conclusion",
         ]:
             self._write_section(section)
-        
+
         # Handle related work section
         self._write_related_work()
-        
+
         # Add citations
         self._add_citations(num_cite_rounds, engine)
-        
+
         # Perform second refinement
         self._refine_paper()
-        
+
         # Generate final PDF
         self.generate_latex(f"{self.base_dir}/{idea['Name']}.pdf")
 
@@ -106,7 +102,7 @@ class PaperWriter:
     def _refine_paper(self) -> None:
         """Perform second refinement of the entire paper."""
         self.coder.run(self.prompts["title_refinement_prompt"])
-        
+
         for section in [
             "Abstract",
             "Related Work",
@@ -129,24 +125,24 @@ class PaperWriter:
         for i in range(num_cite_rounds):
             with open(osp.join(self.base_dir, "latex", "template.tex"), "r") as f:
                 draft = f.read()
-                
+
             prompt, done = self._get_citation_prompt(
                 draft, i + 1, num_cite_rounds, engine
             )
-            
+
             if done:
                 break
-                
+
             if prompt is not None:
                 # Extract bibtex and update draft
                 bibtex_string = prompt.split('"""')[1]
                 search_str = r"\end{filecontents}"
                 draft = draft.replace(search_str, f"{bibtex_string}{search_str}")
-                
+
                 # Save updated draft
                 with open(osp.join(self.base_dir, "latex", "template.tex"), "w") as f:
                     f.write(draft)
-                    
+
                 self.coder.run(prompt)
 
     def _get_citation_prompt(
@@ -158,7 +154,7 @@ class PaperWriter:
     ) -> Tuple[Optional[str], bool]:
         """Get prompt for adding citations."""
         msg_history = []
-        
+
         try:
             # Get initial citation suggestion
             text, msg_history = get_response_from_llm(
@@ -174,7 +170,7 @@ class PaperWriter:
                 ),
                 msg_history=msg_history,
             )
-            
+
             if "No more citations needed" in text:
                 print("No more citations needed.")
                 return None, True
@@ -182,10 +178,10 @@ class PaperWriter:
             json_output = extract_json_between_markers(text)
             if not json_output:
                 return None, False
-                
+
             query = json_output["Query"]
             papers = self._search_for_papers(query, engine=engine)
-            
+
             if not papers:
                 print("No papers found.")
                 return None, False
@@ -205,7 +201,7 @@ class PaperWriter:
                 ),
                 msg_history=msg_history,
             )
-            
+
             if "Do not add any" in text:
                 print("Do not add any.")
                 return None, False
@@ -213,10 +209,10 @@ class PaperWriter:
             json_output = extract_json_between_markers(text)
             if not json_output:
                 return None, False
-                
+
             desc = json_output["Description"]
             selected_papers = json_output["Selected"]
-            
+
             if selected_papers == "[]":
                 return None, False
 
@@ -224,7 +220,7 @@ class PaperWriter:
             selected_indices = list(map(int, selected_papers.strip("[]").split(",")))
             if not all(0 <= i < len(papers) for i in selected_indices):
                 return None, False
-                
+
             bibtexs = [papers[i]["citationStyles"]["bibtex"] for i in selected_indices]
             bibtex_string = "\n".join(bibtexs)
 
@@ -281,11 +277,11 @@ class PaperWriter:
         print(f"Response Status Code: {rsp.status_code}")
         print(f"Response Content: {rsp.text[:500]}")
         rsp.raise_for_status()
-        
+
         results = rsp.json()
         total = results["total"]
         time.sleep(1.0)
-        
+
         return results["data"] if total else None
 
     def _search_openalex(
@@ -296,7 +292,7 @@ class PaperWriter:
         """Search papers using OpenAlex API."""
         import pyalex
         from pyalex import Works
-        
+
         mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
         if mail:
             pyalex.config.email = mail
@@ -306,7 +302,7 @@ class PaperWriter:
         works = Works().search(query).get(per_page=result_limit)
         if not works:
             return None
-            
+
         papers = []
         for work in works:
             venue = "Unknown"
@@ -343,7 +339,7 @@ class PaperWriter:
                 "abstract": abstract,
                 "citationCount": work["cited_by_count"],
             })
-            
+
         return papers
 
     @staticmethod
@@ -372,13 +368,13 @@ class PaperWriter:
 
         # Check citations
         self._check_latex_citations(template_path)
-        
+
         # Check figures
         self._check_latex_figures(template_path)
-        
+
         # Fix LaTeX errors
         self._fix_latex_errors(template_path, num_error_corrections)
-        
+
         # Compile document
         self._compile_latex(cwd, output_pdf_path, timeout)
 
@@ -386,21 +382,21 @@ class PaperWriter:
         """Check all references are valid and in the references.bib file."""
         with open(template_path, "r") as f:
             tex_text = f.read()
-            
+
         cites = re.findall(r"\\cite[a-z]*{([^}]*)}", tex_text)
         references_bib = re.search(
             r"\\begin{filecontents}{references.bib}(.*?)\\end{filecontents}",
             tex_text,
             re.DOTALL,
         )
-        
+
         if not references_bib:
             print("No references.bib found in template.tex")
             return
-            
+
         bib_text = references_bib.group(1)
         cites = [cite.strip() for item in cites for cite in item.split(",")]
-        
+
         for cite in cites:
             if cite not in bib_text:
                 print(f"Reference {cite} not found in references.")
@@ -412,11 +408,11 @@ If so, please modify the citation in template.tex to match the name in reference
         """Check all included figures are in the directory and not duplicated."""
         with open(template_path, "r") as f:
             tex_text = f.read()
-            
+
         # Check figure existence
         referenced_figs = re.findall(r"\\includegraphics.*?{(.*?)}", tex_text)
         all_figs = [f for f in os.listdir(self.base_dir) if f.endswith(".png")]
-        
+
         for figure in referenced_figs:
             if figure not in all_figs:
                 print(f"Figure {figure} not found in directory.")
@@ -453,10 +449,10 @@ If duplicated, identify the best location for the section header and remove any 
             check_output = os.popen(
                 f"chktex {template_path} -q -n2 -n24 -n13 -n1"
             ).read()
-            
+
             if not check_output:
                 break
-                
+
             prompt = f"""Please fix the following LaTeX errors in `template.tex` guided by the output of `chktek`:
 {check_output}.
 
