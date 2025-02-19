@@ -32,8 +32,12 @@ class Thinker:
             self.prompts = yaml.safe_load(f)
 
         # Load experiment code and task description
-        with open(osp.join(base_dir, "experiment.py"), "r") as f:
-            self.code = f.read()
+        try:
+            with open(osp.join(base_dir, "experiment.py"), "r") as f:
+                self.code = f.read()
+        except FileNotFoundError:
+            print("No experiment.py file found")
+            self.code = ""
         with open(osp.join(base_dir, "prompt.json"), "r") as f:
             prompt_data = json.load(f)
             self.task_description = prompt_data["task_description"]
