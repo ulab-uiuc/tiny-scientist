@@ -1,7 +1,9 @@
-from typing import Any, Callable, Dict
 import time
+from typing import Any, Callable, Dict
+
 import backoff
 import requests
+
 
 def on_backoff(details: Dict[str, Any]) -> None:
     """Standard callback for backoff decorator."""

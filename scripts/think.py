@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import json
-from typing import Optional
+import os
 
+from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.thinker import Thinker
-from tiny_scientist.llm import create_client, AVAILABLE_LLMS
 
 
 def parse_args():
@@ -65,23 +64,6 @@ def parse_args():
         help="Path to save ideas JSON (defaults to ideas.json in experiment directory)"
     )
     return parser.parse_args()
-
-
-# def validate_experiment_dir(experiment_dir: str) -> None:
-#     """Validate that the experiment directory has required files."""
-#     if not os.path.isdir(experiment_dir):
-#         raise ValueError(f"Experiment directory {experiment_dir} does not exist")
-#
-#     required_files = ["experiment.py", "prompt.json"]
-#     for file in required_files:
-#         if not os.path.isfile(os.path.join(experiment_dir, file)):
-#             raise ValueError(f"Required file {file} not found in {experiment_dir}")
-#
-#     # Validate prompt.json format
-#     with open(os.path.join(experiment_dir, "prompt.json"), "r") as f:
-#         prompt_data = json.load(f)
-#         if "task_description" not in prompt_data:
-#             raise ValueError("prompt.json must contain 'task_description' field")
 
 
 def load_or_create_seed_ideas(experiment_dir: str) -> None:

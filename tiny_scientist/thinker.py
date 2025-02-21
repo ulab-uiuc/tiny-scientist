@@ -27,7 +27,7 @@ class Thinker:
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
 
         # Load prompt templates
-        yaml_path = os.path.join(os.path.dirname(__file__), "thinker.yaml")
+        yaml_path = os.path.join(os.path.dirname(__file__), "thinker_prompt.yaml")
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
 
