@@ -1,10 +1,10 @@
-import pytest
-import os
 import json
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, List
+import os
+from unittest.mock import Mock, patch
 
+import pytest
 from ai_scientist.scientist import Scientist
+
 
 @pytest.fixture
 def mock_client():
@@ -19,17 +19,17 @@ def test_base_dir(tmp_path):
     # Create temporary test directory
     base_dir = tmp_path / "test_project"
     base_dir.mkdir()
-    
+
     # Create required files
     experiment_py = base_dir / "experiment.py"
     experiment_py.write_text("print('Test experiment')")
-    
+
     prompt_json = base_dir / "prompt.json"
     prompt_json.write_text(json.dumps({
         "task_description": "Test task",
         "system": "Test system prompt"
     }))
-    
+
     seed_ideas_json = base_dir / "seed_ideas.json"
     seed_ideas_json.write_text(json.dumps([
         {
@@ -38,7 +38,7 @@ def test_base_dir(tmp_path):
             "Experiment": "Test experiment description"
         }
     ]))
-    
+
     return str(base_dir)
 
 @pytest.fixture
@@ -53,7 +53,7 @@ def test_think_generates_ideas(scientist, mock_client):
     # Mock LLM response for idea generation
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought
-    
+
     NEW IDEA JSON:
     ```json
     {
@@ -66,14 +66,14 @@ def test_think_generates_ideas(scientist, mock_client):
     }
     ```
     """
-    
+
     # Test idea generation
     ideas = scientist.think(
         task_description="Test task",
         code="Test code",
         max_num_generations=1
     )
-    
+
     assert len(ideas) == 1
     assert ideas[0]["Name"] == "test_idea"
     assert ideas[0]["Title"] == "Test Title"
@@ -83,7 +83,7 @@ def test_think_next_builds_on_previous(scientist, mock_client):
     # Mock LLM response
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought
-    
+
     NEW IDEA JSON:
     ```json
     {
@@ -96,18 +96,18 @@ def test_think_next_builds_on_previous(scientist, mock_client):
     }
     ```
     """
-    
+
     prev_ideas = [{
         "Name": "prev_idea",
         "Title": "Previous Test",
         "Experiment": "Previous experiment"
     }]
-    
+
     ideas = scientist.think_next(
         prev_ideas=prev_ideas,
         num_reflections=1
     )
-    
+
     assert len(ideas) == 2  # Previous + new idea
     assert ideas[-1]["Name"] == "next_idea"
     mock_client.chat.completions.create.assert_called()
@@ -116,16 +116,16 @@ def test_think_next_builds_on_previous(scientist, mock_client):
 def test_code_executes_experiments(mock_subprocess, scientist, mock_client):
     # Mock Aider coder responses
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Test implementation"
-    
+
     # Mock subprocess success
     mock_subprocess.return_value.returncode = 0
     mock_subprocess.return_value.stderr = ""
-    
+
     # Create mock results file
     os.makedirs(os.path.join(scientist.base_dir, "run_1"), exist_ok=True)
     with open(os.path.join(scientist.base_dir, "run_1", "final_info.json"), "w") as f:
         json.dump({"test_metric": {"means": 0.5}}, f)
-    
+
     success = scientist.code(
         idea={
             "Name": "test_idea",
@@ -134,7 +134,7 @@ def test_code_executes_experiments(mock_subprocess, scientist, mock_client):
         },
         baseline_results={"baseline": 0.4}
     )
-    
+
     assert success
     mock_subprocess.assert_called()
 
@@ -142,14 +142,14 @@ def test_code_executes_experiments(mock_subprocess, scientist, mock_client):
 def test_write_generates_paper(mock_subprocess, scientist, mock_client):
     # Mock successful LaTeX compilation
     mock_subprocess.return_value.returncode = 0
-    
+
     # Mock Aider coder responses
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Test paper content"
-    
+
     # Create LaTeX directory
     latex_dir = os.path.join(scientist.base_dir, "latex")
     os.makedirs(latex_dir, exist_ok=True)
-    
+
     scientist.write(
         idea={
             "Name": "test_idea",
@@ -158,7 +158,7 @@ def test_write_generates_paper(mock_subprocess, scientist, mock_client):
         },
         folder_name=scientist.base_dir
     )
-    
+
     mock_subprocess.assert_called()
     assert os.path.exists(os.path.join(latex_dir, "template.tex"))
 
@@ -166,7 +166,7 @@ def test_review_evaluates_paper(scientist, mock_client):
     # Mock LLM review response
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test review thought
-    
+
     REVIEW JSON:
     ```json
     {
@@ -189,12 +189,12 @@ def test_review_evaluates_paper(scientist, mock_client):
     }
     ```
     """
-    
+
     review = scientist.review(
         text="Test paper content",
         num_reflections=1
     )
-    
+
     assert review["Summary"] == "Test summary"
     assert review["Decision"] == "Accept"
     mock_client.chat.completions.create.assert_called()
@@ -205,11 +205,11 @@ def test_end_to_end_workflow(scientist, mock_client, mock_subprocess):
         # Mock successful subprocess calls
         mock_subprocess.return_value.returncode = 0
         mock_subprocess.return_value.stderr = ""
-        
+
         # 1. Generate ideas
         mock_client.chat.completions.create.return_value.choices[0].message.content = """
         THOUGHT: Test thought
-        
+
         NEW IDEA JSON:
         ```json
         {
@@ -222,42 +222,42 @@ def test_end_to_end_workflow(scientist, mock_client, mock_subprocess):
         }
         ```
         """
-        
+
         ideas = scientist.think(
             task_description="Test workflow",
             code="Test code",
             max_num_generations=1
         )
-        
+
         assert len(ideas) == 1
         idea = ideas[0]
-        
+
         # 2. Implement experiments
         # Create mock results
         os.makedirs(os.path.join(scientist.base_dir, "run_1"), exist_ok=True)
         with open(os.path.join(scientist.base_dir, "run_1", "final_info.json"), "w") as f:
             json.dump({"test_metric": {"means": 0.5}}, f)
-            
+
         success = scientist.code(
             idea=idea,
             baseline_results={"baseline": 0.4}
         )
-        
+
         assert success
-        
+
         # 3. Write paper
         latex_dir = os.path.join(scientist.base_dir, "latex")
         os.makedirs(latex_dir, exist_ok=True)
-        
+
         scientist.write(
             idea=idea,
             folder_name=scientist.base_dir
         )
-        
+
         # 4. Review paper
         mock_client.chat.completions.create.return_value.choices[0].message.content = """
         THOUGHT: Test review
-        
+
         REVIEW JSON:
         ```json
         {
@@ -280,8 +280,8 @@ def test_end_to_end_workflow(scientist, mock_client, mock_subprocess):
         }
         ```
         """
-        
+
         review = scientist.review("Test paper content")
-        
+
         assert review["Decision"] == "Accept"
         assert review["Summary"] == "Test workflow summary"
