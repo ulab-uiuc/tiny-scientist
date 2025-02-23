@@ -105,7 +105,7 @@ class Writer:
         self.generated_sections["Abstract"] = abstract_content
 
     def _write_section(self, 
-                       idea: str, 
+                       idea: Dict[str, Any], 
                        code: str, 
                        baseline_result: str,
                        experiment_result: str, 
@@ -152,7 +152,7 @@ class Writer:
 
         self.generated_sections[section] = section_content
 
-    def _write_related_work(self, idea: str) -> None:
+    def _write_related_work(self, idea: Dict[str, Any]) -> None:
         """Write the related work section."""
         experiment = idea.get("Experiment", "No experiment details provided")
 
@@ -367,7 +367,7 @@ class Writer:
         query: str,
         result_limit: int = 10,
         engine: str = "semanticscholar"
-    ) -> Optional[List[Dict]]:
+    ) -> Optional[List[Dict[str, Any]]]:
         """Search for papers using specified search engine."""
         if not query:
             return None
@@ -383,7 +383,7 @@ class Writer:
         self,
         query: str,
         result_limit: int
-    ) -> Optional[List[Dict]]:
+    ) -> Optional[List[Dict[str, Any]]]:
         """Search papers using Semantic Scholar API."""
         rsp = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
@@ -408,7 +408,7 @@ class Writer:
         self,
         query: str,
         result_limit: int
-    ) -> Optional[List[Dict]]:
+    ) -> Optional[List[Dict[str, Any]]]:
         """Search papers using OpenAlex API."""
 
         mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
@@ -461,7 +461,7 @@ class Writer:
         return papers
 
     @staticmethod
-    def _format_paper_results(papers: Optional[List[Dict]]) -> str:
+    def _format_paper_results(papers: Optional[List[Dict[str, Any]]]) -> str:
         """Format paper results into a string."""
         if not papers:
             return "No papers found."

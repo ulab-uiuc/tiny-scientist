@@ -2,12 +2,13 @@
 import argparse
 import json
 import os
+from typing import Any
 
 from tiny_scientist.coder import Coder  # Ensure Coder is properly implemented
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.writer import Writer
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write paper.")
     
     parser.add_argument(
@@ -44,8 +45,8 @@ def parse_args():
     
     return parser.parse_args()
 
-def main():
-    args = parse_args()
+def main() -> int:
+    args: argparse.Namespace = parse_args()
     
     try:
         # Create LLM client and model
@@ -61,10 +62,6 @@ def main():
             base_dir=args.experiment,
             coder=coder
         )
-        # idea = {
-        #     "Name": "Generated_Paper",
-        #     "Title": prompt_data.get("task_description", "Research Paper"),
-        # }
         
         # idea should be import from args.experiemnt and idea.json
         with open(os.path.join(args.experiment, "idea.json"), "r") as f:
