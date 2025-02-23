@@ -12,12 +12,12 @@ from .llm import extract_json_between_markers, get_response_from_llm
 
 class Thinker:
     def __init__(
-            self,
-            model: str,
-            client: any,
-            base_dir: str,
-            temperature: float = 0.75,
-            s2_api_key: Optional[str] = None
+        self,
+        model: str,
+        client: any,
+        base_dir: str,
+        temperature: float = 0.75,
+        s2_api_key: Optional[str] = None
     ):
         """Initialize the Thinker with model configuration and prompt templates."""
         self.model = model
@@ -44,10 +44,10 @@ class Thinker:
             self.system_prompt = prompt_data.get("system")
 
     def generate_ideas(
-            self,
-            skip_generation: bool = False,
-            max_num_generations: int = 20,
-            num_reflections: int = 5,
+        self,
+        skip_generation: bool = False,
+        max_num_generations: int = 20,
+        num_reflections: int = 5,
     ) -> List[Dict]:
         """Generate new research ideas based on the experiment code."""
         if skip_generation:
@@ -69,10 +69,10 @@ class Thinker:
         return idea_archive
 
     def generate_next_idea(
-            self,
-            prev_idea_archive: List[Dict] = [],
-            num_reflections: int = 5,
-            max_attempts: int = 10,
+        self,
+        prev_idea_archive: List[Dict] = [],
+        num_reflections: int = 5,
+        max_attempts: int = 10,
     ) -> List[Dict]:
         """Generate the next research idea based on previous ideas."""
         idea_archive = prev_idea_archive.copy()
@@ -101,10 +101,10 @@ class Thinker:
         return idea_archive
 
     def check_idea_novelty(
-            self,
-            ideas: List[Dict],
-            max_num_iterations: int = 10,
-            engine: str = "semanticscholar"
+        self,
+        ideas: List[Dict],
+        max_num_iterations: int = 10,
+        engine: str = "semanticscholar"
     ) -> List[Dict]:
         """Check the novelty of generated ideas against existing literature."""
         for idx, idea in enumerate(ideas):
@@ -141,10 +141,10 @@ class Thinker:
         return ideas
 
     def _generate_single_idea(
-            self,
-            idea_archive: List[Dict],
-            num_reflections: int,
-            include_scores: bool = False
+        self,
+        idea_archive: List[Dict],
+        num_reflections: int,
+        include_scores: bool = False
     ) -> Optional[Dict]:
         """Generate a single new idea with potential reflections."""
         idea_strings = [json.dumps(idea) for idea in idea_archive]
@@ -185,10 +185,10 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
         return idea
 
     def _reflect_on_idea(
-            self,
-            idea: Dict,
-            num_reflections: int,
-            msg_history: List[Dict]
+        self,
+        idea: Dict,
+        num_reflections: int,
+        msg_history: List[Dict]
     ) -> Dict:
         """Perform reflection iterations on an idea."""
         for j in range(num_reflections - 1):
@@ -217,12 +217,12 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
         return idea
 
     def _process_novelty_iteration(
-            self,
-            idea: Dict,
-            papers_str: str,
-            current_round: int,
-            max_rounds: int,
-            msg_history: List[Dict]
+        self,
+        idea: Dict,
+        papers_str: str,
+        current_round: int,
+        max_rounds: int,
+        msg_history: List[Dict]
     ) -> tuple[Optional[bool], Optional[str]]:
         """Process a single iteration of novelty checking."""
         text, msg_history = get_response_from_llm(
@@ -299,10 +299,10 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
             json.dump(ideas, f, indent=4)
 
     def _search_for_papers(
-            self,
-            query: str,
-            result_limit: int = 10,
-            engine: str = "semanticscholar"
+        self,
+        query: str,
+        result_limit: int = 10,
+        engine: str = "semanticscholar"
     ) -> Optional[List[Dict]]:
         """Search for papers using the specified search engine."""
         if not query:
@@ -316,9 +316,9 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
             raise NotImplementedError(f"{engine=} not supported!")
 
     def _search_semanticscholar(
-            self,
-            query: str,
-            result_limit: int
+        self,
+        query: str,
+        result_limit: int
     ) -> Optional[List[Dict]]:
         """Search papers using Semantic Scholar API."""
         rsp = requests.get(
@@ -342,9 +342,9 @@ Scores of 0 indicate the idea failed either during experimentation, writeup or r
         return results["data"]
 
     def _search_openalex(
-            self,
-            query: str,
-            result_limit: int
+        self,
+        query: str,
+        result_limit: int
     ) -> Optional[List[Dict]]:
         """Search papers using OpenAlex API."""
         import pyalex
