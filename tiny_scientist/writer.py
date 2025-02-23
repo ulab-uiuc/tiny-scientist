@@ -7,7 +7,7 @@ import time
 import json
 import pyalex
 from pyalex import Works
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 import backoff
 import requests
@@ -20,9 +20,9 @@ class Writer:
     def __init__(
         self,
         model: str,
-        client: any,
+        client: Any,
         base_dir: str,
-        coder: any,
+        coder: Any,
         s2_api_key: Optional[str] = None
     ):
         """Initialize the PaperWriter with model and configuration."""
@@ -31,7 +31,7 @@ class Writer:
         self.base_dir = base_dir
         self.coder = coder
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
-        self.generated_sections = {} 
+        self.generated_sections: Dict[str, str] = {} 
 
         # Load prompts
         yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "writer_prompt.yaml")
@@ -40,7 +40,7 @@ class Writer:
 
     def perform_writeup(
         self,
-        idea: Dict,
+        idea: Dict[str, Any],
         folder_name: str,
         num_cite_rounds: int = 20,
         engine: str = "semanticscholar"
@@ -73,13 +73,8 @@ class Writer:
         ]:
             self._write_section(idea, code, baseline_result, experiment_result, section)
 
-        # Handle related work section
         self._write_related_work(idea)
-
-        # Add citations
         self._add_citations(num_cite_rounds, engine)
-
-        # Perform second refinement
         self._refine_paper()
 
         # Generate final PDF
@@ -116,7 +111,6 @@ class Writer:
                        experiment_result: str, 
                        section: str) -> None:
         
-        """Write a main section of the paper."""
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment", "No experiment details provided")
 
@@ -155,8 +149,6 @@ class Writer:
             model=self.model,
             system_message=self.prompts["write_system_prompt"]
         )
-
-        # self._refine_section(section)
 
         self.generated_sections[section] = section_content
 

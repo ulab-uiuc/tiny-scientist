@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import json
-import yaml
+import os
 
-from tiny_scientist.writer import Writer
-from tiny_scientist.llm import create_client, AVAILABLE_LLMS
 from tiny_scientist.coder import Coder  # Ensure Coder is properly implemented
-
-os.environ['OPENAI_API_KEY'] = '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'
+from tiny_scientist.llm import AVAILABLE_LLMS, create_client
+from tiny_scientist.writer import Writer
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Write paper.")
