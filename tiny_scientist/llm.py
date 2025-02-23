@@ -171,6 +171,7 @@ def get_response_from_llm(
             }
         ]
     elif model in [
+        "gpt-4o-mini",
         "gpt-4o-2024-05-13",
         "gpt-4o-mini-2024-07-18",
         "gpt-4o-2024-08-06",

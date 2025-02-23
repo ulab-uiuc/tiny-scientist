@@ -180,7 +180,7 @@ if __name__ == '__main__':
 
     # Create client and scientist
     client, model = create_client(args.model)
-    scientist = Scientist(
+    scientist = TinyScientist(
         model=model,
         client=client,
         base_dir=args.base_dir
