@@ -12,7 +12,6 @@ def parse_args():
     parser.add_argument(
         "--experiment",
         type=str,
-        # required=True,
         default="",
         help="Path to experiment directory containing experiment.py and prompt.json"
     )
@@ -63,6 +62,13 @@ def parse_args():
         type=str,
         help="Path to save ideas JSON (defaults to ideas.json in experiment directory)"
     )
+    parser.add_argument(
+        "--config-dir",
+        type=str,
+        default="../configs",
+        help="Path to directory containing model configurations"
+    )
+
     return parser.parse_args()
 
 
@@ -112,6 +118,7 @@ def main():
             model=model,
             client=client,
             base_dir=args.experiment,
+            config_dir=args.config_dir,
             temperature=args.temperature,
             s2_api_key=os.getenv("S2_API_KEY")
         )
