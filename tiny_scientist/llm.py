@@ -280,7 +280,7 @@ def get_response_from_llm(
     return content, new_msg_history
 
 
-def extract_json_between_markers(llm_output):
+def extract_json_between_markers(llm_output) -> Optional[Dict[str, Any]]:
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
     matches = re.findall(json_pattern, llm_output, re.DOTALL)
@@ -308,7 +308,7 @@ def extract_json_between_markers(llm_output):
     return None  # No valid JSON found
 
 
-def create_client(model):
+def create_client(model) -> Tuple[Any, str]:
     if model.startswith("claude-"):
         print(f"Using Anthropic API with model {model}.")
         return anthropic.Anthropic(), model

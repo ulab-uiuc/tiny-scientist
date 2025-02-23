@@ -81,7 +81,7 @@ class Writer:
         name = idea.get("Title", "Research Paper")
         self.generate_latex(f"{self.base_dir}/{name}.pdf")
 
-    def _write_abstract(self, idea: Dict) -> None:
+    def _write_abstract(self, idea: Dict[str, Any]) -> None:
         """Write the abstract section."""
 
         title = idea.get("Title", "Research Paper")
@@ -211,7 +211,8 @@ class Writer:
                 print("Bibtex string:", bibtex_string)
                 
                 # Update the citations block; here we simply append the new entries
-                citations += "\n" + bibtex_string
+                if bibtex_string is not None:
+                    citations += "\n" + bibtex_string
                 print(f"Citations updated for round {i+1}.")
             else:
                 # TODO: Handle TOO MANY REQUESTS ERROR
@@ -229,7 +230,7 @@ class Writer:
         engine: str
     ) -> Tuple[Optional[str], Optional[str], bool]:
 
-        msg_history = []
+        msg_history: List[Dict[str, Any]] = [] 
         try:
             # Get initial citation suggestion
             text, msg_history = get_response_from_llm(
