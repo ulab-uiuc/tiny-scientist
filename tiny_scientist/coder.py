@@ -30,7 +30,7 @@ class Coder:
         self.max_stderr_output = max_stderr_output
 
         # Load prompts
-        yaml_path = os.path.join(os.path.dirname(__file__), "coder.yaml")
+        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "coder_prompt.yaml")
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
 

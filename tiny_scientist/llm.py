@@ -6,6 +6,7 @@ import anthropic
 import backoff
 import google.generativeai as genai
 import openai
+from typing import Any, Dict, List, Optional, Tuple
 from google.generativeai.types import GenerationConfig
 
 MAX_NUM_TOKENS = 4096
@@ -135,7 +136,7 @@ def get_response_from_llm(
         print_debug=False,
         msg_history=None,
         temperature=0.75,
-):
+) -> Tuple[str, List[Dict[str, Any]]]:
     if msg_history is None:
         msg_history = []
 
@@ -171,6 +172,7 @@ def get_response_from_llm(
             }
         ]
     elif model in [
+        "gpt-4o-mini",
         "gpt-4o-2024-05-13",
         "gpt-4o-mini-2024-07-18",
         "gpt-4o-2024-08-06",
@@ -278,7 +280,7 @@ def get_response_from_llm(
     return content, new_msg_history
 
 
-def extract_json_between_markers(llm_output):
+def extract_json_between_markers(llm_output) -> Optional[Dict[str, Any]]:
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
     matches = re.findall(json_pattern, llm_output, re.DOTALL)
@@ -306,7 +308,7 @@ def extract_json_between_markers(llm_output):
     return None  # No valid JSON found
 
 
-def create_client(model):
+def create_client(model) -> Tuple[Any, str]:
     if model.startswith("claude-"):
         print(f"Using Anthropic API with model {model}.")
         return anthropic.Anthropic(), model

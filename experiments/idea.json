@@ -1,0 +1,8 @@
+{
+    "Name": "adaptive_learning_rates",
+    "Title": "Exploring Adaptive Learning Rate Strategies for Transformer Models",
+    "Experiment": "Modify the optimizer to implement a dynamically adjusting learning rate based on gradient variance.",
+    "Interestingness": 8,
+    "Feasibility": 7,
+    "Novelty": 9
+}

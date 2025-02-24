@@ -1,0 +1,17 @@
+{
+    "experiment_name": "baseline_transformer",
+    "model": "Transformer",
+    "dataset": "Wikitext-103",
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "batch_size": 64,
+    "epochs": 10,
+    "metrics": {
+        "validation_loss": 3.12,
+        "train_loss": 2.85,
+        "perplexity": 22.5,
+        "accuracy": 74.6,
+        "f1_score": 0.71
+    },
+    "notes": "This is the baseline performance of a standard Transformer model using Adam optimizer."
+}
