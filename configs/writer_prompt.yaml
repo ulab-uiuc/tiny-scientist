@@ -1,3 +1,8 @@
+write_system_prompt:
+  You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
+  You have already figured out the research idea and the experiments you want to run.
+  Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
+  
 section_tips:
   Abstract: |
     - TL;DR of the paper
@@ -56,30 +61,47 @@ error_list: |
   - Repeatedly defined figure labels
   - References to papers that are not in the .bib file, DO NOT ADD ANY NEW CITATIONS!
   - Unnecessary verbosity or repetition, unclear text
-  - Results or insights in the `notes.txt` that have not yet need included
+  - Results or insights in the notes.txt that have not yet been included
   - Any relevant figures that have not yet been included in the text
-  - Closing any \begin{figure} with a \end{figure} and \begin{table} with a \end{table}, etc.
-  - Duplicate headers, e.g. duplicated \section{Introduction} or \end{document}
-  - Unescaped symbols, e.g. shakespeare_char should be shakespeare\_char in text
-  - Incorrect closing of environments, e.g. </end{figure}> instead of \end{figure}
+  - Improper closing of environments (e.g., use \end{figure} for \begin{figure})
+  - Duplicate headers (e.g., multiple \section{Introduction})
+  - Unescaped special characters (e.g., use shakespeare\_char instead of shakespeare_char)
+  - Incorrect closing of environments (e.g., </end{figure}> instead of \end{figure})
 
 refinement_prompt: |
-  Great job! Now criticize and refine only the {section} that you just wrote.
-  Make this complete in this pass, do not leave any placeholders.
-
+  Great job! Now, please review and refine only the {section} you just wrote.
+  Your output must consist solely of valid LaTeX code for the {section}—no additional commentary, markdown, or annotations are allowed.
+  Do not include any extra explanatory text, headers, or markdown formatting. Ensure that the output is a complete, self-contained LaTeX section.
+  
   Pay particular attention to fixing any errors such as:
   {error_list}
+  
+  Here is the section to refine:
+  """
+  {section_content}
+  """
 
 second_refinement_prompt: |
-  Criticize and refine the {section} only. Recall the advice:
+  Please review and further refine the {section} to ensure it integrates seamlessly with the full paper.
+  Your output must be valid LaTeX code for the {section} only, with no extraneous annotations, markdown formatting, or commentary.
+  Focus on eliminating redundancies, improving conciseness, and correcting any remaining syntax errors.
+  Do not output any text beyond the LaTeX code needed for the refined section.
+  
+  Recall the following guidance:
   {tips}
-  Make this complete in this pass, do not leave any placeholders.
-
-  Pay attention to how it fits in with the rest of the paper.
-  Identify any redundancies (e.g. repeated figures or repeated text), if there are any, decide where in the paper things should be cut.
-  Identify where we can save space, and be more concise without weakening the message of the text.
-  Fix any remaining errors as before:
+  
+  Also, address the following errors:
   {error_list}
+  
+  --- Full Draft for Context ---
+  """
+  {full_draft}
+  """
+  
+  --- Section to Refine ---
+  """
+  {section_content}
+  """
 
 citation_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
@@ -167,28 +189,186 @@ abstract_prompt: |
   Some tips are provided below:
   {abstract_tips}
 
+  Here is the research idea that the paper is based on:
+
+  **Title**: 
+  {title}
+
+  **Research Problem**: 
+  What are the challenges in the current methods that this research aims to solve?
+
+  **Proposed Experiment**: 
+  {experiment}
+
+  **Key Contributions**:
+  - Clearly state the unique contributions of this research.
+  - Explain why this approach is novel compared to existing methods.
+  - Mention any expected improvements over traditional techniques.
+
+  Use this information to write a concise and well-structured abstract.
+
   Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
 
   Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
-section_prompt: |
-  Please fill in the {section} of the writeup. Some tips are provided below:
-  {section_tips}
+section_prompt:
+  Introduction: |
+    Please fill in the Introduction section of the writeup. Some tips are provided below:
+    {section_tips}
 
-  Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-  Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+    The **core idea** of this work is: **{title}**.
 
-  Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
-  In this pass, do not reference anything in later sections of the paper.
+    The **motivation** behind this idea is: **{experiment}**.
+    - Explain why this problem is important and relevant to the field.
+    - Describe any limitations of existing approaches that this work aims to address.
+    - Provide high-level intuition on why this method is expected to be beneficial.
 
-  Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+    The key **contributions** of this work include:
+    - Clearly outline 2-3 specific contributions of the paper.
+    - Highlight how these contributions advance the field.
 
-  Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+    Conclude the introduction with a **roadmap** of the paper:
+    - Briefly summarize what each section of the paper covers.
+
+    **Guidelines:**
+    - Use `\cite` or `\citet` where relevant, referring only to works already in `references.bib`.
+    - Do **not** introduce new citations that are not already included.
+    - Before each paragraph, add a brief description of what you plan to write as a comment.
+    - Use **SEARCH/REPLACE** blocks to perform these edits.
+
+  Background: |
+    Please fill in the Background section of the writeup. Some tips are provided below:
+    {section_tips}
+
+    The Background section should provide a clear foundation for understanding this work. Ensure that readers unfamiliar with this specific domain can grasp the key theoretical concepts, relevant prior work, and the problem setting.
+
+    - Define key theoretical concepts required to understand the paper.
+    - Discuss prior foundational work that the paper builds on.
+    - If applicable, introduce relevant mathematical formulations and assumptions.
+
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+
+    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+    Keep the Background section concise and structured, ensuring it effectively establishes the foundation for the rest of the paper.
+
+  Method: |
+    Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
+    Some tips are provided below:
+    {section_tips}
+
+    - Describe the approach taken in this paper and why it was chosen.
+    - If applicable, formalize the method mathematically.
+    - Clearly define any novel techniques, modifications, or extensions.
+    - Explain the algorithmic workflow and key implementation details.
+
+    This section must be written based on the **provided code and experimental modifications**.
+    The proposed experiment was: **{experiment}**.
+    The implementation code was:
+
+    ```python
+    {code}
+    ```
+
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+
+    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+
+  Experimental Setup: |
+    Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
+
+    Some tips are provided below:
+    {section_tips}
+
+    - Describe the dataset(s) used for evaluation.
+    - Specify key experimental settings, including hardware/software configurations.
+    - Explain how hyperparameters were selected and tuned.
+    - Detail evaluation metrics and baselines used for comparison.
+
+    The experiments were run using the following method: **{experiment}**.
+    The dataset, optimizer, and model settings are derived from the provided implementation.
+
+    ```python
+    {code}
+    ```
+
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+
+    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+
+  Results: |
+    Please fill in the Results section of the writeup. Some tips are provided below:
+    {section_tips}
+
+    - Present key experimental findings in a structured manner.
+    - Use tables, figures, and confidence intervals to support conclusions.
+    - Compare results against baselines and state-of-the-art methods.
+    - Discuss error analysis, ablation studies, and potential limitations.
+
+    All results must be based on the actual experiment execution logs.
+    The baseline results were:
+    **{baseline_results}**
+
+    The obtained experimental results are:
+    **{experiment_results}**
+
+    Compare the experimental results to the baseline and analyze the differences. Specifically:
+    - Highlight any performance improvements, if applicable.
+    - Identify cases where performance degraded or was inconsistent.
+    - Discuss possible reasons for improvements or degradations.
+    - Provide statistical significance, error margins, or confidence intervals when possible.
+    - If applicable, discuss the stability and convergence trends of the method.
+  
+    Ensure that all results presented have been obtained and are recorded in the logs.
+    Do not hallucinate numerical results or make unverifiable claims.
+
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+
+    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+
+  Conclusion: |
+    Please fill in the Conclusion section of the writeup. Some tips are provided below:
+    {section_tips}
+
+    - Summarize the key contributions and findings of the paper.
+    - Reflect on the broader impact of this work.
+    - Highlight potential future research directions.
+
+    The proposed experiment was **{experiment}**.
+    Summarize its findings based on the results section and highlight its importance.
+
+    Keep the conclusion concise and ensure it aligns with the claims made throughout the paper.
+
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+
+    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
 related_work_prompt: |
   Please fill in the Related Work of the writeup. Some tips are provided below:
 
   {related_work_tips}
+
+  - Discuss prior foundational works that are relevant to this research.
+  - Compare and contrast alternative approaches and their limitations.
+  - Highlight gaps in existing literature that justify the need for this study.
+  - Ensure that prior works align with the **motivation** of this research, but do NOT discuss specific details of the experiment.
+
+  The motivation for this study is: **{experiment}**.
+  This work aims to address the gaps in previous approaches by providing a new perspective.
 
   For this section, very briefly sketch out the structure of the section, and clearly indicate what papers you intend to include.
   Do this all in LaTeX comments using %.
@@ -199,7 +379,11 @@ related_work_prompt: |
 
 title_refinement_prompt: |
   Great job! Now that there is a complete draft of the entire paper, let's refine each section again.
-  First, re-think the Title if necessary. Keep this concise and descriptive of the paper's concept, but try by creative with it.
+  Here is the current paper draft:
+  {full_draft}
+
+  Please provide a single, concise title that clearly reflects the paper's concept.
+  Do not include any additional text, explanation, or formatting – output only the title.
 
 citation_aider_format: |
   The following citations have just been added to the end of the `references.bib` file definition at the top of the file:
