@@ -1,5 +1,6 @@
 import json
 import os
+import os.path as osp
 
 import numpy as np
 import pymupdf
@@ -15,15 +16,18 @@ from .llm import (
 
 
 class Reviewer:
-    def __init__(self, model, client, temperature=0.75):
+    def __init__(self,
+                 model,
+                 client,
+                 config_dir: str,
+                 temperature=0.75):
         """Initialize the PaperReviewer with model configuration and prompt templates."""
         self.model = model
         self.client = client
         self.temperature = temperature
 
         # Load prompt templates
-        current_dir = os.path.dirname(__file__)
-        yaml_path = os.path.join(current_dir, "reviewer.yaml")
+        yaml_path = osp.join(config_dir, "reviewer_prompt.yaml")
         with open(yaml_path, "r") as f:
             prompt_templates = yaml.safe_load(f)
 
