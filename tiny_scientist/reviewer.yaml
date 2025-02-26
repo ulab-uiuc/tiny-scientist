@@ -1,0 +1,8 @@
+reviewer_system_prompt_base: "Base prompt"
+reviewer_system_prompt_neg: "Negative prompt"
+reviewer_system_prompt_pos: "Positive prompt"
+template_instructions: "Instructions"
+neurips_form: "Form with {{ template_instructions }}"
+reviewer_reflection_prompt: "Reflection prompt"
+meta_reviewer_system_prompt: "Meta prompt"
+improvement_prompt: "Improvement prompt"

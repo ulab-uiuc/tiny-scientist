@@ -3,7 +3,7 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
-from ai_scientist.scientist import Scientist
+from tiny_scientist.reviewer import Reviewer
 
 
 @pytest.fixture
@@ -199,6 +199,55 @@ def test_review_evaluates_paper(scientist, mock_client):
     assert review["Decision"] == "Accept"
     mock_client.chat.completions.create.assert_called()
 
+def test_reviewer_independent_functionality(mock_client, mock_model):
+    from tiny_scientist.reviewer import Reviewer
+
+    # Initialize the Reviewer with mock model and client
+    reviewer = Reviewer(model=mock_model, client=mock_client)
+
+    # Mock LLM review response
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message = Mock()
+    mock_response.choices[0].message.content = """
+    THOUGHT: Independent review thought
+
+    REVIEW JSON:
+    ```json
+    {
+        "Summary": "Independent test summary",
+        "Strengths": ["Independent strength 1"],
+        "Weaknesses": ["Independent weakness 1"],
+        "Originality": 4,
+        "Quality": 4,
+        "Clarity": 4,
+        "Significance": 4,
+        "Questions": ["Independent question 1"],
+        "Limitations": ["Independent limitation 1"],
+        "Ethical Concerns": false,
+        "Soundness": 4,
+        "Presentation": 4,
+        "Contribution": 4,
+        "Overall": 8,
+        "Confidence": 5,
+        "Decision": "Strong Accept"
+    }
+    ```
+    """
+    mock_client.chat.completions.create.return_value = mock_response
+
+    # Mock the LLM response function
+    with patch('tiny_scientist.llm.get_response_from_llm', return_value=(mock_response.choices[0].message.content, [])):
+        # Mock the file loading methods
+        with patch.object(Reviewer, 'load_paper', return_value='Mock paper content'):
+            with patch.object(Reviewer, 'load_review', return_value='Mock review content'):
+                # Perform the review
+                review = reviewer.perform_review(text="Independent test paper content", num_reflections=1)
+
+    # Assertions to ensure the review is as expected
+    assert review["Summary"] == "Independent test summary"
+    assert review["Decision"] == "Strong Accept"
+    mock_client.chat.completions.create.assert_called()
 def test_end_to_end_workflow(scientist, mock_client, mock_subprocess):
     # This test demonstrates the complete workflow
     with patch('subprocess.run') as mock_subprocess:
