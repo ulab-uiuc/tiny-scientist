@@ -1,7 +1,8 @@
 import os
 import time
-import requests
 from typing import Dict, List, Optional
+
+import requests
 
 
 class Searcher:
@@ -109,7 +110,7 @@ class Searcher:
             "abstract": abstract,
             "citationCount": work["cited_by_count"],
         }
-        
+
     @staticmethod
     def format_paper_results(papers: Optional[List[Dict]]) -> str:
         if not papers:

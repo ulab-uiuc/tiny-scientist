@@ -1,5 +1,4 @@
 import json
-import os
 import os.path as osp
 from typing import Dict, List, Optional
 
@@ -29,7 +28,7 @@ class Thinker:
         yaml_path = osp.join(config_dir, "thinker_prompt.yaml")
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
-    
+
     def generate_ideas(
         self,
         num_ideas: int = 1,
@@ -38,27 +37,27 @@ class Thinker:
     ) -> List[Dict]:
         if ideas is None:
             raise ValueError("Initial ideas must be provided")
-        
+
         idea_collection = ideas.copy()
         original_size = len(idea_collection)
-        
+
         print(f"Starting with {original_size} ideas, generating {num_ideas} new ideas")
-        
+
         for i in range(num_ideas):
             idea_num = original_size + i + 1
             print(f"\nGenerating idea {idea_num}/{original_size + num_ideas}")
-            
+
             new_idea = self._generate_idea(
                 idea_collection,
                 num_reflections
             )
-            
+
             if new_idea:
                 idea_collection.append(new_idea)
                 print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
             else:
                 print(f"Failed to generate idea {idea_num}")
-        
+
         self.save_ideas(idea_collection)
         return idea_collection
 
@@ -70,7 +69,7 @@ class Thinker:
     ) -> List[Dict]:
         if ideas is None:
             raise ValueError("Ideas must be provided for novelty checking")
-        
+
         for idx, idea in enumerate(ideas):
             if "novel" in idea:
                 print(f"Skipping idea {idx}, already checked.")
@@ -82,12 +81,12 @@ class Thinker:
 
         self.save_ideas(ideas)
         return ideas
-    
+
     def save_ideas(self, ideas: List[Dict]) -> None:
         with open(osp.join(self.base_dir, "ideas.json"), "w") as f:
             json.dump(ideas, f, indent=4)
         print(f"Saved {len(ideas)} ideas to {osp.join(self.base_dir, 'ideas.json')}")
-    
+
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_idea(
         self,
@@ -124,7 +123,7 @@ class Thinker:
         if num_reflections > 1:
             for j in range(num_reflections - 1):
                 print(f"Iteration {j + 2}/{num_reflections}")
-                
+
                 text, msg_history = get_response_from_llm(
                     self.prompts["idea_reflection_prompt"].format(
                         current_round=j + 2,
@@ -157,10 +156,10 @@ class Thinker:
     ) -> bool:
         msg_history = []
         papers_str = ""
-        
+
         for iteration in range(max_iterations):
             print(f"Novelty check iteration {iteration+1}/{max_iterations}")
-            
+
             # Get LLM decision or query
             text, msg_history = get_response_from_llm(
                 self.prompts["novelty_prompt"].format(
@@ -188,18 +187,18 @@ class Thinker:
             if not json_output or "Query" not in json_output:
                 print(f"Failed to get query in iteration {iteration+1}")
                 continue
-                
+
             query = json_output["Query"]
             print(f"Searching for: {query}")
-                
+
             # Perform search
             papers = self.searcher.search_for_papers(query, engine=engine)
             if not papers:
                 print(f"No papers found in iteration {iteration+1}")
                 continue
-                
+
             papers_str = self.searcher.format_paper_results(papers)
             print(f"Found {len(papers)} relevant papers")
-        
+
         print("Maximum iterations reached without decision, defaulting to not novel.")
         return False
