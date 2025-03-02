@@ -61,6 +61,7 @@ idea_first_prompt: |
 
 idea_reflection_prompt: |
   Round {current_round}/{num_reflections}.
+
   In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea you just created.
   Include any other factors that you think are important in evaluating the idea.
   Ensure the idea is clear and concise, and the JSON is the correct format.
