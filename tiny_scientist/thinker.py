@@ -4,13 +4,13 @@ from typing import Dict, List, Optional, Tuple
 
 import yaml
 
-from .llm import extract_json_between_markers, get_response_from_llm, get_batch_responses_from_llm
+from .llm import extract_json_between_markers, get_response_from_llm
 from .searcher import Searcher
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 
 class Thinker:
-    def __init__(self, model: str, client: any, base_dir: str, config_dir: str, 
+    def __init__(self, model: str, client: any, base_dir: str, config_dir: str,
                  temperature: float = 0.75, s2_api_key: Optional[str] = None):
         self.model = model
         self.client = client
@@ -22,7 +22,7 @@ class Thinker:
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
-    def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None, 
+    def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
                        num_reflections: int = 5) -> List[Dict]:
         if not ideas:
             raise ValueError("Initial ideas must be provided")
@@ -33,7 +33,7 @@ class Thinker:
 
         for i in range(num_ideas):
             print(f"\nGenerating idea {original_size + i + 1}/{original_size + num_ideas}")
-            
+
             if new_idea := self._generate_idea(idea_collection, num_reflections):
                 idea_collection.append(new_idea)
                 print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
@@ -66,10 +66,10 @@ class Thinker:
         print(f"Saved {len(ideas)} ideas to {output_path}")
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _reflect_idea(self, idea: Dict, current_round: int, num_reflections: int, 
+    def _reflect_idea(self, idea: Dict, current_round: int, num_reflections: int,
                      msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
         print(f"Iteration {current_round}/{num_reflections}")
-        
+
         text, msg_history = get_response_from_llm(
             self.prompts["idea_reflection_prompt"].format(
                 current_round=current_round,
@@ -79,13 +79,13 @@ class Thinker:
             system_message=self.prompts["idea_system_prompt"],
             msg_history=msg_history, temperature=self.temperature,
         )
-        
+
         new_idea = extract_json_between_markers(text)
         is_done = "I am done" in text
-        
+
         if is_done:
             print(f"Idea refinement converged after {current_round} iterations.")
-        
+
         return new_idea, msg_history, is_done
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -112,13 +112,13 @@ class Thinker:
         if num_reflections > 1:
             for j in range(num_reflections - 1):
                 current_round = j + 2
-                
+
                 if not (new_idea := self._reflect_idea(
                     idea=idea, current_round=current_round,
                     num_reflections=num_reflections, msg_history=msg_history
                 )[0]):
                     break
-                
+
                 idea = new_idea
                 if self._reflect_idea(idea, current_round, num_reflections, msg_history)[2]:
                     break
@@ -160,7 +160,7 @@ class Thinker:
             # Perform search
             query = json_output["Query"]
             print(f"Searching for: {query}")
-            
+
             if not (papers := self.searcher.search_for_papers(query, engine=engine)):
                 print(f"No papers found in iteration {iteration+1}")
                 continue

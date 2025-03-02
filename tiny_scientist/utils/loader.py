@@ -1,9 +1,9 @@
+import json
 from typing import Optional
 
 import pymupdf
 import pymupdf4llm
 from pypdf import PdfReader
-import json
 
 
 def load_paper(pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100) -> str:
