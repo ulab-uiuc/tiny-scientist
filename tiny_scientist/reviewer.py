@@ -1,18 +1,14 @@
 import json
 import os
 import os.path as osp
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import yaml
-from .utils.loader import load_paper, load_review
 
-from .llm import (
-    extract_json_between_markers,
-    get_response_from_llm,
-)
-
+from .llm import extract_json_between_markers, get_response_from_llm
 from .utils.error_handler import api_calling_error_exponential_backoff
+from .utils.loader import load_paper, load_review
 
 
 class Reviewer:
@@ -21,11 +17,11 @@ class Reviewer:
         self.model = model
         self.client = client
         self.temperature = temperature
-        
+
         # Load prompt templates
         with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
-            
+
         # Process template instructions in neurips form
         if "template_instructions" in self.prompts and "neurips_form" in self.prompts:
             self.prompts["neurips_form"] = self.prompts["neurips_form"].replace(
@@ -63,16 +59,16 @@ class Reviewer:
         # Use default system prompt if none provided
         if reviewer_system_prompt is None:
             reviewer_system_prompt = self.prompts.get("reviewer_system_prompt_neg")
-        
+
         # Prepare base prompt with optional few-shot examples
         base_prompt = self._prepare_base_prompt(text, num_fs_examples)
-        
+
         # Generate review
         review, updated_msg_history = self._generate_review(
-            base_prompt, reviewer_system_prompt, 
+            base_prompt, reviewer_system_prompt,
             msg_history, num_reflections
         )
-        
+
         return (review, updated_msg_history) if return_msg_history else review
 
     def write_meta_review(
@@ -82,13 +78,13 @@ class Reviewer:
     ) -> Dict:
         if not reviews:
             raise ValueError("At least one review must be provided")
-            
+
         # Use default meta-reviewer system prompt if none provided
         if reviewer_system_prompt is None:
             reviewer_system_prompt = self.prompts.get("meta_reviewer_system_prompt").format(
                 reviewer_count=len(reviews)
             )
-            
+
         # Format all reviews for the meta-reviewer
         review_text = "".join(
             f"\nReview {i + 1}/{len(reviews)}:\n```\n{json.dumps(r)}\n```\n"
@@ -105,7 +101,7 @@ class Reviewer:
             msg_history=None,
             temperature=self.temperature,
         )
-        
+
         meta_review = extract_json_between_markers(llm_review)
         return self._aggregate_scores(meta_review, reviews)
 
@@ -116,7 +112,7 @@ class Reviewer:
             base_prompt = self.prompts["neurips_form"] + fs_prompt
         else:
             base_prompt = self.prompts["neurips_form"]
-            
+
         return base_prompt + f"\nHere is the paper you are asked to review:\n```\n{text}\n```"
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -182,13 +178,13 @@ class Reviewer:
                 msg_history=None,
                 temperature=self.temperature,
             )
-            
+
             if new_review := extract_json_between_markers(text):
                 review = new_review
-                
+
             if "I am done" in text:
                 break
-                
+
         return review
 
     def _get_review_fewshot_examples(self, num_fs_examples: int = 1) -> str:
@@ -199,7 +195,7 @@ class Reviewer:
 
         # Include requested number of examples
         for paper_path, review_path in zip(
-            self.fewshot_papers[:num_fs_examples], 
+            self.fewshot_papers[:num_fs_examples],
             self.fewshot_reviews[:num_fs_examples]
         ):
             # Try to load pre-extracted text first
@@ -209,7 +205,7 @@ class Reviewer:
                     paper_text = f.read()
             else:
                 paper_text = load_paper(paper_path)
-                
+
             review_text = load_review(review_path)
             fewshot_prompt += f"\nPaper:\n```\n{paper_text}\n```\n\nReview:\n```\n{review_text}\n```\n"
 

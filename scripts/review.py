@@ -117,7 +117,7 @@ def main():
         # Generate multiple reviews and then create a meta-review
         reviews = []
         print(f"Generating {args.num_reviews} individual reviews...")
-        
+
         for i in range(args.num_reviews):
             print(f"Generating review {i+1}/{args.num_reviews}...")
             individual_review = reviewer.write_review(
@@ -128,7 +128,7 @@ def main():
                 return_msg_history=False
             )
             reviews.append(individual_review)
-            
+
         print(f"Creating meta-review from {len(reviews)} reviews...")
         review = reviewer.write_meta_review(reviews, system_prompt)
 
