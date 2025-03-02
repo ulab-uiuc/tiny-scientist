@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import time
 from typing import Any, Dict, List, Optional, Tuple
+from .searcher import Searcher
 
 import backoff
 import pyalex
@@ -30,6 +31,7 @@ class Writer:
         self.base_dir = base_dir
         self.coder = coder
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
+        self.searcher = Searcher(s2_api_key=self.s2_api_key)
         self.generated_sections: Dict[str, str] = {}
 
         # Load prompts
@@ -362,80 +364,12 @@ class Writer:
             f"calling function {details['target'].__name__} at {time.strftime('%X')}"
         )
     )
-    def _search_for_papers(
-        self,
-        query: str,
-        result_limit: int = 10,
-        engine: str = "semanticscholar"
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Search for papers using specified search engine."""
-        if not query:
-            return None
+    def _search_for_papers(self, query: str, result_limit: int = 10, engine: str = "semanticscholar") -> Optional[List[Dict[str, Any]]]:
+        return self.searcher.search_for_papers(query, result_limit, engine)
 
-        if engine == "semanticscholar":
-            return self._search_semanticscholar(query, result_limit)
-        elif engine == "openalex":
-            return self._search_openalex(query, result_limit)
-        else:
-            raise NotImplementedError(f"{engine=} not supported!")
 
-    def _search_semanticscholar(
-        self,
-        query: str,
-        result_limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Search papers using Semantic Scholar API."""
-        rsp = requests.get(
-            "https://api.semanticscholar.org/graph/v1/paper/search",
-            headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
-            params={
-                "query": query,
-                "limit": result_limit,
-                "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
-            },
-        )
-        print(f"Response Status Code: {rsp.status_code}")
-        print(f"Response Content: {rsp.text[:500]}")
-        rsp.raise_for_status()
 
-        results = rsp.json()
-        total = results["total"]
-        time.sleep(1.0)
-
-        return results["data"] if total else None
-
-    def _search_openalex(
-        self,
-        query: str,
-        result_limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Search papers using OpenAlex API."""
-
-        mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
-        if mail:
-            pyalex.config.email = mail
-        else:
-            print("[WARNING] Please set OPENALEX_MAIL_ADDRESS for better access to OpenAlex API!")
-
-        works = Works().search(query).get(per_page=result_limit)
-        if not works:
-            return None
-
-        papers = []
-        for work in works:
-            venue = "Unknown"
-            for location in work["locations"]:
-                if location["source"] is not None:
-                    potential_venue = location["source"]["display_name"]
-                    if potential_venue:
-                        venue = potential_venue
-                        break
-
-            authors_list = [
-                author["author"]["display_name"]
-                for author in work["authorships"]
-            ]
-            authors = (
+                                                                                                authors = (
                 " and ".join(authors_list)
                 if len(authors_list) < 20
                 else f"{authors_list[0]} et al."
