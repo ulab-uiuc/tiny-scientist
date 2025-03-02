@@ -28,6 +28,7 @@ aider-chat = "*"
 pre-commit = "*"
 nbmake = "*"
 types-setuptools = "*"
+pytest = "^8.3.4"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"

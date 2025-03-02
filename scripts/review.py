@@ -4,7 +4,7 @@ import json
 import os
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
-from tiny_scientist.reviewer import Reviewer
+from tiny_scientist.reviewer import (Reviewer, write_review, load_paper, get_review_fewshot_examples)
 
 
 def parse_args():
@@ -77,19 +77,11 @@ def main():
     # Create the client and select the model
     client, model = create_client(args.model)
 
-    # Instantiate our reviewer
-    reviewer = Reviewer(
-        model=model,
-        client=client,
-        temperature=args.temperature,
-        config_dir=args.config_dir
-    )
-
     # Load the paper text from PDF, plaintext file, or use raw text
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
         if ext.lower() == ".pdf":
-            text = reviewer.load_paper(args.paper)
+            text = load_paper(args.paper)
         else:
             # Assume plaintext file
             with open(args.paper, "r", encoding="utf-8") as f:
@@ -98,22 +90,33 @@ def main():
         # If the file doesn't exist, assume the user passed raw text
         text = args.paper
 
+    # Load prompt templates
+    yaml_path = os.path.join(args.config_dir, "reviewer_prompt.yaml")
+    with open(yaml_path, "r") as f:
+        prompt_templates = yaml.safe_load(f)
+
     # Pick which system prompt to use
     if args.reviewer_type == "neg":
-        system_prompt = reviewer.reviewer_system_prompt_neg
+        system_prompt = prompt_templates.get("reviewer_system_prompt_neg")
     elif args.reviewer_type == "pos":
-        system_prompt = reviewer.reviewer_system_prompt_pos
+        system_prompt = prompt_templates.get("reviewer_system_prompt_pos")
     else:
-        system_prompt = reviewer.reviewer_system_prompt_base
+        system_prompt = prompt_templates.get("reviewer_system_prompt_base")
+
+    neurips_form = prompt_templates.get("neurips_form")
 
     # Perform the review
-    review = reviewer.perform_review(
+    review = write_review(
+        model=model,
+        client=client,
         text=text,
+        reviewer_system_prompt=system_prompt,
+        neurips_form=neurips_form,
         num_reflections=args.num_reflections,
         num_fs_examples=args.num_fs_examples,
         num_reviews_ensemble=args.num_ensemble,
-        reviewer_system_prompt=system_prompt,
-        return_msg_history=False
+        return_msg_history=False,
+        temperature=args.temperature
     )
 
     # If return_msg_history=True were used, review might be (review_obj, msg_history). Here we only expect the review.
