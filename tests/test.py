@@ -80,6 +80,166 @@ def test_think_generates_ideas(scientist, mock_client):
     mock_client.chat.completions.create.assert_called()
 
 def test_think_next_builds_on_previous(scientist, mock_client):
+
+
+
+
+def test_generate_idea_with_related_works(scientist, mock_client):
+    # Mock LLM response for idea generation
+    mock_client.chat.completions.create.return_value.choices[0].message.content = """
+    THOUGHT: Test thought
+
+    NEW IDEA JSON:
+    ```json
+    {
+        "Name": "test_idea",
+        "Title": "Test Title",
+        "Experiment": "Test experiment",
+        "Interestingness": 8,
+        "Feasibility": 7,
+        "Novelty": 6
+    }
+    ```
+    """
+
+    # Mock searcher response
+    with patch.object(scientist.searcher, 'search_for_papers', return_value=[{"title": "Related Paper 1"}]) as mock_search:
+        # Test idea generation with related works
+        ideas = scientist.think(
+            task_description="Test task",
+            code="Test code",
+            max_num_generations=1
+        )
+
+        assert len(ideas) == 1
+        assert ideas[0]["Name"] == "test_idea"
+        assert "RelatedWorks" in ideas[0]
+        assert "Related Paper 1" in ideas[0]["RelatedWorks"]
+        mock_search.assert_called()
+    # Mock LLM response for idea generation
+    mock_client.chat.completions.create.return_value.choices[0].message.content = """
+    THOUGHT: Test thought
+
+    NEW IDEA JSON:
+    ```json
+    {
+        "Name": "test_idea",
+        "Title": "Test Title",
+        "Experiment": "Test experiment",
+        "Interestingness": 8,
+        "Feasibility": 7,
+        "Novelty": 6
+    }
+    ```
+    """
+
+    # Mock searcher response
+    with patch.object(scientist.searcher, 'search_for_papers', return_value=[{"title": "Related Paper 1"}]) as mock_search:
+        # Test idea generation with related works
+        ideas = scientist.think(
+            task_description="Test task",
+            code="Test code",
+            max_num_generations=1
+        )
+
+        assert len(ideas) == 1
+        assert ideas[0]["Name"] == "test_idea"
+        assert "RelatedWorks" in ideas[0]
+        assert "Related Paper 1" in ideas[0]["RelatedWorks"]
+        mock_search.assert_called()
+    # Mock LLM response for idea generation
+    mock_client.chat.completions.create.return_value.choices[0].message.content = """
+    THOUGHT: Test thought
+
+    NEW IDEA JSON:
+    ```json
+    {
+        "Name": "test_idea",
+        "Title": "Test Title",
+        "Experiment": "Test experiment",
+        "Interestingness": 8,
+        "Feasibility": 7,
+        "Novelty": 6
+    }
+    ```
+    """
+
+    # Mock searcher response
+    with patch.object(scientist.searcher, 'search_for_papers', return_value=[{"title": "Related Paper 1"}]) as mock_search:
+        # Test idea generation with related works
+        ideas = scientist.think(
+            task_description="Test task",
+            code="Test code",
+            max_num_generations=1
+        )
+
+        assert len(ideas) == 1
+        assert ideas[0]["Name"] == "test_idea"
+        assert "RelatedWorks" in ideas[0]
+        assert "Related Paper 1" in ideas[0]["RelatedWorks"]
+        mock_search.assert_called()
+    # Mock LLM response for idea generation
+    mock_client.chat.completions.create.return_value.choices[0].message.content = """
+    THOUGHT: Test thought
+
+    NEW IDEA JSON:
+    ```json
+    {
+        "Name": "test_idea",
+        "Title": "Test Title",
+        "Experiment": "Test experiment",
+        "Interestingness": 8,
+        "Feasibility": 7,
+        "Novelty": 6
+    }
+    ```
+    """
+
+    # Mock searcher response
+    with patch.object(scientist.searcher, 'search_for_papers', return_value=[{"title": "Related Paper 1"}]) as mock_search:
+        # Test idea generation with related works
+        ideas = scientist.think(
+            task_description="Test task",
+            code="Test code",
+            max_num_generations=1
+        )
+
+        assert len(ideas) == 1
+        assert ideas[0]["Name"] == "test_idea"
+        assert "RelatedWorks" in ideas[0]
+        assert "Related Paper 1" in ideas[0]["RelatedWorks"]
+        mock_search.assert_called()
+    # Mock LLM response for idea generation
+    mock_client.chat.completions.create.return_value.choices[0].message.content = """
+    THOUGHT: Test thought
+
+    NEW IDEA JSON:
+    ```json
+    {
+        "Name": "test_idea",
+        "Title": "Test Title",
+        "Experiment": "Test experiment",
+        "Interestingness": 8,
+        "Feasibility": 7,
+        "Novelty": 6
+    }
+    ```
+    """
+
+    # Mock searcher response
+    with patch.object(scientist.searcher, 'search_for_papers', return_value=[{"title": "Related Paper 1"}]) as mock_search:
+        # Test idea generation with related works
+        ideas = scientist.think(
+            task_description="Test task",
+            code="Test code",
+            max_num_generations=1
+        )
+
+        assert len(ideas) == 1
+        assert ideas[0]["Name"] == "test_idea"
+        assert "RelatedWorks" in ideas[0]
+        assert "Related Paper 1" in ideas[0]["RelatedWorks"]
+        mock_search.assert_called()
     # Mock LLM response
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought

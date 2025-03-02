@@ -28,7 +28,7 @@ idea_first_prompt: |
 
   Come up with the next impactful and creative idea for research experiments and directions you can feasibly investigate with the code provided.
   Note that you will not have access to any additional resources or datasets.
-  Make sure any idea is not overfit the specific training dataset or model, and has wider significance.
+  Ensure the idea is related to existing works by searching for relevant literature. Make sure any idea is not overfit to the specific training dataset or model, and has wider significance.
 
   Respond in the following format:
 

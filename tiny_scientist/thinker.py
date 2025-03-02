@@ -119,6 +119,17 @@ class Thinker:
         if not idea:
             return None
 
+        # Search for related works
+        query = idea.get('Title', '')
+        if query:
+            print(f"Searching for related works for idea: {query}")
+            related_papers = self.searcher.search_for_papers(query)
+            if related_papers:
+                print(f"Found {len(related_papers)} related papers.")
+                idea['RelatedWorks'] = self.searcher.format_paper_results(related_papers)
+            else:
+                print("No related works found.")
+
         # Reflection steps
         if num_reflections > 1:
             for j in range(num_reflections - 1):
