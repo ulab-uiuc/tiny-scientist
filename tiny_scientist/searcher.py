@@ -6,8 +6,105 @@ import requests
 
 
 class Searcher:
-    def __init__(self, s2_api_key: Optional[str] = None):
+    def __init__(
+        self, 
+        s2_api_key: Optional[str] = None, 
+        github_token: Optional[str] = None
+    ):
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
+        self.github_token = github_token or os.getenv("GITHUB_TOKEN")
+
+    def search_github_repositories(
+            self, 
+            query: str, 
+            result_limit: int = 10
+        ) -> Optional[List[Dict]]:
+        return self._search_github(query, result_limit, search_type="repositories")
+
+    def search_github_code(
+            self, 
+            query: str, 
+            result_limit: int = 10
+        ) -> Optional[List[Dict]]:
+        return self._search_github(query, result_limit, search_type="code")
+
+    def _search_github(
+            self, 
+            query: str,
+            result_limit: int,
+            search_type: str
+        ) -> Optional[List[Dict]]:
+        if search_type not in ["repositories", "code"]:
+            raise ValueError("search_type must be either 'repositories' or 'code'.")
+
+        url = f"https://api.github.com/search/{search_type}"
+        headers = {"Authorization": f"token {self.github_token}"} if self.github_token else {}
+
+        params = {
+            "q": query,
+            "sort": "stars" if search_type == "repositories" else "indexed",
+            "order": "desc",
+            "per_page": result_limit,
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        print(f"GitHub {search_type.capitalize()} Response Status Code: {response.status_code}")
+        response.raise_for_status()
+
+        results = response.json()
+        if "items" not in results:
+            return None
+
+        return (
+            self._extract_github_repo_info(results["items"])
+            if search_type == "repositories"
+            else self._extract_github_code_info(results["items"])
+        )
+
+    @staticmethod
+    def _extract_github_repo_info(repos: List[Dict]) -> List[Dict]:
+        return [
+            {
+                "name": repo["name"],
+                "owner": repo["owner"]["login"],
+                "stars": repo["stargazers_count"],
+                "forks": repo["forks_count"],
+                "url": repo["html_url"],
+                "description": repo["description"] or "No description provided.",
+            }
+            for repo in repos
+        ]
+
+    @staticmethod
+    def _extract_github_code_info(code_results: List[Dict]) -> List[Dict]:
+        return [
+            {
+                "file_name": item["name"],
+                "repository": item["repository"]["full_name"],
+                "url": item["html_url"],
+            }
+            for item in code_results
+        ]
+
+    @staticmethod
+    def format_github_results(repos: Optional[List[Dict]]) -> str:
+        if not repos:
+            return "No related GitHub repositories found."
+
+        return "\n\n".join(
+            f"""{i+1}: {repo["name"]} by {repo["owner"]}\n Stars: {repo["stars"]} |  Forks: {repo["forks"]}\n {repo["url"]}\n {repo["description"]}"""
+            for i, repo in enumerate(repos)
+        )
+
+    @staticmethod
+    def format_github_code_results(code_snippets: Optional[List[Dict]]) -> str:
+        if not code_snippets:
+            return "No related GitHub code snippets found."
+
+        return "\n\n".join(
+            f"""{i+1}: {snippet["file_name"]} in {snippet["repository"]}\n File name: {snippet["url"]}"""
+            for i, snippet in enumerate(code_snippets)
+        )
 
     def search_for_papers(
         self,
