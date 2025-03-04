@@ -4090,13 +4090,13 @@ tree-sitter = "*"
 
 [[package]]
 name = "types-setuptools"
-version = "75.8.0.20250225"
+version = "75.8.2.20250301"
 description = "Typing stubs for setuptools"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "types_setuptools-75.8.0.20250225-py3-none-any.whl", hash = "sha256:94c86b439cc60bcc68c1cda3fd2c301f007f8f9502f4fbb54c66cb5ce9b875af"},
-    {file = "types_setuptools-75.8.0.20250225.tar.gz", hash = "sha256:6038f7e983d55792a5f90d8fdbf5d4c186026214a16bb65dd6ae83c624ae9636"},
+    {file = "types_setuptools-75.8.2.20250301-py3-none-any.whl", hash = "sha256:3cc3e751db9e84eddf1e6d4f8c46bef2c77e6c25b0cd096f729ffa57d3d6a83a"},
+    {file = "types_setuptools-75.8.2.20250301.tar.gz", hash = "sha256:c900bceebfffc92a4abc3cfd4b3c39ead1a2298a73dae37e6bc09da7baf797a0"},
 ]
 
 [[package]]
