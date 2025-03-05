@@ -73,7 +73,11 @@ def parse_args():
         type=str,
         help="Path to JSON file containing initial idea(s)"
     )
-
+    parser.add_argument(
+        "--pdf",
+        type=str,
+        help="Path to the PDF paper for idea generation"
+    )
     return parser.parse_args()
 
 
