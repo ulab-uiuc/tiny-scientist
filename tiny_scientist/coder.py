@@ -12,6 +12,8 @@ from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
 from aider.models import Model
 
+from .searcher import CodeSearcher
+
 
 class Coder:
     def __init__(
@@ -21,13 +23,15 @@ class Coder:
         chat_history: Optional[str] = None,
         max_iters: int = 4,
         max_runs: int = 5,
-        max_stderr_output: int = 1500
+        max_stderr_output: int = 1500,
+        github_token: Optional[str] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.base_dir = osp.abspath(base_dir)
         self.max_iters = max_iters
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
+        self.searcher = CodeSearcher(github_token=github_token)
 
         # Load prompts
         yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "coder_prompt.yaml")
