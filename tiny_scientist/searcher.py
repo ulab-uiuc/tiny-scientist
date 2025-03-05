@@ -130,3 +130,9 @@ class Searcher:
                 )
             )
         return "\n\n".join(paper_strings)
+
+    def get_related_works(self, last_idea_title: str, result_limit: int = 5, engine: str = "semanticscholar") -> str:
+        if not last_idea_title:
+            return "No related works found."
+        papers = self.search_for_papers(last_idea_title, result_limit, engine)
+        return self.format_paper_results(papers) if papers else "No related works found."

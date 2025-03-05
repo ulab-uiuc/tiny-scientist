@@ -93,11 +93,23 @@ class Thinker:
         # Format previous ideas
         prev_ideas_string = "\n\n".join(json.dumps(idea) for idea in idea_archive)
 
+        # Search for related papers
+        if idea_archive:
+            # Use the title of the most recent idea as a search query
+            last_idea_title = idea_archive[-1].get("Title", "")
+            if last_idea_title:
+                related_works_string = self.searcher.get_related_works(last_idea_title, result_limit=5)
+            else:
+                related_works_string = "No related works found."
+        else:
+            related_works_string = "No related works found."
+
         # First generation step
         print(f"Iteration 1/{num_reflections}")
         text, msg_history = get_response_from_llm(
             self.prompts["idea_first_prompt"].format(
                 prev_ideas_string=prev_ideas_string,
+                related_works_string=related_works_string,
                 num_reflections=num_reflections,
             ),
             client=self.client, model=self.model,
