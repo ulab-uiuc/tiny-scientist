@@ -5,6 +5,7 @@ import os
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.thinker import Thinker
+from tiny_scientist.utils.loader import load_paper
 
 
 def parse_args():
@@ -112,6 +113,15 @@ def create_default_idea() -> list:
 def main():
     args = parse_args()
 
+    pdf_content = ""
+
+    if args.pdf:
+        try:
+            pdf_content = load_paper(args.pdf)
+            print("Loaded PDF content for idea generation.")
+        except Exception as e:
+            print(f"Error loading PDF: {e}")
+
     try:
         # Create client and model
         client, model = create_client(args.model)
@@ -147,7 +157,8 @@ def main():
         ideas = thinker.generate_ideas(
             num_ideas=args.num_ideas,
             ideas=initial_ideas,
-            num_reflections=args.num_reflections
+            num_reflections=args.num_reflections,
+            pdf_content=pdf_content
         )
 
         print(f"\nGenerated {args.num_ideas} new ideas, total: {len(ideas)}")

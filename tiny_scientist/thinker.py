@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 import yaml
 
 from .llm import extract_json_between_markers, get_response_from_llm
-from .searcher import Searcher
+from .searcher import PaperSearcher
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 
@@ -16,14 +16,14 @@ class Thinker:
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
-        self.searcher = Searcher(s2_api_key=s2_api_key)
+        self.searcher = PaperSearcher(s2_api_key=s2_api_key)
 
         # Load prompt templates
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
     def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
-                       num_reflections: int = 5) -> List[Dict]:
+                       num_reflections: int = 5, pdf_content: str = "") -> List[Dict]:
         if not ideas:
             raise ValueError("Initial ideas must be provided")
 
@@ -34,7 +34,7 @@ class Thinker:
         for i in range(num_ideas):
             print(f"\nGenerating idea {original_size + i + 1}/{original_size + num_ideas}")
 
-            if new_idea := self._generate_idea(idea_collection, num_reflections):
+            if new_idea := self._generate_idea(idea_collection, num_reflections, pdf_content):
                 idea_collection.append(new_idea)
                 print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
             else:
@@ -92,9 +92,14 @@ class Thinker:
         return new_idea, msg_history, is_done
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _generate_idea(self, idea_archive: List[Dict], num_reflections: int) -> Optional[Dict]:
+    def _generate_idea(self, idea_archive: List[Dict], num_reflections: int, pdf_content: str) -> Optional[Dict]:
         # Format previous ideas
         prev_ideas_string = "\n\n".join(json.dumps(idea) for idea in idea_archive)
+
+        pdf_section = ""
+
+        if pdf_content:
+            pdf_section = f"Based on the content of the following paper:\n\n{pdf_content}\n\n"
 
         # Search for related papers
         if idea_archive:
@@ -114,6 +119,7 @@ class Thinker:
                 prev_ideas_string=prev_ideas_string,
                 related_works_string=related_works_string,
                 num_reflections=num_reflections,
+                pdf_section=pdf_section
             ),
             client=self.client, model=self.model,
             system_message=self.prompts["idea_system_prompt"],

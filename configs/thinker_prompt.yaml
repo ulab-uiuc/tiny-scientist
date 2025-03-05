@@ -26,6 +26,8 @@ idea_first_prompt: |
   {prev_ideas_string}
   '''
 
+  {pdf_section}
+
   Additionally, based on recent literature, here are some related works that might inform your next idea:
 
   ```
