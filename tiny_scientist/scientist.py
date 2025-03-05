@@ -17,7 +17,8 @@ class TinyScientist:
         base_dir: str,
         name: str = "AI Scientist",
         config_path: Optional[str] = None,
-        s2_api_key: Optional[str] = None
+        s2_api_key: Optional[str] = None,
+        github_token: Optional[str] = None
     ):
         """Initialize the AI Scientist with all its components."""
         self.name = name
@@ -25,6 +26,7 @@ class TinyScientist:
         self.client = client
         self.base_dir = base_dir
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
+        self.github_token = github_token or os.getenv("GITHUB_TOKEN")
 
         # Load prompts if provided
         if config_path:
@@ -114,7 +116,8 @@ class TinyScientist:
         coder = Coder(
             base_dir=self.base_dir,
             model=self.model,
-            chat_history=chat_history
+            chat_history=chat_history,
+            github_token=self.github_token
         )
 
         return coder.perform_experiments(
