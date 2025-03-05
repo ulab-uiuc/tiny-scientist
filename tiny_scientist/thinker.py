@@ -70,11 +70,14 @@ class Thinker:
                      msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
         print(f"Iteration {current_round}/{num_reflections}")
 
+        related_works_string = self.searcher.get_related_works(idea.get("Title", ""), result_limit=5)
+
         text, msg_history = get_response_from_llm(
             self.prompts["idea_reflection_prompt"].format(
                 current_round=current_round,
-                num_reflections=num_reflections
-            ),
+                num_reflections=num_reflections,
+                related_works_string=related_works_string
+        ),
             client=self.client, model=self.model,
             system_message=self.prompts["idea_system_prompt"],
             msg_history=msg_history, temperature=self.temperature,
@@ -93,11 +96,23 @@ class Thinker:
         # Format previous ideas
         prev_ideas_string = "\n\n".join(json.dumps(idea) for idea in idea_archive)
 
+        # Search for related papers
+        if idea_archive:
+            # Use the title of the most recent idea as a search query
+            last_idea_title = idea_archive[-1].get("Title", "")
+            if last_idea_title:
+                related_works_string = self.searcher.get_related_works(last_idea_title, result_limit=5)
+            else:
+                related_works_string = "No related works found."
+        else:
+            related_works_string = "No related works found."
+
         # First generation step
         print(f"Iteration 1/{num_reflections}")
         text, msg_history = get_response_from_llm(
             self.prompts["idea_first_prompt"].format(
                 prev_ideas_string=prev_ideas_string,
+                related_works_string=related_works_string,
                 num_reflections=num_reflections,
             ),
             client=self.client, model=self.model,
@@ -113,14 +128,19 @@ class Thinker:
             for j in range(num_reflections - 1):
                 current_round = j + 2
 
-                if not (new_idea := self._reflect_idea(
-                    idea=idea, current_round=current_round,
-                    num_reflections=num_reflections, msg_history=msg_history
-                )[0]):
+                new_idea, msg_history, is_done = self._reflect_idea(
+                    idea=idea,
+                    current_round=current_round,
+                    num_reflections=num_reflections,
+                    msg_history=msg_history
+                )
+
+                if not new_idea:
                     break
 
                 idea = new_idea
-                if self._reflect_idea(idea, current_round, num_reflections, msg_history)[2]:
+
+                if is_done:
                     break
 
         return idea

@@ -26,9 +26,15 @@ idea_first_prompt: |
   {prev_ideas_string}
   '''
 
-  Come up with the next impactful and creative idea for research experiments and directions you can feasibly investigate with the code provided.
+  Additionally, based on recent literature, here are some related works that might inform your next idea:
+
+  ```
+  {related_works_string}
+  ```
+
+  Based on the above, come up with the next impactful and creative idea for research experiments and directions you can feasibly investigate with the code provided.
   Note that you will not have access to any additional resources or datasets.
-  Make sure any idea is not overfit the specific training dataset or model, and has wider significance.
+  Make sure any idea is not overfit to the specific training dataset or model, and has wider significance.
 
   Respond in the following format:
 
@@ -63,6 +69,12 @@ idea_reflection_prompt: |
   Round {current_round}/{num_reflections}.
 
   In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea you just created.
+  Refer to the following related works from recent literature that might help inform your reflection:
+
+  ```
+  {related_works_string}
+  ```
+
   Include any other factors that you think are important in evaluating the idea.
   Ensure the idea is clear and concise, and the JSON is the correct format.
   Do not make things overly complicated.
