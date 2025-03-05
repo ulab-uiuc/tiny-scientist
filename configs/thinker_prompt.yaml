@@ -122,7 +122,15 @@ novelty_prompt: |
   If you have made your decision, add "Decision made: novel." or "Decision made: not novel." to your thoughts.
 
   In <JSON>, respond in JSON format with ONLY the following field:
-  - "Query": An optional search query to search the literature (e.g. attention is all you need). You must make a query if you have not decided this round.
+  - "Query": An optional search query to search the literature (e.g., "attention is all you need"). You must generate a query if one has not been decided this round.
+
+  Formatting requirements for the "Query":
+    - The query should be a well-formed string that aligns with search capabilities of both **Semantic Scholar** and **OpenAlex** APIs.
+    - Prefer exact phrases enclosed in quotes for title-specific searches (e.g., `"attention is all you need"`).
+    - Use Boolean operators ("AND", "OR", "NOT") to refine the search when necessary (e.g., `"transformer models" AND "natural language processing"`).
+    - Include key terms, author names, or publication years if available (e.g., `"BERT embeddings" AND "Devlin et al." AND year:2018`).
+    - Avoid unnecessary special characters or overly generic terms.
+    - Use parentheses to group conditions for complex queries (e.g., `"(graph neural networks OR GNN) AND (social network analysis)"`).
 
   A query will work best if you are able to recall the exact name of the paper you are looking for, or the authors.
   This JSON will be automatically parsed, so ensure the format is precise.
