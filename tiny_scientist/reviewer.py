@@ -7,16 +7,27 @@ import numpy as np
 import yaml
 
 from .llm import extract_json_between_markers, get_response_from_llm
+from .searcher import CodeSearcher, PaperSearcher
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.loader import load_paper, load_review
 
 
 class Reviewer:
-    def __init__(self, model: Any, client: Any, config_dir: str, temperature: float = 0.75):
+    def __init__(
+            self,
+            model: Any,
+            client: Any,
+            config_dir: str,
+            temperature: float = 0.75,
+            s2_api_key: Optional[str] = None,
+            github_token: Optional[str] = None
+            ):
         """Initialize the Reviewer with model configuration and prompt templates."""
         self.model = model
         self.client = client
         self.temperature = temperature
+        self.paper_searcher = PaperSearcher(s2_api_key=s2_api_key)
+        self.code_searcher = CodeSearcher(github_token=github_token)
 
         # Load prompt templates
         with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
