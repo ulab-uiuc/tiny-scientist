@@ -34,14 +34,81 @@ class Thinker:
         for i in range(num_ideas):
             print(f"\nGenerating idea {original_size + i + 1}/{original_size + num_ideas}")
 
-            if new_idea := self._generate_idea(idea_collection, num_reflections, pdf_content):
+            new_idea = self._generate_idea(idea_collection, num_reflections, pdf_content)
+            if new_idea:
+                # Generate an experimental plan for the newly generated idea.
+                experiment_plan = self.generate_experiment_plan(new_idea)
+                if experiment_plan:
+                    new_idea["ExperimentPlan"] = experiment_plan
+
+                query = new_idea.get("Title", "")
+                searched_papers = self.searcher.search_for_papers(query=query, result_limit=5)
+                simplified_papers = self.simplify_papers(searched_papers) if searched_papers else []
+                new_idea["SearchedPapers"] = simplified_papers if simplified_papers else []
+
+                # Add the cited papers
+                citation_queries = new_idea.get("CitationQueries", [])
+                aggregated_papers = []
+                for query in citation_queries:
+                    papers = self.searcher.search_for_papers(query=query, result_limit=3)
+                    if papers:
+                        aggregated_papers.extend(self.simplify_papers(papers))
+
+                seen_titles = set()
+                final_papers = []
+                for paper in aggregated_papers:
+                    if paper["title"] not in seen_titles:
+                        final_papers.append(paper)
+                        seen_titles.add(paper["title"])
+                simplified_final_papers = self.simplify_papers(final_papers) if final_papers else []
+                new_idea["CitedPapers"] = simplified_final_papers if simplified_final_papers else []
+
                 idea_collection.append(new_idea)
                 print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
             else:
                 print(f"Failed to generate idea {original_size + i + 1}")
-
         self.save_ideas(idea_collection)
         return idea_collection
+
+    @staticmethod
+    def simplify_papers(papers: List[Dict]) -> List[Dict]:
+        simplified = []
+        for paper in papers:
+            raw_authors = paper.get("authors", [])
+            if isinstance(raw_authors, list):
+                authors_list = [
+                    author["name"] if isinstance(author, dict) and "name" in author else str(author)
+                    for author in raw_authors
+                ]
+            else:
+                authors_list = [str(raw_authors)]
+
+            if len(authors_list) > 2:
+                authors_list = [authors_list[0] + " et al."]
+
+            simplified.append({
+                "year": paper.get("year"),
+                "title": paper.get("title"),
+                "abstract": paper.get("abstract"),
+                "authors": authors_list
+            })
+        return simplified
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def generate_experiment_plan(self, idea: Dict) -> Optional[Dict]:
+        print("Generating experimental plan for the idea...")
+        experiment_text, experiment_msg_history = get_response_from_llm(
+            self.prompts["experiment_plan_prompt"].format(idea=json.dumps(idea, indent=2)),
+            client=self.client, model=self.model,
+            system_message=self.prompts["idea_system_prompt"],
+            msg_history=[], temperature=self.temperature,
+        )
+        experiment_plan = extract_json_between_markers(experiment_text)
+        if experiment_plan:
+            print("Experimental plan generated successfully.")
+        else:
+            print("Failed to generate experimental plan.")
+        return experiment_plan
 
     def check_ideas(self, ideas: List[Dict], max_iterations: int = 10,
                    engine: str = "semanticscholar") -> List[Dict]:
