@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 
 import requests
 
+from tiny_scientist.utils.error_handler import api_calling_error_exponential_backoff
+
 
 class CodeSearcher:
     def __init__(self, github_token: Optional[str] = None):
@@ -83,6 +85,7 @@ class PaperSearcher:
         else:
             raise NotImplementedError(f"{engine=} not supported!")
 
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _search_semanticscholar(self, query: str, result_limit: int) -> Optional[List[Dict]]:
         rsp = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",

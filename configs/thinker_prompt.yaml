@@ -5,7 +5,6 @@ idea_system_prompt: >
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You want to generate creative and impactful research ideas that can be feasibly investigated with the code provided.
   Be critical and realistic in your assessments.
-
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have an idea and you want to check if it is novel or not. I.e., not overlapping significantly with existing literature or already well explored.
@@ -36,11 +35,16 @@ idea_first_prompt: |
 
   Based on the above, come up with the next impactful and creative research idea that addresses the following questions:
   1. What is the problem?
+    - Provide a comprehensive description of the research problem, including background, current challenges, and why the issue persists.
+    - Include citations where relevant. All citations should follow APA style (e.g., [Workowski & Bolan, 2015]).
   2. Why is it interesting and important?
-  3. Why is it hard? (E.g., why do naive approaches fail?)
-  4. Why hasn't it been solved before? (E.g., What's wrong with previous proposed solutions? How does mine differ?)
-  5. What are the key components of my approach and results? Also include any specific limitations.
-  Also, provide an experimental plan outlining how you would implement and evaluate the idea.
+    - Explain in detail why the problem is interesting and important. Support your claims with references from recent literature.
+  3. Why is it hard?
+    - Analyze the inherent challenges of the problem and explain why naive approaches have failed, citing previous studies.
+  4. Why hasn't it been solved before?
+    - Clearly describe how your idea differs from existing solutions. Highlight innovative aspects and include comparative citations.
+  5. What are the key components of my approach and results?
+    - Outline your proposed methodology.
 
   Note that you will not have access to any additional resources or datasets.
   Make sure any idea is not overfit to the specific training dataset or model, and has wider significance.
@@ -65,11 +69,11 @@ idea_first_prompt: |
   - "Difficulty": Answer to question 3.
   - "NoveltyComparison": Answer to question 4.
   - "Approach": Answer to question 5.
-  - "Experiment": An outline of the implementation. E.g. which functions need to be added or modified, how results will be obtained, ...
   - "Interestingness": A rating from 1 to 10 (lowest to highest).
   - "Feasibility": A rating from 1 to 10 (lowest to highest).
   - "Novelty": A rating from 1 to 10 (lowest to highest).
   - "Score": Your assessment of this idea on the standard 1-10 ML conference scale.
+  - "CitationQueries": A list of strings representing the citation queries corresponding to the papers cited in your text (e.g., ["Wu, 2023", "Bhardwaj, 2022", "Moskalenko, 2024"])
 
   Be cautious and realistic on your ratings.
   This JSON will be automatically parsed, so ensure the format is precise.
@@ -82,13 +86,13 @@ idea_first_prompt: |
 idea_reflection_prompt: |
   Round {current_round}/{num_reflections}.
 
-  In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea you just created.
-  In particular, ensure that the idea thoroughly addresses the following questions:
-  1. What is the problem?
-  2. Why is it interesting and important?
-  3. Why is it hard? (E.g., why do naive approaches fail?)
-  4. Why hasn't it been solved before? (E.g., What's wrong with previous proposed solutions? How does mine differ?)
-  5. What are the key components of my approach and results? Also include any specific limitations.
+  In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea you just created, then reevaluate your research idea with a focus on the following aspects:
+    - Problem: Is the research problem described in sufficient detail with proper background and citations?
+    - Importance: Does your explanation convincingly demonstrate the significance of the problem with literature references?
+    - Difficulty: Are the challenges and limitations clearly articulated with supporting citations?
+    - NoveltyComparison: Have you clearly differentiated your idea from existing work, with appropriate references?
+    - Approach: Is your proposed methodology described in detail and well-justified with citations?
+
   Refer to the following related works from recent literature that might help inform your reflection:
 
   ```
@@ -152,3 +156,27 @@ novelty_prompt: |
 
   A query will work best if you are able to recall the exact name of the paper you are looking for, or the authors.
   This JSON will be automatically parsed, so ensure the format is precise.
+
+experiment_plan_prompt: |
+  Given the following research idea:
+
+  ```
+  {idea}
+  ```
+
+  Develop a concise experimental plan focusing on three key components. Your response should heavily rely on literature search; use the approaches from relevant papers as references. Include:
+    - "Model": Provide a paragraph describing the model architecture or algorithm. Explain what other papers have used and why that approach is effective.
+    - "Dataset": Provide a paragraph describing the dataset or data processing approach. Reference how similar datasets have been used in the literature.
+    - "Metric": Provide a paragraph describing the evaluation metrics and methods, citing common practices from relevant research.
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  EXPERIMENT PLAN JSON:
+  ```json
+  <JSON>
+  ```
+    In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
+    In <JSON>, include detailed paragraphs for "Model", "Dataset", and "Metric".
