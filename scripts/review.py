@@ -5,6 +5,7 @@ import os
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
+from tiny_scientist.utils.loader import load_paper
 
 
 def parse_args():
@@ -29,10 +30,10 @@ def parse_args():
         help="Number of few-shot review examples to include in the prompt."
     )
     parser.add_argument(
-        "--num-ensemble",
+        "--num-reviews",
         type=int,
         default=1,
-        help="Number of ensemble reviews to generate and then combine into a meta-review."
+        help="Number of individual reviews to generate. If >1, a meta-review will be created."
     )
     parser.add_argument(
         "--num-reflections",
@@ -89,7 +90,7 @@ def main():
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
         if ext.lower() == ".pdf":
-            text = reviewer.load_paper(args.paper)
+            text = load_paper(args.paper)
         else:
             # Assume plaintext file
             with open(args.paper, "r", encoding="utf-8") as f:
@@ -99,24 +100,38 @@ def main():
         text = args.paper
 
     # Pick which system prompt to use
-    if args.reviewer_type == "neg":
-        system_prompt = reviewer.reviewer_system_prompt_neg
-    elif args.reviewer_type == "pos":
-        system_prompt = reviewer.reviewer_system_prompt_pos
+    prompt_key = f"reviewer_system_prompt_{args.reviewer_type}"
+    system_prompt = reviewer.prompts.get(prompt_key)
+
+    # Generate the requested number of reviews
+    if args.num_reviews == 1:
+        # Just do a single review
+        review = reviewer.write_review(
+            text=text,
+            num_reflections=args.num_reflections,
+            num_fs_examples=args.num_fs_examples,
+            reviewer_system_prompt=system_prompt,
+            return_msg_history=False
+        )
     else:
-        system_prompt = reviewer.reviewer_system_prompt_base
+        # Generate multiple reviews and then create a meta-review
+        reviews = []
+        print(f"Generating {args.num_reviews} individual reviews...")
 
-    # Perform the review
-    review = reviewer.perform_review(
-        text=text,
-        num_reflections=args.num_reflections,
-        num_fs_examples=args.num_fs_examples,
-        num_reviews_ensemble=args.num_ensemble,
-        reviewer_system_prompt=system_prompt,
-        return_msg_history=False
-    )
+        for i in range(args.num_reviews):
+            print(f"Generating review {i+1}/{args.num_reviews}...")
+            individual_review = reviewer.write_review(
+                text=text,
+                num_reflections=args.num_reflections,
+                num_fs_examples=args.num_fs_examples,
+                reviewer_system_prompt=system_prompt,
+                return_msg_history=False
+            )
+            reviews.append(individual_review)
 
-    # If return_msg_history=True were used, review might be (review_obj, msg_history). Here we only expect the review.
+        print(f"Creating meta-review from {len(reviews)} reviews...")
+        review = reviewer.write_meta_review(reviews, system_prompt)
+
     # Print and save
     print("\nFinal Review JSON:")
     print(json.dumps(review, indent=4))
@@ -125,7 +140,7 @@ def main():
         json.dump(review, f, indent=4)
     print(f"\nReview saved to {args.output}")
 
-    # Print a summary of key fields in the review (similar style to "Idea Summary" in think.py)
+    # Print a summary of key fields in the review
     print("\nReview Summary:")
     summary_field = review.get("Summary", "")
     if len(summary_field) > 150:

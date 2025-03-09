@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 import pymupdf
@@ -36,3 +37,7 @@ def load_paper(pdf_path: str, num_pages: Optional[int] = None, min_size: int = 1
             if len(text) < min_size:
                 raise Exception("Text too short")
     return text
+
+def load_review(review_path: str) -> str:
+    with open(review_path, "r") as f:
+        return json.load(f)["review"]

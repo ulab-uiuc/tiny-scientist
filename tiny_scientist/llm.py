@@ -1,12 +1,12 @@
 import json
 import os
 import re
+from typing import Any, Dict, List, Optional, Tuple
 
 import anthropic
 import backoff
 import google.generativeai as genai
 import openai
-from typing import Any, Dict, List, Optional, Tuple
 from google.generativeai.types import GenerationConfig
 
 MAX_NUM_TOKENS = 4096

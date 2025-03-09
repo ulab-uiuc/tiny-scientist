@@ -19,8 +19,10 @@ from reportlab.lib.units import inch
 from reportlab.lib.colors import Color
 
 import backoff
+import pyalex
 import requests
 import yaml
+from pyalex import Works
 
 from .llm import extract_json_between_markers, get_response_from_llm
 
@@ -40,7 +42,7 @@ class Writer:
         self.base_dir = base_dir
         self.coder = coder
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
-        self.generated_sections: Dict[str, str] = {} 
+        self.generated_sections: Dict[str, str] = {}
 
         # Load prompts
         yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "writer_prompt.yaml")
@@ -108,13 +110,13 @@ class Writer:
         # self._refine_section("Abstract")
         self.generated_sections["Abstract"] = abstract_content
 
-    def _write_section(self, 
-                       idea: Dict[str, Any], 
-                       code: str, 
+    def _write_section(self,
+                       idea: Dict[str, Any],
+                       code: str,
                        baseline_result: str,
-                       experiment_result: str, 
+                       experiment_result: str,
                        section: str) -> None:
-        
+
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment", "No experiment details provided")
 
@@ -163,7 +165,7 @@ class Writer:
             related_work_tips=self.prompts["section_tips"]["Related Work"],
             experiment = experiment
         )
-        
+
         relatedwork_content, _ = get_response_from_llm(
             msg = related_work_prompt,
             client=self.client,
@@ -259,7 +261,7 @@ class Writer:
 
     def _add_citations(self, num_cite_rounds: int, engine: str) -> None:
         citations = self.generated_sections.get("Citations", "")
-        
+
         for i in range(num_cite_rounds):
             # Use the current citations block as context for generating new citation suggestions.
             prompt, bibtex_string, done = self._get_citation_prompt(citations, i + 1, num_cite_rounds, engine)
@@ -275,7 +277,7 @@ class Writer:
                     model=self.model,
                     system_message=self.prompts["citation_system_prompt"].format(total_rounds=num_cite_rounds)
                 )
-                
+
                 print("Bibtex string:", bibtex_string)
 
                 if bibtex_string is not None:
@@ -295,7 +297,7 @@ class Writer:
         engine: str
     ) -> Tuple[Optional[str], Optional[str], bool]:
 
-        msg_history: List[Dict[str, Any]] = [] 
+        msg_history: List[Dict[str, Any]] = []
         try:
             # Get initial citation suggestion
             text, msg_history = get_response_from_llm(
@@ -384,9 +386,9 @@ class Writer:
             model=self.model,
             system_message=self.prompts["write_system_prompt"]
         )
-       
+
         self.generated_sections["Title"] = refined_title
-        
+
         for section in [
             "Abstract",
             "Related Work",
@@ -406,7 +408,7 @@ class Writer:
                     section_content=self.generated_sections[section],
                     error_list=self.prompts["error_list"]
                 ).replace(r"{{", "{").replace(r"}}", "}")
-                
+
                 refined_section, _ = get_response_from_llm(
                     msg = second_refinement_prompt,
                     client=self.client,
@@ -543,7 +545,7 @@ class Writer:
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if match:
             return match.group(1)
-        
+
         # If no code block is found, perform minimal cleaning:
         lines = content.splitlines()
         cleaned_lines = []
@@ -630,7 +632,7 @@ class Writer:
     def _assemble_full_draft(self) -> str:
         """
         Assemble the full LaTeX draft from generated sections.
-        Clean each section's content to remove markdown artifacts and ensure the final document 
+        Clean each section's content to remove markdown artifacts and ensure the final document
         has all necessary LaTeX tags.
         """
         section_order = [
@@ -644,7 +646,7 @@ class Writer:
             "Conclusion",
             "Citations"
         ]
-        
+
         # Initial preamble including necessary packages
         preamble = (
             "\\documentclass{article}\n"
@@ -655,14 +657,14 @@ class Writer:
             "\\usepackage{natbib}\n"
             "\\begin{document}\n"
         )
-        
+
         body = ""
         for section in section_order:
             content = self.generated_sections.get(section, "")
             if content:
                 cleaned_content = self.clean_latex_content(content)
                 body += f"\\section{{{section}}}\n\n{cleaned_content}\n\n"
-        
+
         ending = "\\end{document}\n"
         full_draft = preamble + body + ending
         full_draft = self.ensure_required_tags(full_draft)
@@ -860,7 +862,7 @@ class Writer:
                     system_message=self.prompts["citation_system_prompt"].format(total_rounds=1)
                 )
                 print("Citation fix response:", fix_response)
-           
+
                 bib_text = bib_text.replace(cite, "")
                 updated = True
 
@@ -927,7 +929,7 @@ class Writer:
                 Please output the corrected LaTeX document with only the necessary formatting fixes (e.g., removing markdown code fences, correcting misplaced characters) and without changing the core content.
                 Output only the corrected LaTeX document content, with no additional explanations.
                 """
-            
+
             fix_response, _ = get_response_from_llm(
                 msg=prompt,
                 client=self.client,
