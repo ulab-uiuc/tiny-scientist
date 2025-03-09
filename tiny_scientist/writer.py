@@ -3,6 +3,8 @@ import os.path as osp
 import re
 import shutil
 import subprocess
+import tempfile
+import textwrap
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,6 +13,10 @@ import pyalex
 import requests
 import yaml
 from pyalex import Works
+from PyPDF2 import PageObject, PdfReader, PdfWriter
+from reportlab.lib.colors import Color
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 from .llm import extract_json_between_markers, get_response_from_llm
 
@@ -41,12 +47,12 @@ class Writer:
         self,
         idea: Dict[str, Any],
         folder_name: str,
+        template: str,
         num_cite_rounds: int = 20,
         engine: str = "semanticscholar"
     ) -> None:
         """Perform complete paper writeup process."""
 
-        # extract code from experiment.py
         with open(os.path.join(folder_name, "experiment.py"), "r") as f:
             code = f.read()
         # extract experiment result from baseline_results.txt
@@ -57,11 +63,8 @@ class Writer:
             experiment_result = f.read()
 
         self.generated_sections = {}
-
-        # Write initial sections
         self._write_abstract(idea)
 
-        # Write main sections
         for section in [
             "Introduction",
             "Background",
@@ -76,9 +79,8 @@ class Writer:
         self._add_citations(num_cite_rounds, engine)
         self._refine_paper()
 
-        # Generate final PDF
         name = idea.get("Title", "Research Paper")
-        self.generate_latex(f"{self.base_dir}/{name}.pdf")
+        self.generate_latex(f"{self.base_dir}/{name}.pdf", template, name)
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
         """Write the abstract section."""
@@ -100,7 +102,6 @@ class Writer:
         )
 
         # self._refine_section("Abstract")
-
         self.generated_sections["Abstract"] = abstract_content
 
     def _write_section(self,
@@ -152,7 +153,6 @@ class Writer:
         self.generated_sections[section] = section_content
 
     def _write_related_work(self, idea: Dict[str, Any]) -> None:
-        """Write the related work section."""
         experiment = idea.get("Experiment", "No experiment details provided")
 
         related_work_prompt = self.prompts["related_work_prompt"].format(
@@ -186,9 +186,74 @@ class Writer:
 
         self.generated_sections[section] = refined_section
 
+    def update_custom_bib(self, dest_template_dir: str, template: str) -> None:
+        all_keys = set()
+        citation_patterns = [
+            r"\\cite\{([^}]+)\}",
+            r"\\citep\{([^}]+)\}",
+            r"\\citet\{([^}]+)\}"
+        ]
+
+        for content in self.generated_sections.values():
+            for pattern in citation_patterns:
+                matches = re.findall(pattern, content)
+                for m in matches:
+                    keys = [key.strip() for key in m.split(",")]
+                    all_keys.update(keys)
+
+        if template == 'acl':
+            bib_path = osp.join(dest_template_dir, "latex", "custom.bib")
+        if template == 'iclr':
+            # you should create a custom.bib file in the iclr folder
+            bib_path = osp.join(dest_template_dir, "custom.bib")
+
+        if osp.exists(bib_path):
+            with open(bib_path, "r", encoding="utf-8") as f:
+                bib_content = f.read()
+            existing_keys = set(re.findall(r"@.+?\{([^,]+),", bib_content))
+        else:
+            bib_content = ""
+            existing_keys = set()
+
+        # 3. Find missing keys
+        missing_keys = all_keys - existing_keys
+        if not missing_keys:
+            print("All citation keys are already present in custom.bib.")
+            return
+
+        # 4. For each missing key, get the bibtex entry
+        new_entries = []
+        for key in missing_keys:
+            bibtex_entry = self._get_bibtex_for_key(key)
+            if bibtex_entry:
+                new_entries.append(bibtex_entry)
+            else:
+                print(f"Warning: Could not retrieve bibtex for key '{key}'.")
+
+        # 5. Append the new entries to custom.bib
+        if new_entries:
+            updated_bib = bib_content + "\n" + "\n".join(new_entries)
+            with open(bib_path, "w", encoding="utf-8") as f:
+                f.write(updated_bib)
+            print(f"Updated custom.bib with entries for: {', '.join(missing_keys)}")
+        else:
+            print("No new bibtex entries were added.")
+
+    def _get_bibtex_for_key(self, key: str) -> Optional[str]:
+        prompt = f"Provide the bibtex entry for the paper with citation key '{key}'. Output only the bibtex entry."
+        bibtex_entry, _ = get_response_from_llm(
+            msg=prompt,
+            client=self.client,
+            model=self.model,
+            system_message="You are an expert in academic citations. Please provide a valid bibtex entry."
+        )
+        # A simple check: ensure it contains an @ and the key appears in the entry.
+        if "@" in bibtex_entry and key in bibtex_entry:
+            return bibtex_entry.strip()
+        else:
+            return None
+
     def _add_citations(self, num_cite_rounds: int, engine: str) -> None:
-        """Add citations to the paper by updating the citations block in memory."""
-        # Get existing citations (or initialize if not present)
         citations = self.generated_sections.get("Citations", "")
 
         for i in range(num_cite_rounds):
@@ -209,7 +274,6 @@ class Writer:
 
                 print("Bibtex string:", bibtex_string)
 
-                # Update the citations block; here we simply append the new entries
                 if bibtex_string is not None:
                     citations += "\n" + bibtex_string
                 print(f"Citations updated for round {i+1}.")
@@ -217,8 +281,6 @@ class Writer:
                 # TODO: Handle TOO MANY REQUESTS ERROR
                 print("No more citations needed.")
                 break
-
-        # Save the updated citations in the generated sections
         self.generated_sections["Citations"] = citations
 
     def _get_citation_prompt(
@@ -294,8 +356,6 @@ class Writer:
             bibtexs = [papers[i]["citationStyles"]["bibtex"] for i in selected_indices]
             bibtex_string = "\n".join(bibtexs)
 
-            # Instead of returning a prompt that needs further extraction,
-            # directly format the final citation text using the bibtex string.
             final_citation = self.prompts["citation_aider_format"].format(
                 bibtex=bibtex_string,
                 description=desc
@@ -362,6 +422,7 @@ class Writer:
             f"calling function {details['target'].__name__} at {time.strftime('%X')}"
         )
     )
+
     def _search_for_papers(
         self,
         query: str,
@@ -475,7 +536,6 @@ class Writer:
         return "\n\n".join(paper_strings)
 
     def clean_latex_content(self, content: str) -> str:
-
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if match:
             return match.group(1)
@@ -494,13 +554,30 @@ class Writer:
             cleaned_lines.append(line)
         return "\n".join(cleaned_lines)
 
+    def insert_body_into_template(self, template_text: str, body_content: str, new_title: str) -> str:
+        template_text = re.sub(r'(\\title\{)[^}]*\}', r'\1' + new_title + r'}', template_text)
+
+        begin_doc_match = re.search(r'(\\begin{document})', template_text)
+        if not begin_doc_match:
+            raise ValueError("Template is missing \\begin{document}.")
+
+        # Check if there's a \maketitle command after \begin{document}
+        maketitle_match = re.search(r'(\\maketitle)', template_text)
+        ending_match = re.search(r'(\\end{document})', template_text)
+        if not ending_match:
+            raise ValueError("Template is missing \\end{document}.")
+        ending = template_text[ending_match.start():]
+
+        if maketitle_match:
+            insertion_point = maketitle_match.end()
+            return template_text[:insertion_point] + "\n" + body_content + "\n" + ending
+        else:
+            preamble = template_text[:begin_doc_match.end()]
+            return preamble + "\n" + body_content + "\n" + ending
+
     def ensure_required_tags(self, content: str) -> str:
-        """
-        Ensure that the LaTeX content starts with \documentclass and contains
-        \begin{document} and \end{document}. Remove any stray text before \documentclass.
-        """
-        # Remove any leading text before the first occurrence of \documentclass
         match = re.search(r'(\\documentclass)', content)
+
         if match:
             content = content[match.start():]
         else:
@@ -514,15 +591,37 @@ class Writer:
                 "\\usepackage{natbib}\n"
             ) + content
 
-        # Ensure \begin{document} is present
         if "\\begin{document}" not in content:
             # Insert \begin{document} after the preamble
             content = content.replace("\\documentclass{article}", "\\documentclass{article}\n\\begin{document}", 1)
 
-        # Ensure \end{document} is present at the end
         if "\\end{document}" not in content:
             content += "\n\\end{document}\n"
         return content
+
+    def _assemble_body(self) -> str:
+        section_order = [
+            "Abstract",
+            "Introduction",
+            "Background",
+            "Method",
+            "Experimental Setup",
+            "Results",
+            "Related Work",
+            "Conclusion"
+        ]
+        body = ""
+        for section in section_order:
+            content = self.generated_sections.get(section, "")
+            if content:
+                cleaned_content = self.clean_latex_content(content)
+                # body += f"\\section{{{section}}}\n\n{cleaned_content}\n\n"
+                body += f"{cleaned_content}\n\n"
+
+        # this is the temporary solution
+        body += "\n\n\\bibliography{custom}"
+
+        return body
 
     def _assemble_full_draft(self) -> str:
         """
@@ -565,34 +664,164 @@ class Writer:
         full_draft = self.ensure_required_tags(full_draft)
         return full_draft
 
-    def generate_latex(self, output_pdf_path: str, timeout: int = 30, num_error_corrections: int = 5) -> None:
-        """
-        Assemble the final LaTeX draft from generated sections, clean it, ensure required tags,
-        then check citations, figures, fix errors, and compile the document to PDF.
-        """
-        full_draft_content = self._assemble_full_draft()
-        print("Full draft assembled.")
-        # (For debugging, print the assembled content)
-        # print(full_draft_content)
-        # print("#" * 100)
+    def _compile_latex(self, cwd: str, template: str, output_pdf_path: str, timeout: int) -> None:
+        print("GENERATING LATEX")
 
-        cwd = osp.join(self.base_dir, "latex")
-        os.makedirs(cwd, exist_ok=True)
-        template_path = osp.join(cwd, "template.tex")
+        fname = "latex.tex"
+        if template == 'acl':
+            fname = "acl_latex.tex"
+            cwd = osp.join(cwd, "latex")
+        elif template == 'iclr':
+            fname = "iclr2025_conference.tex"
 
-        with open(template_path, "w") as f:
-            f.write(full_draft_content)
-        print(f"Template file updated at: {template_path}")
+        compile_target = fname
+        if not osp.exists(osp.join(cwd, compile_target)):
+            print(f"File {compile_target} not found in {cwd}.")
+            return
 
-        self._check_latex_citations(template_path)
-        self._check_latex_figures(template_path)
-        self._fix_latex_errors(template_path, num_error_corrections)
+        if not compile_target:
+            print("Error: No .tex file found to compile. Aborting.")
+            return
 
-        with open(template_path, "r") as f:
+        commands = [
+            ["pdflatex", "-interaction=nonstopmode", compile_target],
+            ["bibtex", compile_target.replace(".tex","")],
+            ["pdflatex", "-interaction=nonstopmode", compile_target],
+            ["pdflatex", "-interaction=nonstopmode", compile_target],
+        ]
+        for command in commands:
+            try:
+                result = subprocess.run(
+                    command,
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=timeout,
+                )
+                print("Standard Output:\n", result.stdout)
+                print("Standard Error:\n", result.stderr)
+            except subprocess.TimeoutExpired:
+                print(f"Latex timed out after {timeout} seconds")
+            except subprocess.CalledProcessError as e:
+                print(f"Error running command {' '.join(command)}: {e}")
+        print("FINISHED GENERATING LATEX")
+        # The PDF name is the same as compile_target minus .tex, e.g. 'latex.pdf' or 'template.pdf'
+        pdf_name = compile_target.replace(".tex", ".pdf")
+        try:
+            shutil.move(osp.join(cwd, pdf_name), output_pdf_path)
+        except FileNotFoundError:
+            print("Failed to rename PDF.")
+
+    def add_watermark(self, original_pdf_path: str, watermark_text: str, output_pdf_path: str) -> None:
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            watermark_pdf_path = tmp_file.name
+
+        c = canvas.Canvas(watermark_pdf_path, pagesize=letter)
+        c.saveState()
+        c.translate(300, 400)
+        c.rotate(45)
+        c.setFillColor(Color(0.95, 0.95, 0.95))
+        c.setFont("Helvetica-Bold", 28)
+
+        max_chars_per_line = 30
+        lines = textwrap.wrap(watermark_text, width=max_chars_per_line)
+
+        line_height = 35
+        y_offset = 0
+        for line in lines:
+            c.drawCentredString(0, y_offset, line)
+            y_offset -= line_height
+        c.restoreState()
+        c.showPage()
+        c.save()
+
+        # Read the original PDF and the watermark PDF.
+        original_reader = PdfReader(original_pdf_path)
+        watermark_reader = PdfReader(watermark_pdf_path)
+        if len(watermark_reader.pages) == 0:
+            print("Warning: Watermark PDF is empty. No watermark will be applied.")
+            return
+        watermark_page = watermark_reader.pages[0]
+        writer = PdfWriter()
+
+        for orig_page in original_reader.pages:
+            # Create a new blank page with the same dimensions as the original
+            new_page = PageObject.create_blank_page(
+                width=orig_page.mediabox.width,
+                height=orig_page.mediabox.height
+            )
+
+            new_page.merge_page(watermark_page)
+            new_page.merge_page(orig_page)
+
+            writer.add_page(new_page)
+
+        with open(output_pdf_path, "wb") as out_f:
+            writer.write(out_f)
+        print(f"Watermarked PDF saved to: {output_pdf_path}")
+        os.remove(watermark_pdf_path)
+
+    def generate_latex(self,
+                       output_pdf_path: str,
+                       template: str,
+                       name: str,
+                       timeout: int = 30,
+                       num_error_corrections: int = 5,
+                    ) -> None:
+
+        if template is not None:
+            body_content = self._assemble_body()
+
+            script_dir = osp.dirname(__file__)
+            project_root = osp.abspath(osp.join(script_dir, ".."))
+            source_template_dir = osp.join(project_root, "tiny_scientist", f"{template}_latex")
+
+            if osp.isdir(source_template_dir):
+                dest_template_dir = osp.join(self.base_dir, "latex")
+
+                if osp.exists(dest_template_dir):
+                    shutil.rmtree(dest_template_dir)
+                shutil.copytree(source_template_dir, dest_template_dir)
+
+            self.update_custom_bib(dest_template_dir, template)
+
+            main_tex_path = ''
+            if template == 'acl':
+                main_tex_path = osp.join(dest_template_dir, "latex", "acl_latex.tex")
+            elif template == 'iclr':
+                main_tex_path = osp.join(dest_template_dir, "iclr2025_conference.tex")
+
+            with open(main_tex_path, "r", encoding="utf-8") as f:
+                template_text = f.read()
+
+            final_content = self.insert_body_into_template(template_text, body_content, name)
+
+            with open(main_tex_path, "w", encoding="utf-8") as f:
+                f.write(final_content)
+
+        else:
+            full_draft = self._assemble_full_draft()
+            main_tex_path = osp.join(self.base_dir, "latex.tex")
+
+            with open(main_tex_path, "w", encoding="utf-8") as f:
+                f.write(full_draft)
+            print("Generated full LaTeX draft.")
+
+            self._check_latex_citations(main_tex_path)
+            self._check_latex_figures(main_tex_path)
+            self._fix_latex_errors(main_tex_path, num_error_corrections)
+
+        with open(main_tex_path, "r") as f:
             final_content = f.read()
-        print("Final cleaned LaTeX content:\n", final_content)
 
-        self._compile_latex(cwd, output_pdf_path, timeout)
+        self._compile_latex(dest_template_dir, template, output_pdf_path, timeout)
+        self.add_watermark(
+                            output_pdf_path,
+                            watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
+                            output_pdf_path=output_pdf_path
+                        )
 
     def _check_latex_citations(self, template_path: str) -> None:
         """Check all references are valid and in the references.bib file, then fix them using LLM suggestions."""
@@ -647,7 +876,6 @@ class Writer:
         with open(template_path, "r") as f:
             tex_text = f.read()
 
-        # Check figure existence
         referenced_figs = re.findall(r"\\includegraphics.*?{(.*?)}", tex_text)
         all_figs = [f for f in os.listdir(self.base_dir) if f.endswith(".png")]
 
@@ -711,36 +939,3 @@ class Writer:
             else:
                 print(f"Fix response in round {i+1} did not seem valid; no changes applied.")
                 break
-
-    def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        """
-        Compile the LaTeX document from template.tex.
-        """
-        print("GENERATING LATEX")
-        commands = [
-            ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-            ["bibtex", "template"],
-            ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-            ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-        ]
-        for command in commands:
-            try:
-                result = subprocess.run(
-                    command,
-                    cwd=cwd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=timeout,
-                )
-                print("Standard Output:\n", result.stdout)
-                print("Standard Error:\n", result.stderr)
-            except subprocess.TimeoutExpired:
-                print(f"Latex timed out after {timeout} seconds")
-            except subprocess.CalledProcessError as e:
-                print(f"Error running command {' '.join(command)}: {e}")
-        print("FINISHED GENERATING LATEX")
-        try:
-            shutil.move(osp.join(cwd, "template.pdf"), output_pdf_path)
-        except FileNotFoundError:
-            print("Failed to rename PDF.")
