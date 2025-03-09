@@ -3,26 +3,20 @@ import os.path as osp
 import re
 import shutil
 import subprocess
-import time
-import json
-import pyalex
-from pyalex import Works
-from typing import Dict, List, Optional, Tuple, Any
-from PyPDF2 import PdfReader, PdfWriter, PageObject
-
-import textwrap
-
 import tempfile
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
-from reportlab.lib.colors import Color
+import textwrap
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 import backoff
 import pyalex
 import requests
 import yaml
 from pyalex import Works
+from PyPDF2 import PageObject, PdfReader, PdfWriter
+from reportlab.lib.colors import Color
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 from .llm import extract_json_between_markers, get_response_from_llm
 
@@ -428,7 +422,7 @@ class Writer:
             f"calling function {details['target'].__name__} at {time.strftime('%X')}"
         )
     )
-    
+
     def _search_for_papers(
         self,
         query: str,
@@ -559,31 +553,31 @@ class Writer:
                 continue
             cleaned_lines.append(line)
         return "\n".join(cleaned_lines)
-    
+
     def insert_body_into_template(self, template_text: str, body_content: str, new_title: str) -> str:
         template_text = re.sub(r'(\\title\{)[^}]*\}', r'\1' + new_title + r'}', template_text)
-                    
+
         begin_doc_match = re.search(r'(\\begin{document})', template_text)
         if not begin_doc_match:
             raise ValueError("Template is missing \\begin{document}.")
-        
+
         # Check if there's a \maketitle command after \begin{document}
         maketitle_match = re.search(r'(\\maketitle)', template_text)
         ending_match = re.search(r'(\\end{document})', template_text)
         if not ending_match:
             raise ValueError("Template is missing \\end{document}.")
         ending = template_text[ending_match.start():]
-        
+
         if maketitle_match:
             insertion_point = maketitle_match.end()
             return template_text[:insertion_point] + "\n" + body_content + "\n" + ending
         else:
             preamble = template_text[:begin_doc_match.end()]
             return preamble + "\n" + body_content + "\n" + ending
-    
+
     def ensure_required_tags(self, content: str) -> str:
         match = re.search(r'(\\documentclass)', content)
-  
+
         if match:
             content = content[match.start():]
         else:
@@ -604,7 +598,7 @@ class Writer:
         if "\\end{document}" not in content:
             content += "\n\\end{document}\n"
         return content
-  
+
     def _assemble_body(self) -> str:
         section_order = [
             "Abstract",
@@ -628,7 +622,7 @@ class Writer:
         body += "\n\n\\bibliography{custom}"
 
         return body
-    
+
     def _assemble_full_draft(self) -> str:
         """
         Assemble the full LaTeX draft from generated sections.
@@ -669,7 +663,7 @@ class Writer:
         full_draft = preamble + body + ending
         full_draft = self.ensure_required_tags(full_draft)
         return full_draft
-    
+
     def _compile_latex(self, cwd: str, template: str, output_pdf_path: str, timeout: int) -> None:
         print("GENERATING LATEX")
 
@@ -684,11 +678,11 @@ class Writer:
         if not osp.exists(osp.join(cwd, compile_target)):
             print(f"File {compile_target} not found in {cwd}.")
             return
-       
+
         if not compile_target:
             print("Error: No .tex file found to compile. Aborting.")
             return
-        
+
         commands = [
             ["pdflatex", "-interaction=nonstopmode", compile_target],
             ["bibtex", compile_target.replace(".tex","")],
@@ -730,11 +724,11 @@ class Writer:
         c.rotate(45)
         c.setFillColor(Color(0.95, 0.95, 0.95))
         c.setFont("Helvetica-Bold", 28)
-     
-        max_chars_per_line = 30  
+
+        max_chars_per_line = 30
         lines = textwrap.wrap(watermark_text, width=max_chars_per_line)
-        
-        line_height = 35  
+
+        line_height = 35
         y_offset = 0
         for line in lines:
             c.drawCentredString(0, y_offset, line)
@@ -751,7 +745,7 @@ class Writer:
             return
         watermark_page = watermark_reader.pages[0]
         writer = PdfWriter()
-        
+
         for orig_page in original_reader.pages:
             # Create a new blank page with the same dimensions as the original
             new_page = PageObject.create_blank_page(
@@ -768,12 +762,12 @@ class Writer:
             writer.write(out_f)
         print(f"Watermarked PDF saved to: {output_pdf_path}")
         os.remove(watermark_pdf_path)
-        
-    def generate_latex(self, 
-                       output_pdf_path: str, 
-                       template: str, 
+
+    def generate_latex(self,
+                       output_pdf_path: str,
+                       template: str,
                        name: str,
-                       timeout: int = 30, 
+                       timeout: int = 30,
                        num_error_corrections: int = 5,
                     ) -> None:
 
@@ -786,13 +780,13 @@ class Writer:
 
             if osp.isdir(source_template_dir):
                 dest_template_dir = osp.join(self.base_dir, "latex")
-                
+
                 if osp.exists(dest_template_dir):
                     shutil.rmtree(dest_template_dir)
                 shutil.copytree(source_template_dir, dest_template_dir)
 
             self.update_custom_bib(dest_template_dir, template)
-          
+
             main_tex_path = ''
             if template == 'acl':
                 main_tex_path = osp.join(dest_template_dir, "latex", "acl_latex.tex")
@@ -801,12 +795,12 @@ class Writer:
 
             with open(main_tex_path, "r", encoding="utf-8") as f:
                 template_text = f.read()
-            
+
             final_content = self.insert_body_into_template(template_text, body_content, name)
 
             with open(main_tex_path, "w", encoding="utf-8") as f:
                 f.write(final_content)
-            
+
         else:
             full_draft = self._assemble_full_draft()
             main_tex_path = osp.join(self.base_dir, "latex.tex")
@@ -821,9 +815,9 @@ class Writer:
 
         with open(main_tex_path, "r") as f:
             final_content = f.read()
-        
+
         self._compile_latex(dest_template_dir, template, output_pdf_path, timeout)
-        self.add_watermark( 
+        self.add_watermark(
                             output_pdf_path,
                             watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
                             output_pdf_path=output_pdf_path
@@ -945,4 +939,3 @@ class Writer:
             else:
                 print(f"Fix response in round {i+1} did not seem valid; no changes applied.")
                 break
-

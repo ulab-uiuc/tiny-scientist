@@ -1,11 +1,12 @@
 import argparse
 import os
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from datasets import load_dataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from datasets import load_dataset
 
 # Define model and dataset
 MODEL_NAME = "bert-base-uncased"
@@ -16,10 +17,10 @@ def load_data():
     """Loads the dataset and prepares train/test splits."""
     dataset = load_dataset(DATASET_NAME, TASK_NAME)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    
+
     def tokenize_function(examples):
         return tokenizer(examples["sentence"], truncation=True, padding="max_length")
-    
+
     dataset = dataset.map(tokenize_function, batched=True)
     dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "label"])
     return dataset["train"], dataset["validation"]
@@ -29,7 +30,7 @@ class AdaptiveLRModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)
-    
+
     def forward(self, input_ids, attention_mask):
         return self.model(input_ids=input_ids, attention_mask=attention_mask)
 
@@ -43,7 +44,7 @@ def train_and_evaluate(output_dir, initial_lr=5e-5, adapt_lr=True):
     # Define optimizer with adaptive learning rate strategies
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=1) if adapt_lr else None
-    
+
     loss_fn = nn.CrossEntropyLoss()
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_data, batch_size=16)
@@ -59,7 +60,7 @@ def train_and_evaluate(output_dir, initial_lr=5e-5, adapt_lr=True):
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        
+
         # Evaluate on validation set
         model.eval()
         val_loss = 0
