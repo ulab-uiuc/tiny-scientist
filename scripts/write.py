@@ -31,6 +31,11 @@ def parse_args() -> argparse.Namespace:
         help="Number of citation addition rounds"
     )
     parser.add_argument(
+        "--template",
+        type=str,
+        help="Template of the output paper"
+    )
+    parser.add_argument(
         "--engine",
         type=str,
         choices=["semanticscholar", "openalex"],
@@ -72,6 +77,7 @@ def main() -> int:
         writer.perform_writeup(
             idea=idea,
             folder_name=args.experiment,
+            template=args.template,
             num_cite_rounds=args.num_cite_rounds,
             engine=args.engine
         )
