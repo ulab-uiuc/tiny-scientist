@@ -2784,14 +2784,14 @@ tests = ["pytest"]
 
 [[package]]
 name = "pyalex"
-version = "0.16"
+version = "0.18"
 description = "Python interface to the OpenAlex database"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "pyalex-0.16-py3-none-any.whl", hash = "sha256:570602ada7dbf8329e4def5cbf5b0778df4d516fcffbc60c51ca6b223fd1b4c7"},
-    {file = "pyalex-0.16.tar.gz", hash = "sha256:5c795207172f85c6566d2e27317098b98e8b4af73538497f3e3142bc377dcd4b"},
+    {file = "pyalex-0.18-py3-none-any.whl", hash = "sha256:16cb0e0b89f7b20370e8a8a217c372d11f9bc2e539f366709aa3a47d97055d4c"},
+    {file = "pyalex-0.18.tar.gz", hash = "sha256:b71df6e0e104101783a64ecb2b41b24c75059ee4563aa5966499454168bee5e7"},
 ]
 
 [package.dependencies]
