@@ -103,83 +103,6 @@ second_refinement_prompt: |
   {section_content}
   """
 
-citation_system_prompt: |
-  You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
-  You have already written an initial draft of the paper and now you are looking to add missing citations to related papers throughout the paper.
-  The related work section already has some initial comments on which papers to add and discuss.
-
-  Focus on completing the existing write-up and do not add entirely new elements unless necessary.
-  Ensure every point in the paper is substantiated with sufficient evidence.
-  Feel free to add more cites to a particular point if there is only one or two references.
-  Ensure no paper is cited without a corresponding reference in the `references.bib` file.
-  Ensure each paragraph of the related work has sufficient background, e.g. a few papers cited.
-  You will be given access to the Semantic Scholar API, only add citations that you have found using the API.
-  Aim to discuss a broad range of relevant papers, not just the most popular ones.
-  Make sure not to copy verbatim from prior literature to avoid plagiarism.
-
-  You will be prompted to give a precise description of where and how to add the cite, and a search query for the paper to be cited.
-  Finally, you will select the most relevant cite from the search results (top 10 results will be shown).
-  You will have {total_rounds} rounds to add to the references, but do not need to use them all.
-
-  DO NOT ADD A CITATION THAT ALREADY EXISTS!
-
-citation_first_prompt: |
-  Round {current_round}/{total_rounds}:
-
-  You have written this LaTeX draft so far:
-
-  """
-  {draft}
-  """
-
-  Identify the most important citation that you still need to add, and the query to find the paper.
-
-  Respond in the following format:
-
-  THOUGHT:
-  <THOUGHT>
-
-  RESPONSE:
-  ```json
-  <JSON>
-  ```
-
-  In <THOUGHT>, first briefly reason over the paper and identify where citations should be added.
-  If no more citations are needed, add "No more citations needed" to your thoughts.
-  Do not add "No more citations needed" if you are adding citations this round.
-
-  In <JSON>, respond in JSON format with the following fields:
-  - "Description": A precise description of the required edit, along with the proposed text and location where it should be made.
-  - "Query": The search query to find the paper (e.g. attention is all you need).
-
-  Ensure the description is sufficient to make the change without further context. Someone else will make the change.
-  The query will work best if you are able to recall the exact name of the paper you are looking for, or the authors.
-  This JSON will be automatically parsed, so ensure the format is precise.
-
-citation_second_prompt: |
-  Search has recovered the following articles:
-
-  {papers}
-
-  Respond in the following format:
-
-  THOUGHT:
-  <THOUGHT>
-
-  RESPONSE:
-  ```json
-  <JSON>
-  ```
-
-  In <THOUGHT>, first briefly reason over the search results and identify which citation best fits your paper and the location is to be added at.
-  If none are appropriate, add "Do not add any" to your thoughts.
-
-  In <JSON>, respond in JSON format with the following fields:
-  - "Selected": A list of the indices of the selected papers to be cited, e.g. "[0, 1]". Can be "[]" if no papers are selected. This must be a string.
-  - "Description": Update the previous description of the required edit if needed. Ensure that any cites precisely match the name in the bibtex!!!
-
-  Do not select papers that are already in the `references.bib` file at the top of the draft, or if the same citation exists under a different name.
-  This JSON will be automatically parsed, so ensure the format is precise.
 
 abstract_prompt: |
   We've provided the `latex/template.tex` file to the project. We will be filling it in section by section.
@@ -385,18 +308,3 @@ title_refinement_prompt: |
   Please provide a single, concise title that clearly reflects the paper's concept.
   Do not include any additional text, explanation, or formatting – output only the title.
 
-citation_aider_format: |
-  The following citations have just been added to the end of the `references.bib` file definition at the top of the file:
-  """
-  {bibtex}
-  """
-  You do not need to add them yourself.
-  ABSOLUTELY DO NOT ADD IT AGAIN!!!
-
-  Make the proposed change to the draft incorporating these new cites:
-  {description}
-
-  Use your judgment for whether these should be cited anywhere else.
-  Make sure that any citation precisely matches the name in `references.bib`. Change its name to the correct name in the bibtex if needed.
-  Ensure the citation is well-integrated into the text.
-  You must use \cite or \citet to reference papers, do not manually type out author names.

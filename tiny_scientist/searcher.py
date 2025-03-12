@@ -74,7 +74,7 @@ class PaperSearcher:
     def __init__(self, s2_api_key: Optional[str] = None):
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
 
-    def search_for_papers(self, query: str, result_limit: int = 10, engine: str = "semanticscholar") -> Optional[List[Dict]]:
+    def search_for_papers(self, query: str, result_limit: int = 1, engine: str = "semanticscholar") -> Optional[List[Dict]]:
         if not query:
             return None
 
@@ -106,6 +106,31 @@ class PaperSearcher:
 
         time.sleep(1.0)
         return results.get("data")
+    
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _fetch_bibtex(self, paper_id: str) -> Optional[str]:
+        """Fetches BibTeX entry from Semantic Scholar using paper ID."""
+        base_url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
+
+        rsp = requests.get(
+            base_url,
+            headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
+            params={"fields": "citationStyles"},
+        )
+
+        print(f"BibTeX Fetch Response Status: {rsp.status_code}")
+        print(f"BibTeX Fetch Response Content: {rsp.text[:500]}")
+
+        if rsp.status_code != 200:
+            print(f"Failed to fetch BibTeX for paper ID: {paper_id}")
+            return None
+
+        results = rsp.json()
+        if "citationStyles" in results and "bibtex" in results["citationStyles"]:
+            return results["citationStyles"]["bibtex"]
+
+        print(f"No BibTeX found for paper ID: {paper_id}")
+        return None
 
     def _search_openalex(self, query: str, result_limit: int) -> Optional[List[Dict]]:
         import pyalex
@@ -147,6 +172,7 @@ class PaperSearcher:
             return "No papers found."
 
         paper_strings = []
+
         for i, paper in enumerate(papers):
             paper_strings.append(
                 """{i}: {title}. {authors}. {venue}, {year}.\nNumber of citations: {cites}\nAbstract: {abstract}""".format(
@@ -159,7 +185,33 @@ class PaperSearcher:
                     abstract=paper["abstract"],
                 )
             )
+        
         return "\n\n".join(paper_strings)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _fetch_bibtex(self, paper_id: str) -> Optional[str]:
+        """Fetches BibTeX entry from Semantic Scholar using paper ID."""
+        base_url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
+
+        rsp = requests.get(
+            base_url,
+            headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
+            params={"fields": "citationStyles"},
+        )
+
+        print(f"BibTeX Fetch Response Status: {rsp.status_code}")
+        print(f"BibTeX Fetch Response Content: {rsp.text[:500]}")
+
+        if rsp.status_code != 200:
+            print(f"Failed to fetch BibTeX for paper ID: {paper_id}")
+            return None
+
+        results = rsp.json()
+        if "citationStyles" in results and "bibtex" in results["citationStyles"]:
+            return results["citationStyles"]["bibtex"]
+
+        print(f"No BibTeX found for paper ID: {paper_id}")
+        return None
 
     def get_related_works(self, last_idea_title: str, result_limit: int = 5, engine: str = "semanticscholar") -> str:
         if not last_idea_title:

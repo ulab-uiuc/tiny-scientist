@@ -28,6 +28,7 @@ class Writer:
         client: Any,
         base_dir: str,
         coder: Any,
+        citation: Any,
         s2_api_key: Optional[str] = None
     ):
         """Initialize the PaperWriter with model and configuration."""
@@ -35,8 +36,10 @@ class Writer:
         self.client = client
         self.base_dir = base_dir
         self.coder = coder
+        self.citation = citation
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
         self.generated_sections: Dict[str, str] = {}
+        self.dest_dir = ''
 
         # Load prompts
         yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "writer_prompt.yaml")
@@ -51,14 +54,11 @@ class Writer:
         num_cite_rounds: int = 20,
         engine: str = "semanticscholar"
     ) -> None:
-        """Perform complete paper writeup process."""
 
         with open(os.path.join(folder_name, "experiment.py"), "r") as f:
             code = f.read()
-        # extract experiment result from baseline_results.txt
         with open(os.path.join(folder_name, "baseline_results.txt"), "r") as f:
             baseline_result = f.read()
-        # extract experiment result from experiment_results.txt
         with open(os.path.join(folder_name, "experiment_results.txt"), "r") as f:
             experiment_result = f.read()
 
@@ -76,8 +76,10 @@ class Writer:
             self._write_section(idea, code, baseline_result, experiment_result, section)
 
         self._write_related_work(idea)
-        self._add_citations(num_cite_rounds, engine)
         self._refine_paper()
+
+        self._set_template(template)
+        self.generated_sections = self.citation.process_citations(self.generated_sections, template, self.dest_dir)
 
         name = idea.get("Title", "Research Paper")
         self.generate_latex(f"{self.base_dir}/{name}.pdf", template, name)
@@ -186,186 +188,7 @@ class Writer:
 
         self.generated_sections[section] = refined_section
 
-    def update_custom_bib(self, dest_template_dir: str, template: str) -> None:
-        all_keys = set()
-        citation_patterns = [
-            r"\\cite\{([^}]+)\}",
-            r"\\citep\{([^}]+)\}",
-            r"\\citet\{([^}]+)\}"
-        ]
-
-        for content in self.generated_sections.values():
-            for pattern in citation_patterns:
-                matches = re.findall(pattern, content)
-                for m in matches:
-                    keys = [key.strip() for key in m.split(",")]
-                    all_keys.update(keys)
-
-        if template == 'acl':
-            bib_path = osp.join(dest_template_dir, "latex", "custom.bib")
-        if template == 'iclr':
-            # you should create a custom.bib file in the iclr folder
-            bib_path = osp.join(dest_template_dir, "custom.bib")
-
-        if osp.exists(bib_path):
-            with open(bib_path, "r", encoding="utf-8") as f:
-                bib_content = f.read()
-            existing_keys = set(re.findall(r"@.+?\{([^,]+),", bib_content))
-        else:
-            bib_content = ""
-            existing_keys = set()
-
-        # 3. Find missing keys
-        missing_keys = all_keys - existing_keys
-        if not missing_keys:
-            print("All citation keys are already present in custom.bib.")
-            return
-
-        # 4. For each missing key, get the bibtex entry
-        new_entries = []
-        for key in missing_keys:
-            bibtex_entry = self._get_bibtex_for_key(key)
-            if bibtex_entry:
-                new_entries.append(bibtex_entry)
-            else:
-                print(f"Warning: Could not retrieve bibtex for key '{key}'.")
-
-        # 5. Append the new entries to custom.bib
-        if new_entries:
-            updated_bib = bib_content + "\n" + "\n".join(new_entries)
-            with open(bib_path, "w", encoding="utf-8") as f:
-                f.write(updated_bib)
-            print(f"Updated custom.bib with entries for: {', '.join(missing_keys)}")
-        else:
-            print("No new bibtex entries were added.")
-
-    def _get_bibtex_for_key(self, key: str) -> Optional[str]:
-        prompt = f"Provide the bibtex entry for the paper with citation key '{key}'. Output only the bibtex entry."
-        bibtex_entry, _ = get_response_from_llm(
-            msg=prompt,
-            client=self.client,
-            model=self.model,
-            system_message="You are an expert in academic citations. Please provide a valid bibtex entry."
-        )
-        # A simple check: ensure it contains an @ and the key appears in the entry.
-        if "@" in bibtex_entry and key in bibtex_entry:
-            return bibtex_entry.strip()
-        else:
-            return None
-
-    def _add_citations(self, num_cite_rounds: int, engine: str) -> None:
-        citations = self.generated_sections.get("Citations", "")
-
-        for i in range(num_cite_rounds):
-            # Use the current citations block as context for generating new citation suggestions.
-            prompt, bibtex_string, done = self._get_citation_prompt(citations, i + 1, num_cite_rounds, engine)
-            if done:
-                print("No more citations needed.")
-                break
-
-            if prompt is not None:
-                # Use the LLM to generate a citation response
-                citation_response, _ = get_response_from_llm(
-                    msg=prompt,
-                    client=self.client,
-                    model=self.model,
-                    system_message=self.prompts["citation_system_prompt"].format(total_rounds=num_cite_rounds)
-                )
-
-                print("Bibtex string:", bibtex_string)
-
-                if bibtex_string is not None:
-                    citations += "\n" + bibtex_string
-                print(f"Citations updated for round {i+1}.")
-            else:
-                # TODO: Handle TOO MANY REQUESTS ERROR
-                print("No more citations needed.")
-                break
-        self.generated_sections["Citations"] = citations
-
-    def _get_citation_prompt(
-        self,
-        draft: str,
-        current_round: int,
-        total_rounds: int,
-        engine: str
-    ) -> Tuple[Optional[str], Optional[str], bool]:
-
-        msg_history: List[Dict[str, Any]] = []
-        try:
-            # Get initial citation suggestion
-            text, msg_history = get_response_from_llm(
-                self.prompts["citation_first_prompt"].format(
-                    draft=draft,
-                    current_round=current_round,
-                    total_rounds=total_rounds
-                ),
-                client=self.client,
-                model=self.model,
-                system_message=self.prompts["citation_system_prompt"].format(total_rounds=total_rounds),
-                msg_history=msg_history,
-            )
-
-            if "No more citations needed" in text:
-                print("No more citations needed.")
-                return None, None, True
-
-            json_output = extract_json_between_markers(text)
-            if not json_output:
-                return None, None, False
-
-            query = json_output["Query"]
-            papers = self._search_for_papers(query, engine=engine)
-            if not papers:
-                print("No papers found.")
-                return None, None, False
-
-            # Get paper selection
-            papers_str = self._format_paper_results(papers)
-            text, msg_history = get_response_from_llm(
-                self.prompts["citation_second_prompt"].format(
-                    papers=papers_str,
-                    current_round=current_round,
-                    total_rounds=total_rounds,
-                ),
-                client=self.client,
-                model=self.model,
-                system_message=self.prompts["citation_system_prompt"].format(total_rounds=total_rounds),
-                msg_history=msg_history,
-            )
-
-            if "Do not add any" in text:
-                print("Do not add any.")
-                return None, None, False
-
-            json_output = extract_json_between_markers(text)
-            if not json_output:
-                return None, None, False
-
-            desc = json_output["Description"]
-            selected_papers = json_output["Selected"]
-
-            if selected_papers == "[]":
-                return None, None, False
-
-            selected_indices = list(map(int, selected_papers.strip("[]").split(",")))
-            if not all(0 <= i < len(papers) for i in selected_indices):
-                return None, None, False
-
-            # Get bibtex entries for selected papers
-            bibtexs = [papers[i]["citationStyles"]["bibtex"] for i in selected_indices]
-            bibtex_string = "\n".join(bibtexs)
-
-            final_citation = self.prompts["citation_aider_format"].format(
-                bibtex=bibtex_string,
-                description=desc
-            )
-            return final_citation, bibtex_string, False
-
-        except Exception as e:
-            print(f"Error in citation generation: {e}")
-            return None, None, False
-
+        
     def _refine_paper(self) -> None:
         """Perform second refinement of the entire paper."""
         full_draft = "\n\n".join(
@@ -395,6 +218,7 @@ class Writer:
         ]:
             if section in self.generated_sections.keys():
                 print(f"REFINING SECTION: {section}")
+
                 second_refinement_prompt = self.prompts["second_refinement_prompt"].format(
                     section = section,
                     tips=self.prompts["section_tips"][section],
@@ -411,7 +235,6 @@ class Writer:
                 )
 
                 self.generated_sections[section] = refined_section
-        print(self.generated_sections.keys())
         print('FINISHED REFINING SECTIONS')
 
     @backoff.on_exception(
@@ -422,104 +245,6 @@ class Writer:
             f"calling function {details['target'].__name__} at {time.strftime('%X')}"
         )
     )
-
-    def _search_for_papers(
-        self,
-        query: str,
-        result_limit: int = 10,
-        engine: str = "semanticscholar"
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Search for papers using specified search engine."""
-        if not query:
-            return None
-
-        if engine == "semanticscholar":
-            return self._search_semanticscholar(query, result_limit)
-        elif engine == "openalex":
-            return self._search_openalex(query, result_limit)
-        else:
-            raise NotImplementedError(f"{engine=} not supported!")
-
-    def _search_semanticscholar(
-        self,
-        query: str,
-        result_limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Search papers using Semantic Scholar API."""
-        rsp = requests.get(
-            "https://api.semanticscholar.org/graph/v1/paper/search",
-            headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
-            params={
-                "query": query,
-                "limit": result_limit,
-                "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
-            },
-        )
-        print(f"Response Status Code: {rsp.status_code}")
-        print(f"Response Content: {rsp.text[:500]}")
-        rsp.raise_for_status()
-
-        results = rsp.json()
-        total = results["total"]
-        time.sleep(1.0)
-
-        return results["data"] if total else None
-
-    def _search_openalex(
-        self,
-        query: str,
-        result_limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Search papers using OpenAlex API."""
-
-        mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
-        if mail:
-            pyalex.config.email = mail
-        else:
-            print("[WARNING] Please set OPENALEX_MAIL_ADDRESS for better access to OpenAlex API!")
-
-        works = Works().search(query).get(per_page=result_limit)
-        if not works:
-            return None
-
-        papers = []
-        for work in works:
-            venue = "Unknown"
-            for location in work["locations"]:
-                if location["source"] is not None:
-                    potential_venue = location["source"]["display_name"]
-                    if potential_venue:
-                        venue = potential_venue
-                        break
-
-            authors_list = [
-                author["author"]["display_name"]
-                for author in work["authorships"]
-            ]
-            authors = (
-                " and ".join(authors_list)
-                if len(authors_list) < 20
-                else f"{authors_list[0]} et al."
-            )
-
-            abstract = work["abstract"] or ""
-            if len(abstract) > 1000:
-                print(
-                    f"[WARNING] {work['title']}: Abstract length {len(abstract)} is too long! "
-                    f"Using first 1000 chars."
-                )
-                abstract = abstract[:1000]
-
-            papers.append({
-                "title": work["title"],
-                "authors": authors,
-                "venue": venue,
-                "year": work["publication_year"],
-                "abstract": abstract,
-                "citationCount": work["cited_by_count"],
-            })
-
-        return papers
 
     @staticmethod
     def _format_paper_results(papers: Optional[List[Dict[str, Any]]]) -> str:
@@ -534,6 +259,7 @@ class Writer:
                 f"Abstract: {paper['abstract']}"
             )
         return "\n\n".join(paper_strings)
+
 
     def clean_latex_content(self, content: str) -> str:
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
@@ -763,17 +489,8 @@ class Writer:
         print(f"Watermarked PDF saved to: {output_pdf_path}")
         os.remove(watermark_pdf_path)
 
-    def generate_latex(self,
-                       output_pdf_path: str,
-                       template: str,
-                       name: str,
-                       timeout: int = 30,
-                       num_error_corrections: int = 5,
-                    ) -> None:
-
+    def _set_template(self, template: str) -> None:
         if template is not None:
-            body_content = self._assemble_body()
-
             script_dir = osp.dirname(__file__)
             project_root = osp.abspath(osp.join(script_dir, ".."))
             source_template_dir = osp.join(project_root, "tiny_scientist", f"{template}_latex")
@@ -784,18 +501,28 @@ class Writer:
                 if osp.exists(dest_template_dir):
                     shutil.rmtree(dest_template_dir)
                 shutil.copytree(source_template_dir, dest_template_dir)
+        
+            self.dest_dir = dest_template_dir
 
-            self.update_custom_bib(dest_template_dir, template)
+    def generate_latex(self,
+                       output_pdf_path: str,
+                       template: str,
+                       name: str,
+                       timeout: int = 30,
+                       num_error_corrections: int = 5,
+                    ) -> None:
 
-            main_tex_path = ''
+        if template is not None:
+
             if template == 'acl':
-                main_tex_path = osp.join(dest_template_dir, "latex", "acl_latex.tex")
+                main_tex_path = osp.join(self.dest_dir, "latex", "acl_latex.tex")
             elif template == 'iclr':
-                main_tex_path = osp.join(dest_template_dir, "iclr2025_conference.tex")
+                main_tex_path = osp.join(self.dest_dir, "iclr2025_conference.tex")
 
             with open(main_tex_path, "r", encoding="utf-8") as f:
                 template_text = f.read()
 
+            body_content = self._assemble_body()
             final_content = self.insert_body_into_template(template_text, body_content, name)
 
             with open(main_tex_path, "w", encoding="utf-8") as f:
@@ -809,67 +536,19 @@ class Writer:
                 f.write(full_draft)
             print("Generated full LaTeX draft.")
 
-            self._check_latex_citations(main_tex_path)
             self._check_latex_figures(main_tex_path)
             self._fix_latex_errors(main_tex_path, num_error_corrections)
 
         with open(main_tex_path, "r") as f:
             final_content = f.read()
 
-        self._compile_latex(dest_template_dir, template, output_pdf_path, timeout)
+        self._compile_latex(self.dest_dir, template, output_pdf_path, timeout)
         self.add_watermark(
                             output_pdf_path,
                             watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
                             output_pdf_path=output_pdf_path
                         )
 
-    def _check_latex_citations(self, template_path: str) -> None:
-        """Check all references are valid and in the references.bib file, then fix them using LLM suggestions."""
-        with open(template_path, "r") as f:
-            tex_text = f.read()
-
-        cites = re.findall(r"\\cite[a-z]*{([^}]*)}", tex_text)
-        references_bib = re.search(
-            r"\\begin{filecontents}{references.bib}(.*?)\\end{filecontents}",
-            tex_text,
-            re.DOTALL,
-        )
-
-        if not references_bib:
-            print("No references.bib found in template.tex")
-            return
-
-        bib_text = references_bib.group(1)
-        cites = [cite.strip() for item in cites for cite in item.split(",")]
-
-        updated = False
-        for cite in cites:
-            if cite not in bib_text:
-                print(f"Reference {cite} not found in references.")
-                prompt = (f"Reference {cite} not found in references.bib. Is this included under a different name? "
-                        f"If so, please modify the citation in template.tex to match the name in references.bib at the top. Otherwise, remove the cite.")
-                # Use get_response_from_llm to get a fix suggestion
-                fix_response, _ = get_response_from_llm(
-                    msg=prompt,
-                    client=self.client,
-                    model=self.model,
-                    system_message=self.prompts["citation_system_prompt"].format(total_rounds=1)
-                )
-                print("Citation fix response:", fix_response)
-
-                bib_text = bib_text.replace(cite, "")
-                updated = True
-
-        if updated:
-            new_tex_text = re.sub(
-                r"(\\begin{filecontents}{references.bib})(.*?)(\\end{filecontents})",
-                r"\1" + bib_text + r"\3",
-                tex_text,
-                flags=re.DOTALL
-            )
-            with open(template_path, "w") as f:
-                f.write(new_tex_text)
-            print("Citations fixed and template updated.")
 
     def _check_latex_figures(self, template_path: str) -> None:
         """Check all included figures and fix issues using LLM suggestions."""
