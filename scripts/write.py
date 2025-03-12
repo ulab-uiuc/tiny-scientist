@@ -6,11 +6,12 @@ import os
 from tiny_scientist.coder import Coder  # Ensure Coder is properly implemented
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.writer import Writer
+from tiny_scientist.citation import Citation
 
+os.environ['OPENAI_API_KEY'] = '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'
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write paper.")
-
     parser.add_argument(
         "--experiment",
         type=str,
@@ -59,13 +60,15 @@ def main() -> int:
 
         # Ensure Coder instance exists (if required)
         coder = Coder(base_dir=args.experiment, model=model)
-        print("Coder instance created.")
+        citation = Citation(model=model, client=client)
+
         # Initialize Writer
         writer = Writer(
             model=model,
             client=client,
             base_dir=args.experiment,
-            coder=coder
+            coder=coder,
+            citation=citation
         )
 
         # idea should be import from args.experiemnt and idea.json

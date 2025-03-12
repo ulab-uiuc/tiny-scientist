@@ -1,0 +1,59 @@
+citation_system_prompt: |
+  You are a meticulous citation assistant and an ambitious AI PhD student preparing a paper for publication. You already drafted a Latex version and here is your task:
+
+  Review the paper draft and ensure that every citation command (such as \cite, \citep, and \citet) corresponds to a valid BibTeX entry. When you detect a missing citation or an inconsistency, generate the appropriate BibTeX entry in standard format using available sources. Ensure that:
+  - All citations are formatted correctly.
+  - No new citations are introduced unless they are directly referenced in the text.
+  - Your output is concise and strictly adheres to academic citation conventions.
+
+  Now, you need to check the given draft citations and add any missing citations or correct any inconsistencies. After that, you will augment the draft with additional citations.
+
+
+citation_insert_prompt: |
+  You are provided with a section of a LaTeX document that may be missing citation commands. Your task is to insert appropriate citation commands (such as \cite, \citep, or \citet) into the text exactly where they are needed, without modifying any other content. Follow these guidelines:
+  
+  - Do not add any new commentary, explanations, or extra content.
+  - Only insert citation commands where necessary.
+  - Each inserted citation must correspond to an entry already present in the provided bibliography file (custom.bib). If you are unsure which citation to use, leave the text unchanged.
+  - **Do not insert citations for software, programming libraries, tools, datasets, hardware, or operating systems** (e.g., Python, PyTorch, TensorFlow, scikit-learn, Hugging Face, CUDA, NVIDIA GPUs, Ubuntu, Windows, MacOS). Such references should remain uncited.
+  - Preserve the original formatting and content of the text; only make minimal modifications to include the citation commands.
+  
+  Here is the current LaTeX section draft:
+  """
+  {section}
+  """
+
+citation_clean_prompt: |
+  You are a meticulous citation assistant responsible for refining citations in a LaTeX document. 
+  Your task is to clean up the citation commands while ensuring that they are consistent with the bibliography file (custom.bib). 
+  You must check for the following:
+  
+  - Remove any citation commands (\cite, \citep, \citet) that reference entries not present in the bibliography.
+  - If a citation is removed, restructure the sentence appropriately to maintain grammatical correctness and logical flow.
+  - Ensure that all citation commands are properly formatted.
+  - Do not introduce new citations unless they are directly referenced in the provided bibliography file.
+  - Preserve the integrity of the original text and avoid unnecessary modifications.
+  
+  Here is the section of the LaTeX document that needs citation cleaning:
+  """
+  {section}
+  """
+  
+  Here is the list of valid citation keys from the bibliography:
+  {valid_citations}
+
+  Please revise the section accordingly, ensuring that it remains well-structured and maintains proper academic tone.
+
+
+citation_adjust_prompt: |
+  Here is the original LaTeX section content:
+  """
+  {section}
+  """
+
+  You have identified the following citations that confirm with the existence of bibTex:
+  """
+  {missing_citations}
+  """
+
+
