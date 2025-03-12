@@ -27,7 +27,6 @@ class Writer:
         model: str,
         client: Any,
         base_dir: str,
-        coder: Any,
         citation: Any,
         s2_api_key: Optional[str] = None
     ):
@@ -35,7 +34,6 @@ class Writer:
         self.model = model
         self.client = client
         self.base_dir = base_dir
-        self.coder = coder
         self.citation = citation
         self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
         self.generated_sections: Dict[str, str] = {}
@@ -76,9 +74,10 @@ class Writer:
             self._write_section(idea, code, baseline_result, experiment_result, section)
 
         self._write_related_work(idea)
-        self._refine_paper()
 
+        self._refine_paper()
         self._set_template(template)
+        
         self.generated_sections = self.citation.process_citations(self.generated_sections, template, self.dest_dir)
 
         name = idea.get("Title", "Research Paper")

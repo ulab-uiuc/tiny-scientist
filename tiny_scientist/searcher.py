@@ -1,7 +1,7 @@
 import os
 import time
-from typing import Dict, List, Optional
-
+from typing import Dict, List, Optional, Any
+import re
 import requests
 
 from tiny_scientist.utils.error_handler import api_calling_error_exponential_backoff
@@ -69,6 +69,101 @@ class CodeSearcher:
             }
             for item in code_results
         ]
+
+
+class CitationSearch:
+    def __init__(self, 
+                 s2_api_key: Optional[str] = None):
+        self.s2_api_key = s2_api_key
+
+    def _search_semanticscholar(self, query: str, result_limit: int = 1) -> Optional[List[Dict[str, Any]]]:
+        url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        headers = {"X-API-KEY": self.s2_api_key} if self.s2_api_key else {}
+        params = {
+            "query": query,
+            "limit": result_limit,
+            "fields": "paperId,title,authors,venue,year,abstract,citationStyles,citationCount",
+        }
+        try:
+            rsp = requests.get(url, headers=headers, params=params)
+            rsp.raise_for_status()
+            results = rsp.json()
+            total = results.get("total", 0)
+            time.sleep(1.0)  # To respect rate limits
+            if total > 0:
+                return results.get("data")
+            else:
+                return None
+            
+        except Exception as e:
+            print(f"Semantic Scholar search error: {e}")
+            return None
+
+    def _fetch_bibtex(self, paper_id: str) -> Optional[str]:
+        """
+        Fetch the BibTeX entry for a given paper ID from Semantic Scholar.
+        """
+        base_url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
+        headers = {"X-API-KEY": self.s2_api_key} if self.s2_api_key else {}
+        params = {"fields": "citationStyles"}
+        try:
+            rsp = requests.get(base_url, headers=headers, params=params)
+            rsp.raise_for_status()
+            results = rsp.json()
+            if "citationStyles" in results and "bibtex" in results["citationStyles"]:
+                return results["citationStyles"]["bibtex"]
+            else:
+                print(f"No BibTeX found for paper ID: {paper_id}")
+                return None
+        except Exception as e:
+            print(f"Error fetching BibTeX for paper ID {paper_id}: {e}")
+            return None
+
+    def get_bibtex_by_query(self, query: str) -> Optional[str]:
+        results = self._search_semanticscholar(query, result_limit=1)
+        if not results:
+            print("No papers found for query:", query)
+            return None
+
+        top_paper = results[0]
+        paper_id = top_paper.get("paperId")
+        if not paper_id:
+            print("Paper ID not found for the top result.")
+            return None
+
+        bibtex = self._fetch_bibtex(paper_id)
+        return bibtex
+    
+    def extract_citation_ids(self, text: str) -> List[str]:
+        patterns = [
+            r"\\cite\{([^}]+)\}",
+            r"\\citep\{([^}]+)\}",
+            r"\\citet\{([^}]+)\}"
+        ]
+        citation_ids = set()
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+
+            for match in matches:
+                keys = [key.strip() for key in match.split(",")]
+                citation_ids.update(keys)
+        
+        return list(citation_ids)
+    
+    def get_bibtex_for_ids(self, text: str) -> List[str]:
+        citation_ids = self.extract_citation_ids(text)
+        bibtex_entries = []
+
+        for cid in citation_ids:
+            bibtex = self.get_bibtex_by_query(cid)
+            if bibtex:
+                bibtex_entries.append(bibtex)
+            else:
+                print(f"BibTeX entry not found for citation ID: {cid}")
+        
+        return bibtex_entries
+    
 
 class PaperSearcher:
     def __init__(self, s2_api_key: Optional[str] = None):
@@ -213,8 +308,3 @@ class PaperSearcher:
         print(f"No BibTeX found for paper ID: {paper_id}")
         return None
 
-    def get_related_works(self, last_idea_title: str, result_limit: int = 5, engine: str = "semanticscholar") -> str:
-        if not last_idea_title:
-            return "No related works found."
-        papers = self.search_for_papers(last_idea_title, result_limit, engine)
-        return self.format_paper_results(papers) if papers else "No related works found."
