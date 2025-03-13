@@ -17,6 +17,9 @@ template_instructions: |
 
   In <THOUGHT>, first briefly discuss your intuitions and reasoning for the evaluation.
   Detail your high-level arguments, necessary choices and desired outcomes of the review.
+
+  Generate a concise search query that captures the main topics and any identified weaknesses of the paper.
+  This query will be used to retrieve additional literature to further inform your review.
   Do not make generic comments here, but be specific to your current paper.
   Treat this as the note-taking phase of your review.
 
@@ -37,6 +40,7 @@ template_instructions: |
   - "Overall": A rating from 1 to 10 (very strong reject to award quality).
   - "Confidence": A rating from 1 to 5 (low, medium, high, very high, absolute).
   - "Decision": A decision that has to be one of the following: Accept, Reject.
+  - "Query": A query that captures the main topics and any identified weaknesses of the paper.
 neurips_form: |
   ## Review Form
   Below is a description of the questions you will be asked on the review form for each paper and some guidelines on what to consider when answering these questions.
@@ -74,6 +78,15 @@ reviewer_reflection_prompt: |
   Do not make things overly complicated.
   In the next attempt, try and refine and improve your review.
   Stick to the spirit of the original review unless there are glaring issues.
+
+  Additionally, please consider the following related works obtained via a literature search:
+
+  ```
+  {related_works_string}
+  ```
+
+  Use these search results to assess the paper’s novelty, relevance, and significance.
+  Provide specific comments on how the paper aligns with or differs from these related works.
 
   Respond in the same format as before:
   THOUGHT:

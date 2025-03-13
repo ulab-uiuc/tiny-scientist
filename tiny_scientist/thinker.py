@@ -43,7 +43,7 @@ class Thinker:
 
                 query = new_idea.get("Title", "")
                 searched_papers = self.searcher.search_for_papers(query=query, result_limit=5)
-                simplified_papers = self.simplify_papers(searched_papers) if searched_papers else []
+                simplified_papers = self.searcher.simplify_papers(searched_papers) if searched_papers else []
                 new_idea["SearchedPapers"] = simplified_papers if simplified_papers else []
 
                 # Add the cited papers
@@ -52,7 +52,7 @@ class Thinker:
                 for query in citation_queries:
                     papers = self.searcher.search_for_papers(query=query, result_limit=3)
                     if papers:
-                        aggregated_papers.extend(self.simplify_papers(papers))
+                        aggregated_papers.extend(self.searcher.simplify_papers(papers))
 
                 seen_titles = set()
                 final_papers = []
@@ -60,7 +60,7 @@ class Thinker:
                     if paper["title"] not in seen_titles:
                         final_papers.append(paper)
                         seen_titles.add(paper["title"])
-                simplified_final_papers = self.simplify_papers(final_papers) if final_papers else []
+                simplified_final_papers = self.searcher.simplify_papers(final_papers) if final_papers else []
                 new_idea["CitedPapers"] = simplified_final_papers if simplified_final_papers else []
 
                 idea_collection.append(new_idea)
@@ -69,30 +69,6 @@ class Thinker:
                 print(f"Failed to generate idea {original_size + i + 1}")
         self.save_ideas(idea_collection)
         return idea_collection
-
-    @staticmethod
-    def simplify_papers(papers: List[Dict]) -> List[Dict]:
-        simplified = []
-        for paper in papers:
-            raw_authors = paper.get("authors", [])
-            if isinstance(raw_authors, list):
-                authors_list = [
-                    author["name"] if isinstance(author, dict) and "name" in author else str(author)
-                    for author in raw_authors
-                ]
-            else:
-                authors_list = [str(raw_authors)]
-
-            if len(authors_list) > 2:
-                authors_list = [authors_list[0] + " et al."]
-
-            simplified.append({
-                "year": paper.get("year"),
-                "title": paper.get("title"),
-                "abstract": paper.get("abstract"),
-                "authors": authors_list
-            })
-        return simplified
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def generate_experiment_plan(self, idea: Dict) -> Optional[Dict]:
@@ -137,7 +113,7 @@ class Thinker:
                      msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
         print(f"Iteration {current_round}/{num_reflections}")
 
-        related_works_string = self.searcher.get_related_works(idea.get("Title", ""), result_limit=5)
+        related_works_string = self.searcher.search_for_papers(idea.get("Title", ""), result_limit=5)
 
         text, msg_history = get_response_from_llm(
             self.prompts["idea_reflection_prompt"].format(
@@ -173,7 +149,7 @@ class Thinker:
             # Use the title of the most recent idea as a search query
             last_idea_title = idea_archive[-1].get("Title", "")
             if last_idea_title:
-                related_works_string = self.searcher.get_related_works(last_idea_title, result_limit=5)
+                related_works_string = self.searcher.search_for_papers(last_idea_title, result_limit=5)
             else:
                 related_works_string = "No related works found."
         else:
