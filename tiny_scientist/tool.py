@@ -1,11 +1,18 @@
 import os
 import time
+import abc
 from typing import Dict, List, Optional
 
 import requests
 
-from .tool_base import BaseTool
 from .utils.error_handler import api_calling_error_exponential_backoff
+
+
+class BaseTool(abc.ABC):
+
+    @abc.abstractmethod
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        pass
 
 
 class CodeSearchTool(BaseTool):
