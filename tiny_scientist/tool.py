@@ -192,8 +192,8 @@ class PaperSearchTool(BaseTool):
                     authors=paper["authors"],
                     venue=paper["venue"],
                     year=paper["year"],
-                    cites=paper["citationCount"],
                     abstract=paper["abstract"],
+                    cites=paper["citationCount"],
                 )
             )
         return "\n\n".join(paper_strings)
@@ -203,3 +203,27 @@ class PaperSearchTool(BaseTool):
             return "No related works found."
         papers = self.search_for_papers(last_idea_title, result_limit, engine)
         return self.format_paper_results(papers) if papers else "No related works found."
+
+    @staticmethod
+    def simplify_papers(papers: List[Dict]) -> List[Dict]:
+        simplified = []
+        for paper in papers:
+            raw_authors = paper.get("authors", [])
+            if isinstance(raw_authors, list):
+                authors_list = [
+                    author["name"] if isinstance(author, dict) and "name" in author else str(author)
+                    for author in raw_authors
+                ]
+            else:
+                authors_list = [str(raw_authors)]
+
+            if len(authors_list) > 2:
+                authors_list = [authors_list[0] + " et al."]
+
+            simplified.append({
+                "year": paper.get("year"),
+                "title": paper.get("title"),
+                "abstract": paper.get("abstract"),
+                "authors": authors_list
+            })
+        return simplified

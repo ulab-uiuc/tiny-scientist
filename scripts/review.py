@@ -85,7 +85,6 @@ def main():
         temperature=args.temperature,
         config_dir=args.config_dir
     )
-
     # Load the paper text from PDF, plaintext file, or use raw text
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
@@ -103,34 +102,13 @@ def main():
     prompt_key = f"reviewer_system_prompt_{args.reviewer_type}"
     system_prompt = reviewer.prompts.get(prompt_key)
 
-    # Generate the requested number of reviews
-    if args.num_reviews == 1:
-        # Just do a single review
-        review = reviewer.write_review(
-            text=text,
-            num_reflections=args.num_reflections,
-            num_fs_examples=args.num_fs_examples,
-            reviewer_system_prompt=system_prompt,
-            return_msg_history=False
-        )
-    else:
-        # Generate multiple reviews and then create a meta-review
-        reviews = []
-        print(f"Generating {args.num_reviews} individual reviews...")
-
-        for i in range(args.num_reviews):
-            print(f"Generating review {i+1}/{args.num_reviews}...")
-            individual_review = reviewer.write_review(
-                text=text,
-                num_reflections=args.num_reflections,
-                num_fs_examples=args.num_fs_examples,
-                reviewer_system_prompt=system_prompt,
-                return_msg_history=False
-            )
-            reviews.append(individual_review)
-
-        print(f"Creating meta-review from {len(reviews)} reviews...")
-        review = reviewer.write_meta_review(reviews, system_prompt)
+    review = reviewer.write_review(
+        text=text,
+        num_reflections=args.num_reflections,
+        num_fs_examples=args.num_fs_examples,
+        reviewer_system_prompt=system_prompt,
+        return_msg_history=False
+    )
 
     # Print and save
     print("\nFinal Review JSON:")
@@ -139,21 +117,6 @@ def main():
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(review, f, indent=4)
     print(f"\nReview saved to {args.output}")
-
-    # Print a summary of key fields in the review
-    print("\nReview Summary:")
-    summary_field = review.get("Summary", "")
-    if len(summary_field) > 150:
-        short_summary = summary_field[:150] + "..."
-    else:
-        short_summary = summary_field
-    print(f"Paper Summary: {short_summary if short_summary else 'No summary provided.'}")
-
-    overall_score = review.get("Overall", "N/A")
-    print(f"Overall Score: {overall_score}")
-
-    decision = review.get("Decision", "No decision")
-    print(f"Decision: {decision}\n")
 
 
 if __name__ == "__main__":
