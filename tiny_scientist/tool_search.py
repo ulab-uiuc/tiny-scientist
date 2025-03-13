@@ -4,13 +4,28 @@ from typing import Dict, List, Optional
 
 import requests
 
-from tiny_scientist.utils.error_handler import api_calling_error_exponential_backoff
+from .utils.error_handler import api_calling_error_exponential_backoff
+from .tool_base import BaseTool
 
 
-class CodeSearcher:
+class CodeSearchTool(BaseTool):
     def __init__(self, github_token: Optional[str] = None):
-        self.github_token = github_token or os.getenv("GITHUB_TOKEN")
-
+        self.github_token = github_token
+    
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        results = {}
+        repos = self.search_github_repositories(query)
+        
+        if repos:
+            for i, repo in enumerate(repos):
+                results[str(i)] = {
+                    "title": repo["name"],
+                    "source": repo["url"],
+                    "info": f"Stars: {repo['stars']}"
+                }
+        
+        return results
+    
     def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
         return self._search_github(query, result_limit, search_type="repositories")
 
@@ -70,9 +85,24 @@ class CodeSearcher:
             for item in code_results
         ]
 
-class PaperSearcher:
-    def __init__(self, s2_api_key: Optional[str] = None):
-        self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
+
+class PaperSearchTool(BaseTool):
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key
+    
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        results = {}
+        papers = self.search_for_papers(query)
+        
+        if papers:
+            for i, paper in enumerate(papers):
+                results[str(i)] = {
+                    "title": paper["title"],
+                    "source": f"Published in {paper['venue']}",
+                    "info": f"Authors: {paper['authors']}"
+                }
+        
+        return results
 
     def search_for_papers(self, query: str, result_limit: int = 10, engine: str = "semanticscholar") -> Optional[List[Dict]]:
         if not query:

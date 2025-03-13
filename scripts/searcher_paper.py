@@ -2,7 +2,7 @@
 import argparse
 import json
 
-from tiny_scientist.searcher import PaperSearcher
+from tiny_scientist.tool_search import PaperSearchTool
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,8 +38,8 @@ def main() -> int:
     args: argparse.Namespace = parse_args()
 
     try:
-        # Initialize PaperSearcher instance
-        searcher = PaperSearcher()
+        # Initialize PaperSearchTool instance
+        searcher = PaperSearchTool()
         print(f"Searching for papers using {args.engine} engine...")
 
         papers = searcher.search_for_papers(

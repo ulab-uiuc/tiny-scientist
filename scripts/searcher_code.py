@@ -2,7 +2,7 @@
 import argparse
 import json
 
-from tiny_scientist.searcher import CodeSearcher
+from tiny_scientist.tool_search import CodeSearchTool
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,8 +38,8 @@ def main() -> int:
     args: argparse.Namespace = parse_args()
 
     try:
-        # Initialize CodeSearcher instance
-        searcher = CodeSearcher()
+        # Initialize CodeSearchTool instance
+        searcher = CodeSearchTool()
         print(f"Searching for {args.search_type} on GitHub...")
 
         if args.search_type == "repositories":

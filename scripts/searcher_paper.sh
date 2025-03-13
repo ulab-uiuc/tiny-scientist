@@ -6,5 +6,5 @@ RESULT_LIMIT=10
 ENGINE="semanticscholar"
 OUTPUT="papers.json"
 
-# Run the PaperSearcher script
+# Run the PaperSearchTool script
 python3 scripts/searcher_paper.py --query "$QUERY" --result-limit $RESULT_LIMIT --engine "$ENGINE" --output "$OUTPUT"
