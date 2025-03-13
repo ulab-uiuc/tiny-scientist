@@ -43,11 +43,11 @@ def main() -> int:
         print(f"Searching for {args.search_type} on GitHub...")
 
         if args.search_type == "repositories":
-            repos = searcher.search_github_repositories(query=args.query, result_limit=args.result_limit)
-            results = searcher._extract_github_repo_info(repos)
+            results = searcher.search_github_repositories(query=args.query, result_limit=args.result_limit)
+
         else:
-            code = searcher.search_github_code(query=args.query, result_limit=args.result_limit)
-            results = searcher._extract_github_code_info(code)
+            results = searcher.search_github_code(query=args.query, result_limit=args.result_limit)
+
 
         if not results:
             print("No results found.")

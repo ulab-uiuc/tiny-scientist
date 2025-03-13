@@ -28,7 +28,6 @@ class CodeSearcher:
             "order": "desc",
             "per_page": result_limit,
         }
-
         response = requests.get(url, headers=headers, params=params)
         print(f"GitHub {search_type.capitalize()} Response Status Code: {response.status_code}")
         response.raise_for_status()
