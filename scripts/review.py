@@ -102,13 +102,34 @@ def main():
     prompt_key = f"reviewer_system_prompt_{args.reviewer_type}"
     system_prompt = reviewer.prompts.get(prompt_key)
 
-    review = reviewer.write_review(
-        text=text,
-        num_reflections=args.num_reflections,
-        num_fs_examples=args.num_fs_examples,
-        reviewer_system_prompt=system_prompt,
-        return_msg_history=False
-    )
+    # Generate the requested number of reviews
+    if args.num_reviews == 1:
+        # Just do a single review
+        review = reviewer.write_review(
+            text=text,
+            num_reflections=args.num_reflections,
+            num_fs_examples=args.num_fs_examples,
+            reviewer_system_prompt=system_prompt,
+            return_msg_history=False
+        )
+    else:
+        # Generate multiple reviews and then create a meta-review
+        reviews = []
+        print(f"Generating {args.num_reviews} individual reviews...")
+
+        for i in range(args.num_reviews):
+            print(f"Generating review {i+1}/{args.num_reviews}...")
+            individual_review = reviewer.write_review(
+                text=text,
+                num_reflections=args.num_reflections,
+                num_fs_examples=args.num_fs_examples,
+                reviewer_system_prompt=system_prompt,
+                return_msg_history=False
+            )
+            reviews.append(individual_review)
+
+        print(f"Creating meta-review from {len(reviews)} reviews...")
+        review = reviewer.write_meta_review(reviews, system_prompt)
 
     # Print and save
     print("\nFinal Review JSON:")
