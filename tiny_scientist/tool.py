@@ -1,11 +1,15 @@
+import abc
 import os
 import time
-import abc
 from typing import Dict, List, Optional
 
 import requests
+import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
+
+# Load configuration from TOML
+config = toml.load("config.toml")
 
 
 class BaseTool(abc.ABC):
@@ -16,8 +20,8 @@ class BaseTool(abc.ABC):
 
 
 class CodeSearchTool(BaseTool):
-    def __init__(self, github_token: Optional[str] = None):
-        self.github_token = github_token
+    def __init__(self):
+        self.github_token = config["auth"].get("github_token", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -92,10 +96,9 @@ class CodeSearchTool(BaseTool):
             for item in code_results
         ]
 
-
 class PaperSearchTool(BaseTool):
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
+    def __init__(self):
+        self.api_key = config["core"].get("s2_api_key", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -111,7 +114,8 @@ class PaperSearchTool(BaseTool):
 
         return results
 
-    def search_for_papers(self, query: str, result_limit: int = 10, engine: str = "semanticscholar") -> Optional[List[Dict]]:
+    def search_for_papers(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
+        engine = config["thinker"].get("engine", "semanticscholar")
         if not query:
             return None
 
@@ -198,7 +202,8 @@ class PaperSearchTool(BaseTool):
             )
         return "\n\n".join(paper_strings)
 
-    def get_related_works(self, last_idea_title: str, result_limit: int = 5, engine: str = "semanticscholar") -> str:
+    def get_related_works(self, last_idea_title: str, result_limit: int = 5) -> str:
+        engine = config["thinker"].get("engine", "semanticscholar")
         if not last_idea_title:
             return "No related works found."
         papers = self.search_for_papers(last_idea_title, result_limit, engine)
