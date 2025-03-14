@@ -1,3 +1,4 @@
+import abc
 import os
 import time
 from typing import Dict, List, Optional
@@ -5,12 +6,36 @@ from typing import Dict, List, Optional
 import requests
 import toml
 
+from .utils.error_handler import api_calling_error_exponential_backoff
+
 # Load configuration from TOML
 config = toml.load("config.toml")
 
-class CodeSearcher:
-    def __init__(self, github_token: Optional[str] = None):
-        self.github_token = config["auth"].get("github_token", None) or os.getenv("GITHUB_TOKEN")
+
+class BaseTool(abc.ABC):
+
+    @abc.abstractmethod
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        pass
+
+
+class CodeSearchTool(BaseTool):
+    def __init__(self):
+        self.github_token = config["auth"].get("github_token", None)
+
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        results = {}
+        repos = self.search_github_repositories(query)
+
+        if repos:
+            for i, repo in enumerate(repos):
+                results[str(i)] = {
+                    "title": repo["name"],
+                    "source": repo["url"],
+                    "info": f"Stars: {repo['stars']}"
+                }
+
+        return results
 
     def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
         return self._search_github(query, result_limit, search_type="repositories")
@@ -71,13 +96,27 @@ class CodeSearcher:
             for item in code_results
         ]
 
-class PaperSearcher:
-    def __init__(self, s2_api_key: Optional[str] = None):
-        """Initialize the Paper Searcher with API key and settings from config."""
-        self.s2_api_key = config["core"].get("s2_api_key", None) or os.getenv("S2_API_KEY")
-        self.engine = config["thinker"].get("engine", "semanticscholar")
 
-    def search_for_papers(self, query: str, result_limit: int = 10, engine: str = "semanticscholar") -> Optional[List[Dict]]:
+class PaperSearchTool(BaseTool):
+    def __init__(self):
+        self.api_key = config["core"].get("s2_api_key", None)
+
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        results = {}
+        papers = self.search_for_papers(query)
+
+        if papers:
+            for i, paper in enumerate(papers):
+                results[str(i)] = {
+                    "title": paper["title"],
+                    "source": f"Published in {paper['venue']}",
+                    "info": f"Authors: {paper['authors']}"
+                }
+
+        return results
+
+    def search_for_papers(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
+        engine = config["thinker"].get("engine", "semanticscholar")
         if not query:
             return None
 
@@ -88,6 +127,7 @@ class PaperSearcher:
         else:
             raise NotImplementedError(f"{engine=} not supported!")
 
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _search_semanticscholar(self, query: str, result_limit: int) -> Optional[List[Dict]]:
         rsp = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
@@ -157,14 +197,39 @@ class PaperSearcher:
                     authors=paper["authors"],
                     venue=paper["venue"],
                     year=paper["year"],
-                    cites=paper["citationCount"],
                     abstract=paper["abstract"],
+                    cites=paper["citationCount"],
                 )
             )
         return "\n\n".join(paper_strings)
 
-    def get_related_works(self, last_idea_title: str, result_limit: int = 5, engine: str = "semanticscholar") -> str:
+    def get_related_works(self, last_idea_title: str, result_limit: int = 5) -> str:
+        engine = config["thinker"].get("engine", "semanticscholar")
         if not last_idea_title:
             return "No related works found."
         papers = self.search_for_papers(last_idea_title, result_limit, engine)
         return self.format_paper_results(papers) if papers else "No related works found."
+
+    @staticmethod
+    def simplify_papers(papers: List[Dict]) -> List[Dict]:
+        simplified = []
+        for paper in papers:
+            raw_authors = paper.get("authors", [])
+            if isinstance(raw_authors, list):
+                authors_list = [
+                    author["name"] if isinstance(author, dict) and "name" in author else str(author)
+                    for author in raw_authors
+                ]
+            else:
+                authors_list = [str(raw_authors)]
+
+            if len(authors_list) > 2:
+                authors_list = [authors_list[0] + " et al."]
+
+            simplified.append({
+                "year": paper.get("year"),
+                "title": paper.get("title"),
+                "abstract": paper.get("abstract"),
+                "authors": authors_list
+            })
+        return simplified

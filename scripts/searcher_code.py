@@ -2,7 +2,7 @@
 import argparse
 import json
 
-from tiny_scientist.searcher import CodeSearcher
+from tiny_scientist.tool import CodeSearcher
 
 
 def parse_args() -> argparse.Namespace:
