@@ -2,17 +2,17 @@
 import argparse
 import json
 
-from tiny_scientist.tool import CodeSearcher
+from tiny_scientist.tool import PaperSearchTool
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Search for GitHub repositories or code snippets.")
+    parser = argparse.ArgumentParser(description="Search for academic papers.")
 
     parser.add_argument(
         "--query",
         type=str,
         required=True,
-        help="Search query for GitHub repositories or code"
+        help="Search query for retrieving academic papers"
     )
     parser.add_argument(
         "--result-limit",
@@ -21,16 +21,16 @@ def parse_args() -> argparse.Namespace:
         help="Number of results to retrieve (default: 10)"
     )
     parser.add_argument(
-        "--search-type",
+        "--engine",
         type=str,
-        choices=["repositories", "code"],
-        default="repositories",
-        help="Type of GitHub search: repositories or code"
+        choices=["semanticscholar", "openalex"],
+        default="semanticscholar",
+        help="Search engine for retrieving papers"
     )
     parser.add_argument(
         "--output",
         type=str,
-        help="Path to save retrieved search results as JSON"
+        help="Path to save retrieved papers as JSON"
     )
     return parser.parse_args()
 
@@ -38,19 +38,17 @@ def main() -> int:
     args: argparse.Namespace = parse_args()
 
     try:
-        # Initialize CodeSearcher instance
-        searcher = CodeSearcher()
-        print(f"Searching for {args.search_type} on GitHub...")
+        # Initialize PaperSearchTool instance
+        searcher = PaperSearchTool()
+        print(f"Searching for papers using {args.engine} engine...")
 
-        if args.search_type == "repositories":
-            repos = searcher.search_github_repositories(query=args.query, result_limit=args.result_limit)
-            results = searcher._extract_github_repo_info(repos)
-        else:
-            code = searcher.search_github_code(query=args.query, result_limit=args.result_limit)
-            results = searcher._extract_github_code_info(code)
+        papers = searcher.search_for_papers(
+            query=args.query, result_limit=args.result_limit, engine=args.engine
+        )
+        results = searcher.format_github_results(papers)
 
         if not results:
-            print("No results found.")
+            print("No papers found.")
             return 1
 
         # Display results
@@ -69,4 +67,5 @@ def main() -> int:
     return 0
 
 if __name__ == "__main__":
+    print('rahs')
     exit(main())

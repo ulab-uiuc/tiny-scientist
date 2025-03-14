@@ -1,12 +1,13 @@
 import json
 import os
 import os.path as osp
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
 
 from .llm import extract_json_between_markers, get_response_from_llm
+from .searcher import PaperSearcher
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.loader import load_paper, load_review
 
@@ -17,7 +18,7 @@ class Reviewer:
         self.model = model
         self.client = client
         self.temperature = temperature
-
+        self.searcher = PaperSearcher()
         # Load prompt templates
         with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
@@ -47,13 +48,13 @@ class Reviewer:
         ]
 
     def write_review(
-        self,
-        text: str,
-        num_reflections: int = 1,
-        num_fs_examples: int = 1,
-        msg_history: Optional[List[Dict]] = None,
-        return_msg_history: bool = False,
-        reviewer_system_prompt: Optional[str] = None,
+            self,
+            text: str,
+            num_reflections: int = 2,
+            num_fs_examples: int = 1,
+            msg_history: Optional[List[Dict]] = None,
+            return_msg_history: bool = False,
+            reviewer_system_prompt: Optional[str] = None,
     ) -> Any:
         """Write a review for the given text with specified parameters."""
         # Use default system prompt if none provided
@@ -61,7 +62,7 @@ class Reviewer:
             reviewer_system_prompt = self.prompts.get("reviewer_system_prompt_neg")
 
         # Prepare base prompt with optional few-shot examples
-        base_prompt = self._prepare_base_prompt(text, num_fs_examples)
+        base_prompt = self._prepare_base_prompt(text, num_fs_examples, "")
 
         # Generate review
         review, updated_msg_history = self._generate_review(
@@ -72,9 +73,9 @@ class Reviewer:
         return (review, updated_msg_history) if return_msg_history else review
 
     def write_meta_review(
-        self,
-        reviews: List[Dict],
-        reviewer_system_prompt: Optional[str] = None
+            self,
+            reviews: List[Dict],
+            reviewer_system_prompt: Optional[str] = None
     ) -> Dict:
         if not reviews:
             raise ValueError("At least one review must be provided")
@@ -105,23 +106,23 @@ class Reviewer:
         meta_review = extract_json_between_markers(llm_review)
         return self._aggregate_scores(meta_review, reviews)
 
-    def _prepare_base_prompt(self, text: str, num_fs_examples: int) -> str:
+    def _prepare_base_prompt(self, text: str, num_fs_examples: int, related_works_string: str = "") -> str:
         """Prepare the base prompt with optional few-shot examples."""
         if num_fs_examples > 0:
             fs_prompt = self._get_review_fewshot_examples(num_fs_examples)
-            base_prompt = self.prompts["neurips_form"] + fs_prompt
+            base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string) + fs_prompt
         else:
-            base_prompt = self.prompts["neurips_form"]
+            base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string)
 
         return base_prompt + f"\nHere is the paper you are asked to review:\n```\n{text}\n```"
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_review(
-        self,
-        base_prompt: str,
-        reviewer_system_prompt: str,
-        msg_history: Optional[List[Dict]],
-        num_reflections: int
+            self,
+            base_prompt: str,
+            reviewer_system_prompt: str,
+            msg_history: Optional[List[Dict]],
+            num_reflections: int
     ) -> tuple[Dict, List[Dict]]:
         """Generate a review with optional reflections."""
         # Generate initial review
@@ -135,10 +136,23 @@ class Reviewer:
             temperature=self.temperature,
         )
         review = extract_json_between_markers(llm_review)
+        query = review.get("Query", "")
 
-        # Apply reflections if needed
         if num_reflections > 1:
-            review = self._reflect_review(review, num_reflections, reviewer_system_prompt)
+            for j in range(num_reflections - 1):
+                current_round = j + 2
+                new_review, msg_history, is_done = self._reflect_review(
+                    review=review, current_round=current_round, num_reflections=num_reflections,
+                    reviewer_system_prompt=reviewer_system_prompt,
+                    query=query, msg_history=msg_history)
+
+                if not new_review:
+                    break
+
+                review = new_review
+
+                if is_done:
+                    break
 
         return review, msg_history
 
@@ -167,25 +181,31 @@ class Reviewer:
         return meta_review
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _reflect_review(self, review: Dict, num_reflections: int, reviewer_system_prompt: str) -> Dict:
-        """Perform reflection iterations to improve the review."""
-        for _ in range(num_reflections - 1):
-            text, _ = get_response_from_llm(
-                self.prompts["reviewer_reflection_prompt"],
-                client=self.client,
-                model=self.model,
-                system_message=reviewer_system_prompt,
-                msg_history=None,
-                temperature=self.temperature,
-            )
+    def _reflect_review(self, review: Dict, current_round: int, num_reflections: int,
+                        reviewer_system_prompt: str, query: str,
+                        msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
+        """Perform a reflection iteration to improve the review using related works."""
 
-            if new_review := extract_json_between_markers(text):
-                review = new_review
+        related_works_string = self.searcher.search_for_papers(query, result_limit=5)
 
-            if "I am done" in text:
-                break
+        text, msg_history = get_response_from_llm(
+            self.prompts["reviewer_reflection_prompt"].format(
+                current_round=current_round,
+                num_reflections=num_reflections,
+                related_works_string=related_works_string
+            ),
+            client=self.client,
+            model=self.model,
+            system_message=reviewer_system_prompt,
+            msg_history=msg_history,
+            temperature=self.temperature,
+        )
 
-        return review
+        new_review = extract_json_between_markers(text)
+
+        is_done = "I am done" in text
+
+        return new_review, msg_history, is_done
 
     def _get_review_fewshot_examples(self, num_fs_examples: int = 1) -> str:
         """Get few-shot examples formatted for the prompt."""
@@ -195,8 +215,8 @@ class Reviewer:
 
         # Include requested number of examples
         for paper_path, review_path in zip(
-            self.fewshot_papers[:num_fs_examples],
-            self.fewshot_reviews[:num_fs_examples]
+                self.fewshot_papers[:num_fs_examples],
+                self.fewshot_reviews[:num_fs_examples]
         ):
             # Try to load pre-extracted text first
             txt_path = paper_path.replace(".pdf", ".txt")

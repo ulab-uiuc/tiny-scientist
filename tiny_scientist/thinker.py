@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 import yaml
 
 from .llm import extract_json_between_markers, get_response_from_llm
-from .tool import PaperSearcher
+from .tool import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 
@@ -16,7 +16,7 @@ class Thinker:
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
-        self.searcher = PaperSearcher(s2_api_key=s2_api_key)
+        self.searcher = PaperSearchTool(s2_api_key=s2_api_key)
 
         # Load prompt templates
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
@@ -34,14 +34,57 @@ class Thinker:
         for i in range(num_ideas):
             print(f"\nGenerating idea {original_size + i + 1}/{original_size + num_ideas}")
 
-            if new_idea := self._generate_idea(idea_collection, num_reflections, pdf_content):
+            new_idea = self._generate_idea(idea_collection, num_reflections, pdf_content)
+            if new_idea:
+                # Generate an experimental plan for the newly generated idea.
+                experiment_plan = self.generate_experiment_plan(new_idea)
+                if experiment_plan:
+                    new_idea["ExperimentPlan"] = experiment_plan
+
+                query = new_idea.get("Title", "")
+                searched_papers = self.searcher.search_for_papers(query=query, result_limit=5)
+                simplified_papers = self.searcher.simplify_papers(searched_papers) if searched_papers else []
+                new_idea["SearchedPapers"] = simplified_papers if simplified_papers else []
+
+                # Add the cited papers
+                citation_queries = new_idea.get("CitationQueries", [])
+                aggregated_papers = []
+                for query in citation_queries:
+                    papers = self.searcher.search_for_papers(query=query, result_limit=3)
+                    if papers:
+                        aggregated_papers.extend(self.searcher.simplify_papers(papers))
+
+                seen_titles = set()
+                final_papers = []
+                for paper in aggregated_papers:
+                    if paper["title"] not in seen_titles:
+                        final_papers.append(paper)
+                        seen_titles.add(paper["title"])
+                simplified_final_papers = self.searcher.simplify_papers(final_papers) if final_papers else []
+                new_idea["CitedPapers"] = simplified_final_papers if simplified_final_papers else []
+
                 idea_collection.append(new_idea)
                 print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
             else:
                 print(f"Failed to generate idea {original_size + i + 1}")
-
         self.save_ideas(idea_collection)
         return idea_collection
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def generate_experiment_plan(self, idea: Dict) -> Optional[Dict]:
+        print("Generating experimental plan for the idea...")
+        experiment_text, experiment_msg_history = get_response_from_llm(
+            self.prompts["experiment_plan_prompt"].format(idea=json.dumps(idea, indent=2)),
+            client=self.client, model=self.model,
+            system_message=self.prompts["idea_system_prompt"],
+            msg_history=[], temperature=self.temperature,
+        )
+        experiment_plan = extract_json_between_markers(experiment_text)
+        if experiment_plan:
+            print("Experimental plan generated successfully.")
+        else:
+            print("Failed to generate experimental plan.")
+        return experiment_plan
 
     def check_ideas(self, ideas: List[Dict], max_iterations: int = 10,
                    engine: str = "semanticscholar") -> List[Dict]:
@@ -70,7 +113,7 @@ class Thinker:
                      msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
         print(f"Iteration {current_round}/{num_reflections}")
 
-        related_works_string = self.searcher.get_related_works(idea.get("Title", ""), result_limit=5)
+        related_works_string = self.searcher.search_for_papers(idea.get("Title", ""), result_limit=5)
 
         text, msg_history = get_response_from_llm(
             self.prompts["idea_reflection_prompt"].format(
@@ -106,7 +149,7 @@ class Thinker:
             # Use the title of the most recent idea as a search query
             last_idea_title = idea_archive[-1].get("Title", "")
             if last_idea_title:
-                related_works_string = self.searcher.get_related_works(last_idea_title, result_limit=5)
+                related_works_string = self.searcher.search_for_papers(last_idea_title, result_limit=5)
             else:
                 related_works_string = "No related works found."
         else:

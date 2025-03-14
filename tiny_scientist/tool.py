@@ -96,7 +96,6 @@ class CodeSearchTool(BaseTool):
             for item in code_results
         ]
 
-
 class PaperSearchTool(BaseTool):
     def __init__(self):
         self.api_key = config["core"].get("s2_api_key", None)
