@@ -3,11 +3,14 @@ import time
 from typing import Dict, List, Optional
 
 import requests
+import toml
 
+# Load configuration from TOML
+config = toml.load("config.toml")
 
 class CodeSearcher:
     def __init__(self, github_token: Optional[str] = None):
-        self.github_token = github_token or os.getenv("GITHUB_TOKEN")
+        self.github_token = config["auth"].get("github_token", None) or os.getenv("GITHUB_TOKEN")
 
     def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
         return self._search_github(query, result_limit, search_type="repositories")
@@ -70,7 +73,9 @@ class CodeSearcher:
 
 class PaperSearcher:
     def __init__(self, s2_api_key: Optional[str] = None):
-        self.s2_api_key = s2_api_key or os.getenv("S2_API_KEY")
+        """Initialize the Paper Searcher with API key and settings from config."""
+        self.s2_api_key = config["core"].get("s2_api_key", None) or os.getenv("S2_API_KEY")
+        self.engine = config["thinker"].get("engine", "semanticscholar")
 
     def search_for_papers(self, query: str, result_limit: int = 10, engine: str = "semanticscholar") -> Optional[List[Dict]]:
         if not query:
