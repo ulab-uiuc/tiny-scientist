@@ -5,7 +5,7 @@ import os
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
-from tiny_scientist.utils.loader import load_paper
+from tiny_scientist.utils.loader import input_formatter
 
 
 def parse_args():
@@ -77,6 +77,7 @@ def main():
     args = parse_args()
     # Create the client and select the model
     client, model = create_client(args.model)
+    formatter = input_formatter()
 
     # Instantiate our reviewer
     reviewer = Reviewer(
@@ -89,7 +90,7 @@ def main():
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
         if ext.lower() == ".pdf":
-            text = load_paper(args.paper)
+            text = formatter.parse_paper_pdf_to_json(args.paper)
         else:
             # Assume plaintext file
             with open(args.paper, "r", encoding="utf-8") as f:
