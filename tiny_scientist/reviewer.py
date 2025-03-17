@@ -9,7 +9,7 @@ import yaml
 from .llm import extract_json_between_markers, get_response_from_llm
 from .searcher import PaperSearcher
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.loader import load_paper, load_review
+from .utils.loader import input_formatter
 
 
 class Reviewer:
@@ -19,6 +19,7 @@ class Reviewer:
         self.client = client
         self.temperature = temperature
         self.searcher = PaperSearcher()
+        self.input_formatter = input_formatter()
         # Load prompt templates
         with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
@@ -224,9 +225,9 @@ class Reviewer:
                 with open(txt_path, "r") as f:
                     paper_text = f.read()
             else:
-                paper_text = load_paper(paper_path)
+                paper_text = self.input_formatter.parse_paper_pdf_to_json(paper_path)
 
-            review_text = load_review(review_path)
+            review_text = self.input_formatter.parse_review_json(review_path)
             fewshot_prompt += f"\nPaper:\n```\n{paper_text}\n```\n\nReview:\n```\n{review_text}\n```\n"
 
         return fewshot_prompt
