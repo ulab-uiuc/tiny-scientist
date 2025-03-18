@@ -5,7 +5,7 @@ import os
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.thinker import Thinker
-from tiny_scientist.utils.loader import input_formatter
+from tiny_scientist.utils.loader import InputFormatter
 
 
 def parse_args():
@@ -112,7 +112,7 @@ def create_default_idea() -> list:
 
 def main():
     args = parse_args()
-    formatter = input_formatter()
+    formatter = InputFormatter()
 
     pdf_content = ""
 

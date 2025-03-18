@@ -7,7 +7,7 @@ import pymupdf4llm
 from pypdf import PdfReader
 
 
-class input_formatter:
+class InputFormatter():
     def __init__(self):
         pass
 
@@ -47,6 +47,50 @@ class input_formatter:
                 if len(text) < min_size:
                     raise Exception("Text too short")
         return text
+
+    def _extract_subsections(self, section_text: str):
+        """
+        Helper function to parse sub-subsections of the form:
+        '**x.x** **Subsection Title**'.
+        Returns a tuple (clean_text, subsections), where 'clean_text' is the
+        remaining text outside these subsections, and 'subsections' is a list
+        of dicts with the keys 'subsection_number', 'subsection_title', and
+        'subsection_content'.
+        """
+        subsections = []
+        subsec_pattern = re.compile(
+            r'(?m)^\*\*(\d+\.\d+)\*\*\s+\*\*(.*?)\*\*\s*(.*?)(?=^\*\*\d+\.\d+\*\*|\Z)',
+            re.DOTALL
+        )
+        matches = list(subsec_pattern.finditer(section_text))
+
+        if not matches:
+            return section_text.strip(), []
+
+        leftover_parts = []
+        last_end = 0
+
+        for m in matches:
+            start_idx = m.start()
+            leftover = section_text[last_end:start_idx]
+            leftover_parts.append(leftover)
+
+            subsection_number = m.group(1).strip()
+            subsection_title = m.group(2).strip()
+            subsection_content = m.group(3).strip()
+
+            subsections.append({
+                "subsection_number": subsection_number,
+                "subsection_title": subsection_title,
+                "subsection_content": subsection_content
+            })
+
+            last_end = m.end()
+
+        leftover_parts.append(section_text[last_end:])
+        clean_text = "\n".join(part.strip() for part in leftover_parts).strip()
+
+        return clean_text, subsections
 
     def _parse_markdown(self, markdown_str: str) -> dict:
         """
@@ -95,7 +139,6 @@ class input_formatter:
         if title_match:
             title = title_match.group(1).strip()
             full_line = title_match.group(0)
-            # Remove the entire "## ..." line
             markdown_str = markdown_str.replace(full_line, "", 1)
 
         # 2) Split out "header" from everything after '### Abstract'
@@ -103,7 +146,6 @@ class input_formatter:
         match = re.search(split_pattern, markdown_str, re.MULTILINE)
 
         if not match:
-            # If "### Abstract" is not found, everything goes into 'header'
             return {
                 "title": title,
                 "header": markdown_str.strip(),
@@ -111,67 +153,23 @@ class input_formatter:
             }
 
         part_before = match.group(1)
-        part_after = "### Abstract" + match.group(2)  # Reattach the '### Abstract' for parsing
-
+        part_after = "### Abstract" + match.group(2)
         header = part_before.strip()
 
         # 3) Extract top-level sections from 'part_after'
         section_pattern = re.compile(
-            r'(?m)^###\s+(.*?)\s*\n'  # "### <section title>"
-            r'(.*?)(?=^###\s+|\Z)',   # everything until the next "###" or end
+            r'(?m)^###\s+(.*?)\s*\n'
+            r'(.*?)(?=^###\s+|\Z)',
             re.DOTALL
         )
 
         raw_sections = section_pattern.findall(part_after)
         sections = []
 
-        def extract_subsections(section_text: str):
-            """
-            Helper function within '_parse_markdown' to parse sub-subsections
-            of the form '**x.x** **Subsection Title**'.
-            """
-            subsections = []
-            subsec_pattern = re.compile(
-                r'(?m)^\*\*(\d+\.\d+)\*\*\s+\*\*(.*?)\*\*\s*(.*?)(?=^\*\*\d+\.\d+\*\*|\Z)',
-                re.DOTALL
-            )
-            matches = list(subsec_pattern.finditer(section_text))
-
-            if not matches:
-                return section_text.strip(), []
-
-            leftover_parts = []
-            last_end = 0
-
-            for m in matches:
-                start_idx = m.start()
-                # Text between last_end and this sub-subsection is top-level leftover
-                leftover = section_text[last_end:start_idx]
-                leftover_parts.append(leftover)
-
-                subsection_number = m.group(1).strip()
-                subsection_title = m.group(2).strip()
-                subsection_content = m.group(3).strip()
-
-                subsections.append({
-                    "subsection_number": subsection_number,
-                    "subsection_title": subsection_title,
-                    "subsection_content": subsection_content
-                })
-
-                last_end = m.end()
-
-            # Add leftover after the last subsection
-            leftover_parts.append(section_text[last_end:])
-            clean_text = "\n".join(part.strip() for part in leftover_parts).strip()
-
-            return clean_text, subsections
-
         # Parse each top-level section
         for section_name, section_text in raw_sections:
             section_name = section_name.strip()
-            clean_text, subsections_list = extract_subsections(section_text)
-
+            clean_text, subsections_list = self._extract_subsections(section_text)
             section_dict = {
                 "section_name": section_name,
                 "content": clean_text,

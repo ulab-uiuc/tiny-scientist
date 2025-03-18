@@ -5,7 +5,7 @@ import os
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
-from tiny_scientist.utils.loader import input_formatter
+from tiny_scientist.utils.loader import InputFormatter
 
 
 def parse_args():
@@ -77,7 +77,7 @@ def main():
     args = parse_args()
     # Create the client and select the model
     client, model = create_client(args.model)
-    formatter = input_formatter()
+    formatter = InputFormatter()
 
     # Instantiate our reviewer
     reviewer = Reviewer(
