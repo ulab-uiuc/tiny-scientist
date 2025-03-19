@@ -12,7 +12,7 @@
 model = "gpt-4o"
 
 # Temperature for controlling randomness in responses
-#temperature = 0.75
+temperature = 0.75
 
 # S2 API Key for accessing scientific research data
 s2_api_key = ""

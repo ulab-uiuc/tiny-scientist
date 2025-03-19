@@ -3,20 +3,22 @@ import os.path as osp
 from typing import Dict, List, Optional, Tuple
 
 import yaml
+import toml
 
 from .llm import extract_json_between_markers, get_response_from_llm
-from .tool import PaperSearchTool
+from .tool import BaseTool
 from .utils.error_handler import api_calling_error_exponential_backoff
 
+config = toml.load("config.toml")
 
 class Thinker:
-    def __init__(self, model: str, client: any, base_dir: str, config_dir: str,
-                 temperature: float = 0.75, s2_api_key: Optional[str] = None):
+    def __init__(self, 
+        model: str, 
+        tools: List[BaseTool],
+        config_dir: str,
+    ):
         self.model = model
-        self.client = client
-        self.base_dir = base_dir
-        self.temperature = temperature
-        self.searcher = PaperSearchTool(s2_api_key=s2_api_key)
+        self.tools = tools
 
         # Load prompt templates
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
