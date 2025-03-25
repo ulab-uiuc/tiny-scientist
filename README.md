@@ -1,4 +1,4 @@
-Tiny-Scientist
+# Tiny-Scientist
 
 ## Introduction
 
@@ -8,9 +8,9 @@ Welcome to **Tiny-Scientist**, Tiny-Scientist is an automated research system th
 2. *Modular Intelligence Agents*: Includes dedicated modules—Thinker, Coder, Writer, and Reviewer—each specialized for a distinct phase of the research workflow.
 3. *Customizable and Extensible*: Designed for flexibility, allowing integration with various search tools and paper templates.
 
-🔸 Core Capabilities
+🔸 **Core Capabilities**
 
-🚀 Primary Research Functions
+🚀 **Primary Research Functions**
 * 🧠 Idea Generation & Refinement: Automatically generates innovative research ideas through iterative reasoning and refinement. 
 * 💻 Experiment Design & Coding: Translates research ideas into executable code with minimal human input. Supports experiment setup, baseline comparison.
 * ✍️ Paper Writing: Generates full-length academic papers with well-structured sections, integrated citation management, and support for multiple conference templates.
