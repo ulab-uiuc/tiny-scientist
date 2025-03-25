@@ -79,6 +79,13 @@ def parse_args():
         type=str,
         help="Path to the PDF paper for idea generation"
     )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="think",
+        choices=["think", "rethink", "run"],
+        help="Which mode to run: 'think' to generate an idea, 'rethink' to refine an existing idea, or 'run' to create an experimental plan"
+    )
     return parser.parse_args()
 
 
@@ -127,7 +134,10 @@ def main():
         client, model = create_client(args.model)
 
         # Initialize thinker
+        dummy_tools = []
         thinker = Thinker(
+            tools=dummy_tools,
+            iter_num=3,
             model=model,
             client=client,
             base_dir=args.base_dir,
@@ -141,7 +151,8 @@ def main():
             try:
                 ideas_path = os.path.join(args.base_dir, "ideas.json")
                 with open(ideas_path, "r") as f:
-                    initial_ideas = json.load(f)
+                    ideas = json.load(f)
+                initial_ideas = ideas[0] if ideas else create_default_idea()
                 print(f"Loaded {len(initial_ideas)} existing ideas from {ideas_path}")
             except (FileNotFoundError, json.JSONDecodeError):
                 print("No valid existing ideas found. Please provide initial ideas.")
@@ -153,42 +164,18 @@ def main():
             print("No initial ideas provided. Using default idea.")
             initial_ideas = create_default_idea()
 
-        # Generate ideas
-        ideas = thinker.generate_ideas(
-            num_ideas=args.num_ideas,
-            ideas=initial_ideas,
-            num_reflections=args.num_reflections,
-            pdf_content=pdf_content
-        )
+        intent = {"idea": initial_ideas}
 
-        print(f"\nGenerated {args.num_ideas} new ideas, total: {len(ideas)}")
+        result = {}
+        if args.mode == "think":
+            result = thinker.think(intent, check_novelty=args.check_novelty, pdf_content=pdf_content)
+        elif args.mode == "rethink":
+            result = thinker.rethink(intent)
+        elif args.mode == "run":
+            result = thinker.run(intent)
 
-        # Check novelty if requested
-        if args.check_novelty:
-            print("\nChecking novelty of ideas...")
-            ideas = thinker.check_ideas(
-                ideas=ideas,
-                max_iterations=10,
-                engine=args.engine
-            )
-
-        # Save ideas
-        output_path = args.output or os.path.join(args.base_dir, "ideas.json")
-        thinker.save_ideas(ideas)
-        if args.output:  # If custom output path was provided
-            with open(output_path, "w") as f:
-                json.dump(ideas, f, indent=4)
-            print(f"\nSaved ideas to {output_path}")
-        else:
-            print(f"\nSaved ideas to {os.path.join(args.base_dir, 'ideas.json')}")
-
-        # Print summary
-        print("\nIdea Summary:")
-        for i, idea in enumerate(ideas):
-            novelty_status = "✓" if idea.get("novel", False) else "✗"
-            if "novel" not in idea:
-                novelty_status = "?"
-            print(f"{i + 1}. {idea['Title']} [{novelty_status}]")
+        print("\nFinal Result:")
+        print(json.dumps(result, indent=4))
 
     except Exception as e:
         print(f"Error: {e}")
