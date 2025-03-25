@@ -9,9 +9,7 @@ import toml
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 # Load configuration from TOML
-config_path = os.path.join(os.path.dirname(__file__), "..", "config.template.toml")
-config = toml.load(config_path)
-
+config = toml.load("config.toml")
 
 class BaseTool(abc.ABC):
 
