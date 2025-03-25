@@ -86,6 +86,7 @@ def parse_args():
         choices=["think", "rethink", "run"],
         help="Which mode to run: 'think' to generate an idea, 'rethink' to refine an existing idea, or 'run' to create an experimental plan"
     )
+
     return parser.parse_args()
 
 
