@@ -10,17 +10,87 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 
 
 class Thinker:
-    def __init__(self, model: str, client: any, base_dir: str, config_dir: str,
-                 temperature: float = 0.75, s2_api_key: Optional[str] = None):
+    def __init__(
+        self,
+        tools: List,
+        iter_num: int,
+        model: str = "",
+        client: any = None,
+        base_dir: str = "",
+        config_dir: str = "",
+        temperature: float = 0.75,
+        s2_api_key: Optional[str] = None
+    ):
+        self.tools = tools
+        self.iter_num = iter_num
         self.model = model
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
-        self.searcher = PaperSearchTool(s2_api_key=s2_api_key)
+        self.searcher = PaperSearchTool()
+        self.searcher.s2_api_key = s2_api_key
 
         # Load prompt templates
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
+
+    def think(self, intent: Dict[str, Dict[str, str]], check_novelty: bool = True, pdf_content: str = "") -> Dict[str, Dict[str, str]]:
+        """
+        Generate a research idea based on the provided intent.
+        The intent may include an initial idea; if not, the intent itself is used.
+        """
+        # Use the "idea" field if available; otherwise, use intent directly.
+        initial_ideas = [intent.get("idea", intent)]
+        new_ideas = self.generate_ideas(
+            num_ideas=1,
+            ideas=initial_ideas,
+            num_reflections=self.iter_num,
+            pdf_content=pdf_content
+        )
+        if check_novelty and new_ideas:
+            new_ideas = self.check_ideas(new_ideas, max_iterations=10, engine="semanticscholar")
+        if new_ideas:
+            return {"idea": new_ideas[0]}
+        else:
+            return {}
+
+    def rethink(self, info: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+        """
+        Refine an existing research idea using one reflection iteration.
+        """
+        idea = info.get("idea", {})
+        new_idea, _, _ = self._reflect_idea(
+            idea,
+            current_round=2,
+            num_reflections=self.iter_num,
+            msg_history=[]
+        )
+        return {"idea": new_idea} if new_idea else info
+
+    def run(self, idea: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+        """
+        Generate an experimental plan for the idea and iteratively refine it using external tools.
+        For each iteration, each tool processes the current idea (converted to a string),
+        and its output is merged into the idea.
+        """
+        idea_dict = idea.get("idea", {})
+        experiment_plan = self.generate_experiment_plan(idea_dict)
+
+        if experiment_plan is None:
+            experiment_plan_str = ""
+        elif isinstance(experiment_plan, dict):
+            experiment_plan_str = json.dumps(experiment_plan)
+        else:
+            experiment_plan_str = str(experiment_plan)
+        idea_dict["ExperimentPlan"] = experiment_plan_str
+
+        paper = idea_dict
+        for _ in range(self.iter_num):
+            for tool in self.tools:
+                tool_input = json.dumps(paper)
+                info = tool.run(tool_input)
+                paper.update(info)
+        return {"idea": paper}
 
     def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
                        num_reflections: int = 5, pdf_content: str = "") -> List[Dict]:
@@ -110,7 +180,10 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _reflect_idea(self, idea: Dict, current_round: int, num_reflections: int,
-                     msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
+                       msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
+        # Ensure idea is a dict
+        if isinstance(idea, list):
+            idea = idea[0]
         print(f"Iteration {current_round}/{num_reflections}")
 
         related_works_string = self.searcher.search_for_papers(idea.get("Title", ""), result_limit=5)
@@ -120,13 +193,15 @@ class Thinker:
                 current_round=current_round,
                 num_reflections=num_reflections,
                 related_works_string=related_works_string
-        ),
+            ),
             client=self.client, model=self.model,
             system_message=self.prompts["idea_system_prompt"],
             msg_history=msg_history, temperature=self.temperature,
         )
 
         new_idea = extract_json_between_markers(text)
+        if isinstance(new_idea, list):
+            new_idea = new_idea[0]
         is_done = "I am done" in text
 
         if is_done:
@@ -136,26 +211,25 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_idea(self, idea_archive: List[Dict], num_reflections: int, pdf_content: str) -> Optional[Dict]:
+        # Ensure each entry in idea_archive is a dict (unwrap if necessary)
+        idea_archive = [idea[0] if isinstance(idea, list) else idea for idea in idea_archive]
+
         # Format previous ideas
         prev_ideas_string = "\n\n".join(json.dumps(idea) for idea in idea_archive)
 
-        pdf_section = ""
-
-        if pdf_content:
-            pdf_section = f"Based on the content of the following paper:\n\n{pdf_content}\n\n"
+        pdf_section = f"Based on the content of the following paper:\n\n{pdf_content}\n\n" if pdf_content else ""
 
         # Search for related papers
         if idea_archive:
-            # Use the title of the most recent idea as a search query
-            last_idea_title = idea_archive[-1].get("Title", "")
-            if last_idea_title:
-                related_works_string = self.searcher.search_for_papers(last_idea_title, result_limit=5)
-            else:
-                related_works_string = "No related works found."
+            last_idea = idea_archive[-1]
+            last_idea_title = last_idea.get("Title", "")
+            related_works_string = (
+                self.searcher.search_for_papers(last_idea_title, result_limit=5)
+                if last_idea_title else "No related works found."
+            )
         else:
             related_works_string = "No related works found."
 
-        # First generation step
         print(f"Iteration 1/{num_reflections}")
         text, msg_history = get_response_from_llm(
             self.prompts["idea_first_prompt"].format(
@@ -169,26 +243,26 @@ class Thinker:
             msg_history=[], temperature=self.temperature,
         )
 
-        if not (idea := extract_json_between_markers(text)):
+        idea = extract_json_between_markers(text)
+        if isinstance(idea, list):
+            idea = idea[0]
+
+        if not idea:
             return None
 
         # Reflection steps
         if num_reflections > 1:
             for j in range(num_reflections - 1):
                 current_round = j + 2
-
                 new_idea, msg_history, is_done = self._reflect_idea(
                     idea=idea,
                     current_round=current_round,
                     num_reflections=num_reflections,
                     msg_history=msg_history
                 )
-
                 if not new_idea:
                     break
-
                 idea = new_idea
-
                 if is_done:
                     break
 
