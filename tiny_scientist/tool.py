@@ -9,7 +9,8 @@ import toml
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 # Load configuration from TOML
-config = toml.load("config.toml")
+config_path = os.path.join(os.path.dirname(__file__), "..", "config.template.toml")
+config = toml.load(config_path)
 
 
 class BaseTool(abc.ABC):
@@ -98,7 +99,7 @@ class CodeSearchTool(BaseTool):
 
 class PaperSearchTool(BaseTool):
     def __init__(self):
-        self.api_key = config["core"].get("s2_api_key", None)
+        self.s2_api_key = config["core"].get("s2_api_key", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -138,7 +139,7 @@ class PaperSearchTool(BaseTool):
             },
         )
         print(f"Response Status Code: {rsp.status_code}")
-        print(f"Response Content: {rsp.text[:500]}")
+        # print(f"Response Content: {rsp.text[:500]}")
         rsp.raise_for_status()
 
         results = rsp.json()

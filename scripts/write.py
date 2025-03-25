@@ -7,6 +7,7 @@ from tiny_scientist.coder import Coder  # Ensure Coder is properly implemented
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.writer import Writer
 
+os.environ['OPENAI_API_KEY'] = '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'
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write paper.")
@@ -57,15 +58,13 @@ def main() -> int:
         # Create LLM client and model
         client, model = create_client(args.model)
 
-        # Ensure Coder instance exists (if required)
-        coder = Coder(base_dir=args.experiment, model=model)
-        print("Coder instance created.")
         # Initialize Writer
         writer = Writer(
             model=model,
             client=client,
             base_dir=args.experiment,
-            coder=coder
+            template=args.template,
+            config_dir=os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs")
         )
 
         # idea should be import from args.experiemnt and idea.json
@@ -77,9 +76,7 @@ def main() -> int:
         writer.perform_writeup(
             idea=idea,
             folder_name=args.experiment,
-            template=args.template,
             num_cite_rounds=args.num_cite_rounds,
-            engine=args.engine
         )
 
         # Save output PDF

@@ -357,25 +357,48 @@ section_prompt:
 
     Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
+citation_related_work_prompt: |
+  Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
+  
+  The title of the paper is: {idea_title}
+  The motivation and focus of the paper is: {experiment}
+
+  This is round {round_num} out of {total_rounds}. You have already collected the following papers:
+  {collected_papers}
+  
+  Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
+  
+  ```json
+  ["Title 1", "Title 2", "Title 3"]
+  ```
+
 related_work_prompt: |
-  Please fill in the Related Work of the writeup. Some tips are provided below:
+  Please fill in the Related Work section of the writeup. Some tips are provided below:
 
   {related_work_tips}
 
   - Discuss prior foundational works that are relevant to this research.
+  - Organize the section into at least two subtopics related to the idea.
   - Compare and contrast alternative approaches and their limitations.
   - Highlight gaps in existing literature that justify the need for this study.
   - Ensure that prior works align with the **motivation** of this research, but do NOT discuss specific details of the experiment.
 
-  The motivation for this study is: **{experiment}**.
-  This work aims to address the gaps in previous approaches by providing a new perspective.
+  The motivation for this study is: {experiment}
 
-  For this section, very briefly sketch out the structure of the section, and clearly indicate what papers you intend to include.
+  You must ground your discussion using the following relevant papers, which have already been selected:
+
+  {citations}
+
+  Do not add any new citations. Use only these titles and refer to them with placeholder citation commands like \cite{{...}}.
+  
+  For this section, very briefly sketch out the structure of the section, and clearly indicate what papers you intend to include in each part.
   Do this all in LaTeX comments using %.
-  The related work should be concise, only plan to discuss the most relevant work.
+
+  The related work should be concise, structured into meaningful subtopics, and only include papers from the list above.
   Do not modify `references.bib` to add any new citations, this will be filled in at a later stage.
 
   Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+
 
 title_refinement_prompt: |
   Great job! Now that there is a complete draft of the entire paper, let's refine each section again.
