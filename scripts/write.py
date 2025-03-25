@@ -73,10 +73,9 @@ def main() -> int:
 
         # Perform paper writing
         print("\nStarting paper write-up...")
-        writer.perform_writeup(
+        writer.run(
             idea=idea,
             folder_name=args.experiment,
-            num_cite_rounds=args.num_cite_rounds,
         )
 
         # Save output PDF
