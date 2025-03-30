@@ -13,8 +13,8 @@ class Reviewer:
     def __init__(
             self,
             tools: List[BaseTool],
-            reviews_num: int = 3,  # Number of separate reviews to generate
-            reflection_num: int = 2,  # Number of re_review calls per review
+            num_reviews: int = 3,  # Number of separate reviews to generate
+            num_reflections: int = 2,  # Number of re_review calls per review
             model: Any = None,
             client: Any = None,
             config_dir: str = "",
@@ -22,8 +22,8 @@ class Reviewer:
             s2_api_key: Optional[str] = None
     ):
         self.tools = tools
-        self.reviews_num = reviews_num
-        self.reflection_num = reflection_num
+        self.num_reviews = num_reviews
+        self.num_reflections = num_reflections
         self.model = model
         self.client = client
         self.temperature = temperature
@@ -104,11 +104,11 @@ class Reviewer:
     def run(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
         """
         Execute the review process in an ensemble fashion.
-        For each of reviews_num iterations, generate a review using review() and then refine it by calling
-        re_review() reflection_num times. Finally, aggregate all generated reviews into a meta-review.
+        For each of num_reviews iterations, generate a review using review() and then refine it by calling
+        re_review() num_reflections times. Finally, aggregate all generated reviews into a meta-review.
         """
         all_reviews = []
-        for _ in range(self.reviews_num):
+        for _ in range(self.num_reviews):
             current_review = self.review(intent)["review"]
             for tool in self.tools:
                 tool_input = json.dumps({"review": current_review})
@@ -116,7 +116,7 @@ class Reviewer:
                 # Expect tool_output to contain a "review" key.
                 if "review" in tool_output:
                     current_review = tool_output["review"]
-            for _ in range(self.reflection_num):
+            for _ in range(self.num_reflections):
                 current_review = self.re_review({"review": current_review})["review"]
             all_reviews.append(current_review)
         final_meta_review = self._write_meta_review(all_reviews)
