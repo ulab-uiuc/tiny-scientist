@@ -1,131 +1,154 @@
 import json
-import os
 import os.path as osp
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 import yaml
 
 from .llm import extract_json_between_markers, get_response_from_llm
-from .searcher import PaperSearcher
+from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.loader import load_paper, load_review
 
 
 class Reviewer:
-    def __init__(self, model: Any, client: Any, config_dir: str, temperature: float = 0.75):
-        """Initialize the Reviewer with model configuration and prompt templates."""
+    def __init__(
+            self,
+            tools: List[BaseTool],
+            reviews_num: int = 3,  # Number of separate reviews to generate
+            reflection_num: int = 2,  # Number of re_review calls per review
+            model: Any = None,
+            client: Any = None,
+            config_dir: str = "",
+            temperature: float = 0.75,
+            s2_api_key: Optional[str] = None
+    ):
+        self.tools = tools
+        self.reviews_num = reviews_num
+        self.reflection_num = reflection_num
         self.model = model
         self.client = client
         self.temperature = temperature
-        self.searcher = PaperSearcher()
-        # Load prompt templates
+        # Initialize the searcher and set s2_api_key
+        self.searcher = PaperSearchTool()
+        self.searcher.s2_api_key = s2_api_key
+        # Cache for queries to avoid duplicate searches
+        self._query_cache: Dict[str, List[Dict]] = {}
+        self.last_related_works_string = ""
+        # Load prompt templates from configuration file
         with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
-        # Process template instructions in neurips form
+        # Process template instructions in neurips form if available
         if "template_instructions" in self.prompts and "neurips_form" in self.prompts:
             self.prompts["neurips_form"] = self.prompts["neurips_form"].replace(
                 "{{ template_instructions }}", self.prompts["template_instructions"]
             )
 
-        # Set example paths
-        self.dir_path = os.path.dirname(os.path.realpath(__file__))
-        self._set_fewshot_paths()
+    def review(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+        """
+        Generate an initial review for the given paper.
+        Expects a "text" field in the intent (the paper content).
+        Generates a query from the paper text, retrieves related works using run(),
+        and incorporates that context into the review prompt.
+        """
+        text = intent.get("text", "")
+        if not text:
+            raise ValueError("No paper text provided for review.")
 
-    def _set_fewshot_paths(self):
-        """Initialize paths for few-shot examples."""
-        base = os.path.join(self.dir_path, "fewshot_examples")
-        self.fewshot_papers = [
-            os.path.join(base, "132_automated_relational.pdf"),
-            os.path.join(base, "attention.pdf"),
-            os.path.join(base, "2_carpe_diem.pdf"),
-        ]
-        self.fewshot_reviews = [
-            os.path.join(base, "132_automated_relational.json"),
-            os.path.join(base, "attention.json"),
-            os.path.join(base, "2_carpe_diem.json"),
-        ]
+        # Generate a search query based on the paper text.
+        query = self._generate_query(text)
+        print(f"Generated Query: {query}")
 
-    def write_review(
-            self,
-            text: str,
-            num_reflections: int = 2,
-            num_fs_examples: int = 1,
-            msg_history: Optional[List[Dict]] = None,
-            return_msg_history: bool = False,
-            reviewer_system_prompt: Optional[str] = None,
-    ) -> Any:
-        """Write a review for the given text with specified parameters."""
-        # Use default system prompt if none provided
-        if reviewer_system_prompt is None:
-            reviewer_system_prompt = self.prompts.get("reviewer_system_prompt_neg")
-
-        # Prepare base prompt with optional few-shot examples
-        base_prompt = self._prepare_base_prompt(text, num_fs_examples, "")
-
-        # Generate review
-        review, updated_msg_history = self._generate_review(
-            base_prompt, reviewer_system_prompt,
-            msg_history, num_reflections
-        )
-
-        return (review, updated_msg_history) if return_msg_history else review
-
-    def write_meta_review(
-            self,
-            reviews: List[Dict],
-            reviewer_system_prompt: Optional[str] = None
-    ) -> Dict:
-        if not reviews:
-            raise ValueError("At least one review must be provided")
-
-        # Use default meta-reviewer system prompt if none provided
-        if reviewer_system_prompt is None:
-            reviewer_system_prompt = self.prompts.get("meta_reviewer_system_prompt").format(
-                reviewer_count=len(reviews)
-            )
-
-        # Format all reviews for the meta-reviewer
-        review_text = "".join(
-            f"\nReview {i + 1}/{len(reviews)}:\n```\n{json.dumps(r)}\n```\n"
-            for i, r in enumerate(reviews)
-        )
-
-        # Get meta-review from LLM
-        llm_review, _ = get_response_from_llm(
-            self.prompts["neurips_form"] + review_text,
-            model=self.model,
-            client=self.client,
-            system_message=reviewer_system_prompt,
-            print_debug=False,
-            msg_history=None,
-            temperature=self.temperature,
-        )
-
-        meta_review = extract_json_between_markers(llm_review)
-        return self._aggregate_scores(meta_review, reviews)
-
-    def _prepare_base_prompt(self, text: str, num_fs_examples: int, related_works_string: str = "") -> str:
-        """Prepare the base prompt with optional few-shot examples."""
-        if num_fs_examples > 0:
-            fs_prompt = self._get_review_fewshot_examples(num_fs_examples)
-            base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string) + fs_prompt
+        # Retrieve related papers using run() and cache the results.
+        if query in self._query_cache:
+            related_papers = self._query_cache[query]
         else:
-            base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string)
+            results_dict = self.searcher.run(query)  # run() returns a dict
+            related_papers = list(results_dict.values())
+            self._query_cache[query] = related_papers if related_papers else []
 
-        return base_prompt + f"\nHere is the paper you are asked to review:\n```\n{text}\n```"
+        # Format search results using the static method.
+        if related_papers:
+            related_works_string = self._format_paper_results(related_papers)
+        else:
+            related_works_string = "No related works found."
+        self.last_related_works_string = related_works_string
+        print(f"Related Works String:\n{related_works_string}")
+
+        # Construct the base prompt by inserting the related works.
+        base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string)
+        base_prompt += "\nHere is the paper you are asked to review:\n```\n" + text + "\n```"
+
+        system_prompt = self.prompts.get("reviewer_system_prompt_neg")
+        review, msg_history = self._generate_review(base_prompt, system_prompt, msg_history=[])
+        return {"review": review}
+
+    def re_review(self, info: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+        """
+        Refine an existing review using a reflection prompt.
+        Expects the info dictionary to contain a "review" field.
+        """
+        current_review = info.get("review", {})
+        if not current_review:
+            raise ValueError("No review provided for re-review.")
+        system_prompt = self.prompts.get("reviewer_system_prompt_neg")
+        # Use the current review to extract the query if available.
+        related_works_string = getattr(self, "last_related_works_string", "")
+        new_review, msg_history, is_done = self._reflect_review(
+            review=current_review,
+            reviewer_system_prompt=system_prompt,
+            related_works_string=related_works_string,
+            msg_history=[]
+        )
+        return {"review": new_review}
+
+    def run(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+        """
+        Execute the review process in an ensemble fashion.
+        For each of reviews_num iterations, generate a review using review() and then refine it by calling
+        re_review() reflection_num times. Finally, aggregate all generated reviews into a meta-review.
+        """
+        all_reviews = []
+        for _ in range(self.reviews_num):
+            current_review = self.review(intent)["review"]
+            for tool in self.tools:
+                tool_input = json.dumps({"review": current_review})
+                tool_output = tool.run(tool_input)
+                # Expect tool_output to contain a "review" key.
+                if "review" in tool_output:
+                    current_review = tool_output["review"]
+            for _ in range(self.reflection_num):
+                current_review = self.re_review({"review": current_review})["review"]
+            all_reviews.append(current_review)
+        final_meta_review = self._write_meta_review(all_reviews)
+        return {"review": final_meta_review}
+
+    def _generate_query(self, text: str) -> str:
+        """
+        Generate a concise search query based on the paper text.
+        """
+        query_prompt = self.prompts["query_prompt"].format(paper_text=text)
+        response, _ = get_response_from_llm(
+            query_prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.get("reviewer_system_prompt_neg"),
+            temperature=self.temperature,
+            msg_history=[]
+        )
+        query_data = extract_json_between_markers(response)
+        return query_data["Query"] if "Query" in query_data else ""
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_review(
             self,
             base_prompt: str,
             reviewer_system_prompt: str,
-            msg_history: Optional[List[Dict]],
-            num_reflections: int
-    ) -> tuple[Dict, List[Dict]]:
-        """Generate a review with optional reflections."""
-        # Generate initial review
+            msg_history: Optional[List[Dict]]
+    ) -> Tuple[Dict, List[Dict]]:
+        """
+        Generate a review from the provided prompt.
+        This function generates a review in a single step.
+        """
         llm_review, msg_history = get_response_from_llm(
             base_prompt,
             model=self.model,
@@ -136,28 +159,77 @@ class Reviewer:
             temperature=self.temperature,
         )
         review = extract_json_between_markers(llm_review)
-        query = review.get("Query", "")
-
-        if num_reflections > 1:
-            for j in range(num_reflections - 1):
-                current_round = j + 2
-                new_review, msg_history, is_done = self._reflect_review(
-                    review=review, current_round=current_round, num_reflections=num_reflections,
-                    reviewer_system_prompt=reviewer_system_prompt,
-                    query=query, msg_history=msg_history)
-
-                if not new_review:
-                    break
-
-                review = new_review
-
-                if is_done:
-                    break
-
         return review, msg_history
 
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _reflect_review(
+            self,
+            review: Dict,
+            reviewer_system_prompt: str,
+            related_works_string: str,
+            msg_history: List[Dict]
+    ) -> Tuple[Optional[Dict], List[Dict], bool]:
+        """
+        Refine the given review using a reflection prompt.
+        The current review is included in the prompt to provide context.
+        """
+        print(f"In re_review, Related Works String:\n{related_works_string}")
+
+        # Prepend the current review context.
+        updated_prompt = f"Previous review: {json.dumps(review)}\n" + \
+                         self.prompts["reviewer_reflection_prompt"].format(
+                             related_works_string=related_works_string
+                         )
+        text, msg_history = get_response_from_llm(
+            updated_prompt,
+            client=self.client,
+            model=self.model,
+            system_message=reviewer_system_prompt,
+            msg_history=msg_history,
+            temperature=self.temperature,
+        )
+        new_review = extract_json_between_markers(text)
+        is_done = "I am done" in text
+        return new_review, msg_history, is_done
+
+    def _write_meta_review(self, reviews: List[Dict]) -> Dict:
+        """
+        Generate a meta-review by aggregating multiple individual reviews.
+        This function takes a list of review dictionaries, formats them,
+        and uses the LLM to produce an aggregated meta-review.
+        It then aggregates numerical scores via _aggregate_scores.
+        """
+        if not reviews:
+            raise ValueError("At least one review must be provided for meta-review.")
+
+        formatted_reviews = "".join(
+            f"\nReview {i + 1}:\n```\n{json.dumps(r)}\n```\n"
+            for i, r in enumerate(reviews)
+        )
+        meta_prompt = self.prompts["neurips_form"] + formatted_reviews
+
+        meta_system_prompt = self.prompts.get("meta_reviewer_system_prompt").format(
+            reviewer_count=len(reviews)
+        )
+        llm_meta_review, _ = get_response_from_llm(
+            meta_prompt,
+            model=self.model,
+            client=self.client,
+            system_message=meta_system_prompt,
+            msg_history=[],
+            temperature=self.temperature,
+        )
+        meta_review = extract_json_between_markers(llm_meta_review)
+        meta_review = self._aggregate_scores(meta_review, reviews)
+        return meta_review
+
     def _aggregate_scores(self, meta_review: Dict, reviews: List[Dict]) -> Dict:
-        """Aggregate numerical scores from multiple reviews."""
+        """
+        Aggregate numerical scores from multiple reviews.
+        For each score field, compute the mean (rounded to the nearest integer).
+        Expected score fields include: Originality, Quality, Clarity, Significance,
+        Soundness, Presentation, Contribution, Overall, and Confidence.
+        """
         score_limits = {
             "Originality": (1, 4),
             "Quality": (1, 4),
@@ -173,60 +245,25 @@ class Reviewer:
         for score, (min_val, max_val) in score_limits.items():
             valid_scores = [
                 r[score] for r in reviews
-                if score in r and min_val <= r[score] <= max_val
+                if score in r and isinstance(r[score], (int, float)) and min_val <= r[score] <= max_val
             ]
             if valid_scores:
-                meta_review[score] = int(round(np.mean(valid_scores)))
-
+                meta_review[score] = int(round(sum(valid_scores) / len(valid_scores)))
         return meta_review
 
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _reflect_review(self, review: Dict, current_round: int, num_reflections: int,
-                        reviewer_system_prompt: str, query: str,
-                        msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
-        """Perform a reflection iteration to improve the review using related works."""
+    @staticmethod
+    def _format_paper_results(papers: Optional[List[Dict[str, Any]]]) -> str:
+        """
+        Format a list of paper dictionaries into a human-readable string.
+        Each paper is represented by its index, title, authors, venue, year, and abstract.
+        """
+        if not papers:
+            return "No papers found."
 
-        related_works_string = self.searcher.search_for_papers(query, result_limit=5)
-
-        text, msg_history = get_response_from_llm(
-            self.prompts["reviewer_reflection_prompt"].format(
-                current_round=current_round,
-                num_reflections=num_reflections,
-                related_works_string=related_works_string
-            ),
-            client=self.client,
-            model=self.model,
-            system_message=reviewer_system_prompt,
-            msg_history=msg_history,
-            temperature=self.temperature,
-        )
-
-        new_review = extract_json_between_markers(text)
-
-        is_done = "I am done" in text
-
-        return new_review, msg_history, is_done
-
-    def _get_review_fewshot_examples(self, num_fs_examples: int = 1) -> str:
-        """Get few-shot examples formatted for the prompt."""
-        fewshot_prompt = "\nBelow are some sample reviews, copied from previous machine learning conferences.\n"
-        fewshot_prompt += "Note that while each review is formatted differently according to each reviewer's style, "
-        fewshot_prompt += "the reviews are well-structured and therefore easy to navigate.\n"
-
-        # Include requested number of examples
-        for paper_path, review_path in zip(
-                self.fewshot_papers[:num_fs_examples],
-                self.fewshot_reviews[:num_fs_examples]
-        ):
-            # Try to load pre-extracted text first
-            txt_path = paper_path.replace(".pdf", ".txt")
-            if os.path.exists(txt_path):
-                with open(txt_path, "r") as f:
-                    paper_text = f.read()
-            else:
-                paper_text = load_paper(paper_path)
-
-            review_text = load_review(review_path)
-            fewshot_prompt += f"\nPaper:\n```\n{paper_text}\n```\n\nReview:\n```\n{review_text}\n```\n"
-
-        return fewshot_prompt
+        paper_strings = []
+        for i, paper in enumerate(papers):
+            paper_strings.append(
+                f"{i}: {paper.get('title', 'No title')}. {paper.get('source', 'No authors')}. "
+                f"{paper.get('info', 'No venue')}"
+            )
+        return "\n\n".join(paper_strings)

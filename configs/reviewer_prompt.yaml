@@ -4,6 +4,26 @@ reviewer_system_prompt_neg: >
   You are an AI researcher who is reviewing a paper that was submitted to a prestigious ML venue. Be critical and cautious in your decision. If a paper is bad or you are unsure, give it bad scores and reject it.
 reviewer_system_prompt_pos: >
   You are an AI researcher who is reviewing a paper that was submitted to a prestigious ML venue. Be critical and cautious in your decision. If a paper is good or you are unsure, give it good scores and accept it.
+query_prompt: |
+  Here is the paper text:
+
+  ```
+  {paper_text}
+  ```
+
+  Generate a concise search query (e.g., "attention is all you need") that captures the main topics and any identified weaknesses of the paper.
+  This query will be used to retrieve additional literature to inform your review.
+
+
+  Response in the following format:
+
+  RESPONSE:
+  ```json
+  <JSON>
+  ```
+
+  In <JSON>, respond in JSON format with ONLY the following field:
+  - "Query": The query you just generated
 template_instructions: |
   Respond in the following format:
 
@@ -18,8 +38,8 @@ template_instructions: |
   In <THOUGHT>, first briefly discuss your intuitions and reasoning for the evaluation.
   Detail your high-level arguments, necessary choices and desired outcomes of the review.
 
-  Generate a concise search query that captures the main topics and any identified weaknesses of the paper.
-  This query will be used to retrieve additional literature to further inform your review.
+  Before writing your review, please consider the following related works: {related_works_string}
+
   Do not make generic comments here, but be specific to your current paper.
   Treat this as the note-taking phase of your review.
 
@@ -40,7 +60,6 @@ template_instructions: |
   - "Overall": A rating from 1 to 10 (very strong reject to award quality).
   - "Confidence": A rating from 1 to 5 (low, medium, high, very high, absolute).
   - "Decision": A decision that has to be one of the following: Accept, Reject.
-  - "Query": A query that captures the main topics and any identified weaknesses of the paper.
 neurips_form: |
   ## Review Form
   Below is a description of the questions you will be asked on the review form for each paper and some guidelines on what to consider when answering these questions.
@@ -71,7 +90,6 @@ meta_reviewer_system_prompt: |
   Be critical and cautious in your decision, find consensus, and respect the opinion of all the reviewers.
 
 reviewer_reflection_prompt: |
-  Round {current_round}/{num_reflections}.
   In your thoughts, first carefully consider the accuracy and soundness of the review you just created.
   Include any other factors that you think are important in evaluating the paper.
   Ensure the review is clear and concise, and the JSON is in the correct format.
@@ -99,10 +117,3 @@ reviewer_reflection_prompt: |
 
   If there is nothing to improve, simply repeat the previous JSON EXACTLY after the thought and include "I am done" at the end of the thoughts but before the JSON.
   ONLY INCLUDE "I am done" IF YOU ARE MAKING NO MORE CHANGES.
-
-improvement_prompt: |
-  The following review has been created for your research paper:
-  """
-  {review}
-  """
-  Improve the text using the review.
