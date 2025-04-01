@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import os.path as osp
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
@@ -24,33 +25,16 @@ def parse_args():
         help="Model to use for reviewing."
     )
     parser.add_argument(
-        "--num-fs-examples",
+        "--reviews-num",
         type=int,
-        default=0,
-        help="Number of few-shot review examples to include in the prompt."
+        default=3,
+        help="Number of independent reviews to generate (default: 3)."
     )
     parser.add_argument(
-        "--num-reviews",
+        "--reflection-num",
         type=int,
-        default=1,
-        help="Number of individual reviews to generate. If >1, a meta-review will be created."
-    )
-    parser.add_argument(
-        "--num-reflections",
-        type=int,
-        default=1,
-        help="Number of reflection steps on the final review."
-    )
-    parser.add_argument(
-        "--reviewer-type",
-        type=str,
-        default="neg",
-        choices=["neg", "pos", "base"],
-        help=(
-            "Which system prompt style to use for the reviewer: "
-            "'neg' = critical/negative, 'pos' = more positive, "
-            "'base' = the generic system prompt."
-        )
+        default=2,
+        help="Number of re_review (reflection) iterations per review (default: 2)."
     )
     parser.add_argument(
         "--temperature",
@@ -68,56 +52,53 @@ def parse_args():
         "--config-dir",
         type=str,
         default="../configs",
-        help="Path to directory containing model configurations"
+        help="Path to directory containing model configurations."
     )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    # Create the client and select the model
+
     client, model = create_client(args.model)
 
-    # Instantiate our reviewer
+    dummy_tools = []
     reviewer = Reviewer(
+        tools=dummy_tools,
+        reviews_num=args.reviews_num,
+        reflection_num=args.reflection_num,
         model=model,
         client=client,
-        temperature=args.temperature,
-        config_dir=args.config_dir
+        config_dir=args.config_dir,
+        temperature=args.temperature
     )
-    # Load the paper text from PDF, plaintext file, or use raw text
+
+    # Load the paper text: if file exists, check extension to decide how to load.
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
         if ext.lower() == ".pdf":
             text = load_paper(args.paper)
         else:
-            # Assume plaintext file
             with open(args.paper, "r", encoding="utf-8") as f:
                 text = f.read()
     else:
-        # If the file doesn't exist, assume the user passed raw text
+        # If the file doesn't exist, assume the argument is raw text.
         text = args.paper
 
-    # Pick which system prompt to use
-    prompt_key = f"reviewer_system_prompt_{args.reviewer_type}"
-    system_prompt = reviewer.prompts.get(prompt_key)
+    # Run the review process.
+    final_review = reviewer.run({"text": text})
 
-    review = reviewer.write_review(
-        text=text,
-        num_reflections=args.num_reflections,
-        num_fs_examples=args.num_fs_examples,
-        reviewer_system_prompt=system_prompt,
-        return_msg_history=False
-    )
-
-    # Print and save
+    # Print and save the final meta-review.
     print("\nFinal Review JSON:")
-    print(json.dumps(review, indent=4))
+    print(json.dumps(final_review, indent=4))
 
-    with open(args.output, "w", encoding="utf-8") as f:
-        json.dump(review, f, indent=4)
-    print(f"\nReview saved to {args.output}")
+    output_path = osp.abspath(args.output)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(final_review, f, indent=4)
+    print(f"\nReview saved to {output_path}")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
