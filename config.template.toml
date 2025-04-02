@@ -52,14 +52,11 @@ github_token = ""
 
 #################################### Reviewer ####################################
 [reviewer]
-# Number of reflection passes during review
+# Number of reflections of each review
 #num_reflections = 1
 
-# Number of few-shot examples for the review process
-#num_fs_examples = 1
-
 # Number of ensemble reviews for improved accuracy
-#num_reviews_ensemble = 1
+#num_reviews = 1
 
 # Whether to return message history in the review
 #return_msg_history = false
