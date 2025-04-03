@@ -51,7 +51,7 @@ class Thinker:
             new_ideas = self.check_ideas(new_ideas, max_iterations=10, engine="semanticscholar")
         return {"ideas": new_ideas}
 
-    def rethink(self, info: Dict[str, Dict[str, str]], current_round: int = 2) -> Dict[str, Dict[str, str]]:
+    def rethink(self, info: Dict[str, Dict[str, str]], current_round) -> Dict[str, Dict[str, str]]:
         """
         Refine an existing research idea using one reflection iteration.
         """
