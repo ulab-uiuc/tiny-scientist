@@ -82,23 +82,21 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_initial_ideas(filepath: str) -> list:
-    """Load initial ideas from a JSON file."""
+def load_initial_idea(filepath: str) -> dict:
+    """Load initial idea from a JSON file."""
     try:
         with open(filepath, "r") as f:
-            ideas = json.load(f)
-        if not isinstance(ideas, list):
-            ideas = [ideas]  # Convert single idea to list
-        print(f"Loaded {len(ideas)} initial ideas from {filepath}")
-        return ideas
+            idea = json.load(f)
+        print(f"Loaded initial idea from {filepath}")
+        return idea
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Error loading initial ideas: {e}")
-        raise ValueError("Valid initial ideas must be provided")
+        print(f"Error loading initial idea: {e}")
+        raise ValueError("Valid initial idea must be provided")
 
 
-def create_default_idea() -> list:
+def create_default_idea() -> dict:
     """Create a default initial idea."""
-    default_idea = [{
+    default_idea = {
         "Name": "baseline",
         "Title": "Baseline Implementation",
         "Experiment": "Implement baseline model with standard parameters",
@@ -106,7 +104,7 @@ def create_default_idea() -> list:
         "Feasibility": 9,
         "Novelty": 3,
         "Score": 6
-    }]
+    }
     return default_idea
 
 
@@ -136,36 +134,44 @@ def main():
             tools=[]
         )
 
-        # Get initial ideas
+        # Get initial idea
         if args.load_existing:
             try:
                 ideas_path = os.path.join(args.base_dir, "ideas.json")
                 with open(ideas_path, "r") as f:
-                    initial_ideas = json.load(f)
-                print(f"Loaded {len(initial_ideas)} existing ideas from {ideas_path}")
+                    loaded_ideas = json.load(f)
+                if loaded_ideas:
+                    initial_idea = loaded_ideas[0]  # Take the first idea
+                    print(f"Loaded existing idea from {ideas_path}")
+                else:
+                    print("No valid existing ideas found. Using default idea.")
+                    initial_idea = create_default_idea()
             except (FileNotFoundError, json.JSONDecodeError):
-                print("No valid existing ideas found. Please provide initial ideas.")
-                return 1
+                print("No valid existing ideas found. Using default idea.")
+                initial_idea = create_default_idea()
         elif args.initial_idea:
-            initial_ideas = load_initial_ideas(args.initial_idea)
+            initial_idea = load_initial_idea(args.initial_idea)
         else:
-            print("No initial ideas provided. Using default idea.")
-            initial_ideas = create_default_idea()
+            print("No initial idea provided. Using default idea.")
+            initial_idea = create_default_idea()
 
-        initial_idea_dict = {"idea": initial_ideas[0]}
+        # Prepare initial idea dictionary
+        initial_idea_dict = {"idea": initial_idea}
 
-        # Generate a final refined idea by calling run().
-        final_idea = thinker.run(initial_idea_dict,
-                                 num_ideas=args.num_ideas,
-                                 check_novelty=args.check_novelty,
-                                 pdf_content=pdf_content)
+        # Generate ideas and refine them by calling run()
+        final_result = thinker.run(
+            initial_idea_dict,
+            num_ideas=args.num_ideas,
+            check_novelty=args.check_novelty,
+            pdf_content=pdf_content
+        )
 
         print("\nFinal Refined Idea JSON:")
-        print(json.dumps(final_idea, indent=4))
+        print(json.dumps(final_result["idea"], indent=4))
 
         output_path = args.output or os.path.join(args.base_dir, "refined_idea.json")
         with open(output_path, "w") as f:
-            json.dump(final_idea, f, indent=4)
+            json.dump(final_result, f, indent=4)
         print(f"\nRefined idea saved to {output_path}")
 
     except Exception as e:
