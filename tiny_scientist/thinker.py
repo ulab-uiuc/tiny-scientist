@@ -35,6 +35,7 @@ class Thinker:
             self.prompts = yaml.safe_load(f)
 
     def think(self, intent: Dict[str, Dict[str, str]], check_novelty, pdf_content) -> Dict[str, Dict[str, str]]:
+
         """
         Generate a research idea based on the provided intent.
         The intent may include an initial idea; if not, the intent itself is used.
@@ -43,6 +44,7 @@ class Thinker:
         initial_ideas = [intent.get("idea", intent)]
 
         # Generate one idea
+
         new_ideas = self.generate_ideas(
             num_ideas=1,
             ideas=initial_ideas,
@@ -61,6 +63,7 @@ class Thinker:
             return {"idea": {}}
 
     def rethink(self, info: Dict[str, Dict[str, str]], current_round) -> Dict[str, Dict[str, str]]:
+
         """
         Refine an existing research idea using one reflection iteration.
         """
@@ -68,6 +71,7 @@ class Thinker:
         new_idea, _, _ = self._reflect_idea(
             idea,
             current_round=current_round,
+
             num_reflections=self.iter_num,
             msg_history=[]
         )
@@ -124,6 +128,7 @@ class Thinker:
             return {"idea": all_ideas[0]}
         else:
             return {"idea": {}}
+
 
     def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
                        num_reflections: int = 5, pdf_content: str = "") -> List[Dict]:

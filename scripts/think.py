@@ -79,6 +79,14 @@ def parse_args():
         type=str,
         help="Path to the PDF paper for idea generation"
     )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="think",
+        choices=["think", "rethink", "run"],
+        help="Which mode to run: 'think' to generate an idea, 'rethink' to refine an existing idea, or 'run' to create an experimental plan"
+    )
+
     return parser.parse_args()
 
 
@@ -123,7 +131,10 @@ def main():
         # Create client and model
         client, model = create_client(args.model)
 
+
         thinker = Thinker(
+            tools=dummy_tools,
+            iter_num=3,
             model=model,
             client=client,
             base_dir=args.base_dir,
@@ -173,6 +184,7 @@ def main():
         with open(output_path, "w") as f:
             json.dump(final_result, f, indent=4)
         print(f"\nRefined idea saved to {output_path}")
+
 
     except Exception as e:
         print(f"Error: {e}")
