@@ -47,11 +47,11 @@ class BaseFormat(abc.ABC):
         section_order = [
             "Abstract",
             "Introduction",
-            "Background",
+            "Related Work",
             "Method",
             "Experimental Setup",
             "Results",
-            "Related Work",
+            "Discussion",
             "Conclusion"
         ]
 
@@ -65,7 +65,6 @@ class BaseFormat(abc.ABC):
 
         # this is the temporary solution
         body += "\n\n\\bibliography{custom}"
-
         return body
     
     def _insert_body_into_template(self, template_text: str, body_content: str, new_title: str) -> str:
@@ -148,22 +147,8 @@ class Bib_Manager:
     def _update_bib_name(self, dest_template_dir: str, paper_list: List[str]) -> None:
         pass
 
-    # this is update custom.bib based on cite in latex
-    def _update_bib_cite(self, contents: Dict[str, Any], dest_template_dir: str, template: str) -> None:
-        all_keys = set()
-        citation_patterns = [
-            r"\\cite\{([^}]+)\}",
-            r"\\citep\{([^}]+)\}",
-            r"\\citet\{([^}]+)\}"
-        ]
-
-        for content in contents.values():
-            for pattern in citation_patterns:
-                matches = re.findall(pattern, content)
-                for m in matches:
-                    keys = [key.strip() for key in m.split(",")]
-                    all_keys.update(keys)
-
+    def _update_bib_cite(self, references: Dict[str, Any], dest_template_dir: str, template: str) -> None:
+     
         if template == 'acl':
             bib_path = osp.join(dest_template_dir, "latex", "custom.bib")
         if template == 'iclr':
@@ -178,30 +163,22 @@ class Bib_Manager:
             bib_content = ""
             existing_keys = set()
 
-        # 3. Find missing keys
-        missing_keys = all_keys - existing_keys
-        if not missing_keys:
-            print("All citation keys are already present in custom.bib.")
+        bib_entries = []
+        for meta in references.values():
+            bibtex = meta.get("bibtex", "").strip()
+            if bibtex:
+                bib_entries.append(bibtex)
+
+        if not bib_entries:
+            print("No BibTeX entries to write.")
             return
 
-        # 4. For each missing key, get the bibtex entry
-        new_entries = []
-        for key in missing_keys:
-            bibtex_entry = self._get_bibtex_for_key(key)
-            if bibtex_entry:
-                new_entries.append(bibtex_entry)
-            else:
-                print(f"Warning: Could not retrieve bibtex for key '{key}'.")
+        # Write all entries to the bib file
+        with open(bib_path, "w", encoding="utf-8") as f:
+            f.write("\n\n".join(bib_entries))
 
-        # 5. Append the new entries to custom.bib
-        if new_entries:
-            updated_bib = bib_content + "\n" + "\n".join(new_entries)
-            with open(bib_path, "w", encoding="utf-8") as f:
-                f.write(updated_bib)
-            print(f"Updated custom.bib with entries for: {', '.join(missing_keys)}")
-        else:
-            print("No new bibtex entries were added.")
-        
+        print(f"custom.bib created with {len(bib_entries)} entries.")
+
     def _get_bibtex_for_key(self, key: str) -> Optional[str]:
         prompt = f"Provide the bibtex entry for the paper with citation key '{key}'. Output only the bibtex entry."
         try:
@@ -236,6 +213,7 @@ class ACLFormat(BaseFormat):
         
     def run(self, 
             content: Dict[str, Any],
+            references: Dict[str, Any],
             base_dir: str,
             output_pdf_path: str,
             name: str,
@@ -244,7 +222,7 @@ class ACLFormat(BaseFormat):
         body_content = self._assemble_body(content)
         dest_template_dir = self._set_output_dir(base_dir)
         
-        self.bib_manager._update_bib_cite(content, dest_template_dir, self.template)
+        self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
         main_tex_path = osp.join(dest_template_dir, "latex", "acl_latex.tex")
 
@@ -307,7 +285,6 @@ class ACLFormat(BaseFormat):
                     cwd=cwd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    text=True,
                     timeout=timeout,
                 )
                 print("Standard Output:\n", result.stdout)
@@ -333,6 +310,7 @@ class ICLRFormat(BaseFormat):
         
     def run(self, 
             content: Dict[str, Any],
+            references: Dict[str, Any],
             base_dir: str,
             output_pdf_path: str,
             name: str,
@@ -342,7 +320,7 @@ class ICLRFormat(BaseFormat):
         dest_template_dir = self._set_output_dir(base_dir)
 
 
-        self.bib_manager._update_bib_cite(dest_template_dir, self.template)
+        self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
         main_tex_path = osp.join(dest_template_dir, "iclr2025_conference.tex")
 

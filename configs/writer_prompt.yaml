@@ -2,7 +2,16 @@ write_system_prompt:
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have already figured out the research idea and the experiments you want to run.
   Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
+  ⚠️ Do not include any citations or \cite{} commands in the content.
+  Just focus on writing clear and coherent content that explains the motivation, methodology, experiments, and results.
 
+  The purpose of this draft is to flesh out the content. Citations will be added later during the refinement process.
+
+write_system_prompt_related_work:
+  You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
+  You have already figured out the research idea and the experiments you want to run.
+  Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
+  
 section_tips:
   Abstract: |
     - TL;DR of the paper
@@ -23,14 +32,12 @@ section_tips:
     - Extra space? Future work!
 
   Related Work: |
-    - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
-    - Goal is to "Compare and contrast" - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
-    - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
-
-  Background: |
-    - Academic Ancestors of our work, i.e. all concepts and prior work that are required for understanding our method.
-    - Usually includes a subsection, Problem Setting, which formally introduces the problem setting and notation (Formalism) for our method. Highlights any specific assumptions that are made that are unusual.
-    - Note: If our paper introduces a novel problem setting as part of its contributions, it's best to have a separate Section.
+    - Focus on academic siblings of our work — i.e., alternative approaches in the literature attempting to solve the same or similar problem.
+    - The goal is to "compare and contrast": how do these methods differ in assumptions, objectives, or techniques?
+    - Simply describing a paper is not enough — explain how it relates to our study and why it matters.
+    - If a cited method is applicable to our problem setting, note its strengths or weaknesses. If it is not applicable, clearly justify why.
+    - Organize the discussion into coherent subtopics or themes.
+    - Use only the provided paper list, and cite each using \cite{{...}} placeholders.
 
   Method: |
     - What we do. Why we do it. All described using the general Formalism introduced in the Problem Setting and building on top of the concepts / foundations introduced in Background.
@@ -49,6 +56,16 @@ section_tips:
     - Discusses limitations of the method.
     - Make sure to include all the results from the experiments, and include all relevant figures.
 
+  Discussion: |
+    - Analyze what the experimental results reveal in the context of the original research question.
+    - Reflect on whether your method outperformed the baseline — and why that might be the case.
+    - Discuss any cases where your method underperformed or behaved unexpectedly.
+    - Identify the strengths and weaknesses of your approach based on the comparison to the baseline.
+    - Connect these insights to the broader literature or practical use cases (without repeating the Related Work section).
+    - Acknowledge limitations in the findings and suggest possible improvements.
+    - Offer realistic ideas for future work or applications of your method.
+
+
   Conclusion: |
     - Brief recap of the entire paper.
     - To keep going with the analogy, you can think of future work as (potential) academic offspring.
@@ -59,7 +76,6 @@ error_list: |
   - LaTeX syntax errors
   - Numerical results that do not come from explicit experiments and logs
   - Repeatedly defined figure labels
-  - References to papers that are not in the .bib file, DO NOT ADD ANY NEW CITATIONS!
   - Unnecessary verbosity or repetition, unclear text
   - Results or insights in the notes.txt that have not yet been included
   - Any relevant figures that have not yet been included in the text
@@ -72,6 +88,9 @@ refinement_prompt: |
   Great job! Now, please review and refine only the {section} you just wrote.
   Your output must consist solely of valid LaTeX code for the {section}—no additional commentary, markdown, or annotations are allowed.
   Do not include any extra explanatory text, headers, or markdown formatting. Ensure that the output is a complete, self-contained LaTeX section.
+
+  Do not introduce new references or citations that were not already included.
+  Do not add any new content beyond refinement of what is already present.
 
   Pay particular attention to fixing any errors such as:
   {error_list}
@@ -86,6 +105,7 @@ second_refinement_prompt: |
   Your output must be valid LaTeX code for the {section} only, with no extraneous annotations, markdown formatting, or commentary.
   Focus on eliminating redundancies, improving conciseness, and correcting any remaining syntax errors.
   Do not output any text beyond the LaTeX code needed for the refined section.
+  Do not introduce new references, citations, or external works.
 
   Recall the following guidance:
   {tips}
@@ -104,82 +124,15 @@ second_refinement_prompt: |
   """
 
 citation_system_prompt: |
-  You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
-  You have already written an initial draft of the paper and now you are looking to add missing citations to related papers throughout the paper.
-  The related work section already has some initial comments on which papers to add and discuss.
+  You are an academic writing assistant helping add and improve citation coverage in a research paper.
 
-  Focus on completing the existing write-up and do not add entirely new elements unless necessary.
-  Ensure every point in the paper is substantiated with sufficient evidence.
-  Feel free to add more cites to a particular point if there is only one or two references.
-  Ensure no paper is cited without a corresponding reference in the `references.bib` file.
-  Ensure each paragraph of the related work has sufficient background, e.g. a few papers cited.
-  You will be given access to the Semantic Scholar API, only add citations that you have found using the API.
-  Aim to discuss a broad range of relevant papers, not just the most popular ones.
-  Make sure not to copy verbatim from prior literature to avoid plagiarism.
+  Your role:
+  - When asked to suggest citations, return only real, published academic paper titles that are highly relevant to the given content.
+  - When asked to embed citations, insert `\cite{{Paper Title}}` placeholders exactly where needed—only using the provided paper titles.
 
-  You will be prompted to give a precise description of where and how to add the cite, and a search query for the paper to be cited.
-  Finally, you will select the most relevant cite from the search results (top 10 results will be shown).
-  You will have {total_rounds} rounds to add to the references, but do not need to use them all.
-
-  DO NOT ADD A CITATION THAT ALREADY EXISTS!
-
-citation_first_prompt: |
-  Round {current_round}/{total_rounds}:
-
-  You have written this LaTeX draft so far:
-
-  """
-  {draft}
-  """
-
-  Identify the most important citation that you still need to add, and the query to find the paper.
-
-  Respond in the following format:
-
-  THOUGHT:
-  <THOUGHT>
-
-  RESPONSE:
-  ```json
-  <JSON>
-  ```
-
-  In <THOUGHT>, first briefly reason over the paper and identify where citations should be added.
-  If no more citations are needed, add "No more citations needed" to your thoughts.
-  Do not add "No more citations needed" if you are adding citations this round.
-
-  In <JSON>, respond in JSON format with the following fields:
-  - "Description": A precise description of the required edit, along with the proposed text and location where it should be made.
-  - "Query": The search query to find the paper (e.g. attention is all you need).
-
-  Ensure the description is sufficient to make the change without further context. Someone else will make the change.
-  The query will work best if you are able to recall the exact name of the paper you are looking for, or the authors.
-  This JSON will be automatically parsed, so ensure the format is precise.
-
-citation_second_prompt: |
-  Search has recovered the following articles:
-
-  {papers}
-
-  Respond in the following format:
-
-  THOUGHT:
-  <THOUGHT>
-
-  RESPONSE:
-  ```json
-  <JSON>
-  ```
-
-  In <THOUGHT>, first briefly reason over the search results and identify which citation best fits your paper and the location is to be added at.
-  If none are appropriate, add "Do not add any" to your thoughts.
-
-  In <JSON>, respond in JSON format with the following fields:
-  - "Selected": A list of the indices of the selected papers to be cited, e.g. "[0, 1]". Can be "[]" if no papers are selected. This must be a string.
-  - "Description": Update the previous description of the required edit if needed. Ensure that any cites precisely match the name in the bibtex!!!
-
-  Do not select papers that are already in the `references.bib` file at the top of the draft, or if the same citation exists under a different name.
-  This JSON will be automatically parsed, so ensure the format is precise.
+  Do not invent or fabricate any citations.
+  Do not output BibTeX, author names, or publication details.
+  Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
 
 abstract_prompt: |
   We've provided the `latex/template.tex` file to the project. We will be filling it in section by section.
@@ -230,30 +183,6 @@ section_prompt:
     Conclude the introduction with a **roadmap** of the paper:
     - Briefly summarize what each section of the paper covers.
 
-    **Guidelines:**
-    - Use `\cite` or `\citet` where relevant, referring only to works already in `references.bib`.
-    - Do **not** introduce new citations that are not already included.
-    - Before each paragraph, add a brief description of what you plan to write as a comment.
-    - Use **SEARCH/REPLACE** blocks to perform these edits.
-
-  Background: |
-    Please fill in the Background section of the writeup. Some tips are provided below:
-    {section_tips}
-
-    The Background section should provide a clear foundation for understanding this work. Ensure that readers unfamiliar with this specific domain can grasp the key theoretical concepts, relevant prior work, and the problem setting.
-
-    - Define key theoretical concepts required to understand the paper.
-    - Discuss prior foundational work that the paper builds on.
-    - If applicable, introduce relevant mathematical formulations and assumptions.
-
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-
-    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
-
-    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
-    Keep the Background section concise and structured, ensuring it effectively establishes the foundation for the rest of the paper.
-
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
     Some tips are provided below:
@@ -271,13 +200,6 @@ section_prompt:
     ```python
     {code}
     ```
-
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-
-    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
-
-    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
   Experimental Setup: |
     Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
@@ -297,13 +219,23 @@ section_prompt:
     {code}
     ```
 
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+  Discussion: |
+    Please write the Discussion section of the research paper. Follow the instructions carefully.
+    Some tips for writing a strong Discussion section:
 
-    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
+    {section_tips}
 
-    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+    Base your discussion on the following data:
+    **Experimental results:**
+    {experiment_results}
 
+    **Baseline results:**
+    {baseline_results}
+
+    Do not restate raw metrics. Instead, reflect on their implications, relative performance, and what they say about the method’s effectiveness.
+
+    Maintain a critical and scholarly tone. Do not introduce new experiments or citations in this section.
+    
   Results: |
     Please fill in the Results section of the writeup. Some tips are provided below:
     {section_tips}
@@ -320,22 +252,10 @@ section_prompt:
     The obtained experimental results are:
     **{experiment_results}**
 
-    Compare the experimental results to the baseline and analyze the differences. Specifically:
-    - Highlight any performance improvements, if applicable.
-    - Identify cases where performance degraded or was inconsistent.
-    - Discuss possible reasons for improvements or degradations.
-    - Provide statistical significance, error margins, or confidence intervals when possible.
-    - If applicable, discuss the stability and convergence trends of the method.
+    Only describe what was observed in the experiment — do not interpret the meaning of results, speculate about causes, or evaluate significance. That will be done in the Discussion section.
 
     Ensure that all results presented have been obtained and are recorded in the logs.
     Do not hallucinate numerical results or make unverifiable claims.
-
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-
-    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
-
-    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
   Conclusion: |
     Please fill in the Conclusion section of the writeup. Some tips are provided below:
@@ -372,32 +292,71 @@ citation_related_work_prompt: |
   ["Title 1", "Title 2", "Title 3"]
   ```
 
+add_citation_prompt: |
+  Given current version of the paper 
+
+  The title of the paper is: {idea_title}
+  The motivation and focus of the paper is: {experiment}
+
+  You are reviewing the following section: {section}
+  Current content of the section:
+  {section_content}
+
+  Based on the type of section (e.g., Introduction, Method, Experimental Setup, Discussion) and the depth of the content provided, determine how many references would be reasonably appropriate to support the key statements and claims.
+
+  Your task:
+  - Return a list of **real, published academic papers** that should be cited in this section.
+  - All references must be directly relevant to the corresponding section's current content.
+  - Prefer widely recognized or foundational papers if possible.
+  - Do **not** fabricate or suggest speculative titles.
+
+  You **must return at least 4** real paper titles.
+  All titles must be real and verifiable.
+  Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
+
+  ```json
+  ["Title 1", "Title 2", "Title 3"]
+  ```
+
+embed_citation_prompt: |
+  You are assisting with inserting citation placeholders into an academic paper draft.
+
+  Section: {section}
+  Below is the current content of the section:
+
+  You must add citations from the following list of real, relevant paper titles:
+  {references}
+
+  These papers were selected specifically because they relate to the section's content. Your task is to embed **all of these citations** into the section where they are most relevant.
+
+  Instructions:
+  - Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
+  - You must cite **all** of the following papers at least once using \cite{{...}}.
+  - You may adjust the sentence slightly to help integrate the citation smoothly, but preserve the original meaning and tone.
+
+  Return the updated section as valid LaTeX with citation placeholders embedded. No additional commentary or explanation should be included.
+
 related_work_prompt: |
-  Please fill in the Related Work section of the writeup. Some tips are provided below:
+  Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
+
+  Some tips for writing a strong Related Work section:
 
   {related_work_tips}
 
-  - Discuss prior foundational works that are relevant to this research.
-  - Organize the section into at least two subtopics related to the idea.
-  - Compare and contrast alternative approaches and their limitations.
-  - Highlight gaps in existing literature that justify the need for this study.
-  - Ensure that prior works align with the **motivation** of this research, but do NOT discuss specific details of the experiment.
+  - Discuss prior foundational works relevant to this research.
+  - Organize the section into at least two subtopics (e.g., problem formulations, techniques, or perspectives).
+  - Compare and contrast different approaches and their limitations.
+  - Identify gaps in the literature that justify this study.
+  - Align prior work with the **motivation** of the research, but do NOT include experiment-specific details.
 
   The motivation for this study is: {experiment}
 
-  You must ground your discussion using the following relevant papers, which have already been selected:
+  You must ground your discussion using **only** the following pre-selected relevant papers.  
+  Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
+  You must cite **all** of the following papers at least once using \cite{{...}}.
+  Do not leave out any item from the list.
 
-  {citations}
-
-  Do not add any new citations. Use only these titles and refer to them with placeholder citation commands like \cite{{...}}.
-  
-  For this section, very briefly sketch out the structure of the section, and clearly indicate what papers you intend to include in each part.
-  Do this all in LaTeX comments using %.
-
-  The related work should be concise, structured into meaningful subtopics, and only include papers from the list above.
-  Do not modify `references.bib` to add any new citations, this will be filled in at a later stage.
-
-  Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+  {references}
 
 
 title_refinement_prompt: |
