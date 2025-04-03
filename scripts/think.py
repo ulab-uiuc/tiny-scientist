@@ -79,14 +79,6 @@ def parse_args():
         type=str,
         help="Path to the PDF paper for idea generation"
     )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        default="think",
-        choices=["think", "rethink", "run"],
-        help="Which mode to run: 'think' to generate an idea, 'rethink' to refine an existing idea, or 'run' to create an experimental plan"
-    )
-
     return parser.parse_args()
 
 
@@ -131,10 +123,7 @@ def main():
         # Create client and model
         client, model = create_client(args.model)
 
-
         thinker = Thinker(
-            tools=dummy_tools,
-            iter_num=3,
             model=model,
             client=client,
             base_dir=args.base_dir,
@@ -177,14 +166,15 @@ def main():
             pdf_content=pdf_content
         )
 
-        print("\nFinal Refined Idea JSON:")
-        print(json.dumps(final_result["idea"], indent=4))
+        print("\nGenerated and Refined Ideas:")
+        for i, idea in enumerate(final_result["ideas"]):
+            print(f"\nIdea {i+1}:")
+            print(json.dumps(idea, indent=4))
 
-        output_path = args.output or os.path.join(args.base_dir, "refined_idea.json")
+        output_path = args.output or os.path.join(args.base_dir, "refined_ideas.json")
         with open(output_path, "w") as f:
             json.dump(final_result, f, indent=4)
-        print(f"\nRefined idea saved to {output_path}")
-
+        print(f"\nRefined ideas saved to {output_path}")
 
     except Exception as e:
         print(f"Error: {e}")

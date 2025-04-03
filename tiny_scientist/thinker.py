@@ -11,15 +11,15 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 
 class Thinker:
     def __init__(
-        self,
-        tools: List,
-        iter_num: int,
-        model: str = "",
-        client: any = None,
-        base_dir: str = "",
-        config_dir: str = "",
-        temperature: float = 0.75,
-        s2_api_key: Optional[str] = None
+            self,
+            tools: List,
+            iter_num: int,
+            model: str = "",
+            client: any = None,
+            base_dir: str = "",
+            config_dir: str = "",
+            temperature: float = 0.75,
+            s2_api_key: Optional[str] = None
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -35,22 +35,16 @@ class Thinker:
             self.prompts = yaml.safe_load(f)
 
     def think(self, intent: Dict[str, Dict[str, str]], check_novelty, pdf_content) -> Dict[str, Dict[str, str]]:
-
         """
-        Generate a research idea based on the provided intent.
+        Generate a single research idea based on the provided intent.
         The intent may include an initial idea; if not, the intent itself is used.
         """
         # Use the "idea" field if available; otherwise, use intent directly.
         initial_ideas = [intent.get("idea", intent)]
 
         # Generate one idea
-
-        new_ideas = self.generate_ideas(
-            num_ideas=1,
-            ideas=initial_ideas,
-            num_reflections=self.iter_num,
-            pdf_content=pdf_content
-        )
+        new_ideas = self.generate_ideas(num_ideas=1, ideas=initial_ideas, num_reflections=self.iter_num,
+                                        pdf_content=pdf_content)
 
         # Check novelty if requested
         if check_novelty and new_ideas:
@@ -63,7 +57,6 @@ class Thinker:
             return {"idea": {}}
 
     def rethink(self, info: Dict[str, Dict[str, str]], current_round) -> Dict[str, Dict[str, str]]:
-
         """
         Refine an existing research idea using one reflection iteration.
         """
@@ -71,18 +64,15 @@ class Thinker:
         new_idea, _, _ = self._reflect_idea(
             idea,
             current_round=current_round,
-
             num_reflections=self.iter_num,
             msg_history=[]
         )
         return {"idea": new_idea} if new_idea else info
 
     def run(self, intent: Dict[str, Dict[str, str]], num_ideas: int = 1, check_novelty: bool = True,
-            pdf_content: str = "") -> Dict[str, Dict[str, str]]:
+            pdf_content: str = "") -> Dict[str, List[Dict[str, str]]]:
         """
-        Generate an experimental plan for the idea and iteratively refine it using external tools.
-        For each iteration, each tool processes the current idea (converted to a string),
-        and its output is merged into the idea. Then, rethink() is called with a current_round value.
+        Generate and refine multiple research ideas based on the provided intent.
         """
         # 1. Check if we have an initial idea
         initial_idea = intent.get("idea", intent)
@@ -123,12 +113,8 @@ class Thinker:
         # Save all ideas
         self.save_ideas(all_ideas)
 
-        # Return the first idea if any were generated, otherwise return an empty dict
-        if all_ideas:
-            return {"idea": all_ideas[0]}
-        else:
-            return {"idea": {}}
-
+        # Return all generated ideas
+        return {"ideas": all_ideas}
 
     def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
                        num_reflections: int = 5, pdf_content: str = "") -> List[Dict]:
@@ -175,7 +161,7 @@ class Thinker:
                 print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
             else:
                 print(f"Failed to generate idea {original_size + i + 1}")
-        self.save_ideas(idea_collection)
+
         return idea_collection
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -195,7 +181,7 @@ class Thinker:
         return experiment_plan
 
     def check_ideas(self, ideas: List[Dict], max_iterations: int = 10,
-                   engine: str = "semanticscholar") -> List[Dict]:
+                    engine: str = "semanticscholar") -> List[Dict]:
         if not ideas:
             raise ValueError("Ideas must be provided for novelty checking")
 
@@ -218,7 +204,7 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _reflect_idea(self, idea: Dict, current_round: int, num_reflections: int,
-                       msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
+                      msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
         # Ensure idea is a dict
         if isinstance(idea, list):
             idea = idea[0]
@@ -312,7 +298,7 @@ class Thinker:
         papers_str = ""
 
         for iteration in range(max_iterations):
-            print(f"Novelty check iteration {iteration+1}/{max_iterations}")
+            print(f"Novelty check iteration {iteration + 1}/{max_iterations}")
 
             # Get LLM decision or query
             text, msg_history = get_response_from_llm(
@@ -335,7 +321,7 @@ class Thinker:
 
             # Extract and process search query
             if not (json_output := extract_json_between_markers(text)) or "Query" not in json_output:
-                print(f"Failed to get query in iteration {iteration+1}")
+                print(f"Failed to get query in iteration {iteration + 1}")
                 continue
 
             # Perform search
@@ -343,7 +329,7 @@ class Thinker:
             print(f"Searching for: {query}")
 
             if not (papers := self.searcher.search_for_papers(query, engine=engine)):
-                print(f"No papers found in iteration {iteration+1}")
+                print(f"No papers found in iteration {iteration + 1}")
                 continue
 
             papers_str = self.searcher.format_paper_results(papers)
