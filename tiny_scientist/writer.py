@@ -9,15 +9,9 @@ import time
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
-import backoff
-import pyalex
+import traceback
 import requests
 import yaml
-from pyalex import Works
-from PyPDF2 import PageObject, PdfReader, PdfWriter
-from reportlab.lib.colors import Color
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 from .tool import PaperSearchTool
 from .format import ACLFormat, ICLRFormat
@@ -26,7 +20,7 @@ from .llm import extract_json_between_markers, get_response_from_llm
 
 
 class Writer:
-    def __init__(self, model: str, client: any, base_dir: str, template: str, config_dir: str,
+    def __init__(self, model: str, client: Any, base_dir: str, template: str, 
                  temperature: float = 0.75, s2_api_key: Optional[str] = None):
         self.model = model
         self.client = client
@@ -39,7 +33,8 @@ class Writer:
         elif self.template == 'iclr':
             self.formatter = ICLRFormat(self.client, self.model)
 
-        with open(osp.join(config_dir, "writer_prompt.yaml"), "r") as f:
+        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "writer_prompt.yaml")
+        with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
 
     def run(self, idea: Dict[str, Any], folder_name: str) -> None:
@@ -53,27 +48,28 @@ class Writer:
             experiment_result = f.read()
 
         self.generated_sections = {}
+        self.references = {}
 
         self._write_abstract(idea)
 
         for section in [
             "Introduction",
-            "Background",
             "Method",
             "Experimental Setup",
             "Results",
+            "Discussion",
             "Conclusion",
         ]:
             self._write_section(idea, code, baseline_result, experiment_result, section)
 
         self._write_related_work(idea)
         self._refine_paper()
+        self._add_citations(idea)
 
         paper_name = idea.get("Title", "Research Paper")
 
-        self.formatter.run(self.generated_sections, 
-                           self.base_dir, f"{self.base_dir}/{paper_name}.pdf", paper_name)
-        
+        self.formatter.run(self.generated_sections, self.references,
+                           self.base_dir, f"{self.base_dir}/{paper_name}.pdf", paper_name)        
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
         title = idea.get("Title", "Research Paper")
@@ -116,23 +112,20 @@ class Writer:
                 section_tips=self.prompts["section_tips"][section],
                 experiment = experiment
             )
-        elif section in ["Background"]:
-            section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"][section]
-            )
         elif section in ["Method", "Experimental Setup"]:
             section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"]["Experimental Setup"],
+                section_tips=self.prompts["section_tips"][section],
                 experiment = experiment,
                 code = code
             )
-        elif section in ["Results"]:
+        elif section in ["Results", "Discussion"]:
             section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"]["Results"],
+                section_tips=self.prompts["section_tips"][section],
                 experiment = experiment,
                 baseline_results = baseline_result,
                 experiment_results = experiment_result
             )
+
 
         section_content, _ = get_response_from_llm(
             msg = section_prompt,
@@ -171,8 +164,6 @@ class Writer:
                 system_message=self.prompts["citation_system_prompt"]
             )
 
-            print(f"Round {round_num+1} raw response:", response)
-
             try:
                 new_titles = json.loads(response)
             except json.JSONDecodeError:
@@ -190,31 +181,66 @@ class Writer:
         return collected_papers
     
     def _search_reference(self, paper_list: List[str]) -> Optional[str]:
-        for paper_name in paper_list:
-            results = self.searcher.run(paper_name)
-            print(results)
-        
-    def _write_related_work(self, idea: Dict[str, Any]) -> None:
-        citations = self._get_citations_related_work(idea, num_cite_rounds=5, total_num_papers=20)
-        # paper_source =  self._search_reference(citations)
-        
-        experiment = idea.get("Experiment", "No experiment details provided")
+        results_dict = {}
 
-        citations_list = "\n".join([f"- {c}" for c in citations])
-        escaped_citations_list = citations_list.replace("{", "{{").replace("}", "}}")
+        for paper_name in paper_list:
+            try:
+                result = self.searcher.run(paper_name)
+             
+                if result:
+                    if paper_name in result:
+                        results_dict[paper_name] = result[paper_name]
+                    else:
+                        first_key = next(iter(result)) 
+                        results_dict[first_key] = result[first_key]
+
+                time.sleep(1.0) 
+            except Exception as e:
+                print(f"[ERROR] While processing '{paper_name}': {e}")
+                traceback.print_exc()  
+        
+        return results_dict
+
+    def _write_related_work(self, idea: Dict[str, Any]) -> None:
+        citations = self._get_citations_related_work(idea, num_cite_rounds=2, total_num_papers=10)
+    
+        paper_source =  self._search_reference(citations)
+        self.references = paper_source
+
+        reference_list = "\n".join([f"- {title}" for title in paper_source.keys()])
+        reference_list = reference_list.replace("{", "{{").replace("}", "}}")
+
+        experiment = idea.get("Experiment", "No experiment details provided")
 
         related_work_prompt = self.prompts["related_work_prompt"].format(
             related_work_tips=self.prompts["section_tips"]["Related Work"],
             experiment = experiment,
-            citations = escaped_citations_list,
+            references = reference_list,
         )
 
         relatedwork_content, _ = get_response_from_llm(
             msg = related_work_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts["write_system_prompt"]
+            system_message=self.prompts["write_system_prompt_related_work"]
         )
+
+        for title, meta in paper_source.items():
+            
+            match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
+            if match:
+                try:
+                    bibtex_key = match.group(1)
+                    escaped_title = re.escape(title)
+                    pattern = r"\\cite\{\s*" + escaped_title + r"\s*\}"
+                    relatedwork_content = re.sub(
+                        pattern,
+                        lambda _: f"\\cite{{{bibtex_key}}}",
+                        relatedwork_content
+                    )                
+                except Exception as e:
+                    print(f"[ERROR] Failed to replace citation for title: {title}")
+                    traceback.print_exc()
 
         self.generated_sections["Related Work"] = relatedwork_content
 
@@ -253,7 +279,6 @@ class Writer:
 
         for section in [
             "Abstract",
-            "Related Work",
             "Introduction",
             "Background",
             "Method",
@@ -279,8 +304,84 @@ class Writer:
                 )
 
                 self.generated_sections[section] = refined_section
-        print(self.generated_sections.keys())
-        print('FINISHED REFINING SECTIONS')
 
+    def _add_citations(self, idea: Dict[str, Any]) -> None:
 
+        idea_title = idea.get("Title", "Research Paper")  
+        experiment = idea.get("Experiment", "No experiment details provided")
 
+        for section in [
+            "Introduction",
+            "Method",
+            "Experimental Setup",
+            "Discussion"
+        ]:
+            if section in self.generated_sections.keys():
+                try:
+                    original_content = self.generated_sections[section]
+                    collected_papers = []
+
+                    add_citation_prompt = self.prompts["add_citation_prompt"].format(
+                        idea_title=idea_title,
+                        experiment=experiment,
+                        section = section,
+                        section_content=original_content,
+                    )
+
+                    response, _ = get_response_from_llm(
+                        msg = add_citation_prompt,
+                        client=self.client,
+                        model=self.model,
+                        system_message=self.prompts["citation_system_prompt"]
+                    )
+
+                    try:
+                        new_titles = json.loads(response)
+                    except json.JSONDecodeError:
+                        new_titles = extract_json_between_markers(response)
+
+                    collected_papers.extend(new_titles)
+                    paper_source =  self._search_reference(collected_papers)
+                
+                    if not paper_source:
+                        continue
+
+                    for title, entry in paper_source.items():
+                        if title not in self.references:
+                            self.references[title] = entry
+                
+                    reference_list = "\n".join([f"- {title}" for title in paper_source.keys()])
+                    reference_list = reference_list.replace("{", "{{").replace("}", "}}")
+
+                    embed_citation_prompt = self.prompts["embed_citation_prompt"].format(
+                        section=section,
+                        section_content=original_content,
+                        references=reference_list
+                    )
+
+                    refined_section, _ = get_response_from_llm(
+                        msg=embed_citation_prompt,
+                        client=self.client,
+                        model=self.model,
+                        system_message=self.prompts["citation_system_prompt"]
+                    )
+
+                    print(f"Refined section for {section}: {refined_section}")
+
+                    for title, meta in paper_source.items():
+
+                        match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
+                        if match:
+                            bibtex_key = match.group(1)
+                            escaped_title = re.escape(title)
+                            pattern = r"\\cite\{\s*" + escaped_title + r"\s*\}"
+                            refined_section = re.sub(
+                                                    pattern,
+                                                    lambda _: f"\\cite{{{bibtex_key}}}",
+                                                    refined_section
+                                                )                
+                    self.generated_sections[section] = refined_section
+
+                except Exception as e:
+                    print(f"[ERROR] Failed to add citations to section: {section}")
+                    traceback.print_exc()

@@ -7,8 +7,6 @@ from tiny_scientist.coder import Coder  # Ensure Coder is properly implemented
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.writer import Writer
 
-os.environ['OPENAI_API_KEY'] = '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'
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write paper.")
 
@@ -63,8 +61,7 @@ def main() -> int:
             model=model,
             client=client,
             base_dir=args.experiment,
-            template=args.template,
-            config_dir=os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs")
+            template=args.template
         )
 
         # idea should be import from args.experiemnt and idea.json
@@ -78,9 +75,6 @@ def main() -> int:
             folder_name=args.experiment,
         )
 
-        # Save output PDF
-        output_path = args.output or os.path.join(args.experiment, "Generated_Paper.pdf")
-        print(f"\nFinal paper saved to: {output_path}")
 
     except Exception as e:
         print(f"Error: {e}")
