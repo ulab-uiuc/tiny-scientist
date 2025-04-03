@@ -79,14 +79,6 @@ def parse_args():
         type=str,
         help="Path to the PDF paper for idea generation"
     )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        default="think",
-        choices=["think", "rethink", "run"],
-        help="Which mode to run: 'think' to generate an idea, 'rethink' to refine an existing idea, or 'run' to create an experimental plan"
-    )
-
     return parser.parse_args()
 
 
@@ -122,7 +114,6 @@ def main():
     args = parse_args()
 
     pdf_content = ""
-
     if args.pdf:
         try:
             pdf_content = load_paper(args.pdf)
@@ -134,17 +125,15 @@ def main():
         # Create client and model
         client, model = create_client(args.model)
 
-        # Initialize thinker
-        dummy_tools = []
         thinker = Thinker(
-            tools=dummy_tools,
-            iter_num=3,
             model=model,
             client=client,
             base_dir=args.base_dir,
             config_dir=args.config_dir,
             temperature=args.temperature,
-            s2_api_key=os.getenv("S2_API_KEY")
+            s2_api_key=os.getenv("S2_API_KEY"),
+            iter_num=args.num_reflections,
+            tools=[]
         )
 
         # Get initial ideas
@@ -152,8 +141,7 @@ def main():
             try:
                 ideas_path = os.path.join(args.base_dir, "ideas.json")
                 with open(ideas_path, "r") as f:
-                    ideas = json.load(f)
-                initial_ideas = ideas[0] if ideas else create_default_idea()
+                    initial_ideas = json.load(f)
                 print(f"Loaded {len(initial_ideas)} existing ideas from {ideas_path}")
             except (FileNotFoundError, json.JSONDecodeError):
                 print("No valid existing ideas found. Please provide initial ideas.")
@@ -161,22 +149,24 @@ def main():
         elif args.initial_idea:
             initial_ideas = load_initial_ideas(args.initial_idea)
         else:
-            # Use default idea if no initial ideas provided
             print("No initial ideas provided. Using default idea.")
             initial_ideas = create_default_idea()
 
-        intent = {"idea": initial_ideas}
+        initial_idea_dict = {"idea": initial_ideas[0]}
 
-        result = {}
-        if args.mode == "think":
-            result = thinker.think(intent, check_novelty=args.check_novelty, pdf_content=pdf_content)
-        elif args.mode == "rethink":
-            result = thinker.rethink(intent)
-        elif args.mode == "run":
-            result = thinker.run(intent)
+        # Generate a final refined idea by calling run().
+        final_idea = thinker.run(initial_idea_dict,
+                                 num_ideas=args.num_ideas,
+                                 check_novelty=args.check_novelty,
+                                 pdf_content=pdf_content)
 
-        print("\nFinal Result:")
-        print(json.dumps(result, indent=4))
+        print("\nFinal Refined Idea JSON:")
+        print(json.dumps(final_idea, indent=4))
+
+        output_path = args.output or os.path.join(args.base_dir, "refined_idea.json")
+        with open(output_path, "w") as f:
+            json.dump(final_idea, f, indent=4)
+        print(f"\nRefined idea saved to {output_path}")
 
     except Exception as e:
         print(f"Error: {e}")

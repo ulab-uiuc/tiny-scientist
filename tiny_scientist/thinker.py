@@ -34,7 +34,7 @@ class Thinker:
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
-    def think(self, intent: Dict[str, Dict[str, str]], check_novelty: bool = True, pdf_content: str = "") -> Dict[str, Dict[str, str]]:
+    def think(self, intent: Dict[str, Dict[str, str]], num_ideas, check_novelty, pdf_content) -> Dict[str, List[Dict[str, str]]]:
         """
         Generate a research idea based on the provided intent.
         The intent may include an initial idea; if not, the intent itself is used.
@@ -42,37 +42,36 @@ class Thinker:
         # Use the "idea" field if available; otherwise, use intent directly.
         initial_ideas = [intent.get("idea", intent)]
         new_ideas = self.generate_ideas(
-            num_ideas=1,
+            num_ideas=num_ideas,
             ideas=initial_ideas,
             num_reflections=self.iter_num,
             pdf_content=pdf_content
         )
         if check_novelty and new_ideas:
             new_ideas = self.check_ideas(new_ideas, max_iterations=10, engine="semanticscholar")
-        if new_ideas:
-            return {"idea": new_ideas[0]}
-        else:
-            return {}
+        return {"ideas": new_ideas}
 
-    def rethink(self, info: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    def rethink(self, info: Dict[str, Dict[str, str]], current_round: int = 2) -> Dict[str, Dict[str, str]]:
         """
         Refine an existing research idea using one reflection iteration.
         """
         idea = info.get("idea", {})
         new_idea, _, _ = self._reflect_idea(
             idea,
-            current_round=2,
+            current_round=current_round,
             num_reflections=self.iter_num,
             msg_history=[]
         )
         return {"idea": new_idea} if new_idea else info
 
-    def run(self, idea: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    def run(self, idea: Dict[str, Dict[str, str]], num_ideas: int = 1, check_novelty: bool = True, pdf_content: str = "") -> Dict[str, Dict[str, str]]:
         """
         Generate an experimental plan for the idea and iteratively refine it using external tools.
         For each iteration, each tool processes the current idea (converted to a string),
-        and its output is merged into the idea.
+        and its output is merged into the idea. Then, rethink() is called with a current_round value.
         """
+        if "idea" not in idea or not idea["idea"]:
+            idea = self.think(idea, num_ideas, check_novelty, pdf_content)
         idea_dict = idea.get("idea", {})
         experiment_plan = self.generate_experiment_plan(idea_dict)
 
@@ -85,11 +84,14 @@ class Thinker:
         idea_dict["ExperimentPlan"] = experiment_plan_str
 
         paper = idea_dict
-        for _ in range(self.iter_num):
+        # For each iteration, process tools then refine the idea with a specified current_round.
+        for i in range(self.iter_num):
             for tool in self.tools:
                 tool_input = json.dumps(paper)
                 info = tool.run(tool_input)
                 paper.update(info)
+            # Pass a dynamic current_round (i+2, for instance) to rethink().
+            paper = self.rethink({"idea": paper}, current_round=i + 1)["idea"]
         return {"idea": paper}
 
     def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
