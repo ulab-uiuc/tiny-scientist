@@ -1,9 +1,8 @@
 import json
-import os.path as osp
-from typing import Any, Dict, List, Optional, Tuple
+import os
 
 import yaml
-
+from typing import Any, Dict, List, Optional, Tuple
 from .llm import extract_json_between_markers, get_response_from_llm
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -12,12 +11,11 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 class Reviewer:
     def __init__(
             self,
+            model: str,
+            client: Any,
             tools: List[BaseTool],
             num_reviews: int = 3,  # Number of separate reviews to generate
             num_reflections: int = 2,  # Number of re_review calls per review
-            model: Any = None,
-            client: Any = None,
-            config_dir: str = "",
             temperature: float = 0.75,
             s2_api_key: Optional[str] = None
     ):
@@ -34,7 +32,9 @@ class Reviewer:
         self._query_cache: Dict[str, List[Dict]] = {}
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
-        with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
+        
+        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "reviewer_prompt.yaml")
+        with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
 
         # Process template instructions in neurips form if available

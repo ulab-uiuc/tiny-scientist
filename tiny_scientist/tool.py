@@ -1,7 +1,8 @@
 import abc
 import os
 import time
-from typing import Dict, List, Optional
+import spacy
+from typing import Dict, List, Optional, Any
 
 import requests
 import toml
@@ -9,7 +10,11 @@ import toml
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 # Load configuration from TOML
-config = toml.load("config.toml")
+config_path = os.path.join(os.path.dirname(__file__), "..", "config.template.toml")
+config = toml.load(config_path)
+
+nlp = spacy.load("en_core_web_sm")
+# config = toml.load("config.toml")
 
 class BaseTool(abc.ABC):
 
@@ -35,6 +40,52 @@ class CodeSearchTool(BaseTool):
                 }
 
         return results
+    
+    def format_github_repo_query(self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250) -> str:
+        import re
+        title = idea.get("Title", "")
+        experiment = idea.get("Experiment", "")
+        combined_text = f"{title}. {experiment}"
+
+        doc = nlp(combined_text)
+        candidates = set()
+
+        # Extract short noun phrases
+        for chunk in doc.noun_chunks:
+            phrase = chunk.text.strip().lower()
+            if 1 <= len(phrase.split()) <= 4:
+                candidates.add(phrase)
+
+        # Add important standalone nouns and proper nouns
+        for token in doc:
+            if token.pos_ in {"NOUN", "PROPN"} and len(token.text) > 2:
+                candidates.add(token.text.lower())
+
+        # Clean and deduplicate
+        candidates = list(candidates)
+        seen = set()
+        keywords = []
+        for kw in candidates:
+            cleaned = re.sub(r"[^\w\s]", "", kw)
+            if cleaned not in seen:
+                seen.add(cleaned)
+                keywords.append(cleaned)
+            if len(keywords) >= max_terms:
+                break
+
+        # Build query string (selectively quote multi-word phrases)
+        quoted_keywords = [
+            f'"{kw}"' if " " in kw else kw for kw in keywords
+        ]
+        base_query = " ".join(quoted_keywords)
+        suffix = " in:file language:python"
+        full_query = f"{base_query} {suffix}"
+
+        # Truncate if needed
+        if len(full_query) > max_query_length:
+            full_query = f"{' '.join(quoted_keywords[:max_terms//2])} {suffix}"
+
+        return full_query
 
     def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
         return self._search_github(query, result_limit, search_type="repositories")
@@ -102,18 +153,25 @@ class PaperSearchTool(BaseTool):
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
         papers = self.search_for_papers(query)
-
         if papers:
             for i, paper in enumerate(papers):
-                results[str(i)] = {
-                    "title": paper["title"],
-                    "source": f"Published in {paper['venue']}",
-                    "info": f"Authors: {paper['authors']}"
-                }
+                
+                paper_id = paper.get("paperId", None)
+                bibtex = self.fetch_bibtex(paper_id) if paper_id else "N/A"
+                
+                if not bibtex or bibtex == "N/A":
+                    continue
 
+                results[paper["title"]] = {
+                    "title": paper["title"],
+                    # "authors": paper["authors"],
+                    # "venue": paper["venue"],
+                    "bibtex": bibtex
+                }
+        
         return results
 
-    def search_for_papers(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
+    def search_for_papers(self, query: str, result_limit: int = 3) -> Optional[List[Dict]]:
         engine = config["thinker"].get("engine", "semanticscholar")
         if not query:
             return None
@@ -162,7 +220,18 @@ class PaperSearchTool(BaseTool):
             return None
 
         return [self._extract_work_info(work) for work in works]
-
+    
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def fetch_bibtex(self, paper_id: str) -> str:
+        rsp = requests.get(
+            f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}",
+            headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
+            params={"fields": "citationStyles"}
+        )
+        rsp.raise_for_status()
+        citation_styles = rsp.json().get("citationStyles", {})
+        return citation_styles.get("bibtex", "N/A")
+    
     @staticmethod
     def _extract_work_info(work: any, max_abstract_length: int = 1000) -> Dict[str, str]:
         venue = next((loc["source"]["display_name"] for loc in work["locations"] if loc["source"]), "Unknown")
