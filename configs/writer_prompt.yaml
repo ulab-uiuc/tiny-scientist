@@ -11,7 +11,7 @@ write_system_prompt_related_work:
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have already figured out the research idea and the experiments you want to run.
   Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
-  
+
 section_tips:
   Abstract: |
     - TL;DR of the paper
@@ -235,7 +235,7 @@ section_prompt:
     Do not restate raw metrics. Instead, reflect on their implications, relative performance, and what they say about the method’s effectiveness.
 
     Maintain a critical and scholarly tone. Do not introduce new experiments or citations in this section.
-    
+
   Results: |
     Please fill in the Results section of the writeup. Some tips are provided below:
     {section_tips}
@@ -279,21 +279,21 @@ section_prompt:
 
 citation_related_work_prompt: |
   Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
-  
+
   The title of the paper is: {idea_title}
   The motivation and focus of the paper is: {experiment}
 
   This is round {round_num} out of {total_rounds}. You have already collected the following papers:
   {collected_papers}
-  
+
   Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
-  
+
   ```json
   ["Title 1", "Title 2", "Title 3"]
   ```
 
 add_citation_prompt: |
-  Given current version of the paper 
+  Given current version of the paper
 
   The title of the paper is: {idea_title}
   The motivation and focus of the paper is: {experiment}
@@ -351,7 +351,7 @@ related_work_prompt: |
 
   The motivation for this study is: {experiment}
 
-  You must ground your discussion using **only** the following pre-selected relevant papers.  
+  You must ground your discussion using **only** the following pre-selected relevant papers.
   Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
   You must cite **all** of the following papers at least once using \cite{{...}}.
   Do not leave out any item from the list.

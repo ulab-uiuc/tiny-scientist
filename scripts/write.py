@@ -3,9 +3,9 @@ import argparse
 import json
 import os
 
-from tiny_scientist.coder import Coder  # Ensure Coder is properly implemented
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.writer import Writer
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write paper.")

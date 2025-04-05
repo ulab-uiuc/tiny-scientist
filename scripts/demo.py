@@ -1,9 +1,10 @@
-import os
-import json
 import argparse
+import json
+import os
 
-from tiny_scientist.llm import AVAILABLE_LLMS, create_client
+from tiny_scientist.llm import create_client
 from tiny_scientist.scientist import TinyScientist
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run TinyScientist pipeline.")

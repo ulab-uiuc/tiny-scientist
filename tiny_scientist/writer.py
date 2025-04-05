@@ -1,26 +1,20 @@
+import json
 import os
 import os.path as osp
 import re
-import shutil
-import subprocess
-import tempfile
-import textwrap
 import time
-import json
-from typing import Any, Dict, List, Optional, Tuple
-
 import traceback
-import requests
+from typing import Any, Dict, List, Optional
+
 import yaml
 
-from .tool import PaperSearchTool
 from .format import ACLFormat, ICLRFormat
-
 from .llm import extract_json_between_markers, get_response_from_llm
+from .tool import PaperSearchTool
 
 
 class Writer:
-    def __init__(self, model: str, client: Any, base_dir: str, template: str, 
+    def __init__(self, model: str, client: Any, base_dir: str, template: str,
                  temperature: float = 0.75, s2_api_key: Optional[str] = None):
         self.model = model
         self.client = client
@@ -69,7 +63,7 @@ class Writer:
         paper_name = idea.get("Title", "Research Paper")
 
         self.formatter.run(self.generated_sections, self.references,
-                           self.base_dir, f"{self.base_dir}/{paper_name}.pdf", paper_name)        
+                           self.base_dir, f"{self.base_dir}/{paper_name}.pdf", paper_name)
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
         title = idea.get("Title", "Research Paper")
@@ -136,13 +130,13 @@ class Writer:
 
         self.generated_sections[section] = section_content
 
-    def _get_citations_related_work(self, 
-                                    idea: Dict[str, Any], 
-                                    num_cite_rounds: int, 
+    def _get_citations_related_work(self,
+                                    idea: Dict[str, Any],
+                                    num_cite_rounds: int,
                                     total_num_papers: int
                                     ) -> List[str]:
-        
-        idea_title = idea.get("Title", "Research Paper")  
+
+        idea_title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment", "No experiment details provided")
 
         num_papers = total_num_papers // num_cite_rounds if num_cite_rounds > 0 else total_num_papers
@@ -173,37 +167,37 @@ class Writer:
                 collected_papers.extend(new_titles)
             else:
                 print(f"Round {round_num+1}: No valid titles returned.")
-  
+
             if len(collected_papers) >= total_num_papers:
                 break
             time.sleep(1)
 
         return collected_papers
-    
+
     def _search_reference(self, paper_list: List[str]) -> Optional[str]:
         results_dict = {}
 
         for paper_name in paper_list:
             try:
                 result = self.searcher.run(paper_name)
-             
+
                 if result:
                     if paper_name in result:
                         results_dict[paper_name] = result[paper_name]
                     else:
-                        first_key = next(iter(result)) 
+                        first_key = next(iter(result))
                         results_dict[first_key] = result[first_key]
 
-                time.sleep(1.0) 
+                time.sleep(1.0)
             except Exception as e:
                 print(f"[ERROR] While processing '{paper_name}': {e}")
-                traceback.print_exc()  
-        
+                traceback.print_exc()
+
         return results_dict
 
     def _write_related_work(self, idea: Dict[str, Any]) -> None:
         citations = self._get_citations_related_work(idea, num_cite_rounds=2, total_num_papers=10)
-    
+
         paper_source =  self._search_reference(citations)
         self.references = paper_source
 
@@ -226,7 +220,7 @@ class Writer:
         )
 
         for title, meta in paper_source.items():
-            
+
             match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
             if match:
                 try:
@@ -237,8 +231,8 @@ class Writer:
                         pattern,
                         lambda _: f"\\cite{{{bibtex_key}}}",
                         relatedwork_content
-                    )                
-                except Exception as e:
+                    )
+                except Exception:
                     print(f"[ERROR] Failed to replace citation for title: {title}")
                     traceback.print_exc()
 
@@ -307,7 +301,7 @@ class Writer:
 
     def _add_citations(self, idea: Dict[str, Any]) -> None:
 
-        idea_title = idea.get("Title", "Research Paper")  
+        idea_title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment", "No experiment details provided")
 
         for section in [
@@ -342,14 +336,14 @@ class Writer:
 
                     collected_papers.extend(new_titles)
                     paper_source =  self._search_reference(collected_papers)
-                
+
                     if not paper_source:
                         continue
 
                     for title, entry in paper_source.items():
                         if title not in self.references:
                             self.references[title] = entry
-                
+
                     reference_list = "\n".join([f"- {title}" for title in paper_source.keys()])
                     reference_list = reference_list.replace("{", "{{").replace("}", "}}")
 
@@ -379,9 +373,9 @@ class Writer:
                                                     pattern,
                                                     lambda _: f"\\cite{{{bibtex_key}}}",
                                                     refined_section
-                                                )                
+                                                )
                     self.generated_sections[section] = refined_section
 
-                except Exception as e:
+                except Exception:
                     print(f"[ERROR] Failed to add citations to section: {section}")
                     traceback.print_exc()

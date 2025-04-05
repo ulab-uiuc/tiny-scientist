@@ -11,10 +11,10 @@ Welcome to **Tiny-Scientist**, Tiny-Scientist is an automated research system th
 🔸 **Core Capabilities**
 
 🚀 **Primary Research Functions**
-* 🧠 Idea Generation & Refinement: Automatically generates innovative research ideas through iterative reasoning and refinement. 
+* 🧠 Idea Generation & Refinement: Automatically generates innovative research ideas through iterative reasoning and refinement.
 * 💻 Experiment Design & Coding: Translates research ideas into executable code with minimal human input. Supports experiment setup, baseline comparison.
 * ✍️ Paper Writing: Generates full-length academic papers with well-structured sections, integrated citation management, and support for multiple conference templates.
-* 📝 Paper Review: Evaluates academic drafts using structured reviewing criteria inspired by top-tier conferences. 
+* 📝 Paper Review: Evaluates academic drafts using structured reviewing criteria inspired by top-tier conferences.
 
 
 ## Get started
