@@ -20,7 +20,8 @@ class Thinker:
             base_dir: str = "",
             config_dir: str = "",
             temperature: float = 0.75,
-            s2_api_key: Optional[str] = Non
+            s2_api_key: Optional[str] = None,
+    ):
         self.tools = tools
         self.iter_num = iter_num
         self.model = model
