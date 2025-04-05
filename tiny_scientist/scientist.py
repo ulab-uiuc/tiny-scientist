@@ -1,12 +1,13 @@
-import os
 import json
+import os
+from typing import Any, Dict
 
-from typing import Any, Dict, List
-from tiny_scientist.thinker import Thinker
 from tiny_scientist.coder import Coder
-from tiny_scientist.writer import Writer
 from tiny_scientist.reviewer import Reviewer
+from tiny_scientist.thinker import Thinker
 from tiny_scientist.utils.loader import load_paper
+from tiny_scientist.writer import Writer
+
 
 class TinyScientist:
     def __init__(self, model, client, base_dir: str, template: str = "acl"):
@@ -69,9 +70,8 @@ class TinyScientist:
     def review(self) -> None:
         print("🔍 Reviewing paper...")
         paper_name = self.idea.get("idea", self.idea)[0]["Title"]
-        pdf_name = f"{paper_name}.pdf"  
+        pdf_name = f"{paper_name}.pdf"
         pdf_path = os.path.join(self.base_dir, pdf_name)
         text = load_paper(pdf_path)
         self.reviewer.run({"text": text})
         print("✅ Review complete.")
-

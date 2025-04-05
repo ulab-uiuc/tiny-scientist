@@ -5,13 +5,14 @@ import shutil
 import subprocess
 import sys
 from subprocess import TimeoutExpired
-from typing import Any, Dict, Optional, Tuple, List
-from .tool import CodeSearchTool
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
 from aider.models import Model
+
+from .tool import CodeSearchTool
 
 
 class Coder:
@@ -37,8 +38,8 @@ class Coder:
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
 
-    def setup_aider(self, 
-                    model: str, 
+    def setup_aider(self,
+                    model: str,
                     fnames: List[str],
                     chat_history: Optional[str] = None) -> None:
         """Setup Aider coder with the specified model."""
@@ -137,7 +138,7 @@ class Coder:
 
             if "ALL_COMPLETED" in coder_out:
                 return True
-          
+
             if osp.exists(exp_path):
                 with open(exp_path) as f:
                     content = f.read()
@@ -187,7 +188,7 @@ class Coder:
                 stderr=subprocess.PIPE,
                 text=True,
                 timeout=timeout
-            )                     
+            )
 
             if result.stderr:
                 print(result.stderr, file=sys.stderr)
@@ -201,12 +202,12 @@ class Coder:
                     stderr_output = "..." + stderr_output[-self.max_stderr_output:]
 
                 return 1, stderr_output
-        
+
             # Load and format results
             with open(osp.join(self.base_dir, f"run_{run_num}", "final_info.json"), "r") as f:
                 results = json.load(f)
 
-            results = {    
+            results = {
                 k: v["means"] if isinstance(v, dict) and "means" in v else v
                 for k, v in results.items()
             }
