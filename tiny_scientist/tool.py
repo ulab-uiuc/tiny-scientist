@@ -1,10 +1,10 @@
 import abc
 import os
 import time
-import spacy
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import requests
+import spacy
 import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -40,7 +40,7 @@ class CodeSearchTool(BaseTool):
                 }
 
         return results
-    
+
     def format_github_repo_query(self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250) -> str:
         import re
         title = idea.get("Title", "")
@@ -155,10 +155,10 @@ class PaperSearchTool(BaseTool):
         papers = self.search_for_papers(query)
         if papers:
             for i, paper in enumerate(papers):
-                
+
                 paper_id = paper.get("paperId", None)
                 bibtex = self.fetch_bibtex(paper_id) if paper_id else "N/A"
-                
+
                 if not bibtex or bibtex == "N/A":
                     continue
 
@@ -168,7 +168,7 @@ class PaperSearchTool(BaseTool):
                     # "venue": paper["venue"],
                     "bibtex": bibtex
                 }
-        
+
         return results
 
     def search_for_papers(self, query: str, result_limit: int = 3) -> Optional[List[Dict]]:
@@ -220,7 +220,7 @@ class PaperSearchTool(BaseTool):
             return None
 
         return [self._extract_work_info(work) for work in works]
-    
+
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def fetch_bibtex(self, paper_id: str) -> str:
         rsp = requests.get(
@@ -231,7 +231,7 @@ class PaperSearchTool(BaseTool):
         rsp.raise_for_status()
         citation_styles = rsp.json().get("citationStyles", {})
         return citation_styles.get("bibtex", "N/A")
-    
+
     @staticmethod
     def _extract_work_info(work: any, max_abstract_length: int = 1000) -> Dict[str, str]:
         venue = next((loc["source"]["display_name"] for loc in work["locations"] if loc["source"]), "Unknown")

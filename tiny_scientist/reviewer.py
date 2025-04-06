@@ -1,8 +1,9 @@
 import json
 import os
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-from typing import Any, Dict, List, Optional, Tuple
+
 from .llm import extract_json_between_markers, get_response_from_llm
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -32,7 +33,7 @@ class Reviewer:
         self._query_cache: Dict[str, List[Dict]] = {}
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
-        
+
         yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "reviewer_prompt.yaml")
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)

@@ -8,6 +8,7 @@ from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.utils.loader import load_paper
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform a paper review using the specified model.")
     parser.add_argument(
