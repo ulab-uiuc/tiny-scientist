@@ -3,13 +3,15 @@ import argparse
 import json
 import os
 import os.path as osp
+from typing import Dict, List
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
+from tiny_scientist.tool import BaseTool
 from tiny_scientist.utils.loader import load_paper
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform a paper review using the specified model.")
     parser.add_argument(
         "--paper",
@@ -57,16 +59,16 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def main() -> int:
     args = parse_args()
 
     client, model = create_client(args.model)
 
-    dummy_tools = []
+    dummy_tools: List[BaseTool] = []
     reviewer = Reviewer(
         tools=dummy_tools,
-        reviews_num=args.reviews_num,
-        reflection_num=args.reflection_num,
+        num_reviews=args.reviews_num,
+        num_reflections=args.reflection_num,
         model=model,
         client=client,
         temperature=args.temperature
@@ -85,7 +87,9 @@ def main():
         text = args.paper
 
     # Run the review process.
-    final_review = reviewer.run({"text": text})
+    intent: Dict[str, Dict[str, str]] = {"text": {"content": str(text)}}
+
+    final_review = reviewer.run(intent)
 
     # Print and save the final meta-review.
     print("\nFinal Review JSON:")
