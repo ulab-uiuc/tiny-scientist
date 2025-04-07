@@ -27,10 +27,10 @@ class Reviewer:
         self.client = client
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
-        self.searcher = PaperSearchTool()
+        self.searcher = PaperSearchTool()  # type: ignore
         self.searcher.s2_api_key = s2_api_key
         # Cache for queries to avoid duplicate searches
-        self._query_cache: Dict[str, List[Dict]] = {}
+        self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
 
@@ -44,7 +44,7 @@ class Reviewer:
                 "{{ template_instructions }}", self.prompts["template_instructions"]
             )
 
-    def review(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    def review(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
         """
         Generate an initial review for the given paper.
         Expects a "text" field in the intent (the paper content).
@@ -56,7 +56,7 @@ class Reviewer:
             raise ValueError("No paper text provided for review.")
 
         # Generate a search query based on the paper text.
-        query = self._generate_query(text)
+        query = self._generate_query(str(text))
         print(f"Generated Query: {query}")
 
         # Retrieve related papers using run() and cache the results.
@@ -77,13 +77,13 @@ class Reviewer:
 
         # Construct the base prompt by inserting the related works.
         base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string)
-        base_prompt += "\nHere is the paper you are asked to review:\n```\n" + text + "\n```"
+        base_prompt += "\nHere is the paper you are asked to review:\n```\n" + str(text) + "\n```"
 
         system_prompt = self.prompts.get("reviewer_system_prompt_neg")
         review, msg_history = self._generate_review(base_prompt, system_prompt, msg_history=[])
         return {"review": review}
 
-    def re_review(self, info: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    def re_review(self, info: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """
         Refine an existing review using a reflection prompt.
         Expects the info dictionary to contain a "review" field.
@@ -100,9 +100,9 @@ class Reviewer:
             related_works_string=related_works_string,
             msg_history=[]
         )
-        return {"review": new_review}
+        return {"review": new_review if new_review is not None else {}}
 
-    def run(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    def run(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
         """
         Execute the review process in an ensemble fashion.
         For each of num_reviews iterations, generate a review using review() and then refine it by calling
@@ -137,15 +137,17 @@ class Reviewer:
             msg_history=[]
         )
         query_data = extract_json_between_markers(response)
-        return query_data["Query"] if "Query" in query_data else ""
+        if query_data is None or "Query" not in query_data:
+            return ""
+        return str(query_data["Query"])
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_review(
             self,
             base_prompt: str,
             reviewer_system_prompt: str,
-            msg_history: Optional[List[Dict]]
-    ) -> Tuple[Dict, List[Dict]]:
+            msg_history: Optional[List[Dict[str, Any]]]
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Generate a review from the provided prompt.
         This function generates a review in a single step.
@@ -160,16 +162,16 @@ class Reviewer:
             temperature=self.temperature,
         )
         review = extract_json_between_markers(llm_review)
-        return review, msg_history
+        return review if review is not None else {}, msg_history
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _reflect_review(
             self,
-            review: Dict,
+            review: Dict[str, Any],
             reviewer_system_prompt: str,
             related_works_string: str,
-            msg_history: List[Dict]
-    ) -> Tuple[Optional[Dict], List[Dict], bool]:
+            msg_history: List[Dict[str, Any]]
+    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], bool]:
         """
         Refine the given review using a reflection prompt.
         The current review is included in the prompt to provide context.
@@ -193,7 +195,7 @@ class Reviewer:
         is_done = "I am done" in text
         return new_review, msg_history, is_done
 
-    def _write_meta_review(self, reviews: List[Dict]) -> Dict:
+    def _write_meta_review(self, reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Generate a meta-review by aggregating multiple individual reviews.
         This function takes a list of review dictionaries, formats them,
@@ -209,7 +211,7 @@ class Reviewer:
         )
         meta_prompt = self.prompts["neurips_form"] + formatted_reviews
 
-        meta_system_prompt = self.prompts.get("meta_reviewer_system_prompt").format(
+        meta_system_prompt = self.prompts.get("meta_reviewer_system_prompt", "").format(
             reviewer_count=len(reviews)
         )
         llm_meta_review, _ = get_response_from_llm(
@@ -221,17 +223,19 @@ class Reviewer:
             temperature=self.temperature,
         )
         meta_review = extract_json_between_markers(llm_meta_review)
-        meta_review = self._aggregate_scores(meta_review, reviews)
-        return meta_review
+        if meta_review is None:
+            return {}
+        result = self._aggregate_scores(meta_review, reviews)
+        return result
 
-    def _aggregate_scores(self, meta_review: Dict, reviews: List[Dict]) -> Dict:
+    def _aggregate_scores(self, meta_review: Dict[str, Any], reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Aggregate numerical scores from multiple reviews.
         For each score field, compute the mean (rounded to the nearest integer).
         Expected score fields include: Originality, Quality, Clarity, Significance,
         Soundness, Presentation, Contribution, Overall, and Confidence.
         """
-        score_limits = {
+        score_limits: Dict[str, Tuple[int, int]] = {
             "Originality": (1, 4),
             "Quality": (1, 4),
             "Clarity": (1, 4),
