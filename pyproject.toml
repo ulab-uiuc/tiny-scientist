@@ -28,6 +28,7 @@ aider-chat = "*"
 pre-commit = "*"
 nbmake = "*"
 types-setuptools = "*"
+types-pyyaml = "^6.0.12.20250402"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
