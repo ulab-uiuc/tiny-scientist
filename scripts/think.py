@@ -2,13 +2,14 @@
 import argparse
 import json
 import os
+from typing import Any, Dict, cast
 
 from tiny_scientist.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.thinker import Thinker
 from tiny_scientist.utils.loader import load_paper
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate and evaluate research ideas")
     parser.add_argument(
         "--base-dir",
@@ -82,19 +83,19 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_initial_idea(filepath: str) -> dict:
+def load_initial_idea(filepath: str) -> Dict[str, Any]:
     """Load initial idea from a JSON file."""
     try:
         with open(filepath, "r") as f:
             idea = json.load(f)
         print(f"Loaded initial idea from {filepath}")
-        return idea
+        return cast(Dict[str, Any], idea)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error loading initial idea: {e}")
         raise ValueError("Valid initial idea must be provided")
 
 
-def create_default_idea() -> dict:
+def create_default_idea() -> Dict[str, Any]:
     """Create a default initial idea."""
     default_idea = {
         "Name": "baseline",
@@ -108,7 +109,7 @@ def create_default_idea() -> dict:
     return default_idea
 
 
-def main():
+def main() -> int:
     args = parse_args()
 
     pdf_content = ""
