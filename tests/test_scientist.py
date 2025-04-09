@@ -44,11 +44,3 @@ def test_base_dir(tmp_path: Path) -> Path:
 
     # Return a Path object, not a string
     return base_dir
-
-@pytest.fixture
-def scientist(mock_client: Any, mock_model: str, test_base_dir: str) -> TinyScientist:
-    return TinyScientist(
-        model=mock_model,
-        client=mock_client,
-        base_dir=test_base_dir
-    )
