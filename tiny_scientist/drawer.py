@@ -34,7 +34,7 @@ class Drawer:
             self,
             text: str,
             example: Optional[str] = None,
-            msg_history: Optional[List[Dict]] = None,
+            msg_history: Optional[List[Dict[str, Any]]] = None,
             return_msg_history: bool = False,
             drawer_system_prompt: Optional[str] = None,
     ) -> Any:
@@ -75,15 +75,15 @@ class Drawer:
             # If no example is provided, use just the template instructions
             base_prompt = self.prompts["template_instructions"] + f"\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
         
-        return base_prompt
+        return str(base_prompt)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_diagram(
             self,
             base_prompt: str,
             drawer_system_prompt: str,
-            msg_history: Optional[List[Dict]],
-    ) -> tuple[Dict, List[Dict]]:
+            msg_history: Optional[List[Dict[str, Any]]],
+    ) -> tuple[Dict, List[Dict[str, Any]]]:
         """Generate a diagram based on the paper content."""
         # Generate diagram
         llm_response, msg_history = get_response_from_llm(
@@ -101,7 +101,7 @@ class Drawer:
         
         return diagram, msg_history
     
-    def _extract_diagram(self, response: str) -> Dict:
+    def _extract_diagram(self, response: str) -> Dict[str, Any]:
         """Extract the diagram SVG and summary from the LLM response."""
         result = {
             "summary": "",
