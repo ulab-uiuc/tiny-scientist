@@ -83,7 +83,7 @@ class Drawer:
             base_prompt: str,
             drawer_system_prompt: str,
             msg_history: Optional[List[Dict[str, Any]]],
-    ) -> tuple[Dict, List[Dict[str, Any]]]:
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Generate a diagram based on the paper content."""
         # Generate diagram
         llm_response, msg_history = get_response_from_llm(
