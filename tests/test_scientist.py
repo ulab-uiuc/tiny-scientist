@@ -24,16 +24,16 @@ def test_base_dir(tmp_path: Path) -> str:
     base_dir.mkdir()
 
     # Create required files
-    experiment_py = base_dir / "experiment.py"
+    experiment_py = os.path.join(base_dir, "experiment.py")
     experiment_py.write_text("print('Test experiment')")
 
-    prompt_json = base_dir / "prompt.json"
+    prompt_json = os.path.join(base_dir, "prompt.json")
     prompt_json.write_text(json.dumps({
         "task_description": "Test task",
         "system": "Test system prompt"
     }))
 
-    seed_ideas_json = base_dir / "seed_ideas.json"
+    seed_ideas_json = os.path.join(base_dir, "seed_ideas.json")
     seed_ideas_json.write_text(json.dumps([
         {
             "Name": "test_idea",
