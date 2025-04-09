@@ -44,7 +44,7 @@ import argparse
 import json
 import os
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", type=str, required=True)
     args = parser.parse_args()
