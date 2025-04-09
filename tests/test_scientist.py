@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -17,7 +18,7 @@ def mock_model() -> str:
     return "gpt-4-test"
 
 @pytest.fixture
-def test_base_dir(tmp_path: str) -> str:
+def test_base_dir(tmp_path: Path) -> str:
     # Create temporary test directory
     base_dir = os.path.join(tmp_path, "test_scientist")
     base_dir.mkdir()
