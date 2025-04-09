@@ -45,7 +45,7 @@ def main() -> int:
         results = searcher.run(
             query=args.query
         )
-        
+
         if not results:
             print("No papers found.")
             return 1

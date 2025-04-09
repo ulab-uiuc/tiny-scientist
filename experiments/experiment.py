@@ -1,10 +1,10 @@
 import argparse
 import os
+from typing import Any, Tuple
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from typing import Any, Dict, List, Tuple
 from datasets import load_dataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from transformers import AutoModelForSequenceClassification, AutoTokenizer

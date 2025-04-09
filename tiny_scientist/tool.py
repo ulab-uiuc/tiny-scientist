@@ -269,7 +269,7 @@ class PaperSearchTool(BaseTool):
                 )
             )
         return "\n\n".join(paper_strings)
-    
+
     @staticmethod
     def simplify_papers(papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         simplified = []

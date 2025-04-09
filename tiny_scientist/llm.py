@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 import anthropic
 import backoff
-import google.generativeai as genai
 import openai
 from google.generativeai.types import GenerationConfig
 
@@ -118,7 +117,7 @@ def get_batch_responses_from_llm(
     if print_debug:
         print()
         print("*" * 20 + " LLM START " + "*" * 20)
- 
+
         for i, history in enumerate(new_msg_history):
             print(f"Response {i}:")
             for j, msg in enumerate(history):

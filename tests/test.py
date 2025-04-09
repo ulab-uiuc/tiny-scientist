@@ -1,10 +1,11 @@
 import json
 import os
-from unittest.mock import Mock, patch
 from typing import Any
+from unittest.mock import Mock, patch
 
 import pytest
 from ai_scientist.scientist import Scientist
+
 
 @pytest.fixture
 def mock_client() -> Mock:

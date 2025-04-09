@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from .format import ACLFormat, ICLRFormat, BaseFormat
+from .format import ACLFormat, BaseFormat, ICLRFormat
 from .llm import extract_json_between_markers, get_response_from_llm
 from .tool import BaseTool, PaperSearchTool
 
@@ -21,7 +21,7 @@ class Writer:
         self.base_dir = base_dir
         self.template = template
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool() 
+        self.searcher: BaseTool = PaperSearchTool()
         self.formatter: BaseFormat
         if self.template == 'acl':
             self.formatter = ACLFormat(self.client, self.model)
@@ -41,7 +41,7 @@ class Writer:
 
         with open(osp.join(folder_name, "experiment_results.txt"), "r") as f:
             experiment_result = f.read()
-        
+
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
 

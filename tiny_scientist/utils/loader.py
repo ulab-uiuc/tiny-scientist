@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Any
+from typing import Any, Optional
 
 import pymupdf
 import pymupdf4llm

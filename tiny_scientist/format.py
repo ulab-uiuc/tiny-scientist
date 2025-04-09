@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from PyPDF2 import PageObject, PdfReader, PdfWriter
 from reportlab.lib.colors import Color
@@ -18,7 +18,7 @@ from .llm import get_response_from_llm
 
 class BaseFormat(abc.ABC):
     @abc.abstractmethod
-    def run(self, 
+    def run(self,
             content: Dict[str, Any],
             references: Dict[str, Any],
             base_dir: str,
@@ -66,13 +66,13 @@ class BaseFormat(abc.ABC):
             if content:
                 cleaned_content = self._clean_latex_content(content)
                 body += f"{cleaned_content}\n\n"
-   
+
         body += "\n\n\\bibliography{custom}"
         return body
 
-    def _insert_body_into_template(self, 
-                                   template_text: str, 
-                                   body_content: str, 
+    def _insert_body_into_template(self,
+                                   template_text: str,
+                                   body_content: str,
                                    new_title: str
                                    ) -> str:
         template_text = re.sub(r'(\\title\{)[^}]*\}', r'\1' + new_title + r'}', template_text)
@@ -202,8 +202,8 @@ class Bib_Manager:
 
 
 class ACLFormat(BaseFormat):
-    def __init__(self, 
-                 model: str, 
+    def __init__(self,
+                 model: str,
                  client: Any
                 ) -> None:
         self.template = "acl"
@@ -302,8 +302,8 @@ class ACLFormat(BaseFormat):
 
 
 class ICLRFormat(BaseFormat):
-    def __init__(self, 
-                 model: str, 
+    def __init__(self,
+                 model: str,
                  client: Any
                 ) -> None:
         self.template = "iclr"
