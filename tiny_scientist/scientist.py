@@ -10,7 +10,7 @@ from tiny_scientist.writer import Writer
 
 
 class TinyScientist:
-    def __init__(self, model, client, base_dir: str, template: str = "acl"):
+    def __init__(self, model: str, client: Any, base_dir: str, template: str = "acl"):
         self.model = model
         self.client = client
         self.base_dir = base_dir

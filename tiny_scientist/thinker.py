@@ -28,7 +28,7 @@ class Thinker:
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool()  # type: ignore
+        self.searcher = PaperSearchTool()  # type: ignore
         self.searcher.s2_api_key = s2_api_key
 
         # Load prompt templates
