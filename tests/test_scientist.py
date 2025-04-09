@@ -18,22 +18,22 @@ def mock_model() -> str:
     return "gpt-4-test"
 
 @pytest.fixture
-def test_base_dir(tmp_path: Path) -> str:
-    # Create temporary test directory
-    base_dir = os.path.join(tmp_path, "test_scientist")
+def test_base_dir(tmp_path: Path) -> Path:
+    # Create a subdirectory under tmp_path
+    base_dir = tmp_path / "test_scientist"
     base_dir.mkdir()
 
-    # Create required files
-    experiment_py = os.path.join(base_dir, "experiment.py")
+    # Create required files using Path methods
+    experiment_py = base_dir / "experiment.py"
     experiment_py.write_text("print('Test experiment')")
 
-    prompt_json = os.path.join(base_dir, "prompt.json")
+    prompt_json = base_dir / "prompt.json"
     prompt_json.write_text(json.dumps({
         "task_description": "Test task",
         "system": "Test system prompt"
     }))
 
-    seed_ideas_json = os.path.join(base_dir, "seed_ideas.json")
+    seed_ideas_json = base_dir / "seed_ideas.json"
     seed_ideas_json.write_text(json.dumps([
         {
             "Name": "test_idea",
@@ -42,7 +42,8 @@ def test_base_dir(tmp_path: Path) -> str:
         }
     ]))
 
-    return str(base_dir)
+    # Return a Path object, not a string
+    return base_dir
 
 @pytest.fixture
 def scientist(mock_client: Any, mock_model: str, test_base_dir: str) -> TinyScientist:
