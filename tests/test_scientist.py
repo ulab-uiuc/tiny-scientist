@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
+
 from tiny_scientist.scientist import Scientist
 
 
