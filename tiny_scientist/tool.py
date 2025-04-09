@@ -251,6 +251,26 @@ class PaperSearchTool(BaseTool):
         }
 
     @staticmethod
+    def format_paper_results(papers: Optional[List[Dict[str, Any]]]) -> str:
+        if not papers:
+            return "No papers found."
+
+        paper_strings = []
+        for i, paper in enumerate(papers):
+            paper_strings.append(
+                """{i}: {title}. {authors}. {venue}, {year}.\nNumber of citations: {cites}\nAbstract: {abstract}""".format(
+                    i=i,
+                    title=paper["title"],
+                    authors=paper["authors"],
+                    venue=paper["venue"],
+                    year=paper["year"],
+                    abstract=paper["abstract"],
+                    cites=paper["citationCount"],
+                )
+            )
+        return "\n\n".join(paper_strings)
+    
+    @staticmethod
     def simplify_papers(papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         simplified = []
         for paper in papers:

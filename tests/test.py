@@ -1,21 +1,21 @@
 import json
 import os
 from unittest.mock import Mock, patch
+from typing import Any
 
 import pytest
 from ai_scientist.scientist import Scientist
-
 
 @pytest.fixture
 def mock_client() -> Mock:
     return Mock()
 
 @pytest.fixture
-def mock_model():
+def mock_model() -> str:
     return "gpt-4-test"
 
 @pytest.fixture
-def test_base_dir(tmp_path) -> str:
+def test_base_dir(tmp_path: str) -> str:
     # Create temporary test directory
     base_dir = tmp_path / "test_project"
     base_dir.mkdir()
@@ -42,7 +42,7 @@ def test_base_dir(tmp_path) -> str:
     return str(base_dir)
 
 @pytest.fixture
-def scientist(mock_client, mock_model, test_base_dir) -> Scientist:
+def scientist(mock_client: Any, mock_model: str, test_base_dir: str) -> Scientist:
     return Scientist(
         model=mock_model,
         client=mock_client,
@@ -79,7 +79,7 @@ def test_think_generates_ideas(scientist, mock_client) -> None:
     assert ideas[0]["Title"] == "Test Title"
     mock_client.chat.completions.create.assert_called()
 
-def test_think_next_builds_on_previous(scientist, mock_client) -> None:
+def test_think_next_builds_on_previous(scientist: Any, mock_client: Any) -> None:
     # Mock LLM response
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought
@@ -113,7 +113,7 @@ def test_think_next_builds_on_previous(scientist, mock_client) -> None:
     mock_client.chat.completions.create.assert_called()
 
 @patch('subprocess.run')
-def test_code_executes_experiments(mock_subprocess, scientist, mock_client) -> None:
+def test_code_executes_experiments(mock_subprocess: Mock, scientist: Any, mock_client: Any) -> None:
     # Mock Aider coder responses
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Test implementation"
 
@@ -139,7 +139,7 @@ def test_code_executes_experiments(mock_subprocess, scientist, mock_client) -> N
     mock_subprocess.assert_called()
 
 @patch('subprocess.run')
-def test_write_generates_paper(mock_subprocess, scientist, mock_client) -> None:
+def test_write_generates_paper(mock_subprocess: Mock, scientist: Any, mock_client: Any) -> None:
     # Mock successful LaTeX compilation
     mock_subprocess.return_value.returncode = 0
 
@@ -162,7 +162,7 @@ def test_write_generates_paper(mock_subprocess, scientist, mock_client) -> None:
     mock_subprocess.assert_called()
     assert os.path.exists(os.path.join(latex_dir, "template.tex"))
 
-def test_review_evaluates_paper(scientist, mock_client) -> None:
+def test_review_evaluates_paper(scientist: Any, mock_client: Any) -> None:
     # Mock LLM review response
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test review thought
@@ -199,7 +199,7 @@ def test_review_evaluates_paper(scientist, mock_client) -> None:
     assert review["Decision"] == "Accept"
     mock_client.chat.completions.create.assert_called()
 
-def test_end_to_end_workflow(scientist, mock_client, mock_subprocess) -> None:
+def test_end_to_end_workflow(scientist: Any, mock_client: Any, mock_subprocess: Mock) -> None:
     # This test demonstrates the complete workflow
     with patch('subprocess.run') as mock_subprocess:
         # Mock successful subprocess calls

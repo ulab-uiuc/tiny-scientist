@@ -279,7 +279,7 @@ def get_response_from_llm(
             print(f"Response {i}:")
             for j, msg in enumerate(history):
                 print(msg)
-                
+
         print(content)
         print("*" * 21 + " LLM END " + "*" * 21)
         print()
@@ -305,8 +305,6 @@ def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
         except json.JSONDecodeError:
             # Attempt to fix common JSON issues
             try:
-                # Remove invalid control characters
-                json_string_clean = re.sub(r"[\x00-\x1F\x7F]", "", json_string)
                 parsed_json = cast(Dict[str, Any], json.loads(json_string))
                 return parsed_json
             except json.JSONDecodeError:
