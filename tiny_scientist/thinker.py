@@ -1,7 +1,7 @@
 import json
 import os
 import os.path as osp
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -13,21 +13,22 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 class Thinker:
     def __init__(
             self,
-            tools: List,
+            tools: List[Any],
             iter_num: int,
             model: str = "",
-            client: any = None,
+            client: Any = None,
             base_dir: str = "",
             config_dir: str = "",
             temperature: float = 0.75,
-            s2_api_key: Optional[str] = Non
+            s2_api_key: Optional[str] = None,
+    ):
         self.tools = tools
         self.iter_num = iter_num
         self.model = model
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
-        self.searcher = PaperSearchTool()
+        self.searcher = PaperSearchTool()  # type: ignore
         self.searcher.s2_api_key = s2_api_key
 
         # Load prompt templates
@@ -35,7 +36,8 @@ class Thinker:
         with open(yaml_path, "r") as f:
             self.prompts = yaml.safe_load(f)
 
-    def think(self, intent: Dict[str, Dict[str, str]], check_novelty, pdf_content) -> Dict[str, Dict[str, str]]:
+    def think(self, intent: Dict[str, Any], check_novelty: bool,
+              pdf_content: str) -> Dict[str, Dict[str, Any]]:
         """
         Generate a single research idea based on the provided intent.
         The intent may include an initial idea; if not, the intent itself is used.
@@ -49,7 +51,7 @@ class Thinker:
 
         # Check novelty if requested
         if check_novelty and new_ideas:
-            new_ideas = self.check_ideas(new_ideas, max_iterations=10, engine="semanticscholar")
+            new_ideas = self.check_ideas(new_ideas, max_iterations=10)
 
         # Return the first idea or an empty dict
         if new_ideas:
@@ -57,7 +59,7 @@ class Thinker:
         else:
             return {"idea": {}}
 
-    def rethink(self, info: Dict[str, Dict[str, str]], current_round) -> Dict[str, Dict[str, str]]:
+    def rethink(self, info: Dict[str, Dict[str, Any]], current_round: int) -> Dict[str, Dict[str, Any]]:
         """
         Refine an existing research idea using one reflection iteration.
         """
@@ -71,7 +73,7 @@ class Thinker:
         return {"idea": new_idea} if new_idea else info
 
     def run(self, intent: Dict[str, Dict[str, str]], num_ideas: int = 1, check_novelty: bool = True,
-            pdf_content: str = "") -> Dict[str, List[Dict[str, str]]]:
+            pdf_content: str = "") -> Dict[str, List[Dict[str, Any]]]:
         """
         Generate and refine multiple research ideas based on the provided intent.
         """
@@ -117,8 +119,8 @@ class Thinker:
         # Return all generated ideas
         return {"ideas": all_ideas}
 
-    def generate_ideas(self, num_ideas: int = 1, ideas: List[Dict] = None,
-                       num_reflections: int = 5, pdf_content: str = "") -> List[Dict]:
+    def generate_ideas(self, num_ideas: int = 1, ideas: Optional[List[Dict[str, Any]]] = None,
+                       num_reflections: int = 5, pdf_content: str = "") -> List[Dict[str, Any]]:
         if not ideas:
             raise ValueError("Initial ideas must be provided")
 
@@ -166,7 +168,7 @@ class Thinker:
         return idea_collection
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def generate_experiment_plan(self, idea: Dict) -> Optional[Dict]:
+    def generate_experiment_plan(self, idea: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         print("Generating experimental plan for the idea...")
         experiment_text, experiment_msg_history = get_response_from_llm(
             self.prompts["experiment_plan_prompt"].format(idea=json.dumps(idea, indent=2)),
@@ -181,8 +183,8 @@ class Thinker:
             print("Failed to generate experimental plan.")
         return experiment_plan
 
-    def check_ideas(self, ideas: List[Dict], max_iterations: int = 10,
-                    engine: str = "semanticscholar") -> List[Dict]:
+    def check_ideas(self, ideas: List[Dict[str, Any]], max_iterations: int = 10,
+                    engine: str = "semanticscholar") -> List[Dict[str, Any]]:
         if not ideas:
             raise ValueError("Ideas must be provided for novelty checking")
 
@@ -197,15 +199,15 @@ class Thinker:
         self.save_ideas(ideas)
         return ideas
 
-    def save_ideas(self, ideas: List[Dict]) -> None:
+    def save_ideas(self, ideas: List[Dict[str, Any]]) -> None:
         output_path = osp.join(self.base_dir, "ideas.json")
         with open(output_path, "w") as f:
             json.dump(ideas, f, indent=4)
         print(f"Saved {len(ideas)} ideas to {output_path}")
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _reflect_idea(self, idea: Dict, current_round: int, num_reflections: int,
-                      msg_history: List[Dict]) -> Tuple[Optional[Dict], List[Dict], bool]:
+    def _reflect_idea(self, idea: Dict[str, Any], current_round: int, num_reflections: int,
+                      msg_history: List[Dict[str, Any]]) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], bool]:
         # Ensure idea is a dict
         if isinstance(idea, list):
             idea = idea[0]
@@ -235,7 +237,8 @@ class Thinker:
         return new_idea, msg_history, is_done
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _generate_idea(self, idea_archive: List[Dict], num_reflections: int, pdf_content: str) -> Optional[Dict]:
+    def _generate_idea(self, idea_archive: List[Dict[str, Any]], num_reflections: int,
+                       pdf_content: str) -> Optional[Dict[str, Any]]:
         # Ensure each entry in idea_archive is a dict (unwrap if necessary)
         idea_archive = [idea[0] if isinstance(idea, list) else idea for idea in idea_archive]
 
@@ -294,10 +297,9 @@ class Thinker:
         return idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _check_idea(self, idea: Dict, max_iterations: int, engine: str) -> bool:
-        msg_history = []
+    def _check_idea(self, idea: Dict[str, Any], max_iterations: int, engine: str) -> bool:
+        msg_history: List[Dict[str, Any]] = []
         papers_str = ""
-
         for iteration in range(max_iterations):
             print(f"Novelty check iteration {iteration + 1}/{max_iterations}")
 
@@ -329,7 +331,7 @@ class Thinker:
             query = json_output["Query"]
             print(f"Searching for: {query}")
 
-            if not (papers := self.searcher.search_for_papers(query, engine=engine)):
+            if not (papers := self.searcher.search_for_papers(query)):
                 print(f"No papers found in iteration {iteration + 1}")
                 continue
 

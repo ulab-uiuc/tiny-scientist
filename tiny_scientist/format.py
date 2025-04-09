@@ -152,13 +152,6 @@ class Bib_Manager:
             # you should create a custom.bib file in the iclr folder
             bib_path = osp.join(dest_template_dir, "custom.bib")
 
-        if osp.exists(bib_path):
-            with open(bib_path, "r", encoding="utf-8") as f:
-                bib_content = f.read()
-            existing_keys = set(re.findall(r"@.+?\{([^,]+),", bib_content))
-        else:
-            bib_content = ""
-            existing_keys = set()
 
         bib_entries = []
         for meta in references.values():
