@@ -1,12 +1,12 @@
 import json
-from typing import Optional
+from typing import Optional, Any
 
 import pymupdf
 import pymupdf4llm
 from pypdf import PdfReader
 
 
-def load_paper(pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100) -> str:
+def load_paper(pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100) -> Any:
     try:
         if num_pages is None:
             text = pymupdf4llm.to_markdown(pdf_path)
@@ -38,6 +38,6 @@ def load_paper(pdf_path: str, num_pages: Optional[int] = None, min_size: int = 1
                 raise Exception("Text too short")
     return text
 
-def load_review(review_path: str) -> str:
+def load_review(review_path: str) -> Any:
     with open(review_path, "r") as f:
         return json.load(f)["review"]
