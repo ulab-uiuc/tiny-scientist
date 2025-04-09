@@ -190,7 +190,7 @@ class PaperSearchTool(BaseTool):
             headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
             params={
                 "query": str(query),
-                "limit": result_limit,
+                "limit": int(result_limit),
                 "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
             },
         )
