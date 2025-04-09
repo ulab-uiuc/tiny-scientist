@@ -185,14 +185,15 @@ class PaperSearchTool(BaseTool):
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _search_semanticscholar(self, query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
+        params: Dict[str, str | int] = {
+            "query": query,
+            "limit": result_limit,
+            "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
+        }
         rsp = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
             headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
-            params={
-                "query": str(query),
-                "limit": str(result_limit),
-                "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
-            },
+            params=params,
         )
         print(f"Response Status Code: {rsp.status_code}")
         # print(f"Response Content: {rsp.text[:500]}")

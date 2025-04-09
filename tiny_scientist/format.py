@@ -8,7 +8,7 @@ import tempfile
 import textwrap
 from typing import Any, Dict, Optional
 
-from PyPDF2 import PageObject, PdfReader, PdfWriter
+from pypdf import PageObject, PdfReader, PdfWriter
 from reportlab.lib.colors import Color
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
