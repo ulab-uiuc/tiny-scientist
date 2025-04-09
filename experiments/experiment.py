@@ -4,6 +4,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from typing import Any, Dict, List, Tuple
 from datasets import load_dataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -13,12 +14,12 @@ MODEL_NAME = "bert-base-uncased"
 DATASET_NAME = "glue"
 TASK_NAME = "sst2"
 
-def load_data():
+def load_data() -> Tuple[Any, Any]:
     """Loads the dataset and prepares train/test splits."""
     dataset = load_dataset(DATASET_NAME, TASK_NAME)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    def tokenize_function(examples):
+    def tokenize_function(examples: Any) -> Any:
         return tokenizer(examples["sentence"], truncation=True, padding="max_length")
 
     dataset = dataset.map(tokenize_function, batched=True)
@@ -27,14 +28,14 @@ def load_data():
 
 class AdaptiveLRModel(nn.Module):
     """Custom model wrapper for adaptive learning rate experiments."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)
 
-    def forward(self, input_ids, attention_mask):
+    def forward(self, input_ids: int, attention_mask: Any) -> Any:
         return self.model(input_ids=input_ids, attention_mask=attention_mask)
 
-def train_and_evaluate(output_dir, initial_lr=5e-5, adapt_lr=True):
+def train_and_evaluate(output_dir: str, initial_lr: float =5e-5, adapt_lr: bool =True) -> None:
     """Trains the model with adaptive learning rates and evaluates performance."""
     train_data, val_data = load_data()
     model = AdaptiveLRModel()

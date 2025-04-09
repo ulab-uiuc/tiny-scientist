@@ -73,7 +73,7 @@ if __name__ == "__main__":
     with open(os.path.join(base_dir, "notes.txt"), "w") as f:
         f.write("# Experiment Notes\n\nThis file will contain notes about the experiment.\n")
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Run a trial of the Coder class")
     parser.add_argument("--base_dir", type=str, default="./experiment_trial",
                        help="Base directory for the experiment")
