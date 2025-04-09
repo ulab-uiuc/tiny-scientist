@@ -1,7 +1,7 @@
 import abc
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import requests
 import spacy
@@ -24,7 +24,7 @@ class BaseTool(abc.ABC):
 
 
 class CodeSearchTool(BaseTool):
-    def __init__(self):
+    def __init__(self) -> None:
         self.github_token = config["auth"].get("github_token", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
@@ -62,7 +62,7 @@ class CodeSearchTool(BaseTool):
                 candidates.add(token.text.lower())
 
         # Clean and deduplicate
-        candidates = list(candidates)
+        candidates = set(candidates)
         seen = set()
         keywords = []
         for kw in candidates:
@@ -87,13 +87,13 @@ class CodeSearchTool(BaseTool):
 
         return full_query
 
-    def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
+    def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict[str, Any]]]:
         return self._search_github(query, result_limit, search_type="repositories")
 
-    def search_github_code(self, query: str, result_limit: int = 10) -> Optional[List[Dict]]:
+    def search_github_code(self, query: str, result_limit: int = 10) -> Optional[List[Dict[str, Any]]]:
         return self._search_github(query, result_limit, search_type="code")
 
-    def _search_github(self, query: str, result_limit: int, search_type: str) -> Optional[List[Dict]]:
+    def _search_github(self, query: str, result_limit: int, search_type: str) -> Optional[List[Dict[str, Any]]]:
         if search_type not in ["repositories", "code"]:
             raise ValueError("search_type must be either 'repositories' or 'code'.")
 
@@ -122,7 +122,7 @@ class CodeSearchTool(BaseTool):
         )
 
     @staticmethod
-    def _extract_github_repo_info(repos: List[Dict]) -> List[Dict]:
+    def _extract_github_repo_info(repos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return [
             {
                 "name": repo["name"],
@@ -136,7 +136,7 @@ class CodeSearchTool(BaseTool):
         ]
 
     @staticmethod
-    def _extract_github_code_info(code_results: List[Dict]) -> List[Dict]:
+    def _extract_github_code_info(code_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return [
             {
                 "file_name": item["name"],
@@ -147,7 +147,7 @@ class CodeSearchTool(BaseTool):
         ]
 
 class PaperSearchTool(BaseTool):
-    def __init__(self):
+    def __init__(self) -> None:
         self.s2_api_key = config["core"].get("s2_api_key", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
@@ -171,7 +171,7 @@ class PaperSearchTool(BaseTool):
 
         return results
 
-    def search_for_papers(self, query: str, result_limit: int = 3) -> Optional[List[Dict]]:
+    def search_for_papers(self, query: str, result_limit: int = 3) -> Optional[List[Dict[str, Any]]]:
         engine = config["thinker"].get("engine", "semanticscholar")
         if not query:
             return None
@@ -184,13 +184,13 @@ class PaperSearchTool(BaseTool):
             raise NotImplementedError(f"{engine=} not supported!")
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _search_semanticscholar(self, query: str, result_limit: int) -> Optional[List[Dict]]:
+    def _search_semanticscholar(self, query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
         rsp = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
             headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
             params={
-                "query": query,
-                "limit": result_limit,
+                "query": str(query),
+                "limit": str(result_limit),
                 "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
             },
         )
@@ -203,9 +203,9 @@ class PaperSearchTool(BaseTool):
             return None
 
         time.sleep(1.0)
-        return results.get("data")
+        return cast(Optional[List[Dict[str, Any]]], results.get("data"))  # Fix #2
 
-    def _search_openalex(self, query: str, result_limit: int) -> Optional[List[Dict]]:
+    def _search_openalex(self, query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
         import pyalex
         from pyalex import Works
 
@@ -222,7 +222,7 @@ class PaperSearchTool(BaseTool):
         return [self._extract_work_info(work) for work in works]
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def fetch_bibtex(self, paper_id: str) -> str:
+    def fetch_bibtex(self, paper_id: str) -> Any:
         rsp = requests.get(
             f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}",
             headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
@@ -233,7 +233,7 @@ class PaperSearchTool(BaseTool):
         return citation_styles.get("bibtex", "N/A")
 
     @staticmethod
-    def _extract_work_info(work: any, max_abstract_length: int = 1000) -> Dict[str, str]:
+    def _extract_work_info(work: Dict[str, Any], max_abstract_length: int = 1000) -> Dict[str, str]:
         venue = next((loc["source"]["display_name"] for loc in work["locations"] if loc["source"]), "Unknown")
         authors_list = [author["author"]["display_name"] for author in work["authorships"]]
         authors = " and ".join(authors_list) if len(authors_list) < 20 else f"{authors_list[0]} et al."
@@ -251,34 +251,7 @@ class PaperSearchTool(BaseTool):
         }
 
     @staticmethod
-    def format_paper_results(papers: Optional[List[Dict]]) -> str:
-        if not papers:
-            return "No papers found."
-
-        paper_strings = []
-        for i, paper in enumerate(papers):
-            paper_strings.append(
-                """{i}: {title}. {authors}. {venue}, {year}.\nNumber of citations: {cites}\nAbstract: {abstract}""".format(
-                    i=i,
-                    title=paper["title"],
-                    authors=paper["authors"],
-                    venue=paper["venue"],
-                    year=paper["year"],
-                    abstract=paper["abstract"],
-                    cites=paper["citationCount"],
-                )
-            )
-        return "\n\n".join(paper_strings)
-
-    def get_related_works(self, last_idea_title: str, result_limit: int = 5) -> str:
-        engine = config["thinker"].get("engine", "semanticscholar")
-        if not last_idea_title:
-            return "No related works found."
-        papers = self.search_for_papers(last_idea_title, result_limit, engine)
-        return self.format_paper_results(papers) if papers else "No related works found."
-
-    @staticmethod
-    def simplify_papers(papers: List[Dict]) -> List[Dict]:
+    def simplify_papers(papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         simplified = []
         for paper in papers:
             raw_authors = paper.get("authors", [])

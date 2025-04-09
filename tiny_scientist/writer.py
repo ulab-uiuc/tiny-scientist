@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from .format import ACLFormat, ICLRFormat
+from .format import ACLFormat, ICLRFormat, BaseFormat
 from .llm import extract_json_between_markers, get_response_from_llm
-from .tool import PaperSearchTool
+from .tool import BaseTool, PaperSearchTool
 
 
 class Writer:
@@ -21,7 +21,8 @@ class Writer:
         self.base_dir = base_dir
         self.template = template
         self.temperature = temperature
-        self.searcher = PaperSearchTool()
+        self.searcher: BaseTool = PaperSearchTool() 
+        self.formatter: BaseFormat
         if self.template == 'acl':
             self.formatter = ACLFormat(self.client, self.model)
         elif self.template == 'iclr':
@@ -40,9 +41,9 @@ class Writer:
 
         with open(osp.join(folder_name, "experiment_results.txt"), "r") as f:
             experiment_result = f.read()
-
-        self.generated_sections = {}
-        self.references = {}
+        
+        self.generated_sections: Dict[str, Any] = {}
+        self.references: Dict[str, Any] = {}
 
         self._write_abstract(idea)
 
@@ -140,7 +141,7 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         num_papers = total_num_papers // num_cite_rounds if num_cite_rounds > 0 else total_num_papers
-        collected_papers = []
+        collected_papers: List[str] = []
 
         for round_num in range(num_cite_rounds):
             prompt = self.prompts["citation_related_work_prompt"].format(
@@ -174,7 +175,7 @@ class Writer:
 
         return collected_papers
 
-    def _search_reference(self, paper_list: List[str]) -> Optional[str]:
+    def _search_reference(self, paper_list: List[str]) -> Dict[str, Any]:
         results_dict = {}
 
         for paper_name in paper_list:
