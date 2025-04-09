@@ -44,3 +44,6 @@ def test_base_dir(tmp_path: Path) -> Path:
 
     # Return a Path object, not a string
     return base_dir
+
+def test_mock() -> bool:
+    return True
