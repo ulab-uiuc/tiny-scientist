@@ -24,6 +24,7 @@ google-generativeai = "*"
 openai = "*"
 aider-chat = "*"
 spacy = "*"
+toml = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
