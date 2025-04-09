@@ -27,7 +27,7 @@ class Reviewer:
         self.client = client
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
-        self.searcher = PaperSearchTool()  # type: ignore
+        self.searcher = PaperSearchTool()
         self.searcher.s2_api_key = s2_api_key
         # Cache for queries to avoid duplicate searches
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}

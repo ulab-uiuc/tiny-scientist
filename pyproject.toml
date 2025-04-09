@@ -23,12 +23,16 @@ anthropic = "*"
 google-generativeai = "*"
 openai = "*"
 aider-chat = "*"
+toml = "*"
+spacy = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
 nbmake = "*"
 types-setuptools = "*"
 types-pyyaml = "^6.0.12.20250402"
+types-requests = "^2.31"
+types-toml = "^0.10"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
