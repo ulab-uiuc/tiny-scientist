@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from tiny_scientist.scientist import Scientist
+from tiny_scientist.scientist import TinyScientist
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def mock_model() -> str:
 @pytest.fixture
 def test_base_dir(tmp_path: str) -> str:
     # Create temporary test directory
-    base_dir = tmp_path / "test_project"
+    base_dir = os.path.join(tmp_path, "test_scientist")
     base_dir.mkdir()
 
     # Create required files
@@ -44,14 +44,14 @@ def test_base_dir(tmp_path: str) -> str:
     return str(base_dir)
 
 @pytest.fixture
-def scientist(mock_client: Any, mock_model: str, test_base_dir: str) -> Scientist:
-    return Scientist(
+def scientist(mock_client: Any, mock_model: str, test_base_dir: str) -> TinyScientist:
+    return TinyScientist(
         model=mock_model,
         client=mock_client,
         base_dir=test_base_dir
     )
 
-def test_think_generates_ideas(scientist, mock_client) -> None:
+def test_think_generates_ideas(scientist: Any, mock_client: Any) -> None:
     # Mock LLM response for idea generation
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought
