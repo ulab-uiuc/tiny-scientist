@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
-from ai_scientist.scientist import Scientist
+from tiny_scientist.scientist import Scientist
 
 
 @pytest.fixture

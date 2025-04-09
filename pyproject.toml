@@ -23,6 +23,7 @@ anthropic = "*"
 google-generativeai = "*"
 openai = "*"
 aider-chat = "*"
+spacy = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
