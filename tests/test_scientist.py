@@ -1,12 +1,8 @@
 import json
-import os
 from pathlib import Path
-from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
-
-from tiny_scientist.scientist import TinyScientist
 
 
 @pytest.fixture
