@@ -1,20 +1,33 @@
-# Tiny-Scientist
+<div style="width: 100%;">
+  <img src="assets/tiny_scientist.png" style="width: 100%;"></img>
+</div>
+
+<h1 align="center">TinyScientist: A Lightweight Framework for Building Research Agents</h1>
+
+<div align="center">
+
+[![Python 3.10](https://img.shields.io/badge/python-%E2%89%A53.10-blue)](https://www.python.org/downloads/release/python-3109/)
+[![GitHub pull request](https://img.shields.io/badge/PRs-welcome-orange)](https://github.com/hiyouga/LLaMA-Factory/pulls)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://pre-commit.com/)
+[![bear-ified](https://raw.githubusercontent.com/beartype/beartype-assets/main/badge/bear-ified.svg)](https://beartype.readthedocs.io)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+</div>
 
 ## Introduction
 
-Welcome to **Tiny-Scientist**, Tiny-Scientist is an automated research system that simulates the full lifecycle of a research process-—from ideation to implementation, paper writing, and review. This cutting-edge platform equips researchers with:
+Welcome to **Tiny-Scientist**, Tiny-Scientist is an automated research agent framework that simulates the full lifecycle of a research process-—from ideation to implementation, paper writing, and review. This cutting-edge platform equips researchers with:
 
 1. *End-to-End Automation*: Seamlessly generates novel research ideas, codes experiments, writes full papers, and conducts reviews—all powered by state-of-the-art LLMs.
 2. *Modular Intelligence Agents*: Includes dedicated modules—Thinker, Coder, Writer, and Reviewer—each specialized for a distinct phase of the research workflow.
 3. *Customizable and Extensible*: Designed for flexibility, allowing integration with various search tools and paper templates.
 
-🔸 **Core Capabilities**
+🔸 **Core Functions**
 
-🚀 **Primary Research Functions**
-* 🧠 Idea Generation & Refinement: Automatically generates innovative research ideas through iterative reasoning and refinement.
-* 💻 Experiment Design & Coding: Translates research ideas into executable code with minimal human input. Supports experiment setup, baseline comparison.
-* ✍️ Paper Writing: Generates full-length academic papers with well-structured sections, integrated citation management, and support for multiple conference templates.
-* 📝 Paper Review: Evaluates academic drafts using structured reviewing criteria inspired by top-tier conferences.
+* 🧠 Think: Automatically generates innovative research ideas through iterative reasoning and refinement.
+* 💻 Code: Translates research ideas into executable code with minimal human input. Supports experiment setup, baseline comparison.
+* ✍️ Write: Generates full-length academic papers with well-structured sections, integrated citation management, and support for multiple conference templates.
+* 📝 Review: Evaluates academic drafts using structured reviewing criteria inspired by top-tier conferences.
 
 
 ## Get started
@@ -48,10 +61,10 @@ cp config.template.toml config.toml
 
 Step 2: Fill in the Required Fields
 ```bash
-nano config.toml
+vim config.toml
 ```
 
-Step 3: Then fill in the necessary API keys and parameters. For example:
+Step 3 (optional): Then fill in the necessary API keys and parameters. For example:
 ```bash
 [core]
 # S2 API Key for accessing scientific research data
