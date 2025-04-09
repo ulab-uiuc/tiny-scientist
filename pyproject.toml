@@ -26,6 +26,7 @@ openai = "*"
 aider-chat = "*"
 toml = "*"
 spacy = "^3.0.0"
+reportlab = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
