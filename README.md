@@ -42,13 +42,14 @@ pip install tiny-scientist
 
 ### Install from scratch
 
-Use a virtual environment, e.g. with anaconda3:
+Use a virtual environment to install all dependencies with one command `poetry install`:
 
 ```bash
 conda create -n tiny-scientist python=3.10
 conda activate tiny-scientist
 curl -sSL https://install.python-poetry.org | python3
 export PATH="$HOME/.local/bin:$PATH"
+poetry install
 ```
 
 ### Config environment variables
