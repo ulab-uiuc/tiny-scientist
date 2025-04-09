@@ -55,6 +55,8 @@ def scientist(mock_client: Any, mock_model: str, test_base_dir: str) -> TinyScie
 
 def test_think_generates_ideas(scientist: Any, mock_client: Any) -> None:
     # Mock LLM response for idea generation
+    mock_client.chat.completions.create.return_value.choices = [Mock()]
+    mock_client.chat.completions.create.return_value.choices[0].message = Mock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought
 
@@ -85,6 +87,8 @@ def test_think_generates_ideas(scientist: Any, mock_client: Any) -> None:
 
 def test_think_next_builds_on_previous(scientist: Any, mock_client: Any) -> None:
     # Mock LLM response
+    mock_client.chat.completions.create.return_value.choices = [Mock()]
+    mock_client.chat.completions.create.return_value.choices[0].message = Mock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test thought
 
@@ -119,6 +123,8 @@ def test_think_next_builds_on_previous(scientist: Any, mock_client: Any) -> None
 @patch('subprocess.run')
 def test_code_executes_experiments(mock_subprocess: Mock, scientist: Any, mock_client: Any) -> None:
     # Mock Aider coder responses
+    mock_client.chat.completions.create.return_value.choices = [Mock()]
+    mock_client.chat.completions.create.return_value.choices[0].message = Mock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Test implementation"
 
     # Mock subprocess success
@@ -148,6 +154,8 @@ def test_write_generates_paper(mock_subprocess: Mock, scientist: Any, mock_clien
     mock_subprocess.return_value.returncode = 0
 
     # Mock Aider coder responses
+    mock_client.chat.completions.create.return_value.choices = [Mock()]
+    mock_client.chat.completions.create.return_value.choices[0].message = Mock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = "Test paper content"
 
     # Create LaTeX directory
@@ -168,6 +176,8 @@ def test_write_generates_paper(mock_subprocess: Mock, scientist: Any, mock_clien
 
 def test_review_evaluates_paper(scientist: Any, mock_client: Any) -> None:
     # Mock LLM review response
+    mock_client.chat.completions.create.return_value.choices = [Mock()]
+    mock_client.chat.completions.create.return_value.choices[0].message = Mock()
     mock_client.chat.completions.create.return_value.choices[0].message.content = """
     THOUGHT: Test review thought
 
@@ -211,6 +221,8 @@ def test_end_to_end_workflow(scientist: Any, mock_client: Any, mock_subprocess: 
         mock_subprocess.return_value.stderr = ""
 
         # 1. Generate ideas
+        mock_client.chat.completions.create.return_value.choices = [Mock()]
+        mock_client.chat.completions.create.return_value.choices[0].message = Mock()
         mock_client.chat.completions.create.return_value.choices[0].message.content = """
         THOUGHT: Test thought
 
@@ -259,6 +271,8 @@ def test_end_to_end_workflow(scientist: Any, mock_client: Any, mock_subprocess: 
         )
 
         # 4. Review paper
+        mock_client.chat.completions.create.return_value.choices = [Mock()]
+        mock_client.chat.completions.create.return_value.choices[0].message = Mock()
         mock_client.chat.completions.create.return_value.choices[0].message.content = """
         THOUGHT: Test review
 
