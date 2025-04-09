@@ -42,10 +42,9 @@ def main() -> int:
         searcher = PaperSearchTool()
         print(f"Searching for papers using {args.engine} engine...")
 
-        papers = searcher.search_for_papers(
-            query=args.query, result_limit=args.result_limit, engine=args.engine
+        results = searcher.run(
+            query=args.query
         )
-        results = searcher.format_github_results(papers)
 
         if not results:
             print("No papers found.")
