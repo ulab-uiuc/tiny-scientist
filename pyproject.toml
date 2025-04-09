@@ -24,7 +24,7 @@ google-generativeai = "*"
 openai = "*"
 aider-chat = "*"
 toml = "*"
-spacy = "*"
+spacy = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
