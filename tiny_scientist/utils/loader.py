@@ -2,11 +2,13 @@ import json
 import os
 import os.path as osp
 import re
-from typing import Optional
+from typing import Any, Optional
+
 
 import pymupdf
 import pymupdf4llm
 from pypdf import PdfReader
+
 
 
 class InputFormatter:
@@ -219,5 +221,4 @@ class InputFormatter:
         path = osp.join(osp.dirname(__file__), "config.toml")
         if osp.exists(path):
             return path
-
         return "You have to create a config.toml"
