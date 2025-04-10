@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Optional, TypeVar, Type
+from typing import Any, Dict, Optional, Type, TypeVar
 
 import yaml
 from pydantic import BaseModel
