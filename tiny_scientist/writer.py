@@ -89,7 +89,7 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         abstract_prompt = self.prompts.abstract_prompt.format(
-            abstract_tips=self.prompts.section_tips.Abstract,
+            abstract_tips=self.prompts.section_tips['Abstract'],
             title=title,
             experiment=experiment,
         )
@@ -228,7 +228,7 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         related_work_prompt = self.prompts.related_work_prompt.format(
-            related_work_tips=self.prompts.section_tips.Related_Work,
+            related_work_tips=self.prompts.section_tips['Related_Work'],
             experiment=experiment,
             references=reference_list,
         )
