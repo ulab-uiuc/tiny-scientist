@@ -8,7 +8,11 @@ from typing import Any, Dict, List
 import yaml
 
 from .configs import Config
-from .format import ACLFormat, BaseFormat, ICLRFormat
+from .input_formatter import (
+    ACLOutputFormatter,
+    BaseOutputFormatter,
+    ICLROutputFormatter,
+)
 from .tool import BaseTool, PaperSearchTool
 from .utils.llm import extract_json_between_markers, get_response_from_llm
 
@@ -29,13 +33,13 @@ class Writer:
         self.template = template
         self.temperature = temperature
         self.searcher: BaseTool = PaperSearchTool()
-        self.formatter: BaseFormat
+        self.formatter: BaseOutputFormatter
         self.config_dir = config_dir
         self.config = Config()
         if self.template == "acl":
-            self.formatter = ACLFormat(self.client, self.model)
+            self.formatter = ACLOutputFormatter(self.client, self.model)
         elif self.template == "iclr":
-            self.formatter = ICLRFormat(self.client, self.model)
+            self.formatter = ICLROutputFormatter(self.client, self.model)
 
         # with open(osp.join(config_dir, "writer_prompt.yaml"), "r") as f:
         #     self.prompts = yaml.safe_load(f)
