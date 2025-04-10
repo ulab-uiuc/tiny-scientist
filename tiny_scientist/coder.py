@@ -6,7 +6,6 @@ import sys
 from subprocess import TimeoutExpired
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
 from aider.models import Model
@@ -20,11 +19,11 @@ class Coder:
         self,
         base_dir: str,
         model: str,
-        config_dir: str,
-        chat_history: Optional[str] = None,
         max_iters: int = 4,
         max_runs: int = 5,
         max_stderr_output: int = 1500,
+        config_dir: Optional[str] = None,
+        chat_history: Optional[str] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.model = model
@@ -33,11 +32,9 @@ class Coder:
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
         self.config = Config()
-        self.searcher = CodeSearchTool()
+        self.searcher = CodeSearchTool(config_dir)
 
         # Load prompts
-        # with open(osp.join(config_dir, "coder_prompt.yaml"), "r") as f:
-        #     self.prompts = yaml.safe_load(f)
         self.prompts = self.config.prompt_template.coder_prompt
 
     def setup_aider(

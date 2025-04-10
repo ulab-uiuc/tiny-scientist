@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict
 
 from pydantic import BaseModel
 
@@ -31,6 +31,7 @@ class WriterPrompt(BaseModel):
     title_refinement_prompt: str
     citation_aider_format: str
 
+
 class CoderPrompt(BaseModel):
     experiment_prompt: str
     experiment_success_prompt: str
@@ -40,6 +41,7 @@ class CoderPrompt(BaseModel):
     plot_error_prompt: str
     plot_timeout_prompt: str
     notes_prompt: str
+
 
 class ThinkerPrompt(BaseModel):
     idea_system_prompt: str

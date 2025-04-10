@@ -2,8 +2,6 @@ import json
 import os.path as osp
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
-
 from .configs import Config
 from .tool import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -18,8 +16,8 @@ class Thinker:
         model: str = "",
         client: Any = None,
         base_dir: str = "",
-        config_dir: str = "",
         temperature: float = 0.75,
+        config_dir: Optional[str] = None,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -27,13 +25,10 @@ class Thinker:
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
-        self.config_dir = config_dir
-        self.config = Config()
+        self.config = Config(config_dir)
         self.searcher = PaperSearchTool()
 
         # Load prompt templates
-        # with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
-        #     self.prompts = yaml.safe_load(f)
         self.prompts = self.config.prompt_template.thinker_prompt
 
     def think(
@@ -212,9 +207,7 @@ class Thinker:
     ) -> Optional[Dict[str, Any]]:
         print("Generating experimental plan for the idea...")
         experiment_text, experiment_msg_history = get_response_from_llm(
-            self.prompts.experiment_plan_prompt.format(
-                idea=json.dumps(idea, indent=2)
-            ),
+            self.prompts.experiment_plan_prompt.format(idea=json.dumps(idea, indent=2)),
             client=self.client,
             model=self.model,
             system_message=self.prompts.idea_system_prompt,

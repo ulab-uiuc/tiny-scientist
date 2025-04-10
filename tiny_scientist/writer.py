@@ -3,12 +3,10 @@ import os.path as osp
 import re
 import time
 import traceback
-from typing import Any, Dict, List
-
-import yaml
+from typing import Any, Dict, List, Optional
 
 from .configs import Config
-from .input_formatter import (
+from .output_formatter import (
     ACLOutputFormatter,
     BaseOutputFormatter,
     ICLROutputFormatter,
@@ -23,9 +21,9 @@ class Writer:
         model: str,
         client: Any,
         base_dir: str,
-        config_dir: str,
         template: str,
         temperature: float = 0.75,
+        config_dir: Optional[str] = None,
     ) -> None:
         self.model = model
         self.client = client
@@ -34,15 +32,12 @@ class Writer:
         self.temperature = temperature
         self.searcher: BaseTool = PaperSearchTool()
         self.formatter: BaseOutputFormatter
-        self.config_dir = config_dir
-        self.config = Config()
+        self.config = Config(config_dir)
         if self.template == "acl":
             self.formatter = ACLOutputFormatter(self.client, self.model)
         elif self.template == "iclr":
             self.formatter = ICLROutputFormatter(self.client, self.model)
 
-        # with open(osp.join(config_dir, "writer_prompt.yaml"), "r") as f:
-        #     self.prompts = yaml.safe_load(f)
         self.prompts = self.config.prompt_template.writer_prompt
 
     def run(self, idea: Dict[str, Any], folder_name: str) -> None:
@@ -89,7 +84,7 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         abstract_prompt = self.prompts.abstract_prompt.format(
-            abstract_tips=self.prompts.section_tips['Abstract'],
+            abstract_tips=self.prompts.section_tips["Abstract"],
             title=title,
             experiment=experiment,
         )
@@ -228,7 +223,7 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         related_work_prompt = self.prompts.related_work_prompt.format(
-            related_work_tips=self.prompts.section_tips['Related_Work'],
+            related_work_tips=self.prompts.section_tips["Related_Work"],
             experiment=experiment,
             references=reference_list,
         )
@@ -261,8 +256,7 @@ class Writer:
     def _refine_section(self, section: str) -> None:
         """Refine a section of the paper."""
         refinement_prompt = (
-            self.prompts.refinement_prompt
-            .format(
+            self.prompts.refinement_prompt.format(
                 section=section,
                 section_content=self.generated_sections[section],
                 error_list=self.prompts.error_list,
@@ -309,8 +303,7 @@ class Writer:
             if section in self.generated_sections.keys():
                 print(f"REFINING SECTION: {section}")
                 second_refinement_prompt = (
-                    self.prompts.second_refinement_prompt
-                    .format(
+                    self.prompts.second_refinement_prompt.format(
                         section=section,
                         tips=self.prompts.section_tips[section],
                         full_draft=full_draft,

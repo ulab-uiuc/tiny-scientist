@@ -1,8 +1,5 @@
 import json
-import os.path as osp
 from typing import Any, Dict, List, Optional, Tuple
-
-import yaml
 
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
@@ -15,11 +12,11 @@ class Reviewer:
         self,
         model: str,
         client: Any,
-        config_dir: str,
         tools: List[BaseTool],
         num_reviews: int = 3,  # Number of separate reviews to generate
         num_reflections: int = 2,  # Number of re_review calls per review
         temperature: float = 0.75,
+        config_dir: Optional[str] = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -28,20 +25,14 @@ class Reviewer:
         self.client = client
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
-        self.config_dir = config_dir
-        self.config = Config()
+        self.config = Config(config_dir)
         self.searcher = PaperSearchTool()
         # Cache for queries to avoid duplicate searches
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
 
-        # with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
-        #     self.prompts = yaml.safe_load(f)
         self.prompts = self.config.prompt_template.reviewer_prompt
-
-        # Process template instructions in neurips form if available
-
         self.prompts.neurips_form = self.prompts.neurips_form.format(
             template_instructions=self.prompts.template_instructions
         )
@@ -187,8 +178,11 @@ class Reviewer:
         print(f"In re_review, Related Works String:\n{related_works_string}")
 
         # Prepend the current review context.
-        updated_prompt = f"Previous review: {json.dumps(review)}\n" + self.prompts.reviewer_reflection_prompt.format(
-            related_works_string=related_works_string
+        updated_prompt = (
+            f"Previous review: {json.dumps(review)}\n"
+            + self.prompts.reviewer_reflection_prompt.format(
+                related_works_string=related_works_string
+            )
         )
         text, msg_history = get_response_from_llm(
             updated_prompt,
