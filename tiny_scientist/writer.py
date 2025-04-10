@@ -7,7 +7,11 @@ from typing import Any, Dict, List
 
 import yaml
 
-from .input_formatter import ACLOutputFormatter, BaseOutputFormatter, ICLROutputFormatter
+from .input_formatter import (
+    ACLOutputFormatter,
+    BaseOutputFormatter,
+    ICLROutputFormatter,
+)
 from .tool import BaseTool, PaperSearchTool
 from .utils.llm import extract_json_between_markers, get_response_from_llm
 
