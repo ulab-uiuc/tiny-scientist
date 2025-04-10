@@ -83,7 +83,8 @@ def main() -> None:
                        help="Maximum iterations per experiment")
     parser.add_argument("--max_runs", type=int, default=2,
                        help="Maximum experiment runs")
-
+    parser.add_argument("--config_dir", type=str, default="./configs",
+                        help="Config directory")
     args = parser.parse_args()
 
     # Set up the experiment directory
@@ -99,7 +100,8 @@ def main() -> None:
         base_dir=args.base_dir,
         model=args.model,
         max_iters=args.max_iters,
-        max_runs=args.max_runs
+        max_runs=args.max_runs,
+        config_dir=args.config_dir
     )
 
     # Create a sample idea and baseline results

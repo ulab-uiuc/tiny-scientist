@@ -1,5 +1,4 @@
 import json
-import os
 import os.path as osp
 import shutil
 import subprocess
@@ -20,6 +19,7 @@ class Coder:
         self,
         base_dir: str,
         model: str,
+        config_dir: str,
         chat_history: Optional[str] = None,
         max_iters: int = 4,
         max_runs: int = 5,
@@ -34,8 +34,7 @@ class Coder:
         self.searcher = CodeSearchTool()
 
         # Load prompts
-        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "coder_prompt.yaml")
-        with open(yaml_path, "r") as f:
+        with open(osp.join(config_dir, "coder_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
     def setup_aider(self,

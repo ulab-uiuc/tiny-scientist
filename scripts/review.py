@@ -71,7 +71,8 @@ def main() -> int:
         num_reflections=args.reflection_num,
         model=model,
         client=client,
-        temperature=args.temperature
+        temperature=args.temperature,
+        config_dir=args.config_dir
     )
 
     # Load the paper text: if file exists, check extension to decide how to load.

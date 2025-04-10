@@ -1,5 +1,6 @@
 import abc
 import os
+import os.path as osp
 import time
 from typing import Any, Dict, List, Optional, cast
 
@@ -9,9 +10,19 @@ import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
 
+
 # Load configuration from TOML
-config_path = os.path.join(os.path.dirname(__file__), "..", "config.template.toml")
-config = toml.load(config_path)
+def load_config() -> str:
+    path = osp.join(os.getcwd(), "config.toml")
+    if osp.exists(path):
+        return path
+    path = osp.join(osp.dirname(__file__), "config.toml")
+    if osp.exists(path):
+        return path
+    return "You have to create a config.toml"
+
+
+config = toml.load(load_config())
 
 nlp = spacy.load("en_core_web_sm")
 # config = toml.load("config.toml")
