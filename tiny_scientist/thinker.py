@@ -29,7 +29,7 @@ class Thinker:
         self.searcher = PaperSearchTool()
 
         # Load prompt templates
-        self.prompts = self.config.prompt_template.thinker_prompt
+        self.prompts = self.config.thinker_prompt
 
     def think(
         self, intent: Dict[str, Any], check_novelty: bool, pdf_content: str

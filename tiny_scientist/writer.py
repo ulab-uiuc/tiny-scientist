@@ -38,7 +38,7 @@ class Writer:
         elif self.template == "iclr":
             self.formatter = ICLROutputFormatter(self.client, self.model)
 
-        self.prompts = self.config.prompt_template.writer_prompt
+        self.prompts = self.config.writer_prompt
 
     def run(self, idea: Dict[str, Any], folder_name: str) -> None:
         with open(osp.join(folder_name, "experiment.py"), "r") as f:

@@ -32,7 +32,7 @@ class Reviewer:
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
 
-        self.prompts = self.config.prompt_template.reviewer_prompt
+        self.prompts = self.config.reviewer_prompt
         self.prompts.neurips_form = self.prompts.neurips_form.format(
             template_instructions=self.prompts.template_instructions
         )
