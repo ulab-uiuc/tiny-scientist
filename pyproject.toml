@@ -78,5 +78,4 @@ fix = true
 target-version = "py310"
 
 [tool.ruff.format]
-quote-style = "single"
 indent-style = "space"
