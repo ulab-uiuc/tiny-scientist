@@ -14,35 +14,16 @@ class ReviewerPrompt(BaseModel):
     reviewer_reflection_prompt: str
 
 
-class SectionTips(BaseModel):
-    Abstract: str
-    Introduction: str
-    Related_Work: str
-    Method: str
-    Experimental_Setup: str
-    Results: str
-    Discussion: str
-    Conclusion: str
-
-class Section_prompt(BaseModel):
-    Introduction: str
-    Method: str
-    Experimental_Setup: str
-    Results: str
-    Discussion: str
-    Conclusion: str
-
-
 class WriterPrompt(BaseModel):
     write_system_prompt: str
     write_system_prompt_related_work: str
-    section_tips: SectionTips
+    section_tips: Dict[str, str]
     error_list: str
     refinement_prompt: str
     second_refinement_prompt: str
     citation_system_prompt: str
     abstract_prompt: str
-    section_prompt: Section_prompt
+    section_prompt: Dict[str, str]
     citation_related_work_prompt: str
     add_citation_prompt: str
     embed_citation_prompt: str
