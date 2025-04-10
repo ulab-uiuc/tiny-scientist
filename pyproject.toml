@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "tiny-scientist"
-version = "0.0.1"
-description = "A minimal example to help user get a paper"
+version = "0.0.1b"
+description = "A lightweight framework for building research agents"
 authors = ["Haofei Yu <yuhaofei44@gmail.com>"]
 license = "Apache 2.0 License"
 readme = "README.md"
@@ -23,11 +23,17 @@ anthropic = "*"
 google-generativeai = "*"
 openai = "*"
 aider-chat = "*"
+toml = "*"
+spacy = "^3.0.0"
+reportlab = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
 nbmake = "*"
 types-setuptools = "*"
+types-pyyaml = "^6.0.12.20250402"
+types-requests = "^2.31"
+types-toml = "^0.10"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
@@ -72,5 +78,4 @@ fix = true
 target-version = "py310"
 
 [tool.ruff.format]
-quote-style = "single"
 indent-style = "space"

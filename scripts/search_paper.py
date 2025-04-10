@@ -12,27 +12,26 @@ def parse_args() -> argparse.Namespace:
         "--query",
         type=str,
         required=True,
-        help="Search query for retrieving academic papers"
+        help="Search query for retrieving academic papers",
     )
     parser.add_argument(
         "--result-limit",
         type=int,
         default=10,
-        help="Number of results to retrieve (default: 10)"
+        help="Number of results to retrieve (default: 10)",
     )
     parser.add_argument(
         "--engine",
         type=str,
         choices=["semanticscholar", "openalex"],
         default="semanticscholar",
-        help="Search engine for retrieving papers"
+        help="Search engine for retrieving papers",
     )
     parser.add_argument(
-        "--output",
-        type=str,
-        help="Path to save retrieved papers as JSON"
+        "--output", type=str, help="Path to save retrieved papers as JSON"
     )
     return parser.parse_args()
+
 
 def main() -> int:
     args: argparse.Namespace = parse_args()
@@ -42,10 +41,7 @@ def main() -> int:
         searcher = PaperSearchTool()
         print(f"Searching for papers using {args.engine} engine...")
 
-        papers = searcher.search_for_papers(
-            query=args.query, result_limit=args.result_limit, engine=args.engine
-        )
-        results = searcher.format_github_results(papers)
+        results = searcher.run(query=args.query)
 
         if not results:
             print("No papers found.")
@@ -66,6 +62,7 @@ def main() -> int:
 
     return 0
 
+
 if __name__ == "__main__":
-    print('rahs')
+    print("rahs")
     exit(main())

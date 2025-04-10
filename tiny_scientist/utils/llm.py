@@ -1,11 +1,10 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import anthropic
 import backoff
-import google.generativeai as genai
 import openai
 from google.generativeai.types import GenerationConfig
 
@@ -49,15 +48,15 @@ AVAILABLE_LLMS = [
 # Get N responses from a single message, used for ensembling.
 @backoff.on_exception(backoff.expo, (openai.RateLimitError, openai.APITimeoutError))
 def get_batch_responses_from_llm(
-        msg,
-        client,
-        model,
-        system_message,
-        print_debug=False,
-        msg_history=None,
-        temperature=0.75,
-        n_responses=1,
-):
+    msg: str,
+    client: Any,
+    model: str,
+    system_message: str,
+    print_debug: bool = False,
+    msg_history: Any = None,
+    temperature: float = 0.75,
+    n_responses: int = 1,
+) -> Tuple[List[str], List[List[Dict[str, str]]]]:
     if msg_history is None:
         msg_history = []
 
@@ -118,9 +117,12 @@ def get_batch_responses_from_llm(
     if print_debug:
         print()
         print("*" * 20 + " LLM START " + "*" * 20)
-        for j, msg in enumerate(new_msg_history[0]):
-            print(f'{j}, {msg["role"]}: {msg["content"]}')
-        print(content)
+
+        for i, history in enumerate(new_msg_history):
+            print(f"Response {i}:")
+            for j, msg in enumerate(history):
+                print(msg)
+
         print("*" * 21 + " LLM END " + "*" * 21)
         print()
 
@@ -129,13 +131,13 @@ def get_batch_responses_from_llm(
 
 @backoff.on_exception(backoff.expo, (openai.RateLimitError, openai.APITimeoutError))
 def get_response_from_llm(
-        msg,
-        client,
-        model,
-        system_message,
-        print_debug=False,
-        msg_history=None,
-        temperature=0.75,
+    msg: str,
+    client: Any,
+    model: str,
+    system_message: str,
+    print_debug: bool = False,
+    msg_history: Any = None,
+    temperature: float = 0.75,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     if msg_history is None:
         msg_history = []
@@ -271,8 +273,12 @@ def get_response_from_llm(
     if print_debug:
         print()
         print("*" * 20 + " LLM START " + "*" * 20)
-        for j, msg in enumerate(new_msg_history):
-            print(f'{j}, {msg["role"]}: {msg["content"]}')
+
+        for i, history in enumerate(new_msg_history):
+            print(f"Response {i}:")
+            for j, msg in enumerate(history):
+                print(msg)
+
         print(content)
         print("*" * 21 + " LLM END " + "*" * 21)
         print()
@@ -280,7 +286,7 @@ def get_response_from_llm(
     return content, new_msg_history
 
 
-def extract_json_between_markers(llm_output) -> Optional[Dict[str, Any]]:
+def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
     matches = re.findall(json_pattern, llm_output, re.DOTALL)
@@ -293,14 +299,12 @@ def extract_json_between_markers(llm_output) -> Optional[Dict[str, Any]]:
     for json_string in matches:
         json_string = json_string.strip()
         try:
-            parsed_json = json.loads(json_string)
+            parsed_json = cast(Dict[str, Any], json.loads(json_string))
             return parsed_json
         except json.JSONDecodeError:
             # Attempt to fix common JSON issues
             try:
-                # Remove invalid control characters
-                json_string_clean = re.sub(r"[\x00-\x1F\x7F]", "", json_string)
-                parsed_json = json.loads(json_string_clean)
+                parsed_json = cast(Dict[str, Any], json.loads(json_string))
                 return parsed_json
             except json.JSONDecodeError:
                 continue  # Try next match
@@ -308,7 +312,7 @@ def extract_json_between_markers(llm_output) -> Optional[Dict[str, Any]]:
     return None  # No valid JSON found
 
 
-def create_client(model) -> Tuple[Any, str]:
+def create_client(model: str) -> Tuple[Any, str]:
     if model.startswith("claude-"):
         print(f"Using Anthropic API with model {model}.")
         return anthropic.Anthropic(), model
@@ -320,7 +324,7 @@ def create_client(model) -> Tuple[Any, str]:
         client_model = model.split("/")[-1]
         print(f"Using Vertex AI with model {client_model}.")
         return anthropic.AnthropicVertex(), client_model
-    elif 'gpt' in model:
+    elif "gpt" in model:
         print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
     elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
@@ -328,20 +332,21 @@ def create_client(model) -> Tuple[Any, str]:
         return openai.OpenAI(), model
     elif model in ["deepseek-chat", "deepseek-reasoner"]:
         print(f"Using OpenAI API with {model}.")
-        return openai.OpenAI(
-            api_key=os.environ["DEEPSEEK_API_KEY"],
-            base_url="https://api.deepseek.com"
-        ), model
+        return (
+            openai.OpenAI(
+                api_key=os.environ["DEEPSEEK_API_KEY"],
+                base_url="https://api.deepseek.com",
+            ),
+            model,
+        )
     elif model == "llama3.1-405b":
         print(f"Using OpenAI API with {model}.")
-        return openai.OpenAI(
-            api_key=os.environ["OPENROUTER_API_KEY"],
-            base_url="https://openrouter.ai/api/v1"
-        ), "meta-llama/llama-3.1-405b-instruct"
-    elif "gemini" in model:
-        print(f"Using Google Generative AI with model {model}.")
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-        client = genai.GenerativeModel(model)
-        return client, model
+        return (
+            openai.OpenAI(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                base_url="https://openrouter.ai/api/v1",
+            ),
+            "meta-llama/llama-3.1-405b-instruct",
+        )
     else:
         raise ValueError(f"Model {model} not supported.")

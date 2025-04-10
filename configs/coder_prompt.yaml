@@ -1,19 +1,28 @@
 experiment_prompt: |
   Your goal is to implement the following idea: {title}.
   The proposed experiment is as follows: {idea}.
-  You are given a total of up to {max_runs} runs to complete the necessary experiments. You do not need to use all {max_runs}.
+  You are given a total of up to {max_runs} runs to complete the necessary experiments.
 
-  First, plan the list of experiments you would like to run. For example, if you are sweeping over a specific hyperparameter, plan each value you would like to test for each run.
+  First, decide the experiments you want to run. If you're sweeping over a hyperparameter, clearly define what value to use in each run.
 
-  Note that we already provide the vanilla baseline results, so you do not need to re-run it.
-
-  For reference, the baseline results are as follows:
+  The vanilla baseline results are already provided below, so you do not need to re-run the baseline:
 
   {baseline_results}
 
-  After you complete each change, we will run the command `python experiment.py --out_dir=run_i' where i is the run number and evaluate the results.
-  YOUR PROPOSED CHANGE MUST USE THIS COMMAND FORMAT, DO NOT ADD ADDITIONAL COMMAND LINE ARGS.
-  You can then implement the next thing on your list.
+  For each run, we will execute the **exact command**:
+  `python experiment.py --out_dir=run_i`
+  where `i` is the run number (e.g., `run_1`, `run_2`, ...). DO NOT modify this command or the way the output directory is named.
+
+  YOU MUST ENSURE experiment.py:
+    1. Parses the `--out_dir` argument.
+    2. Creates the output directory using `os.makedirs(out_dir, exist_ok=True)`.
+    3. Performs actual model training and evaluation — DO NOT simulate results using random numbers.
+    4. Implements `compute_loss`, `evaluate_model`, and `log_results` with real logic.
+    5. **Saves results as a dictionary (e.g., loss, accuracy, etc.) in a file named `final_info.json` placed directly inside `out_dir`** — do **not** save into nested folders like `out_dir/variant_name/final_info.json`.
+
+  Do not add extra command-line arguments.
+  If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
+  If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.
 
 experiment_success_prompt: |
   Run {run_num} completed. Here are the results:
@@ -30,7 +39,15 @@ experiment_success_prompt: |
   If you are finished with experiments, respond with 'ALL_COMPLETED'.
 
 experiment_error_prompt: |
-  Run failed with the following error {error}
+  There was an error running the experiment script:
+  {message}
+  Your goal is still to implement this experiment: {Title}.
+  The purpose is: {Experiment}.
+  You have {max_runs} runs total. We're currently on run {run_time}.
+  Please fix `experiment.py` so that it runs successfully with:
+  `python experiment.py --out_dir=run_{run_time}`.
+  Make sure to implement any missing parts like model definition, loss function, data loading, and final_info.json saving.
+
 
 experiment_timeout_prompt: |
   Run timed out after {timeout} seconds

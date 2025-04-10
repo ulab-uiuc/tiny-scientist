@@ -6,33 +6,34 @@ from tiny_scientist.tool import CodeSearchTool
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Search for GitHub repositories or code snippets.")
+    parser = argparse.ArgumentParser(
+        description="Search for GitHub repositories or code snippets."
+    )
 
     parser.add_argument(
         "--query",
         type=str,
         required=True,
-        help="Search query for GitHub repositories or code"
+        help="Search query for GitHub repositories or code",
     )
     parser.add_argument(
         "--result-limit",
         type=int,
         default=10,
-        help="Number of results to retrieve (default: 10)"
+        help="Number of results to retrieve (default: 10)",
     )
     parser.add_argument(
         "--search-type",
         type=str,
         choices=["repositories", "code"],
         default="repositories",
-        help="Type of GitHub search: repositories or code"
+        help="Type of GitHub search: repositories or code",
     )
     parser.add_argument(
-        "--output",
-        type=str,
-        help="Path to save retrieved search results as JSON"
+        "--output", type=str, help="Path to save retrieved search results as JSON"
     )
     return parser.parse_args()
+
 
 def main() -> int:
     args: argparse.Namespace = parse_args()
@@ -43,10 +44,20 @@ def main() -> int:
         print(f"Searching for {args.search_type} on GitHub...")
 
         if args.search_type == "repositories":
-            repos = searcher.search_github_repositories(query=args.query, result_limit=args.result_limit)
+            repos = searcher.search_github_repositories(
+                query=args.query, result_limit=args.result_limit
+            )
+            if repos is None:
+                print("No repositories found.")
+                return 1
             results = searcher._extract_github_repo_info(repos)
         else:
-            code = searcher.search_github_code(query=args.query, result_limit=args.result_limit)
+            code = searcher.search_github_code(
+                query=args.query, result_limit=args.result_limit
+            )
+            if code is None:
+                print("No code snippets found.")
+                return 1
             results = searcher._extract_github_code_info(code)
 
         if not results:
@@ -67,6 +78,7 @@ def main() -> int:
         return 1
 
     return 0
+
 
 if __name__ == "__main__":
     exit(main())

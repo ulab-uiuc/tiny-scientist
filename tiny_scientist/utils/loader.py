@@ -1,4 +1,6 @@
 import json
+import os
+import os.path as osp
 import re
 from typing import Optional
 
@@ -7,11 +9,13 @@ import pymupdf4llm
 from pypdf import PdfReader
 
 
-class InputFormatter():
+class InputFormatter:
     def __init__(self):
         pass
 
-    def _load_paper(self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100) -> str:
+    def _load_paper(
+        self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100
+    ) -> str:
         """
         Loads a PDF, attempting to convert it to Markdown via pymupdf4llm.
         If that fails, falls back to direct pymupdf extraction, and then
@@ -43,7 +47,9 @@ class InputFormatter():
                 if num_pages is None:
                     text = "".join(page.extract_text() for page in reader.pages)
                 else:
-                    text = "".join(page.extract_text() for page in reader.pages[:num_pages])
+                    text = "".join(
+                        page.extract_text() for page in reader.pages[:num_pages]
+                    )
                 if len(text) < min_size:
                     raise Exception("Text too short")
         return text
@@ -59,8 +65,8 @@ class InputFormatter():
         """
         subsections = []
         subsec_pattern = re.compile(
-            r'(?m)^\*\*(\d+\.\d+)\*\*\s+\*\*(.*?)\*\*\s*(.*?)(?=^\*\*\d+\.\d+\*\*|\Z)',
-            re.DOTALL
+            r"(?m)^\*\*(\d+\.\d+)\*\*\s+\*\*(.*?)\*\*\s*(.*?)(?=^\*\*\d+\.\d+\*\*|\Z)",
+            re.DOTALL,
         )
         matches = list(subsec_pattern.finditer(section_text))
 
@@ -79,11 +85,13 @@ class InputFormatter():
             subsection_title = m.group(2).strip()
             subsection_content = m.group(3).strip()
 
-            subsections.append({
-                "subsection_number": subsection_number,
-                "subsection_title": subsection_title,
-                "subsection_content": subsection_content
-            })
+            subsections.append(
+                {
+                    "subsection_number": subsection_number,
+                    "subsection_title": subsection_title,
+                    "subsection_content": subsection_content,
+                }
+            )
 
             last_end = m.end()
 
@@ -133,7 +141,7 @@ class InputFormatter():
             }
         """
         # 1) Extract optional document title
-        title_pattern = re.compile(r'(?m)^##\s+(.*)')
+        title_pattern = re.compile(r"(?m)^##\s+(.*)")
         title_match = title_pattern.search(markdown_str)
         title = ""
         if title_match:
@@ -142,15 +150,11 @@ class InputFormatter():
             markdown_str = markdown_str.replace(full_line, "", 1)
 
         # 2) Split out "header" from everything after '### Abstract'
-        split_pattern = r'(?s)(.*?)^### Abstract(.*)'
+        split_pattern = r"(?s)(.*?)^### Abstract(.*)"
         match = re.search(split_pattern, markdown_str, re.MULTILINE)
 
         if not match:
-            return {
-                "title": title,
-                "header": markdown_str.strip(),
-                "sections": []
-            }
+            return {"title": title, "header": markdown_str.strip(), "sections": []}
 
         part_before = match.group(1)
         part_after = "### Abstract" + match.group(2)
@@ -158,9 +162,7 @@ class InputFormatter():
 
         # 3) Extract top-level sections from 'part_after'
         section_pattern = re.compile(
-            r'(?m)^###\s+(.*?)\s*\n'
-            r'(.*?)(?=^###\s+|\Z)',
-            re.DOTALL
+            r"(?m)^###\s+(.*?)\s*\n" r"(.*?)(?=^###\s+|\Z)", re.DOTALL
         )
 
         raw_sections = section_pattern.findall(part_after)
@@ -173,15 +175,11 @@ class InputFormatter():
             section_dict = {
                 "section_name": section_name,
                 "content": clean_text,
-                "subsections": subsections_list
+                "subsections": subsections_list,
             }
             sections.append(section_dict)
 
-        return {
-            "title": title,
-            "header": header,
-            "sections": sections
-        }
+        return {"title": title, "header": header, "sections": sections}
 
     def _load_review(self, review_path: str) -> str:
         """
@@ -191,7 +189,9 @@ class InputFormatter():
         with open(review_path, "r", encoding="utf-8") as f:
             return json.load(f)["review"]
 
-    def parse_paper_pdf_to_json(self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100) -> dict:
+    def parse_paper_pdf_to_json(
+        self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100
+    ) -> dict:
         """
         Convenience method to load a PDF, convert it to text, parse the markdown,
         and return a structured JSON-like Python dictionary.
@@ -206,3 +206,18 @@ class InputFormatter():
         """
         review_text = self._load_review(review_path)
         return self._parse_markdown(review_text)
+
+    def load_config() -> str:
+        path = osp.join(os.getcwd(), "config.toml")
+        if osp.exists(path):
+            return path
+
+        path = osp.join(os.getcwd(), "..", "config.toml")
+        if osp.exists(path):
+            return path
+
+        path = osp.join(osp.dirname(__file__), "config.toml")
+        if osp.exists(path):
+            return path
+
+        return "You have to create a config.toml"
