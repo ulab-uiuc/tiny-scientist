@@ -11,8 +11,8 @@ from .utils.loader import load_config
 
 config = toml.load(load_config())
 
-class BaseTool(abc.ABC):
 
+class BaseTool(abc.ABC):
     @abc.abstractmethod
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         pass
@@ -32,15 +32,18 @@ class CodeSearchTool(BaseTool):
                 results[str(i)] = {
                     "title": repo["name"],
                     "source": repo["url"],
-                    "info": f"Stars: {repo['stars']}"
+                    "info": f"Stars: {repo['stars']}",
                 }
 
         return results
 
-    def format_github_repo_query(self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250) -> str:
+    def format_github_repo_query(
+        self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250
+    ) -> str:
         import re
 
         import spacy
+
         title = idea.get("Title", "")
         experiment = idea.get("Experiment", "")
         combined_text = f"{title}. {experiment}"
@@ -72,9 +75,7 @@ class CodeSearchTool(BaseTool):
                 break
 
         # Build query string (selectively quote multi-word phrases)
-        quoted_keywords = [
-            f'"{kw}"' if " " in kw else kw for kw in keywords
-        ]
+        quoted_keywords = [f'"{kw}"' if " " in kw else kw for kw in keywords]
         base_query = " ".join(quoted_keywords)
         suffix = " in:file language:python"
         full_query = f"{base_query} {suffix}"
@@ -85,18 +86,26 @@ class CodeSearchTool(BaseTool):
 
         return full_query
 
-    def search_github_repositories(self, query: str, result_limit: int = 10) -> Optional[List[Dict[str, Any]]]:
+    def search_github_repositories(
+        self, query: str, result_limit: int = 10
+    ) -> Optional[List[Dict[str, Any]]]:
         return self._search_github(query, result_limit, search_type="repositories")
 
-    def search_github_code(self, query: str, result_limit: int = 10) -> Optional[List[Dict[str, Any]]]:
+    def search_github_code(
+        self, query: str, result_limit: int = 10
+    ) -> Optional[List[Dict[str, Any]]]:
         return self._search_github(query, result_limit, search_type="code")
 
-    def _search_github(self, query: str, result_limit: int, search_type: str) -> Optional[List[Dict[str, Any]]]:
+    def _search_github(
+        self, query: str, result_limit: int, search_type: str
+    ) -> Optional[List[Dict[str, Any]]]:
         if search_type not in ["repositories", "code"]:
             raise ValueError("search_type must be either 'repositories' or 'code'.")
 
         url = f"https://api.github.com/search/{search_type}"
-        headers = {"Authorization": f"token {self.github_token}"} if self.github_token else {}
+        headers = (
+            {"Authorization": f"token {self.github_token}"} if self.github_token else {}
+        )
 
         params = {
             "q": query,
@@ -106,7 +115,9 @@ class CodeSearchTool(BaseTool):
         }
 
         response = requests.get(url, headers=headers, params=params)
-        print(f"GitHub {search_type.capitalize()} Response Status Code: {response.status_code}")
+        print(
+            f"GitHub {search_type.capitalize()} Response Status Code: {response.status_code}"
+        )
         response.raise_for_status()
 
         results = response.json()
@@ -134,7 +145,9 @@ class CodeSearchTool(BaseTool):
         ]
 
     @staticmethod
-    def _extract_github_code_info(code_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _extract_github_code_info(
+        code_results: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "file_name": item["name"],
@@ -143,6 +156,7 @@ class CodeSearchTool(BaseTool):
             }
             for item in code_results
         ]
+
 
 class PaperSearchTool(BaseTool):
     def __init__(self) -> None:
@@ -153,21 +167,19 @@ class PaperSearchTool(BaseTool):
         papers = self.search_for_papers(query)
         if papers:
             for i, paper in enumerate(papers):
-
                 paper_id = paper.get("paperId", None)
                 bibtex = self.fetch_bibtex(paper_id) if paper_id else "N/A"
 
                 if not bibtex or bibtex == "N/A":
                     continue
 
-                results[paper["title"]] = {
-                    "title": paper["title"],
-                    "bibtex": bibtex
-                }
+                results[paper["title"]] = {"title": paper["title"], "bibtex": bibtex}
 
         return results
 
-    def search_for_papers(self, query: str, result_limit: int = 3) -> Optional[List[Dict[str, Any]]]:
+    def search_for_papers(
+        self, query: str, result_limit: int = 3
+    ) -> Optional[List[Dict[str, Any]]]:
         engine = config["thinker"].get("engine", "semanticscholar")
         if not query:
             return None
@@ -180,7 +192,9 @@ class PaperSearchTool(BaseTool):
             raise NotImplementedError(f"{engine=} not supported!")
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _search_semanticscholar(self, query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
+    def _search_semanticscholar(
+        self, query: str, result_limit: int
+    ) -> Optional[List[Dict[str, Any]]]:
         params: Dict[str, str | int] = {
             "query": query,
             "limit": result_limit,
@@ -202,7 +216,9 @@ class PaperSearchTool(BaseTool):
         time.sleep(1.0)
         return cast(Optional[List[Dict[str, Any]]], results.get("data"))  # Fix #2
 
-    def _search_openalex(self, query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
+    def _search_openalex(
+        self, query: str, result_limit: int
+    ) -> Optional[List[Dict[str, Any]]]:
         import pyalex
         from pyalex import Works
 
@@ -210,7 +226,9 @@ class PaperSearchTool(BaseTool):
         if mail:
             pyalex.config.email = mail
         else:
-            print("[WARNING] Please set OPENALEX_MAIL_ADDRESS for better access to OpenAlex API!")
+            print(
+                "[WARNING] Please set OPENALEX_MAIL_ADDRESS for better access to OpenAlex API!"
+            )
 
         works = Works().search(query).get(per_page=result_limit)
         if not works:
@@ -223,17 +241,32 @@ class PaperSearchTool(BaseTool):
         rsp = requests.get(
             f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}",
             headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
-            params={"fields": "citationStyles"}
+            params={"fields": "citationStyles"},
         )
         rsp.raise_for_status()
         citation_styles = rsp.json().get("citationStyles", {})
         return citation_styles.get("bibtex", "N/A")
 
     @staticmethod
-    def _extract_work_info(work: Dict[str, Any], max_abstract_length: int = 1000) -> Dict[str, str]:
-        venue = next((loc["source"]["display_name"] for loc in work["locations"] if loc["source"]), "Unknown")
-        authors_list = [author["author"]["display_name"] for author in work["authorships"]]
-        authors = " and ".join(authors_list) if len(authors_list) < 20 else f"{authors_list[0]} et al."
+    def _extract_work_info(
+        work: Dict[str, Any], max_abstract_length: int = 1000
+    ) -> Dict[str, str]:
+        venue = next(
+            (
+                loc["source"]["display_name"]
+                for loc in work["locations"]
+                if loc["source"]
+            ),
+            "Unknown",
+        )
+        authors_list = [
+            author["author"]["display_name"] for author in work["authorships"]
+        ]
+        authors = (
+            " and ".join(authors_list)
+            if len(authors_list) < 20
+            else f"{authors_list[0]} et al."
+        )
         abstract = work.get("abstract", "")
         if len(abstract) > max_abstract_length:
             print(f"[WARNING] {work['title']}: Abstract is too long, truncating.")
@@ -274,7 +307,9 @@ class PaperSearchTool(BaseTool):
             raw_authors = paper.get("authors", [])
             if isinstance(raw_authors, list):
                 authors_list = [
-                    author["name"] if isinstance(author, dict) and "name" in author else str(author)
+                    author["name"]
+                    if isinstance(author, dict) and "name" in author
+                    else str(author)
                     for author in raw_authors
                 ]
             else:
@@ -283,10 +318,12 @@ class PaperSearchTool(BaseTool):
             if len(authors_list) > 2:
                 authors_list = [authors_list[0] + " et al."]
 
-            simplified.append({
-                "year": paper.get("year"),
-                "title": paper.get("title"),
-                "abstract": paper.get("abstract"),
-                "authors": authors_list
-            })
+            simplified.append(
+                {
+                    "year": paper.get("year"),
+                    "title": paper.get("title"),
+                    "abstract": paper.get("abstract"),
+                    "authors": authors_list,
+                }
+            )
         return simplified

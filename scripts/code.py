@@ -12,25 +12,18 @@ def create_sample_idea() -> Dict[str, Any]:
     """Create a sample experiment idea for testing."""
     return {
         "Title": "Learning Rate Impact on Model Convergence",
-        "Experiment": "Investigate how different learning rates affect the convergence speed and final performance of a simple neural network on MNIST dataset."
+        "Experiment": "Investigate how different learning rates affect the convergence speed and final performance of a simple neural network on MNIST dataset.",
     }
+
 
 def create_baseline_results() -> Dict[str, Any]:
     """Create sample baseline results for comparison."""
     return {
-        "accuracy": {
-            "means": 0.92,
-            "std": 0.015
-        },
-        "training_time": {
-            "means": 125.3,
-            "std": 12.7
-        },
-        "convergence_epoch": {
-            "means": 8.5,
-            "std": 1.2
-        }
+        "accuracy": {"means": 0.92, "std": 0.015},
+        "training_time": {"means": 125.3, "std": 12.7},
+        "convergence_epoch": {"means": 8.5, "std": 1.2},
     }
+
 
 def setup_experiment_directory(base_dir: str) -> None:
     """Set up the experiment directory with necessary files."""
@@ -38,7 +31,8 @@ def setup_experiment_directory(base_dir: str) -> None:
 
     # Create an empty experiment.py file
     with open(os.path.join(base_dir, "experiment.py"), "w") as f:
-        f.write("""
+        f.write(
+            """
 # This is a placeholder experiment file that will be modified by the Coder
 import argparse
 import json
@@ -67,24 +61,39 @@ def main() -> int:
 
 if __name__ == "__main__":
     exit(main())
-""")
+"""
+        )
 
     # Create an empty notes.txt file
     with open(os.path.join(base_dir, "notes.txt"), "w") as f:
-        f.write("# Experiment Notes\n\nThis file will contain notes about the experiment.\n")
+        f.write(
+            "# Experiment Notes\n\nThis file will contain notes about the experiment.\n"
+        )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a trial of the Coder class")
-    parser.add_argument("--base_dir", type=str, default="./experiment_trial",
-                       help="Base directory for the experiment")
-    parser.add_argument("--model", type=str, default="gpt-4o",
-                       help="Model to use (e.g., llama3.1-405b, deepseek-coder-v2-0724)")
-    parser.add_argument("--max_iters", type=int, default=2,
-                       help="Maximum iterations per experiment")
-    parser.add_argument("--max_runs", type=int, default=2,
-                       help="Maximum experiment runs")
-    parser.add_argument("--config_dir", type=str, default="./configs",
-                        help="Config directory")
+    parser.add_argument(
+        "--base_dir",
+        type=str,
+        default="./experiment_trial",
+        help="Base directory for the experiment",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="gpt-4o",
+        help="Model to use (e.g., llama3.1-405b, deepseek-coder-v2-0724)",
+    )
+    parser.add_argument(
+        "--max_iters", type=int, default=2, help="Maximum iterations per experiment"
+    )
+    parser.add_argument(
+        "--max_runs", type=int, default=2, help="Maximum experiment runs"
+    )
+    parser.add_argument(
+        "--config_dir", type=str, default="./configs", help="Config directory"
+    )
     args = parser.parse_args()
 
     # Set up the experiment directory
@@ -101,7 +110,7 @@ def main() -> None:
         model=args.model,
         max_iters=args.max_iters,
         max_runs=args.max_runs,
-        config_dir=args.config_dir
+        config_dir=args.config_dir,
     )
 
     # Create a sample idea and baseline results
@@ -120,6 +129,7 @@ def main() -> None:
     else:
         print("\nExperiment did not complete successfully.")
         print("Check the logs for more information.")
+
 
 if __name__ == "__main__":
     main()

@@ -48,15 +48,15 @@ AVAILABLE_LLMS = [
 # Get N responses from a single message, used for ensembling.
 @backoff.on_exception(backoff.expo, (openai.RateLimitError, openai.APITimeoutError))
 def get_batch_responses_from_llm(
-        msg: str,
-        client: Any,
-        model: str,
-        system_message: str,
-        print_debug: bool =False,
-        msg_history: Any =None,
-        temperature: float =0.75,
-        n_responses: int =1,
-    ) -> Tuple[List[str], List[List[Dict[str, str]]]]:
+    msg: str,
+    client: Any,
+    model: str,
+    system_message: str,
+    print_debug: bool = False,
+    msg_history: Any = None,
+    temperature: float = 0.75,
+    n_responses: int = 1,
+) -> Tuple[List[str], List[List[Dict[str, str]]]]:
     if msg_history is None:
         msg_history = []
 
@@ -131,14 +131,14 @@ def get_batch_responses_from_llm(
 
 @backoff.on_exception(backoff.expo, (openai.RateLimitError, openai.APITimeoutError))
 def get_response_from_llm(
-        msg: str,
-        client: Any,
-        model: str,
-        system_message: str,
-        print_debug: bool =False,
-        msg_history: Any =None,
-        temperature: float =0.75,
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+    msg: str,
+    client: Any,
+    model: str,
+    system_message: str,
+    print_debug: bool = False,
+    msg_history: Any = None,
+    temperature: float = 0.75,
+) -> Tuple[str, List[Dict[str, Any]]]:
     if msg_history is None:
         msg_history = []
 
@@ -324,7 +324,7 @@ def create_client(model: str) -> Tuple[Any, str]:
         client_model = model.split("/")[-1]
         print(f"Using Vertex AI with model {client_model}.")
         return anthropic.AnthropicVertex(), client_model
-    elif 'gpt' in model:
+    elif "gpt" in model:
         print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
     elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
@@ -332,15 +332,21 @@ def create_client(model: str) -> Tuple[Any, str]:
         return openai.OpenAI(), model
     elif model in ["deepseek-chat", "deepseek-reasoner"]:
         print(f"Using OpenAI API with {model}.")
-        return openai.OpenAI(
-            api_key=os.environ["DEEPSEEK_API_KEY"],
-            base_url="https://api.deepseek.com"
-        ), model
+        return (
+            openai.OpenAI(
+                api_key=os.environ["DEEPSEEK_API_KEY"],
+                base_url="https://api.deepseek.com",
+            ),
+            model,
+        )
     elif model == "llama3.1-405b":
         print(f"Using OpenAI API with {model}.")
-        return openai.OpenAI(
-            api_key=os.environ["OPENROUTER_API_KEY"],
-            base_url="https://openrouter.ai/api/v1"
-        ), "meta-llama/llama-3.1-405b-instruct"
+        return (
+            openai.OpenAI(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                base_url="https://openrouter.ai/api/v1",
+            ),
+            "meta-llama/llama-3.1-405b-instruct",
+        )
     else:
         raise ValueError(f"Model {model} not supported.")

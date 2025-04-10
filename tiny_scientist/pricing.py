@@ -26,6 +26,7 @@ MODEL_PRICING = {
     "gemini-1.5-pro": (0.3125, 1.25),
 }
 
+
 def calculate_pricing(model: str, input_tokens: int, output_tokens: int) -> float:
     # Check if the model exists
     if model not in MODEL_PRICING:

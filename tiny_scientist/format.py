@@ -18,18 +18,19 @@ from .llm import get_response_from_llm
 
 class BaseFormat(abc.ABC):
     @abc.abstractmethod
-    def run(self,
-            content: Dict[str, Any],
-            references: Dict[str, Any],
-            base_dir: str,
-            output_pdf_path: str,
-            name: str,
-            timeout: int = 30
-            ) -> None:
+    def run(
+        self,
+        content: Dict[str, Any],
+        references: Dict[str, Any],
+        base_dir: str,
+        output_pdf_path: str,
+        name: str,
+        timeout: int = 30,
+    ) -> None:
         pass
 
     def _clean_latex_content(self, content: str) -> str:
-        match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
+        match = re.search(r"```latex\s*(.*?)\s*```", content, flags=re.DOTALL)
         if match:
             return match.group(1)
 
@@ -56,7 +57,7 @@ class BaseFormat(abc.ABC):
             "Experimental Setup",
             "Results",
             "Discussion",
-            "Conclusion"
+            "Conclusion",
         ]
 
         body = ""
@@ -70,35 +71,36 @@ class BaseFormat(abc.ABC):
         body += "\n\n\\bibliography{custom}"
         return body
 
-    def _insert_body_into_template(self,
-                                   template_text: str,
-                                   body_content: str,
-                                   new_title: str
-                                   ) -> str:
-        template_text = re.sub(r'(\\title\{)[^}]*\}', r'\1' + new_title + r'}', template_text)
+    def _insert_body_into_template(
+        self, template_text: str, body_content: str, new_title: str
+    ) -> str:
+        template_text = re.sub(
+            r"(\\title\{)[^}]*\}", r"\1" + new_title + r"}", template_text
+        )
 
-        begin_doc_match = re.search(r'(\\begin{document})', template_text)
+        begin_doc_match = re.search(r"(\\begin{document})", template_text)
         if not begin_doc_match:
             raise ValueError("Template is missing \\begin{document}.")
 
         # Check if there's a \maketitle command after \begin{document}
-        maketitle_match = re.search(r'(\\maketitle)', template_text)
-        ending_match = re.search(r'(\\end{document})', template_text)
+        maketitle_match = re.search(r"(\\maketitle)", template_text)
+        ending_match = re.search(r"(\\end{document})", template_text)
         if not ending_match:
             raise ValueError("Template is missing \\end{document}.")
-        ending = template_text[ending_match.start():]
+        ending = template_text[ending_match.start() :]
 
         if maketitle_match:
             insertion_point = maketitle_match.end()
             return template_text[:insertion_point] + "\n" + body_content + "\n" + ending
         else:
-            preamble = template_text[:begin_doc_match.end()]
+            preamble = template_text[: begin_doc_match.end()]
             return preamble + "\n" + body_content + "\n" + ending
 
 
 class Watermark:
-    def _add_watermark(self, original_pdf_path: str, watermark_text: str, output_pdf_path: str) -> None:
-
+    def _add_watermark(
+        self, original_pdf_path: str, watermark_text: str, output_pdf_path: str
+    ) -> None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             watermark_pdf_path = tmp_file.name
 
@@ -132,8 +134,7 @@ class Watermark:
 
         for orig_page in original_reader.pages:
             new_page = PageObject.create_blank_page(
-                width=orig_page.mediabox.width,
-                height=orig_page.mediabox.height
+                width=orig_page.mediabox.width, height=orig_page.mediabox.height
             )
 
             new_page.merge_page(watermark_page)
@@ -146,16 +147,18 @@ class Watermark:
         print(f"Watermarked PDF saved to: {output_pdf_path}")
         os.remove(watermark_pdf_path)
 
+
 class Bib_Manager:
     def __init__(self, model: str, client: Any) -> None:
         self.model = model
         self.client = client
 
-    def _update_bib_cite(self, references: Dict[str, Any], dest_template_dir: str, template: str) -> None:
-
-        if template == 'acl':
+    def _update_bib_cite(
+        self, references: Dict[str, Any], dest_template_dir: str, template: str
+    ) -> None:
+        if template == "acl":
             bib_path = osp.join(dest_template_dir, "latex", "custom.bib")
-        if template == 'iclr':
+        if template == "iclr":
             # you should create a custom.bib file in the iclr folder
             bib_path = osp.join(dest_template_dir, "custom.bib")
 
@@ -182,7 +185,7 @@ class Bib_Manager:
                 msg=prompt,
                 client=self.client,
                 model=self.model,
-                system_message="You are an expert in academic citations. Please provide a valid bibtex entry."
+                system_message="You are an expert in academic citations. Please provide a valid bibtex entry.",
             )
 
             if isinstance(result, tuple):
@@ -190,7 +193,11 @@ class Bib_Manager:
             else:
                 bibtex_entry = result
 
-            if isinstance(bibtex_entry, str) and "@" in bibtex_entry and key in bibtex_entry:
+            if (
+                isinstance(bibtex_entry, str)
+                and "@" in bibtex_entry
+                and key in bibtex_entry
+            ):
                 return bibtex_entry.strip()
             else:
                 print(f"Invalid bibtex returned for key: {key}")
@@ -202,22 +209,20 @@ class Bib_Manager:
 
 
 class ACLFormat(BaseFormat):
-    def __init__(self,
-                 model: str,
-                 client: Any
-                ) -> None:
+    def __init__(self, model: str, client: Any) -> None:
         self.template = "acl"
         self.bib_manager = Bib_Manager(model, client)
         self.watermark = Watermark()
 
-    def run(self,
-            content: Dict[str, Any],
-            references: Dict[str, Any],
-            base_dir: str,
-            output_pdf_path: str,
-            name: str,
-            timeout: int = 30) -> None:
-
+    def run(
+        self,
+        content: Dict[str, Any],
+        references: Dict[str, Any],
+        base_dir: str,
+        output_pdf_path: str,
+        name: str,
+        timeout: int = 30,
+    ) -> None:
         body_content = self._assemble_body(content)
         dest_template_dir = self._set_output_dir(base_dir)
 
@@ -228,7 +233,9 @@ class ACLFormat(BaseFormat):
         with open(main_tex_path, "r", encoding="utf-8") as f:
             template_text = f.read()
 
-        final_content = self._insert_body_into_template(template_text, body_content, name)
+        final_content = self._insert_body_into_template(
+            template_text, body_content, name
+        )
 
         with open(main_tex_path, "w", encoding="utf-8") as f:
             f.write(final_content)
@@ -238,16 +245,17 @@ class ACLFormat(BaseFormat):
 
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
         self.watermark._add_watermark(
-                            output_pdf_path,
-                            watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
-                            output_pdf_path=output_pdf_path
-                            )
-
+            output_pdf_path,
+            watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
+            output_pdf_path=output_pdf_path,
+        )
 
     def _set_output_dir(self, base_dir: str) -> str:
         script_dir = osp.dirname(__file__)
         project_root = osp.abspath(osp.join(script_dir, ".."))
-        source_template_dir = osp.join(project_root, "tiny_scientist", f"{self.template}_latex")
+        source_template_dir = osp.join(
+            project_root, "tiny_scientist", f"{self.template}_latex"
+        )
 
         if osp.isdir(source_template_dir):
             dest_template_dir = osp.join(base_dir, "latex")
@@ -273,7 +281,7 @@ class ACLFormat(BaseFormat):
 
         commands = [
             ["pdflatex", "-interaction=nonstopmode", compile_target],
-            ["bibtex", compile_target.replace(".tex","")],
+            ["bibtex", compile_target.replace(".tex", "")],
             ["pdflatex", "-interaction=nonstopmode", compile_target],
             ["pdflatex", "-interaction=nonstopmode", compile_target],
         ]
@@ -302,25 +310,22 @@ class ACLFormat(BaseFormat):
 
 
 class ICLRFormat(BaseFormat):
-    def __init__(self,
-                 model: str,
-                 client: Any
-                ) -> None:
+    def __init__(self, model: str, client: Any) -> None:
         self.template = "iclr"
         self.bib_manager = Bib_Manager(model, client)
         self.watermark = Watermark()
 
-    def run(self,
-            content: Dict[str, Any],
-            references: Dict[str, Any],
-            base_dir: str,
-            output_pdf_path: str,
-            name: str,
-            timeout: int = 30) -> None:
-
+    def run(
+        self,
+        content: Dict[str, Any],
+        references: Dict[str, Any],
+        base_dir: str,
+        output_pdf_path: str,
+        name: str,
+        timeout: int = 30,
+    ) -> None:
         body_content = self._assemble_body(content)
         dest_template_dir = self._set_output_dir(base_dir)
-
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
@@ -329,7 +334,9 @@ class ICLRFormat(BaseFormat):
         with open(main_tex_path, "r", encoding="utf-8") as f:
             template_text = f.read()
 
-        final_content = self._insert_body_into_template(template_text, body_content, name)
+        final_content = self._insert_body_into_template(
+            template_text, body_content, name
+        )
 
         with open(main_tex_path, "w", encoding="utf-8") as f:
             f.write(final_content)
@@ -339,16 +346,17 @@ class ICLRFormat(BaseFormat):
 
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
         self.watermark._add_watermark(
-                            output_pdf_path,
-                            watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
-                            output_pdf_path=output_pdf_path
-                            )
-
+            output_pdf_path,
+            watermark_text="CAUTION!!! THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
+            output_pdf_path=output_pdf_path,
+        )
 
     def _set_output_dir(self, base_dir: str) -> str:
         script_dir = osp.dirname(__file__)
         project_root = osp.abspath(osp.join(script_dir, ".."))
-        source_template_dir = osp.join(project_root, "tiny_scientist", f"{self.template}_latex")
+        source_template_dir = osp.join(
+            project_root, "tiny_scientist", f"{self.template}_latex"
+        )
 
         if osp.isdir(source_template_dir):
             dest_template_dir = osp.join(base_dir, "latex")
@@ -373,7 +381,7 @@ class ICLRFormat(BaseFormat):
 
         commands = [
             ["pdflatex", "-interaction=nonstopmode", compile_target],
-            ["bibtex", compile_target.replace(".tex","")],
+            ["bibtex", compile_target.replace(".tex", "")],
             ["pdflatex", "-interaction=nonstopmode", compile_target],
             ["pdflatex", "-interaction=nonstopmode", compile_target],
         ]

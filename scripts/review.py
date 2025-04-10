@@ -12,49 +12,48 @@ from tiny_scientist.utils.loader import load_paper
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Perform a paper review using the specified model.")
+    parser = argparse.ArgumentParser(
+        description="Perform a paper review using the specified model."
+    )
     parser.add_argument(
         "--paper",
         type=str,
         default="../example/attention.pdf",
-        help="Path to the paper text/PDF to be reviewed, or raw text directly."
+        help="Path to the paper text/PDF to be reviewed, or raw text directly.",
     )
     parser.add_argument(
         "--model",
         type=str,
         default="gpt-4o",
         choices=AVAILABLE_LLMS,
-        help="Model to use for reviewing."
+        help="Model to use for reviewing.",
     )
     parser.add_argument(
         "--reviews-num",
         type=int,
         default=3,
-        help="Number of independent reviews to generate (default: 3)."
+        help="Number of independent reviews to generate (default: 3).",
     )
     parser.add_argument(
         "--reflection-num",
         type=int,
         default=2,
-        help="Number of re_review (reflection) iterations per review (default: 2)."
+        help="Number of re_review (reflection) iterations per review (default: 2).",
     )
     parser.add_argument(
-        "--temperature",
-        type=float,
-        default=0.75,
-        help="Temperature for the LLM."
+        "--temperature", type=float, default=0.75, help="Temperature for the LLM."
     )
     parser.add_argument(
         "--output",
         type=str,
         default="review.json",
-        help="Path to save the final review JSON."
+        help="Path to save the final review JSON.",
     )
     parser.add_argument(
         "--config-dir",
         type=str,
         default="../configs",
-        help="Path to directory containing model configurations."
+        help="Path to directory containing model configurations.",
     )
     return parser.parse_args()
 
@@ -72,7 +71,7 @@ def main() -> int:
         model=model,
         client=client,
         temperature=args.temperature,
-        config_dir=args.config_dir
+        config_dir=args.config_dir,
     )
 
     # Load the paper text: if file exists, check extension to decide how to load.
