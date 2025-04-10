@@ -47,6 +47,7 @@ def load_review(review_path: str) -> Any:
     with open(review_path, "r") as f:
         return json.load(f)["review"]
 
+
 def load_config() -> str:
     path = osp.join(os.getcwd(), "config.toml")
     if osp.exists(path):

@@ -11,6 +11,7 @@ from .utils.loader import load_config
 
 config = toml.load(load_config())
 
+
 class BaseTool(abc.ABC):
     @abc.abstractmethod
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
@@ -40,7 +41,9 @@ class CodeSearchTool(BaseTool):
         self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250
     ) -> str:
         import re
+
         import spacy
+
         title = idea.get("Title", "")
         experiment = idea.get("Experiment", "")
         combined_text = f"{title}. {experiment}"
