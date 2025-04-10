@@ -3,7 +3,7 @@ import os.path as osp
 import re
 import time
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import yaml
 
@@ -14,7 +14,7 @@ from .tool import BaseTool, PaperSearchTool
 
 class Writer:
     def __init__(self, model: str, client: Any, base_dir: str, config_dir: str, template: str,
-                 temperature: float = 0.75, s2_api_key: Optional[str] = None):
+                 temperature: float = 0.75) -> None:
         self.model = model
         self.client = client
         self.base_dir = base_dir

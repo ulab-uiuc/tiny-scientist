@@ -1,37 +1,15 @@
 import abc
 import os
-import os.path as osp
 import time
 from typing import Any, Dict, List, Optional, cast
 
 import requests
-import spacy
 import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
-
-
-# Load configuration from TOML
-def load_config() -> str:
-    path = osp.join(os.getcwd(), "config.toml")
-    if osp.exists(path):
-        return path
-
-    path = osp.join(os.getcwd(), "..", "config.toml")
-    if osp.exists(path):
-        return path
-
-    path = osp.join(osp.dirname(__file__), "config.toml")
-    if osp.exists(path):
-        return path
-
-    return "You have to create a config.toml"
-
+from .utils.loader import load_config
 
 config = toml.load(load_config())
-
-nlp = spacy.load("en_core_web_sm")
-# config = toml.load("config.toml")
 
 class BaseTool(abc.ABC):
 
@@ -43,6 +21,7 @@ class BaseTool(abc.ABC):
 class CodeSearchTool(BaseTool):
     def __init__(self) -> None:
         self.github_token = config["auth"].get("github_token", None)
+        return
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -60,10 +39,12 @@ class CodeSearchTool(BaseTool):
 
     def format_github_repo_query(self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250) -> str:
         import re
+
+        import spacy
         title = idea.get("Title", "")
         experiment = idea.get("Experiment", "")
         combined_text = f"{title}. {experiment}"
-
+        nlp = spacy.load("en_core_web_sm")
         doc = nlp(combined_text)
         candidates = set()
 
@@ -181,8 +162,6 @@ class PaperSearchTool(BaseTool):
 
                 results[paper["title"]] = {
                     "title": paper["title"],
-                    # "authors": paper["authors"],
-                    # "venue": paper["venue"],
                     "bibtex": bibtex
                 }
 

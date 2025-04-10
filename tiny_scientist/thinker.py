@@ -19,7 +19,6 @@ class Thinker:
             base_dir: str = "",
             config_dir: str = "",
             temperature: float = 0.75,
-            s2_api_key: Optional[str] = None,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -28,7 +27,6 @@ class Thinker:
         self.base_dir = base_dir
         self.temperature = temperature
         self.searcher = PaperSearchTool()
-        self.searcher.s2_api_key = s2_api_key
 
         # Load prompt templates
         with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
