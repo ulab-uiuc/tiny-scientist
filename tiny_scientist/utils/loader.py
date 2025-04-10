@@ -1,4 +1,6 @@
 import json
+import os
+import os.path as osp
 from typing import Any, Optional
 
 import pymupdf
@@ -41,3 +43,18 @@ def load_paper(pdf_path: str, num_pages: Optional[int] = None, min_size: int = 1
 def load_review(review_path: str) -> Any:
     with open(review_path, "r") as f:
         return json.load(f)["review"]
+
+def load_config() -> str:
+    path = osp.join(os.getcwd(), "config.toml")
+    if osp.exists(path):
+        return path
+
+    path = osp.join(os.getcwd(), "..", "config.toml")
+    if osp.exists(path):
+        return path
+
+    path = osp.join(osp.dirname(__file__), "config.toml")
+    if osp.exists(path):
+        return path
+
+    return "You have to create a config.toml"

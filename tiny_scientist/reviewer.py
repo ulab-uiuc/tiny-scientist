@@ -19,7 +19,6 @@ class Reviewer:
             num_reviews: int = 3,  # Number of separate reviews to generate
             num_reflections: int = 2,  # Number of re_review calls per review
             temperature: float = 0.75,
-            s2_api_key: Optional[str] = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -29,7 +28,6 @@ class Reviewer:
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
         self.searcher = PaperSearchTool()
-        self.searcher.s2_api_key = s2_api_key
         # Cache for queries to avoid duplicate searches
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
