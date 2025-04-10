@@ -12,73 +12,59 @@ from tiny_scientist.utils.loader import load_paper
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate and evaluate research ideas")
     parser.add_argument(
-        "--base-dir",
-        type=str,
-        default="../ideas",
-        help="Path to base directory"
+        "--base-dir", type=str, default="../ideas", help="Path to base directory"
     )
     parser.add_argument(
         "--model",
         type=str,
         default="gpt-4o",
         choices=AVAILABLE_LLMS,
-        help="Model to use for generating ideas"
+        help="Model to use for generating ideas",
     )
     parser.add_argument(
-        "--load-existing",
-        action="store_true",
-        help="Load existing ideas from file"
+        "--load-existing", action="store_true", help="Load existing ideas from file"
     )
     parser.add_argument(
-        "--num-ideas",
-        type=int,
-        default=1,
-        help="Number of new ideas to generate"
+        "--num-ideas", type=int, default=1, help="Number of new ideas to generate"
     )
     parser.add_argument(
         "--num-reflections",
         type=int,
         default=5,
-        help="Number of reflection iterations per idea"
+        help="Number of reflection iterations per idea",
     )
     parser.add_argument(
-        "--check-novelty",
-        action="store_true",
-        help="Check novelty of generated ideas"
+        "--check-novelty", action="store_true", help="Check novelty of generated ideas"
     )
     parser.add_argument(
         "--engine",
         type=str,
         choices=["semanticscholar", "openalex"],
         default="semanticscholar",
-        help="Search engine for checking novelty"
+        help="Search engine for checking novelty",
     )
     parser.add_argument(
         "--temperature",
         type=float,
         default=0.75,
-        help="Temperature for idea generation"
+        help="Temperature for idea generation",
     )
     parser.add_argument(
         "--output",
         type=str,
-        help="Path to save ideas JSON (defaults to ideas.json in experiment directory)"
+        help="Path to save ideas JSON (defaults to ideas.json in experiment directory)",
     )
     parser.add_argument(
         "--config-dir",
         type=str,
         default="../configs",
-        help="Path to directory containing model configurations"
+        help="Path to directory containing model configurations",
     )
     parser.add_argument(
-        "--initial-idea",
-        type=str,
-        help="Path to JSON file containing initial idea(s)"
+        "--initial-idea", type=str, help="Path to JSON file containing initial idea(s)"
     )
     parser.add_argument(
-        "--pdf",
-        type=str,
-        help="Path to the PDF paper for idea generation"
+        "--pdf", type=str, help="Path to the PDF paper for idea generation"
     )
     return parser.parse_args()
 
@@ -104,7 +90,7 @@ def create_default_idea() -> Dict[str, Any]:
         "Interestingness": 5,
         "Feasibility": 9,
         "Novelty": 3,
-        "Score": 6
+        "Score": 6,
     }
     return default_idea
 
@@ -132,7 +118,7 @@ def main() -> int:
             temperature=args.temperature,
             s2_api_key=os.getenv("S2_API_KEY"),
             iter_num=args.num_reflections,
-            tools=[]
+            tools=[],
         )
 
         # Get initial idea
@@ -164,7 +150,7 @@ def main() -> int:
             initial_idea_dict,
             num_ideas=args.num_ideas,
             check_novelty=args.check_novelty,
-            pdf_content=pdf_content
+            pdf_content=pdf_content,
         )
 
         print("\nGenerated and Refined Ideas:")

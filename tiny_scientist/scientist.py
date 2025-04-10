@@ -10,7 +10,14 @@ from tiny_scientist.writer import Writer
 
 
 class TinyScientist:
-    def __init__(self, model: str, client: Any, base_dir: str, config_dir: str, template: str = "acl"):
+    def __init__(
+        self,
+        model: str,
+        client: Any,
+        base_dir: str,
+        config_dir: str,
+        template: str = "acl",
+    ):
         self.model = model
         self.client = client
         self.base_dir = base_dir
@@ -24,7 +31,7 @@ class TinyScientist:
             client=client,
             base_dir=base_dir,
             config_dir=config_dir,
-            s2_api_key=os.getenv("S2_API_KEY")
+            s2_api_key=os.getenv("S2_API_KEY"),
         )
 
         self.coder = Coder(
@@ -32,7 +39,7 @@ class TinyScientist:
             config_dir=config_dir,
             model=model,
             max_iters=4,
-            max_runs=3
+            max_runs=3,
         )
 
         self.writer = Writer(

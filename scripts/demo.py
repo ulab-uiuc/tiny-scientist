@@ -8,14 +8,27 @@ from tiny_scientist.scientist import TinyScientist
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run TinyScientist pipeline.")
-    parser.add_argument("--base_dir", type=str, default="experiments/demo", help="Base output directory")
-    parser.add_argument("--config_dir", type=str, default="config", help="Configuration directory with prompt YAML files")
+    parser.add_argument(
+        "--base_dir", type=str, default="experiments/demo", help="Base output directory"
+    )
+    parser.add_argument(
+        "--config_dir",
+        type=str,
+        default="config",
+        help="Configuration directory with prompt YAML files",
+    )
     parser.add_argument("--model", type=str, default="gpt-4o", help="LLM model to use")
-    parser.add_argument("--template", type=str, default="acl", help="Paper format template (e.g. acl, iclr)")
+    parser.add_argument(
+        "--template",
+        type=str,
+        default="acl",
+        help="Paper format template (e.g. acl, iclr)",
+    )
     args = parser.parse_args()
 
     if os.path.exists(args.base_dir):
         import shutil
+
         shutil.rmtree(args.base_dir)
         print(f"🧹 Cleared existing directory: {args.base_dir}")
     os.makedirs(args.base_dir, exist_ok=True)
@@ -31,7 +44,7 @@ def main() -> None:
         "Interestingness": 6,
         "Feasibility": 9,
         "Novelty": 5,
-        "Score": 6
+        "Score": 6,
     }
     baseline_result = {
         "experiment_name": "baseline_quadratic_optimization",
@@ -39,11 +52,8 @@ def main() -> None:
         "optimizer": "Gradient Descent",
         "step_size": 0.1,
         "iterations": 100,
-        "metrics": {
-            "final_function_value": 0.001,
-            "steps_to_convergence": 85
-        },
-        "notes": "This baseline uses fixed step-size gradient descent on a quadratic bowl. Adaptive step-size methods aim to converge faster."
+        "metrics": {"final_function_value": 0.001, "steps_to_convergence": 85},
+        "notes": "This baseline uses fixed step-size gradient descent on a quadratic bowl. Adaptive step-size methods aim to converge faster.",
     }
 
     with open(os.path.join(args.base_dir, "baseline_results.txt"), "w") as f:
@@ -55,7 +65,7 @@ def main() -> None:
         client=client,
         base_dir=args.base_dir,
         config_dir=args.config_dir,
-        template=args.template
+        template=args.template,
     )
 
     intent = {"idea": initial_idea}

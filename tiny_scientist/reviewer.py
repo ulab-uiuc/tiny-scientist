@@ -11,14 +11,14 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 
 class Reviewer:
     def __init__(
-            self,
-            model: str,
-            client: Any,
-            config_dir: str,
-            tools: List[BaseTool],
-            num_reviews: int = 3,  # Number of separate reviews to generate
-            num_reflections: int = 2,  # Number of re_review calls per review
-            temperature: float = 0.75,
+        self,
+        model: str,
+        client: Any,
+        config_dir: str,
+        tools: List[BaseTool],
+        num_reviews: int = 3,  # Number of separate reviews to generate
+        num_reflections: int = 2,  # Number of re_review calls per review
+        temperature: float = 0.75,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -74,11 +74,17 @@ class Reviewer:
         print(f"Related Works String:\n{related_works_string}")
 
         # Construct the base prompt by inserting the related works.
-        base_prompt = self.prompts["neurips_form"].format(related_works_string=related_works_string)
-        base_prompt += "\nHere is the paper you are asked to review:\n```\n" + str(text) + "\n```"
+        base_prompt = self.prompts["neurips_form"].format(
+            related_works_string=related_works_string
+        )
+        base_prompt += (
+            "\nHere is the paper you are asked to review:\n```\n" + str(text) + "\n```"
+        )
 
         system_prompt = self.prompts.get("reviewer_system_prompt_neg")
-        review, msg_history = self._generate_review(base_prompt, system_prompt, msg_history=[])
+        review, msg_history = self._generate_review(
+            base_prompt, system_prompt, msg_history=[]
+        )
         return {"review": review}
 
     def re_review(self, info: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -96,7 +102,7 @@ class Reviewer:
             review=current_review,
             reviewer_system_prompt=system_prompt,
             related_works_string=related_works_string,
-            msg_history=[]
+            msg_history=[],
         )
         return {"review": new_review if new_review is not None else {}}
 
@@ -132,7 +138,7 @@ class Reviewer:
             model=self.model,
             system_message=self.prompts.get("reviewer_system_prompt_neg"),
             temperature=self.temperature,
-            msg_history=[]
+            msg_history=[],
         )
         query_data = extract_json_between_markers(response)
         if query_data is None or "Query" not in query_data:
@@ -141,10 +147,10 @@ class Reviewer:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_review(
-            self,
-            base_prompt: str,
-            reviewer_system_prompt: str,
-            msg_history: Optional[List[Dict[str, Any]]]
+        self,
+        base_prompt: str,
+        reviewer_system_prompt: str,
+        msg_history: Optional[List[Dict[str, Any]]],
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Generate a review from the provided prompt.
@@ -164,11 +170,11 @@ class Reviewer:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _reflect_review(
-            self,
-            review: Dict[str, Any],
-            reviewer_system_prompt: str,
-            related_works_string: str,
-            msg_history: List[Dict[str, Any]]
+        self,
+        review: Dict[str, Any],
+        reviewer_system_prompt: str,
+        related_works_string: str,
+        msg_history: List[Dict[str, Any]],
     ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], bool]:
         """
         Refine the given review using a reflection prompt.
@@ -177,10 +183,9 @@ class Reviewer:
         print(f"In re_review, Related Works String:\n{related_works_string}")
 
         # Prepend the current review context.
-        updated_prompt = f"Previous review: {json.dumps(review)}\n" + \
-                         self.prompts["reviewer_reflection_prompt"].format(
-                             related_works_string=related_works_string
-                         )
+        updated_prompt = f"Previous review: {json.dumps(review)}\n" + self.prompts[
+            "reviewer_reflection_prompt"
+        ].format(related_works_string=related_works_string)
         text, msg_history = get_response_from_llm(
             updated_prompt,
             client=self.client,
@@ -226,7 +231,9 @@ class Reviewer:
         result = self._aggregate_scores(meta_review, reviews)
         return result
 
-    def _aggregate_scores(self, meta_review: Dict[str, Any], reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _aggregate_scores(
+        self, meta_review: Dict[str, Any], reviews: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         Aggregate numerical scores from multiple reviews.
         For each score field, compute the mean (rounded to the nearest integer).
@@ -247,8 +254,11 @@ class Reviewer:
 
         for score, (min_val, max_val) in score_limits.items():
             valid_scores = [
-                r[score] for r in reviews
-                if score in r and isinstance(r[score], (int, float)) and min_val <= r[score] <= max_val
+                r[score]
+                for r in reviews
+                if score in r
+                and isinstance(r[score], (int, float))
+                and min_val <= r[score] <= max_val
             ]
             if valid_scores:
                 meta_review[score] = int(round(sum(valid_scores) / len(valid_scores)))

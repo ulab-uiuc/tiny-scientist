@@ -9,7 +9,9 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 
 
 class Drawer:
-    def __init__(self, model: Any, client: Any, config_dir: str, temperature: float = 0.75):
+    def __init__(
+        self, model: Any, client: Any, config_dir: str, temperature: float = 0.75
+    ):
         """Initialize the Drawer with model configuration and prompt templates."""
         self.model = model
         self.client = client
@@ -20,8 +22,13 @@ class Drawer:
             self.prompts = yaml.safe_load(f)
 
         # Process template instructions in diagram form
-        if "template_instructions" in self.prompts and "few_shot_instructions" in self.prompts:
-            self.prompts["few_shot_instructions"] = self.prompts["few_shot_instructions"].replace(
+        if (
+            "template_instructions" in self.prompts
+            and "few_shot_instructions" in self.prompts
+        ):
+            self.prompts["few_shot_instructions"] = self.prompts[
+                "few_shot_instructions"
+            ].replace(
                 "{{ template_instructions }}", self.prompts["template_instructions"]
             )
 
@@ -29,12 +36,12 @@ class Drawer:
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
     def draw_diagram(
-            self,
-            text: str,
-            example: Optional[str] = None,
-            msg_history: Optional[List[Dict[str, Any]]] = None,
-            return_msg_history: bool = False,
-            drawer_system_prompt: Optional[str] = None,
+        self,
+        text: str,
+        example: Optional[str] = None,
+        msg_history: Optional[List[Dict[str, Any]]] = None,
+        return_msg_history: bool = False,
+        drawer_system_prompt: Optional[str] = None,
     ) -> Any:
         """Generate a diagram for the given text with an optional few-shot example.
 
@@ -66,21 +73,29 @@ class Drawer:
         """Prepare the prompt with the few-shot example if provided."""
         if example:
             # Format the few-shot instructions with the example
-            few_shot_prompt = self.prompts["few_shot_instructions"].format(example=example)
+            few_shot_prompt = self.prompts["few_shot_instructions"].format(
+                example=example
+            )
             # Combine the few-shot prompt with the paper text
-            base_prompt = few_shot_prompt + f"\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
+            base_prompt = (
+                few_shot_prompt
+                + f"\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
+            )
         else:
             # If no example is provided, use just the template instructions
-            base_prompt = self.prompts["template_instructions"] + f"\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
+            base_prompt = (
+                self.prompts["template_instructions"]
+                + f"\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
+            )
 
         return str(base_prompt)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_diagram(
-            self,
-            base_prompt: str,
-            drawer_system_prompt: str,
-            msg_history: Optional[List[Dict[str, Any]]],
+        self,
+        base_prompt: str,
+        drawer_system_prompt: str,
+        msg_history: Optional[List[Dict[str, Any]]],
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Generate a diagram based on the paper content."""
         # Generate diagram
@@ -101,24 +116,22 @@ class Drawer:
 
     def _extract_diagram(self, response: str) -> Dict[str, Any]:
         """Extract the diagram SVG and summary from the LLM response."""
-        result = {
-            "summary": "",
-            "svg": "",
-            "full_response": response
-        }
+        result = {"summary": "", "svg": "", "full_response": response}
 
         # Extract the summary
         summary_start = response.find("SUMMARY:")
         if summary_start != -1:
             summary_end = response.find("DIAGRAM SVG:", summary_start)
             if summary_end != -1:
-                result["summary"] = response[summary_start + 8:summary_end].strip()
+                result["summary"] = response[summary_start + 8 : summary_end].strip()
 
         # Extract the SVG
         svg_start = response.find("```svg", summary_start if summary_start != -1 else 0)
         if svg_start == -1:
             # Try without language specifier
-            svg_start = response.find("```", summary_start if summary_start != -1 else 0)
+            svg_start = response.find(
+                "```", summary_start if summary_start != -1 else 0
+            )
             if svg_start != -1:
                 svg_start += 3  # Skip past ```
         else:

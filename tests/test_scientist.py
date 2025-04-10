@@ -9,9 +9,11 @@ import pytest
 def mock_client() -> Mock:
     return Mock()
 
+
 @pytest.fixture
 def mock_model() -> str:
     return "gpt-4-test"
+
 
 @pytest.fixture
 def test_base_dir(tmp_path: Path) -> Path:
@@ -24,22 +26,26 @@ def test_base_dir(tmp_path: Path) -> Path:
     experiment_py.write_text("print('Test experiment')")
 
     prompt_json = base_dir / "prompt.json"
-    prompt_json.write_text(json.dumps({
-        "task_description": "Test task",
-        "system": "Test system prompt"
-    }))
+    prompt_json.write_text(
+        json.dumps({"task_description": "Test task", "system": "Test system prompt"})
+    )
 
     seed_ideas_json = base_dir / "seed_ideas.json"
-    seed_ideas_json.write_text(json.dumps([
-        {
-            "Name": "test_idea",
-            "Title": "Test Idea",
-            "Experiment": "Test experiment description"
-        }
-    ]))
+    seed_ideas_json.write_text(
+        json.dumps(
+            [
+                {
+                    "Name": "test_idea",
+                    "Title": "Test Idea",
+                    "Experiment": "Test experiment description",
+                }
+            ]
+        )
+    )
 
     # Return a Path object, not a string
     return base_dir
+
 
 def test_mock() -> bool:
     return True
