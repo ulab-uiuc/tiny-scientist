@@ -1,5 +1,4 @@
 import json
-import os
 import os.path as osp
 import re
 import time
@@ -14,7 +13,7 @@ from .tool import BaseTool, PaperSearchTool
 
 
 class Writer:
-    def __init__(self, model: str, client: Any, base_dir: str, template: str,
+    def __init__(self, model: str, client: Any, base_dir: str, config_dir: str, template: str,
                  temperature: float = 0.75, s2_api_key: Optional[str] = None):
         self.model = model
         self.client = client
@@ -23,13 +22,13 @@ class Writer:
         self.temperature = temperature
         self.searcher: BaseTool = PaperSearchTool()
         self.formatter: BaseFormat
+        self.config_dir = config_dir
         if self.template == 'acl':
             self.formatter = ACLFormat(self.client, self.model)
         elif self.template == 'iclr':
             self.formatter = ICLRFormat(self.client, self.model)
 
-        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "writer_prompt.yaml")
-        with open(yaml_path, "r") as f:
+        with open(osp.join(config_dir, "writer_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
     def run(self, idea: Dict[str, Any], folder_name: str) -> None:
