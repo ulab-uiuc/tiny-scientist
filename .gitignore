@@ -152,6 +152,7 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 **/experiments/*
+**/config.toml
 !**/.gitkeep
 
 # PyCharm
