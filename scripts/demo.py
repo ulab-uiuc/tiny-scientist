@@ -2,8 +2,8 @@ import argparse
 import json
 import os
 
-from tiny_scientist.utils.llm import create_client
 from tiny_scientist.scientist import TinyScientist
+from tiny_scientist.utils.llm import create_client
 
 
 def main() -> None:

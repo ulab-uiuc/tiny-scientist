@@ -5,9 +5,9 @@ import os
 import os.path as osp
 from typing import Dict, List
 
-from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.tool import BaseTool
+from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.utils.loader import load_paper
 
 
