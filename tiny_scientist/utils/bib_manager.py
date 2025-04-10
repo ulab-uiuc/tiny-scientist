@@ -1,7 +1,7 @@
 import os.path as osp
 from typing import Any, Dict, Optional
 
-from ..llm import get_response_from_llm
+from .llm import get_response_from_llm
 
 
 class BibManager:
