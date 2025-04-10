@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 
-from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
+from tiny_scientist.utils.llm import create_client
 from tiny_scientist.writer import Writer
 
 
@@ -25,8 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o-mini-2024-07-18",
-        choices=AVAILABLE_LLMS,
+        default="gpt-4o",
         help="Model to use for writing and refinement",
     )
     parser.add_argument(

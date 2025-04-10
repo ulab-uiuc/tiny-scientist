@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from .configs import Config
 from .tool import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import extract_json_between_markers, get_response_from_llm
@@ -26,11 +27,14 @@ class Thinker:
         self.client = client
         self.base_dir = base_dir
         self.temperature = temperature
+        self.config_dir = config_dir
+        self.config = Config()
         self.searcher = PaperSearchTool()
 
         # Load prompt templates
-        with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
-            self.prompts = yaml.safe_load(f)
+        # with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
+        #     self.prompts = yaml.safe_load(f)
+        self.prompts = self.config.prompt_template.thinker_prompt
 
     def think(
         self, intent: Dict[str, Any], check_novelty: bool, pdf_content: str
@@ -208,12 +212,12 @@ class Thinker:
     ) -> Optional[Dict[str, Any]]:
         print("Generating experimental plan for the idea...")
         experiment_text, experiment_msg_history = get_response_from_llm(
-            self.prompts["experiment_plan_prompt"].format(
+            self.prompts.experiment_plan_prompt.format(
                 idea=json.dumps(idea, indent=2)
             ),
             client=self.client,
             model=self.model,
-            system_message=self.prompts["idea_system_prompt"],
+            system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
         )
@@ -268,14 +272,14 @@ class Thinker:
         )
 
         text, msg_history = get_response_from_llm(
-            self.prompts["idea_reflection_prompt"].format(
+            self.prompts.idea_reflection_prompt.format(
                 current_round=current_round,
                 num_reflections=num_reflections,
                 related_works_string=related_works_string,
             ),
             client=self.client,
             model=self.model,
-            system_message=self.prompts["idea_system_prompt"],
+            system_message=self.prompts.idea_system_prompt,
             msg_history=msg_history,
             temperature=self.temperature,
         )
@@ -322,7 +326,7 @@ class Thinker:
 
         print(f"Iteration 1/{num_reflections}")
         text, msg_history = get_response_from_llm(
-            self.prompts["idea_first_prompt"].format(
+            self.prompts.idea_first_prompt.format(
                 prev_ideas_string=prev_ideas_string,
                 related_works_string=related_works_string,
                 num_reflections=num_reflections,
@@ -330,7 +334,7 @@ class Thinker:
             ),
             client=self.client,
             model=self.model,
-            system_message=self.prompts["idea_system_prompt"],
+            system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
         )
@@ -371,7 +375,7 @@ class Thinker:
 
             # Get LLM decision or query
             text, msg_history = get_response_from_llm(
-                self.prompts["novelty_prompt"].format(
+                self.prompts.novelty_prompt.format(
                     current_round=iteration + 1,
                     num_rounds=max_iterations,
                     idea=idea,
@@ -379,7 +383,7 @@ class Thinker:
                 ),
                 client=self.client,
                 model=self.model,
-                system_message=self.prompts["novelty_system_prompt"],
+                system_message=self.prompts.novelty_system_prompt,
                 msg_history=msg_history,
             )
 

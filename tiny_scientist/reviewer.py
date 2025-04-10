@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import extract_json_between_markers, get_response_from_llm
@@ -27,20 +28,23 @@ class Reviewer:
         self.client = client
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
+        self.config_dir = config_dir
+        self.config = Config()
         self.searcher = PaperSearchTool()
         # Cache for queries to avoid duplicate searches
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
 
-        with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
-            self.prompts = yaml.safe_load(f)
+        # with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
+        #     self.prompts = yaml.safe_load(f)
+        self.prompts = self.config.prompt_template.reviewer_prompt
 
         # Process template instructions in neurips form if available
-        if "template_instructions" in self.prompts and "neurips_form" in self.prompts:
-            self.prompts["neurips_form"] = self.prompts["neurips_form"].replace(
-                "{{ template_instructions }}", self.prompts["template_instructions"]
-            )
+
+        self.prompts.neurips_form = self.prompts.neurips_form.format(
+            template_instructions=self.prompts.template_instructions
+        )
 
     def review(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
         """
@@ -74,14 +78,14 @@ class Reviewer:
         print(f"Related Works String:\n{related_works_string}")
 
         # Construct the base prompt by inserting the related works.
-        base_prompt = self.prompts["neurips_form"].format(
+        base_prompt = self.prompts.neurips_form.format(
             related_works_string=related_works_string
         )
         base_prompt += (
             "\nHere is the paper you are asked to review:\n```\n" + str(text) + "\n```"
         )
 
-        system_prompt = self.prompts.get("reviewer_system_prompt_neg")
+        system_prompt = self.prompts.reviewer_system_prompt_neg
         review, msg_history = self._generate_review(
             base_prompt, system_prompt, msg_history=[]
         )
@@ -95,7 +99,7 @@ class Reviewer:
         current_review = info.get("review", {})
         if not current_review:
             raise ValueError("No review provided for re-review.")
-        system_prompt = self.prompts.get("reviewer_system_prompt_neg")
+        system_prompt = self.prompts.reviewer_system_prompt_neg
         # Use the current review to extract the query if available.
         related_works_string = getattr(self, "last_related_works_string", "")
         new_review, msg_history, is_done = self._reflect_review(
@@ -131,12 +135,12 @@ class Reviewer:
         """
         Generate a concise search query based on the paper text.
         """
-        query_prompt = self.prompts["query_prompt"].format(paper_text=text)
+        query_prompt = self.prompts.query_prompt.format(paper_text=text)
         response, _ = get_response_from_llm(
             query_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts.get("reviewer_system_prompt_neg"),
+            system_message=self.prompts.reviewer_system_prompt_neg,
             temperature=self.temperature,
             msg_history=[],
         )
@@ -183,9 +187,9 @@ class Reviewer:
         print(f"In re_review, Related Works String:\n{related_works_string}")
 
         # Prepend the current review context.
-        updated_prompt = f"Previous review: {json.dumps(review)}\n" + self.prompts[
-            "reviewer_reflection_prompt"
-        ].format(related_works_string=related_works_string)
+        updated_prompt = f"Previous review: {json.dumps(review)}\n" + self.prompts.reviewer_reflection_prompt.format(
+            related_works_string=related_works_string
+        )
         text, msg_history = get_response_from_llm(
             updated_prompt,
             client=self.client,
@@ -212,9 +216,9 @@ class Reviewer:
             f"\nReview {i + 1}:\n```\n{json.dumps(r)}\n```\n"
             for i, r in enumerate(reviews)
         )
-        meta_prompt = self.prompts["neurips_form"] + formatted_reviews
+        meta_prompt = self.prompts.neurips_form + formatted_reviews
 
-        meta_system_prompt = self.prompts.get("meta_reviewer_system_prompt", "").format(
+        meta_system_prompt = self.prompts.meta_reviewer_system_prompt.format(
             reviewer_count=len(reviews)
         )
         llm_meta_review, _ = get_response_from_llm(

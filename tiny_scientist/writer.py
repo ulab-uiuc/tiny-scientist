@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 import yaml
 
+from .configs import Config
 from .format import ACLFormat, BaseFormat, ICLRFormat
 from .tool import BaseTool, PaperSearchTool
 from .utils.llm import extract_json_between_markers, get_response_from_llm
@@ -30,13 +31,15 @@ class Writer:
         self.searcher: BaseTool = PaperSearchTool()
         self.formatter: BaseFormat
         self.config_dir = config_dir
+        self.config = Config()
         if self.template == "acl":
             self.formatter = ACLFormat(self.client, self.model)
         elif self.template == "iclr":
             self.formatter = ICLRFormat(self.client, self.model)
 
-        with open(osp.join(config_dir, "writer_prompt.yaml"), "r") as f:
-            self.prompts = yaml.safe_load(f)
+        # with open(osp.join(config_dir, "writer_prompt.yaml"), "r") as f:
+        #     self.prompts = yaml.safe_load(f)
+        self.prompts = self.config.prompt_template.writer_prompt
 
     def run(self, idea: Dict[str, Any], folder_name: str) -> None:
         with open(osp.join(folder_name, "experiment.py"), "r") as f:
@@ -56,7 +59,7 @@ class Writer:
         for section in [
             "Introduction",
             "Method",
-            "Experimental Setup",
+            "Experimental_Setup",
             "Results",
             "Discussion",
             "Conclusion",
@@ -81,8 +84,8 @@ class Writer:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment", "No experiment details provided")
 
-        abstract_prompt = self.prompts["abstract_prompt"].format(
-            abstract_tips=self.prompts["section_tips"]["Abstract"],
+        abstract_prompt = self.prompts.abstract_prompt.format(
+            abstract_tips=self.prompts.section_tips.Abstract,
             title=title,
             experiment=experiment,
         )
@@ -91,7 +94,7 @@ class Writer:
             msg=abstract_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts["write_system_prompt"],
+            system_message=self.prompts.write_system_prompt,
         )
 
         self.generated_sections["Abstract"] = abstract_content
@@ -108,25 +111,25 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         if section in ["Introduction"]:
-            section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"][section],
+            section_prompt = self.prompts.section_prompt.section.format(
+                section_tips=self.prompts.section_tips.section,
                 title=title,
                 experiment=experiment,
             )
         elif section in ["Conclusion"]:
-            section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"][section],
+            section_prompt = self.prompts.section_prompt.section.format(
+                section_tips=self.prompts.section_tips.section,
                 experiment=experiment,
             )
-        elif section in ["Method", "Experimental Setup"]:
-            section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"][section],
+        elif section in ["Method", "Experimental_Setup"]:
+            section_prompt = self.prompts.section_prompt.section.format(
+                section_tips=self.prompts.section_tips.section,
                 experiment=experiment,
                 code=code,
             )
         elif section in ["Results", "Discussion"]:
-            section_prompt = self.prompts["section_prompt"][section].format(
-                section_tips=self.prompts["section_tips"][section],
+            section_prompt = self.prompts.section_prompt.section.format(
+                section_tips=self.prompts.section_tips.section,
                 experiment=experiment,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
@@ -136,7 +139,7 @@ class Writer:
             msg=section_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts["write_system_prompt"],
+            system_message=self.prompts.write_system_prompt,
         )
 
         self.generated_sections[section] = section_content
@@ -155,7 +158,7 @@ class Writer:
         collected_papers: List[str] = []
 
         for round_num in range(num_cite_rounds):
-            prompt = self.prompts["citation_related_work_prompt"].format(
+            prompt = self.prompts.citation_related_work_prompt.format(
                 idea_title=idea_title,
                 experiment=experiment,
                 num_papers=num_papers,
@@ -167,7 +170,7 @@ class Writer:
                 msg=prompt,
                 client=self.client,
                 model=self.model,
-                system_message=self.prompts["citation_system_prompt"],
+                system_message=self.prompts.citation_system_prompt,
             )
 
             try:
@@ -220,8 +223,8 @@ class Writer:
 
         experiment = idea.get("Experiment", "No experiment details provided")
 
-        related_work_prompt = self.prompts["related_work_prompt"].format(
-            related_work_tips=self.prompts["section_tips"]["Related Work"],
+        related_work_prompt = self.prompts.related_work_prompt.format(
+            related_work_tips=self.prompts.section_tips.Related_Work,
             experiment=experiment,
             references=reference_list,
         )
@@ -230,7 +233,7 @@ class Writer:
             msg=related_work_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts["write_system_prompt_related_work"],
+            system_message=self.prompts.write_system_prompt_related_work,
         )
 
         for title, meta in paper_source.items():
@@ -249,16 +252,16 @@ class Writer:
                     print(f"[ERROR] Failed to replace citation for title: {title}")
                     traceback.print_exc()
 
-        self.generated_sections["Related Work"] = relatedwork_content
+        self.generated_sections["Related_Work"] = relatedwork_content
 
     def _refine_section(self, section: str) -> None:
         """Refine a section of the paper."""
         refinement_prompt = (
-            self.prompts["refinement_prompt"]
+            self.prompts.refinement_prompt
             .format(
                 section=section,
                 section_content=self.generated_sections[section],
-                error_list=self.prompts["error_list"],
+                error_list=self.prompts.error_list,
             )
             .replace(r"{{", "{")
             .replace(r"}}", "}")
@@ -268,7 +271,7 @@ class Writer:
             msg=refinement_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts["write_system_prompt"],
+            system_message=self.prompts.write_system_prompt,
         )
 
         self.generated_sections[section] = refined_section
@@ -282,10 +285,10 @@ class Writer:
         )
 
         refined_title, _ = get_response_from_llm(
-            msg=self.prompts["title_refinement_prompt"].format(full_draft=full_draft),
+            msg=self.prompts.title_refinement_prompt.format(full_draft=full_draft),
             client=self.client,
             model=self.model,
-            system_message=self.prompts["write_system_prompt"],
+            system_message=self.prompts.write_system_prompt,
         )
 
         self.generated_sections["Title"] = refined_title
@@ -295,20 +298,20 @@ class Writer:
             "Introduction",
             "Background",
             "Method",
-            "Experimental Setup",
+            "Experimental_Setup",
             "Results",
             "Conclusion",
         ]:
             if section in self.generated_sections.keys():
                 print(f"REFINING SECTION: {section}")
                 second_refinement_prompt = (
-                    self.prompts["second_refinement_prompt"]
+                    self.prompts.second_refinement_prompt
                     .format(
                         section=section,
-                        tips=self.prompts["section_tips"][section],
+                        tips=self.prompts.section_tips.section,
                         full_draft=full_draft,
                         section_content=self.generated_sections[section],
-                        error_list=self.prompts["error_list"],
+                        error_list=self.prompts.error_list,
                     )
                     .replace(r"{{", "{")
                     .replace(r"}}", "}")
@@ -318,7 +321,7 @@ class Writer:
                     msg=second_refinement_prompt,
                     client=self.client,
                     model=self.model,
-                    system_message=self.prompts["write_system_prompt"],
+                    system_message=self.prompts.write_system_prompt,
                 )
 
                 self.generated_sections[section] = refined_section
@@ -327,13 +330,13 @@ class Writer:
         idea_title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment", "No experiment details provided")
 
-        for section in ["Introduction", "Method", "Experimental Setup", "Discussion"]:
+        for section in ["Introduction", "Method", "Experimental_Setup", "Discussion"]:
             if section in self.generated_sections.keys():
                 try:
                     original_content = self.generated_sections[section]
                     collected_papers = []
 
-                    add_citation_prompt = self.prompts["add_citation_prompt"].format(
+                    add_citation_prompt = self.prompts.add_citation_prompt.format(
                         idea_title=idea_title,
                         experiment=experiment,
                         section=section,
@@ -344,7 +347,7 @@ class Writer:
                         msg=add_citation_prompt,
                         client=self.client,
                         model=self.model,
-                        system_message=self.prompts["citation_system_prompt"],
+                        system_message=self.prompts.citation_system_prompt,
                     )
 
                     try:
@@ -369,9 +372,7 @@ class Writer:
                         "}", "}}"
                     )
 
-                    embed_citation_prompt = self.prompts[
-                        "embed_citation_prompt"
-                    ].format(
+                    embed_citation_prompt = self.prompts.embed_citation_prompt.format(
                         section=section,
                         section_content=original_content,
                         references=reference_list,
@@ -381,7 +382,7 @@ class Writer:
                         msg=embed_citation_prompt,
                         client=self.client,
                         model=self.model,
-                        system_message=self.prompts["citation_system_prompt"],
+                        system_message=self.prompts.citation_system_prompt,
                     )
 
                     print(f"Refined section for {section}: {refined_section}")
