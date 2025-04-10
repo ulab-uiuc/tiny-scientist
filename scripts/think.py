@@ -116,7 +116,6 @@ def main() -> int:
             base_dir=args.base_dir,
             config_dir=args.config_dir,
             temperature=args.temperature,
-            s2_api_key=os.getenv("S2_API_KEY"),
             iter_num=args.num_reflections,
             tools=[],
         )

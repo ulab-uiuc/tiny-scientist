@@ -31,7 +31,6 @@ class TinyScientist:
             client=client,
             base_dir=base_dir,
             config_dir=config_dir,
-            s2_api_key=os.getenv("S2_API_KEY"),
         )
 
         self.coder = Coder(
