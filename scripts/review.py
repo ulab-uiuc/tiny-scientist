@@ -10,6 +10,7 @@ from tiny_scientist.tool import BaseTool
 from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.utils.loader import load_paper
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Perform a paper review using the specified model."
