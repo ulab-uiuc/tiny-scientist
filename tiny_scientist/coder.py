@@ -38,7 +38,7 @@ class Coder:
         # Load prompts
         # with open(osp.join(config_dir, "coder_prompt.yaml"), "r") as f:
         #     self.prompts = yaml.safe_load(f)
-        self.prompts = self.config.prompt_template.thinker_prompt
+        self.prompts = self.config.prompt_template.coder_prompt
 
     def setup_aider(
         self, model: str, fnames: List[str], chat_history: Optional[str] = None

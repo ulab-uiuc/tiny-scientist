@@ -115,25 +115,25 @@ class Writer:
         experiment = idea.get("Experiment", "No experiment details provided")
 
         if section in ["Introduction"]:
-            section_prompt = self.prompts.section_prompt.section.format(
-                section_tips=self.prompts.section_tips.section,
+            section_prompt = self.prompts.section_prompt[section].format(
+                section_tips=self.prompts.section_tips[section],
                 title=title,
                 experiment=experiment,
             )
         elif section in ["Conclusion"]:
-            section_prompt = self.prompts.section_prompt.section.format(
-                section_tips=self.prompts.section_tips.section,
+            section_prompt = self.prompts.section_prompt[section].format(
+                section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
             )
         elif section in ["Method", "Experimental_Setup"]:
-            section_prompt = self.prompts.section_prompt.section.format(
-                section_tips=self.prompts.section_tips.section,
+            section_prompt = self.prompts.section_prompt[section].format(
+                section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
                 code=code,
             )
         elif section in ["Results", "Discussion"]:
-            section_prompt = self.prompts.section_prompt.section.format(
-                section_tips=self.prompts.section_tips.section,
+            section_prompt = self.prompts.section_prompt[section].format(
+                section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
@@ -312,7 +312,7 @@ class Writer:
                     self.prompts.second_refinement_prompt
                     .format(
                         section=section,
-                        tips=self.prompts.section_tips.section,
+                        tips=self.prompts.section_tips[section],
                         full_draft=full_draft,
                         section_content=self.generated_sections[section],
                         error_list=self.prompts.error_list,

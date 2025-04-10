@@ -1,11 +1,12 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TypeVar, Type
 
 import yaml
 from pydantic import BaseModel
 
 from .data import CoderPrompt, ReviewerPrompt, ThinkerPrompt, WriterPrompt
 
+T = TypeVar("T", bound=BaseModel)
 
 class ParamConfig(BaseModel):
     """Configuration for parameter tuning."""
@@ -46,7 +47,7 @@ class Config(BaseModel):
             )
         }
 
-    def _load_yaml_file(self, file_path: str, model_class: BaseModel) -> BaseModel:
+    def _load_yaml_file(self, file_path: str, model_class: Type[T]) -> T:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"YAML file '{file_path}' does not exist.")
         with open(file_path, 'r') as f:
