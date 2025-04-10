@@ -2,11 +2,11 @@ import json
 import os
 from typing import Any, Dict
 
-from tiny_scientist.coder import Coder
-from tiny_scientist.reviewer import Reviewer
-from tiny_scientist.thinker import Thinker
-from tiny_scientist.utils.loader import load_paper
-from tiny_scientist.writer import Writer
+from .coder import Coder
+from .reviewer import Reviewer
+from .thinker import Thinker
+from .utils.loader import load_paper
+from .writer import Writer
 
 
 class TinyScientist:
