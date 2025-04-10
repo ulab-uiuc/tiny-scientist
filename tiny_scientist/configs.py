@@ -37,7 +37,7 @@ class Config(BaseModel):
 
     def _default_config_path(self) -> str:
         this_dir = os.path.dirname(__file__)
-        return os.path.abspath(os.path.join(this_dir, "..", "configs"))
+        return os.path.abspath(os.path.join(this_dir, "configs"))
 
     def _load_from_yaml(self, yaml_config_path: str) -> Dict[str, Any]:
         return {
