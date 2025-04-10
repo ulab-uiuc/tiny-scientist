@@ -7,6 +7,7 @@ from reportlab.lib.colors import Color
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+
 class WaterMarker:
     def _add_watermark(
         self, original_pdf_path: str, watermark_text: str, output_pdf_path: str
