@@ -1,9 +1,10 @@
 import os
-import yaml
-
 from typing import Any, Dict, Optional
+
+import yaml
 from pydantic import BaseModel
-from .data import ReviewerPrompt, WriterPrompt, CoderPrompt, ThinkerPrompt
+
+from .data import CoderPrompt, ReviewerPrompt, ThinkerPrompt, WriterPrompt
 
 
 class ParamConfig(BaseModel):
