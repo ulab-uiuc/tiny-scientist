@@ -1,5 +1,4 @@
 import json
-import os
 import os.path as osp
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -32,8 +31,7 @@ class Thinker:
         self.searcher.s2_api_key = s2_api_key
 
         # Load prompt templates
-        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "coder_prompt.yaml")
-        with open(yaml_path, "r") as f:
+        with open(osp.join(config_dir, "thinker_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
     def think(self, intent: Dict[str, Any], check_novelty: bool,

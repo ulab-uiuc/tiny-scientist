@@ -17,6 +17,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to the experiment directory containing experiment details"
     )
     parser.add_argument(
+        "--config_dir",
+        type=str,
+        default="../configs",
+        help="Path to directory containing model configurations"
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default="gpt-4o-mini-2024-07-18",
@@ -61,6 +67,7 @@ def main() -> int:
             model=model,
             client=client,
             base_dir=args.experiment,
+            config_dir=args.config_dir,
             template=args.template
         )
 

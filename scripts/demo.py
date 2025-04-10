@@ -9,6 +9,7 @@ from tiny_scientist.scientist import TinyScientist
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run TinyScientist pipeline.")
     parser.add_argument("--base_dir", type=str, default="experiments/demo", help="Base output directory")
+    parser.add_argument("--config_dir", type=str, default="config", help="Configuration directory with prompt YAML files")
     parser.add_argument("--model", type=str, default="gpt-4o", help="LLM model to use")
     parser.add_argument("--template", type=str, default="acl", help="Paper format template (e.g. acl, iclr)")
     args = parser.parse_args()
@@ -23,7 +24,7 @@ def main() -> None:
     client, model = create_client(args.model)
 
     # Construct experiment intent and baseline result
-    initial_idea = [{
+    initial_idea = {
         "Name": "demo_project",
         "Title": "Evaluating Adaptive Step Sizes in Numerical Optimization",
         "Experiment": "Implement and compare different adaptive step size strategies (e.g., diminishing step size, line search) for optimizing a simple convex function like a 2D quadratic.",
@@ -31,7 +32,7 @@ def main() -> None:
         "Feasibility": 9,
         "Novelty": 5,
         "Score": 6
-    }]
+    }
     baseline_result = {
         "experiment_name": "baseline_quadratic_optimization",
         "function": "f(x, y) = x^2 + y^2",
@@ -53,6 +54,7 @@ def main() -> None:
         model=model,
         client=client,
         base_dir=args.base_dir,
+        config_dir=args.config_dir,
         template=args.template
     )
 

@@ -1,5 +1,5 @@
 import json
-import os
+import os.path as osp
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -14,11 +14,12 @@ class Reviewer:
             self,
             model: str,
             client: Any,
+            config_dir: str,
             tools: List[BaseTool],
             num_reviews: int = 3,  # Number of separate reviews to generate
             num_reflections: int = 2,  # Number of re_review calls per review
             temperature: float = 0.75,
-            s2_api_key: Optional[str] = None
+            s2_api_key: Optional[str] = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -34,8 +35,7 @@ class Reviewer:
         self.last_related_works_string = ""
         # Load prompt templates from configuration file
 
-        yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "reviewer_prompt.yaml")
-        with open(yaml_path, "r") as f:
+        with open(osp.join(config_dir, "reviewer_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
         # Process template instructions in neurips form if available
