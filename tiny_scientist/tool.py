@@ -16,9 +16,15 @@ def load_config() -> str:
     path = osp.join(os.getcwd(), "config.toml")
     if osp.exists(path):
         return path
+
+    path = osp.join(os.getcwd(), "..", "config.toml")
+    if osp.exists(path):
+        return path
+
     path = osp.join(osp.dirname(__file__), "config.toml")
     if osp.exists(path):
         return path
+
     return "You have to create a config.toml"
 
 
