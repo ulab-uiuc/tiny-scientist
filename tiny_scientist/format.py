@@ -148,7 +148,7 @@ class Watermark:
         os.remove(watermark_pdf_path)
 
 
-class Bib_Manager:
+class BibManager:
     def __init__(self, model: str, client: Any) -> None:
         self.model = model
         self.client = client
@@ -211,7 +211,7 @@ class Bib_Manager:
 class ACLFormat(BaseFormat):
     def __init__(self, model: str, client: Any) -> None:
         self.template = "acl"
-        self.bib_manager = Bib_Manager(model, client)
+        self.bib_manager = BibManager(model, client)
         self.watermark = Watermark()
 
     def run(
@@ -312,7 +312,7 @@ class ACLFormat(BaseFormat):
 class ICLRFormat(BaseFormat):
     def __init__(self, model: str, client: Any) -> None:
         self.template = "iclr"
-        self.bib_manager = Bib_Manager(model, client)
+        self.bib_manager = BibManager(model, client)
         self.watermark = Watermark()
 
     def run(
