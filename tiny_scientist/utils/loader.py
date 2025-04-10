@@ -2,13 +2,11 @@ import json
 import os
 import os.path as osp
 import re
-from typing import Any, Optional
-
+from typing import Optional
 
 import pymupdf
 import pymupdf4llm
 from pypdf import PdfReader
-
 
 
 class InputFormatter:
