@@ -69,7 +69,7 @@ class TinyScientist:
         print("💻 Running experiments...")
         self.baseline_results = baseline_results
         idea = self.idea.get("idea", self.idea)
-        self.coder.perform_experiments(idea, baseline_results=baseline_results)
+        self.coder.run(idea, baseline_results=baseline_results)
         print("✅ Code executed.")
 
     def write(self) -> None:
