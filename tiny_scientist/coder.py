@@ -61,9 +61,7 @@ class Coder:
             edit_format="diff",
         )
 
-    def run(
-        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
-    ) -> bool:
+    def run(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> bool:
         """Run the complete experiment workflow."""
         # Set files for this operation
 
