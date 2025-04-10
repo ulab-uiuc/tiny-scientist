@@ -9,7 +9,7 @@ from .utils.bib_manager import BibManager
 from .utils.water_marker import WaterMarker
 
 
-class BaseFormat(abc.ABC):
+class BaseOutputFormatter(abc.ABC):
     @abc.abstractmethod
     def run(
         self,
@@ -90,7 +90,7 @@ class BaseFormat(abc.ABC):
             return preamble + "\n" + body_content + "\n" + ending
 
 
-class ACLFormat(BaseFormat):
+class ACLOutputFormatter(BaseOutputFormatter):
     def __init__(self, model: str, client: Any) -> None:
         self.template = "acl"
         self.bib_manager = BibManager(model, client)
@@ -191,7 +191,7 @@ class ACLFormat(BaseFormat):
             print("Failed to rename PDF.")
 
 
-class ICLRFormat(BaseFormat):
+class ICLROutputFormatter(BaseOutputFormatter):
     def __init__(self, model: str, client: Any) -> None:
         self.template = "iclr"
         self.bib_manager = BibManager(model, client)
