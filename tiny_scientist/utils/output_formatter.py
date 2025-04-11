@@ -45,9 +45,9 @@ class BaseOutputFormatter(abc.ABC):
         section_order = [
             "Abstract",
             "Introduction",
-            "Related Work",
+            "Related_Work",
             "Method",
-            "Experimental Setup",
+            "Experimental_Setup",
             "Results",
             "Discussion",
             "Conclusion",

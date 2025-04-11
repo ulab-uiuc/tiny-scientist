@@ -6,11 +6,11 @@ import sys
 from subprocess import TimeoutExpired
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
 from aider.models import Model
 
+from .configs import Config
 from .tool import CodeSearchTool
 
 
@@ -19,11 +19,11 @@ class Coder:
         self,
         base_dir: str,
         model: str,
-        config_dir: str,
-        chat_history: Optional[str] = None,
         max_iters: int = 4,
         max_runs: int = 5,
         max_stderr_output: int = 1500,
+        config_dir: Optional[str] = None,
+        chat_history: Optional[str] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.model = model
@@ -31,11 +31,10 @@ class Coder:
         self.max_iters = max_iters
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
-        self.searcher = CodeSearchTool()
+        self.config = Config()
 
         # Load prompts
-        with open(osp.join(config_dir, "coder_prompt.yaml"), "r") as f:
-            self.prompts = yaml.safe_load(f)
+        self.prompts = self.config.prompt_template.coder_prompt
 
     def setup_aider(
         self, model: str, fnames: List[str], chat_history: Optional[str] = None
@@ -63,9 +62,7 @@ class Coder:
             edit_format="diff",
         )
 
-    def perform_experiments(
-        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
-    ) -> bool:
+    def run(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> bool:
         """Run the complete experiment workflow."""
         # Set files for this operation
 
@@ -116,7 +113,7 @@ class Coder:
         run_time = 1
 
         # Initial prompt
-        next_prompt = self.prompts["experiment_prompt"].format(
+        next_prompt = self.prompts.experiment_prompt.format(
             title=idea["Title"],
             idea=idea["Experiment"],
             max_runs=self.max_runs,
@@ -151,7 +148,7 @@ class Coder:
                 next_prompt = message
             else:
                 print("[System] Experiment run failed. Attempting fix with Aider...")
-                next_prompt = self.prompts["experiment_error_prompt"].format(
+                next_prompt = self.prompts.experiment_error_prompt.format(
                     message=message,
                     Title=idea["Title"],
                     Experiment=idea["Experiment"],
@@ -209,14 +206,14 @@ class Coder:
                 for k, v in results.items()
             }
 
-            return 0, self.prompts["experiment_success_prompt"].format(
+            return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1
             )
 
         except TimeoutExpired:
             print(f"Run {run_num} timed out after {timeout} seconds")
             self._cleanup_failed_run(run_num)
-            return 1, self.prompts["experiment_timeout_prompt"].format(timeout=timeout)
+            return 1, self.prompts.experiment_timeout_prompt.format(timeout=timeout)
 
     def _create_plots(self, timeout: int = 600) -> bool:
         """Create plots from experimental results."""
@@ -224,7 +221,7 @@ class Coder:
         self.coder.fnames = [osp.join(self.base_dir, "plot.py")]
 
         current_iter = 0
-        next_prompt = self.prompts["plot_initial_prompt"]
+        next_prompt = self.prompts.plot_initial_prompt
 
         while True:
             self.coder.run(next_prompt)
@@ -254,19 +251,19 @@ class Coder:
 
             if result.returncode != 0:
                 print(f"Plotting failed with return code {result.returncode}")
-                return 1, self.prompts["plot_error_prompt"].format(error=result.stderr)
+                return 1, self.prompts.plot_error_prompt.format(error=result.stderr)
 
             return 0, ""
 
         except TimeoutExpired:
             print(f"Plotting timed out after {timeout} seconds")
-            return 1, self.prompts["plot_timeout_prompt"].format(timeout=timeout)
+            return 1, self.prompts.plot_timeout_prompt.format(timeout=timeout)
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
         # Set files for this operation
         self.coder.fnames = [osp.join(self.base_dir, "notes.txt")]
-        self.coder.run(self.prompts["notes_prompt"])
+        self.coder.run(self.prompts.notes_prompt)
 
     def _cleanup_failed_run(self, run_num: int) -> None:
         """Clean up files from a failed run."""

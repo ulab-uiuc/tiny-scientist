@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .coder import Coder
 from .reviewer import Reviewer
@@ -15,8 +15,8 @@ class TinyScientist:
         model: str,
         client: Any,
         base_dir: str,
-        config_dir: str,
         template: str = "acl",
+        config_dir: Optional[str] = None,
     ):
         self.model = model
         self.client = client
@@ -36,25 +36,25 @@ class TinyScientist:
 
         self.coder = Coder(
             base_dir=base_dir,
-            config_dir=config_dir,
             model=model,
             max_iters=4,
             max_runs=3,
+            config_dir=config_dir,
         )
 
         self.writer = Writer(
             model=model,
             client=client,
             base_dir=base_dir,
-            config_dir=config_dir,
             template=template,
+            config_dir=config_dir,
         )
 
         self.reviewer = Reviewer(
             model=model,
             client=client,
-            config_dir=config_dir,
             tools=[],
+            config_dir=config_dir,
         )
 
     def think(self, intent: Dict[str, Any]) -> None:
@@ -70,7 +70,7 @@ class TinyScientist:
         print("💻 Running experiments...")
         self.baseline_results = baseline_results
         idea = self.idea.get("idea", self.idea)
-        self.coder.perform_experiments(idea, baseline_results=baseline_results)
+        self.coder.run(idea, baseline_results=baseline_results)
         print("✅ Code executed.")
 
     def write(self) -> None:
