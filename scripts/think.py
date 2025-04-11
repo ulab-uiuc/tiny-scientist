@@ -5,8 +5,8 @@ import os
 from typing import Any, Dict, cast
 
 from tiny_scientist.thinker import Thinker
+from tiny_scientist.utils.input_formatter import InputFormatter
 from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
-from tiny_scientist.utils.loader import load_paper
 
 
 def parse_args() -> argparse.Namespace:
@@ -97,11 +97,13 @@ def create_default_idea() -> Dict[str, Any]:
 
 def main() -> int:
     args = parse_args()
+    formatter = InputFormatter()
 
-    pdf_content = ""
+    pdf_content: str = ""
     if args.pdf:
         try:
-            pdf_content = load_paper(args.pdf)
+            pdf_dict = formatter.parse_paper_pdf_to_json(args.pdf)
+            pdf_content = json.dumps(pdf_dict)  # Convert to string immediately
             print("Loaded PDF content for idea generation.")
         except Exception as e:
             print(f"Error loading PDF: {e}")
@@ -149,7 +151,7 @@ def main() -> int:
             initial_idea_dict,
             num_ideas=args.num_ideas,
             check_novelty=args.check_novelty,
-            pdf_content=pdf_content,
+            pdf_content=pdf_content,  # Already a string
         )
 
         print("\nGenerated and Refined Ideas:")

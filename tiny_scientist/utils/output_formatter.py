@@ -5,8 +5,8 @@ import shutil
 import subprocess
 from typing import Any, Dict
 
-from .utils.bib_manager import BibManager
-from .utils.water_marker import WaterMarker
+from .bib_manager import BibManager
+from .water_marker import WaterMarker
 
 
 class BaseOutputFormatter(abc.ABC):

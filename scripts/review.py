@@ -7,8 +7,8 @@ from typing import Dict, List
 
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.tool import BaseTool
+from tiny_scientist.utils.input_formatter import InputFormatter
 from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
-from tiny_scientist.utils.loader import load_paper
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,6 +62,7 @@ def main() -> int:
     args = parse_args()
 
     client, model = create_client(args.model)
+    formatter = InputFormatter()
 
     dummy_tools: List[BaseTool] = []
     reviewer = Reviewer(
@@ -75,13 +76,14 @@ def main() -> int:
     )
 
     # Load the paper text: if file exists, check extension to decide how to load.
+    text: Dict[str, str] = {}
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
         if ext.lower() == ".pdf":
-            text = load_paper(args.paper)
+            text = formatter.parse_paper_pdf_to_json(args.paper)
         else:
             with open(args.paper, "r", encoding="utf-8") as f:
-                text = f.read()
+                text = {"content": f.read()}
     else:
         # If the file doesn't exist, assume the argument is raw text.
         text = args.paper
