@@ -7,8 +7,8 @@ from typing import Dict, List
 
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.tool import BaseTool
-from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.utils.input_formatter import InputFormatter
+from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 
 
 def parse_args() -> argparse.Namespace:

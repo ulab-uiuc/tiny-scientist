@@ -5,8 +5,8 @@ import os
 from typing import Any, Dict, cast
 
 from tiny_scientist.thinker import Thinker
-from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 from tiny_scientist.utils.input_formatter import InputFormatter
+from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
 
 
 def parse_args() -> argparse.Namespace:
