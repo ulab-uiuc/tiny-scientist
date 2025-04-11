@@ -150,7 +150,7 @@ def main() -> int:
             initial_idea_dict,
             num_ideas=args.num_ideas,
             check_novelty=args.check_novelty,
-            pdf_content=pdf_content,
+            pdf_content=json.dumps(pdf_content) if pdf_content else "",
         )
 
         print("\nGenerated and Refined Ideas:")
