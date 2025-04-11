@@ -103,6 +103,7 @@ def main() -> int:
     if args.pdf:
         try:
             pdf_content = formatter.parse_paper_pdf_to_json(args.pdf)
+            pdf_content = json.dumps(pdf_content)  # Convert to string immediately
             print("Loaded PDF content for idea generation.")
         except Exception as e:
             print(f"Error loading PDF: {e}")
@@ -150,7 +151,7 @@ def main() -> int:
             initial_idea_dict,
             num_ideas=args.num_ideas,
             check_novelty=args.check_novelty,
-            pdf_content=json.dumps(pdf_content) if pdf_content else "",
+            pdf_content=pdf_content,  # No need for json.dumps() here anymore
         )
 
         print("\nGenerated and Refined Ideas:")
