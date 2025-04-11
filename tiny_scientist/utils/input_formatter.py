@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pymupdf
 import pymupdf4llm
@@ -49,7 +49,9 @@ class InputFormatter:
                     raise Exception("Text too short")
         return str(text)
 
-    def _extract_subsections(self, section_text: str) -> Tuple[str, List[Dict[str, str]]]:
+    def _extract_subsections(
+        self, section_text: str
+    ) -> Tuple[str, List[Dict[str, str]]]:
         """
         Helper function to parse sub-subsections of the form:
         '**x.x** **Subsection Title**'.
