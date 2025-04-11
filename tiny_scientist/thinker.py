@@ -55,8 +55,8 @@ class Thinker:
             new_ideas = self.check_ideas(new_ideas, max_iterations=10)
 
         # Return the first idea or an empty dict
-        if new_ideas:
-            return {"idea": new_ideas[0]}
+        if new_ideas[1]:
+            return {"idea": new_ideas[1]}
         else:
             return {"idea": {}}
 
@@ -157,7 +157,7 @@ class Thinker:
                 # Generate an experimental plan for the newly generated idea.
                 experiment_plan = self.generate_experiment_plan(new_idea)
                 if experiment_plan:
-                    new_idea["ExperimentPlan"] = experiment_plan
+                    new_idea["Experiment"] = experiment_plan
 
                 query = new_idea.get("Title", "")
                 searched_papers = self.searcher.search_for_papers(
