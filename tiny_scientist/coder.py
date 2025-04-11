@@ -45,8 +45,10 @@ class Coder:
             yes=True, chat_history_file=chat_history or f"{self.base_dir}/aider.txt"
         )
 
-        if model == "deepseek-coder-v2-0724" or model == "deepseek-chat":
+        if model == "deepseek-coder-v2-0724":
             main_model = Model("deepseek/deepseek-coder")
+        elif model == "deepseek-chat":
+            main_model = Model("deepseek/deepseek-chat")
         elif model == "llama3.1-405b":
             main_model = Model("openrouter/meta-llama/llama-3.1-405b-instruct")
         else:
