@@ -21,11 +21,11 @@ class PromptTemplate(BaseModel):
 class Config(BaseModel):
     prompt_template: PromptTemplate
 
-    def __init__(self, yaml_config_path: Optional[str] = None, **kwargs: Any) -> None:
-        if not yaml_config_path:
-            yaml_config_path = self._default_config_path()
+    def __init__(self, prompt_path: Optional[str] = None, **kwargs: Any) -> None:
+        if not prompt_path:
+            prompt_path = self._default_config_path()
 
-        yaml_data = self._load_from_yaml(yaml_config_path)
+        yaml_data = self._load_from_yaml(prompt_path)
         kwargs.update(yaml_data)
         super().__init__(**kwargs)
 
@@ -33,20 +33,19 @@ class Config(BaseModel):
         this_dir = os.path.dirname(__file__)
         return os.path.abspath(os.path.join(this_dir, "./", "prompts"))
 
-    def _load_from_yaml(self, yaml_config_path: str) -> Dict[str, Any]:
-        import pdb; pdb.set_trace()
+    def _load_from_yaml(self, prompt_path: str) -> Dict[str, Any]:
         return PromptTemplate(
             thinker_prompt=self._load_yaml_file(
-                os.path.join(yaml_config_path, "thinker_prompt.yaml"), ThinkerPrompt
+                os.path.join(prompt_path, "thinker_prompt.yaml"), ThinkerPrompt
             ),
             coder_prompt=self._load_yaml_file(
-                os.path.join(yaml_config_path, "coder_prompt.yaml"), CoderPrompt
+                os.path.join(prompt_path, "coder_prompt.yaml"), CoderPrompt
             ),
             writer_prompt=self._load_yaml_file(
-                os.path.join(yaml_config_path, "writer_prompt.yaml"), WriterPrompt
+                os.path.join(prompt_path, "writer_prompt.yaml"), WriterPrompt
             ),
             reviewer_prompt=self._load_yaml_file(
-                os.path.join(yaml_config_path, "reviewer_prompt.yaml"),
+                os.path.join(prompt_path, "reviewer_prompt.yaml"),
                 ReviewerPrompt,
             ),
         )
