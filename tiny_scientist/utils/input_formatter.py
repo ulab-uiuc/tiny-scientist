@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Optional
+from typing import Optional, Dict, Any, List, Tuple
 
 import pymupdf
 import pymupdf4llm
@@ -47,9 +47,9 @@ class InputFormatter:
                     )
                 if len(text) < min_size:
                     raise Exception("Text too short")
-        return text
+        return str(text)
 
-    def _extract_subsections(self, section_text: str) -> tuple:
+    def _extract_subsections(self, section_text: str) -> Tuple[str, List[Dict[str, str]]]:
         """
         Helper function to parse sub-subsections of the form:
         '**x.x** **Subsection Title**'.
@@ -186,7 +186,7 @@ class InputFormatter:
 
     def parse_paper_pdf_to_json(
         self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         Convenience method to load a PDF, convert it to text, parse the markdown,
         and return a structured JSON-like Python dictionary.
@@ -194,7 +194,7 @@ class InputFormatter:
         pdf_text = self._load_paper(pdf_path, num_pages=num_pages, min_size=min_size)
         return self._parse_markdown(pdf_text)
 
-    def parse_review_json(self, review_path: str) -> dict:
+    def parse_review_json(self, review_path: str) -> Dict[str, Any]:
         """
         Convenience method to load a JSON 'review' file, then parse it using the
         same markdown rules, returning a structured JSON-like dictionary.
