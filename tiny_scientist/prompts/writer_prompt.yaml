@@ -31,7 +31,7 @@ section_tips:
     - New trend: specifically list your contributions as bullet points
     - Extra space? Future work!
 
-  Related Work: |
+  Related_Work: |
     - Focus on academic siblings of our work — i.e., alternative approaches in the literature attempting to solve the same or similar problem.
     - The goal is to "compare and contrast": how do these methods differ in assumptions, objectives, or techniques?
     - Simply describing a paper is not enough — explain how it relates to our study and why it matters.
@@ -42,7 +42,7 @@ section_tips:
   Method: |
     - What we do. Why we do it. All described using the general Formalism introduced in the Problem Setting and building on top of the concepts / foundations introduced in Background.
 
-  Experimental Setup: |
+  Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
     - Do not imagine unknown hardware details.
     - Includes a description of the dataset, evaluation metrics, important hyperparameters, and implementation details.
@@ -201,7 +201,7 @@ section_prompt:
     {code}
     ```
 
-  Experimental Setup: |
+  Experimental_Setup: |
     Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
 
     Some tips are provided below:
