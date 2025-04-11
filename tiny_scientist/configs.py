@@ -22,7 +22,8 @@ class Config(BaseModel):
     prompt_template: PromptTemplate
 
     def __init__(self, yaml_config_path: Optional[str] = None, **kwargs: Any) -> None:
-        yaml_config_path = yaml_config_path or self._default_config_path()
+        if not yaml_config_path:
+            yaml_config_path = self._default_config_path()
 
         yaml_data = self._load_from_yaml(yaml_config_path)
         kwargs.update(yaml_data)
@@ -30,9 +31,10 @@ class Config(BaseModel):
 
     def _default_config_path(self) -> str:
         this_dir = os.path.dirname(__file__)
-        return os.path.abspath(os.path.join(this_dir, "prompts"))
+        return os.path.abspath(os.path.join(this_dir, "./", "prompts"))
 
     def _load_from_yaml(self, yaml_config_path: str) -> Dict[str, Any]:
+        import pdb; pdb.set_trace()
         return PromptTemplate(
             thinker_prompt=self._load_yaml_file(
                 os.path.join(yaml_config_path, "thinker_prompt.yaml"), ThinkerPrompt

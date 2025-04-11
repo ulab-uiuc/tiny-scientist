@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument(
         "--config_dir",
         type=str,
-        default="config",
+        default=None,
         help="Configuration directory with prompt YAML files",
     )
     parser.add_argument("--model", type=str, default="gpt-4o", help="LLM model to use")
