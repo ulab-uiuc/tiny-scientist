@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.llm import extract_json_between_markers, get_response_from_llm
