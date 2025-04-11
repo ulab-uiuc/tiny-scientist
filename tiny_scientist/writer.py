@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 import yaml
 
-from .input_formatter import (
+from .utils.output_formatter import (
     ACLOutputFormatter,
     BaseOutputFormatter,
     ICLROutputFormatter,

@@ -5,7 +5,7 @@ from typing import Any, Dict
 from .coder import Coder
 from .reviewer import Reviewer
 from .thinker import Thinker
-from .utils.loader import load_paper
+from .utils.input_formatter import load_paper
 from .writer import Writer
 
 

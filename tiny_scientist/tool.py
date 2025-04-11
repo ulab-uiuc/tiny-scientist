@@ -7,7 +7,7 @@ import requests
 import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.loader import load_config
+from .utils.input_formatter import load_config
 
 config = toml.load(load_config())
 
