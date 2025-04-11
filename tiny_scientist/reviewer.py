@@ -29,7 +29,7 @@ class Reviewer:
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
         self.searcher = PaperSearchTool()
-        self.InputFormatter = InputFormatter()
+        self.formatter = InputFormatter()
         # Cache for queries to avoid duplicate searches
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""

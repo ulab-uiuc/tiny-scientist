@@ -1,5 +1,6 @@
 import abc
 import os
+import os.path as osp
 import time
 from typing import Any, Dict, List, Optional, cast
 
@@ -7,7 +8,22 @@ import requests
 import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.input_formatter import load_config
+
+
+def load_config() -> str:
+    path = osp.join(os.getcwd(), "config.toml")
+    if osp.exists(path):
+        return path
+
+    path = osp.join(os.getcwd(), "..", "config.toml")
+    if osp.exists(path):
+        return path
+
+    path = osp.join(osp.dirname(__file__), "config.toml")
+    if osp.exists(path):
+        return path
+    return "You have to create a config.toml"
+
 
 config = toml.load(load_config())
 

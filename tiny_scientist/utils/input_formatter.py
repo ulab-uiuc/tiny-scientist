@@ -1,6 +1,4 @@
 import json
-import os
-import os.path as osp
 import re
 from typing import Optional
 
@@ -10,9 +8,6 @@ from pypdf import PdfReader
 
 
 class InputFormatter:
-    def __init__(self):
-        pass
-
     def _load_paper(
         self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100
     ) -> str:
@@ -54,7 +49,7 @@ class InputFormatter:
                     raise Exception("Text too short")
         return text
 
-    def _extract_subsections(self, section_text: str):
+    def _extract_subsections(self, section_text: str) -> tuple:
         """
         Helper function to parse sub-subsections of the form:
         '**x.x** **Subsection Title**'.
@@ -206,17 +201,3 @@ class InputFormatter:
         """
         review_text = self._load_review(review_path)
         return self._parse_markdown(review_text)
-
-    def load_config() -> str:
-        path = osp.join(os.getcwd(), "config.toml")
-        if osp.exists(path):
-            return path
-
-        path = osp.join(os.getcwd(), "..", "config.toml")
-        if osp.exists(path):
-            return path
-
-        path = osp.join(osp.dirname(__file__), "config.toml")
-        if osp.exists(path):
-            return path
-        return "You have to create a config.toml"
