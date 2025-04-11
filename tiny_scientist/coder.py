@@ -47,6 +47,8 @@ class Coder:
 
         if model == "deepseek-coder-v2-0724":
             main_model = Model("deepseek/deepseek-coder")
+        elif model == "deepseek-chat":
+            main_model = Model("deepseek/deepseek-chat")
         elif model == "llama3.1-405b":
             main_model = Model("openrouter/meta-llama/llama-3.1-405b-instruct")
         else:
