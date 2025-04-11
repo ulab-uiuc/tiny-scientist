@@ -5,7 +5,7 @@ from typing import Any, Dict
 from .coder import Coder
 from .reviewer import Reviewer
 from .thinker import Thinker
-from .utils.loader import load_paper
+from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
 
@@ -23,6 +23,7 @@ class TinyScientist:
         self.base_dir = base_dir
         self.template = template
         self.config_dir = config_dir
+        self.input_formatter = InputFormatter()
 
         self.thinker = Thinker(
             tools=[],
@@ -83,6 +84,6 @@ class TinyScientist:
         paper_name = self.idea.get("idea", self.idea)["Title"]
         pdf_name = f"{paper_name}.pdf"
         pdf_path = os.path.join(self.base_dir, pdf_name)
-        text = load_paper(pdf_path)
+        text = self.input_formatter.parse_paper_pdf_to_json(pdf_path)
         self.reviewer.run({"text": text})
         print("✅ Review complete.")
