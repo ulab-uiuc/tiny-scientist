@@ -99,7 +99,7 @@ def main() -> int:
     args = parse_args()
     formatter = InputFormatter()
 
-    pdf_content = ""
+    pdf_content: Dict[str, Any] = {}
     if args.pdf:
         try:
             pdf_content = formatter.parse_paper_pdf_to_json(args.pdf)

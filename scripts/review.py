@@ -76,13 +76,14 @@ def main() -> int:
     )
 
     # Load the paper text: if file exists, check extension to decide how to load.
+    text: Dict[str, str] = {}
     if os.path.isfile(args.paper):
         _, ext = os.path.splitext(args.paper)
         if ext.lower() == ".pdf":
             text = formatter.parse_paper_pdf_to_json(args.paper)
         else:
             with open(args.paper, "r", encoding="utf-8") as f:
-                text = f.read()
+                text = {"content": f.read()}
     else:
         # If the file doesn't exist, assume the argument is raw text.
         text = args.paper

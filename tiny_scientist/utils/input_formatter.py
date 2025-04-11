@@ -97,7 +97,7 @@ class InputFormatter:
 
         return clean_text, subsections
 
-    def _parse_markdown(self, markdown_str: str) -> dict:
+    def _parse_markdown(self, markdown_str: str) -> Dict[str, Any]:
         """
         Parses a markdown document with the following structure:
 
@@ -184,7 +184,8 @@ class InputFormatter:
         The JSON is expected to have the structure: { "review": "..." }.
         """
         with open(review_path, "r", encoding="utf-8") as f:
-            return json.load(f)["review"]
+            data: Dict[str, str] = json.load(f)
+            return data["review"]
 
     def parse_paper_pdf_to_json(
         self, pdf_path: str, num_pages: Optional[int] = None, min_size: int = 100
