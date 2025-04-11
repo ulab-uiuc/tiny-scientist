@@ -32,10 +32,9 @@ class Coder:
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
         self.config = Config()
-        self.searcher = CodeSearchTool(config_dir)
 
         # Load prompts
-        self.prompts = self.config.coder_prompt
+        self.prompts = self.config.prompt_template.coder_prompt
 
     def setup_aider(
         self, model: str, fnames: List[str], chat_history: Optional[str] = None

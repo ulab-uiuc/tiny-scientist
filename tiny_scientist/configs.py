@@ -25,7 +25,9 @@ class Config(BaseModel):
         if not prompt_path:
             prompt_path = self._default_config_path()
 
-        yaml_data = self._load_from_yaml(prompt_path)
+        yaml_data = {
+            "prompt_template": self._load_from_yaml(prompt_path)
+        }
         kwargs.update(yaml_data)
         super().__init__(**kwargs)
 

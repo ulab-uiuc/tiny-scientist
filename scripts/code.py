@@ -121,7 +121,7 @@ def main() -> None:
     print(f"Idea: {idea['Title']}")
 
     # Run the experiment
-    success = coder.perform_experiments(idea, baseline_results)
+    success = coder.run(idea, baseline_results)
 
     if success:
         print("\nExperiment completed successfully!")
