@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar
 
 import yaml
 from pydantic import BaseModel
@@ -25,9 +25,7 @@ class Config(BaseModel):
         if not prompt_path:
             prompt_path = self._default_config_path()
 
-        yaml_data = {
-            "prompt_template": self._load_from_yaml(prompt_path)
-        }
+        yaml_data = {"prompt_template": self._load_from_yaml(prompt_path)}
         kwargs.update(yaml_data)
         super().__init__(**kwargs)
 
