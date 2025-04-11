@@ -11,16 +11,16 @@ from .utils.error_handler import api_calling_error_exponential_backoff
 
 
 def load_config() -> str:
-    path = osp.join(os.getcwd(), "config.toml")
-    if osp.exists(path):
+    path = os.path.join(os.getcwd(), "config.toml")
+    if os.path.exists(path):
         return path
 
-    path = osp.join(os.getcwd(), "..", "config.toml")
-    if osp.exists(path):
+    path = os.path.join(os.getcwd(), "..", "config.toml")
+    if os.path.exists(path):
         return path
 
-    path = osp.join(osp.dirname(__file__), "config.toml")
-    if osp.exists(path):
+    path = os.path.join(osp.dirname(__file__), "config.toml")
+    if os.path.exists(path):
         return path
     return "You have to create a config.toml"
 
