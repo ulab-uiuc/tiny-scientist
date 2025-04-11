@@ -35,7 +35,7 @@ class Config(BaseModel):
         this_dir = os.path.dirname(__file__)
         return os.path.abspath(os.path.join(this_dir, "./", "prompts"))
 
-    def _load_from_yaml(self, prompt_path: str) -> Dict[str, Any]:
+    def _load_from_yaml(self, prompt_path: str) -> PromptTemplate:
         return PromptTemplate(
             thinker_prompt=self._load_yaml_file(
                 os.path.join(prompt_path, "thinker_prompt.yaml"), ThinkerPrompt
