@@ -1,24 +1,29 @@
 import argparse
 import os
+from typing import Any, Dict, Tuple
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from datasets import load_dataset
+from datasets import Dataset, load_dataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from torch.utils.data import DataLoader
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+)
 
 # Define model and dataset
 MODEL_NAME = "bert-base-uncased"
 DATASET_NAME = "glue"
 TASK_NAME = "sst2"
 
-def load_data():
+def load_data() -> Tuple[Dataset, Dataset]:
     """Loads the dataset and prepares train/test splits."""
     dataset = load_dataset(DATASET_NAME, TASK_NAME)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    def tokenize_function(examples):
+    def tokenize_function(examples: Dict[str, Any]) -> Dict[str, Any]:
         return tokenizer(examples["sentence"], truncation=True, padding="max_length")
 
     dataset = dataset.map(tokenize_function, batched=True)
@@ -27,32 +32,33 @@ def load_data():
 
 class AdaptiveLRModel(nn.Module):
     """Custom model wrapper for adaptive learning rate experiments."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)
 
-    def forward(self, input_ids, attention_mask):
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.nn.modules.container.ModuleDict:
         return self.model(input_ids=input_ids, attention_mask=attention_mask)
 
-def train_and_evaluate(output_dir, initial_lr=5e-5, adapt_lr=True):
+
+def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool = True) -> None:
     """Trains the model with adaptive learning rates and evaluates performance."""
     train_data, val_data = load_data()
     model = AdaptiveLRModel()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Define optimizer with adaptive learning rate strategies
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=1) if adapt_lr else None
 
     loss_fn = nn.CrossEntropyLoss()
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_data, batch_size=16)
+    train_loader: DataLoader = DataLoader(train_data, batch_size=16, shuffle=True)
+    val_loader: DataLoader = DataLoader(val_data, batch_size=16)
 
     best_val_loss = float("inf")
-    for epoch in range(3):  # Simple 3-epoch experiment
+
+    for epoch in range(3):
         model.train()
-        running_loss = 0
+        running_loss = 0.0
         for batch in train_loader:
             optimizer.zero_grad()
             outputs = model(batch["input_ids"].to(device), batch["attention_mask"].to(device))
@@ -61,26 +67,26 @@ def train_and_evaluate(output_dir, initial_lr=5e-5, adapt_lr=True):
             optimizer.step()
             running_loss += loss.item()
 
-        # Evaluate on validation set
         model.eval()
-        val_loss = 0
+        val_loss = 0.0
         with torch.no_grad():
             for batch in val_loader:
                 outputs = model(batch["input_ids"].to(device), batch["attention_mask"].to(device))
                 loss = loss_fn(outputs.logits, batch["label"].to(device))
                 val_loss += loss.item()
 
-        # Adaptive LR adjustment
         if scheduler:
             scheduler.step(val_loss)
 
-        print(f"Epoch {epoch + 1} - Training Loss: {running_loss / len(train_loader):.4f}, "
-              f"Validation Loss: {val_loss / len(val_loader):.4f}")
+        print(
+            f"Epoch {epoch + 1} - Training Loss: {running_loss / len(train_loader):.4f}, "
+            f"Validation Loss: {val_loss / len(val_loader):.4f}"
+        )
 
-        # Save best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), os.path.join(output_dir, "best_model.pth"))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Experiment with Adaptive Learning Rate")
