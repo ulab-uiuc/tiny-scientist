@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 import os.path as osp
-from typing import Dict, List
+from typing import List
 
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.tool import BaseTool
-from tiny_scientist.utils.input_formatter import InputFormatter
 from tiny_scientist.utils.llm import AVAILABLE_LLMS
 
 
@@ -61,8 +59,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    formatter = InputFormatter()
-
     dummy_tools: List[BaseTool] = []
     reviewer = Reviewer(
         tools=dummy_tools,
@@ -73,23 +69,7 @@ def main() -> int:
         prompt_template_dir=args.prompt_template_dir,
     )
 
-    # Load the paper text: if file exists, check extension to decide how to load.
-    text: Dict[str, str] = {}
-    if os.path.isfile(args.paper):
-        _, ext = os.path.splitext(args.paper)
-        if ext.lower() == ".pdf":
-            text = formatter.parse_paper_pdf_to_json(args.paper)
-        else:
-            with open(args.paper, "r", encoding="utf-8") as f:
-                text = {"content": f.read()}
-    else:
-        # If the file doesn't exist, assume the argument is raw text.
-        text = args.paper
-
-    # Run the review process.
-    intent: Dict[str, Dict[str, str]] = {"text": {"content": str(text)}}
-
-    final_review = reviewer.run(intent)
+    final_review = reviewer.run(args.paper)
 
     # Print and save the final meta-review.
     print("\nFinal Review JSON:")
