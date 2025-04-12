@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
+from .utils.input_formatter import InputFormatter
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
@@ -39,14 +40,17 @@ class Reviewer:
             template_instructions=self.prompts.template_instructions
         )
 
-    def review(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
+    def review(self, pdf_path: str) -> str:
         """
         Generate an initial review for the given paper.
         Expects a "text" field in the intent (the paper content).
         Generates a query from the paper text, retrieves related works using run(),
         and incorporates that context into the review prompt.
         """
-        text = intent.get("text", "")
+        formatter = InputFormatter()
+        text = formatter.parse_paper_pdf_to_json(pdf_path=pdf_path)
+        print(f"Using content from PDF file: {pdf_path}")
+
         if not text:
             raise ValueError("No paper text provided for review.")
 
@@ -65,10 +69,12 @@ class Reviewer:
         # Format search results using the static method.
         if related_papers:
             related_works_string = self._format_paper_results(related_papers)
+            print("✅Related Works String Found")
         else:
             related_works_string = "No related works found."
+            print("❎No Related Works Found")
+
         self.last_related_works_string = related_works_string
-        print(f"Related Works String:\n{related_works_string}")
 
         # Construct the base prompt by inserting the related works.
         base_prompt = self.prompts.neurips_form.format(
@@ -82,14 +88,14 @@ class Reviewer:
         review, msg_history = self._generate_review(
             base_prompt, system_prompt, msg_history=[]
         )
-        return {"review": review}
+        return json.dumps(review, indent=2)
 
-    def re_review(self, info: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def re_review(self, review_json: str) -> str:
         """
         Refine an existing review using a reflection prompt.
         Expects the info dictionary to contain a "review" field.
         """
-        current_review = info.get("review", {})
+        current_review = json.loads(review_json)
         if not current_review:
             raise ValueError("No review provided for re-review.")
         system_prompt = self.prompts.reviewer_system_prompt_neg
@@ -101,28 +107,29 @@ class Reviewer:
             related_works_string=related_works_string,
             msg_history=[],
         )
-        return {"review": new_review if new_review is not None else {}}
+        return json.dumps(new_review, indent=2)
 
-    def run(self, intent: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
+    def run(self, pdf_path: str) -> str:
         """
         Execute the review process in an ensemble fashion.
         For each of num_reviews iterations, generate a review using review() and then refine it by calling
         re_review() num_reflections times. Finally, aggregate all generated reviews into a meta-review.
         """
         all_reviews = []
-        for _ in range(self.num_reviews):
-            current_review = self.review(intent)["review"]
+        for i in range(self.num_reviews):
+            print(f"Generating {i + 1}/{self.num_reviews} review")
+            current_review = self.review(pdf_path)
             for tool in self.tools:
                 tool_input = json.dumps({"review": current_review})
                 tool_output = tool.run(tool_input)
                 # Expect tool_output to contain a "review" key.
                 if "review" in tool_output:
-                    current_review = tool_output["review"]
+                    current_review = tool_output["review"]["review"]
             for _ in range(self.num_reflections):
-                current_review = self.re_review({"review": current_review})["review"]
-            all_reviews.append(current_review)
+                current_review = self.re_review(current_review)
+            all_reviews.append(json.loads(current_review))
         final_meta_review = self._write_meta_review(all_reviews)
-        return {"review": final_meta_review}
+        return json.dumps(final_meta_review, indent=2)
 
     def _generate_query(self, text: str) -> str:
         """
@@ -177,7 +184,6 @@ class Reviewer:
         Refine the given review using a reflection prompt.
         The current review is included in the prompt to provide context.
         """
-        print(f"In re_review, Related Works String:\n{related_works_string}")
 
         # Prepend the current review context.
         updated_prompt = (
