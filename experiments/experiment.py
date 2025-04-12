@@ -3,9 +3,9 @@ import os
 from typing import Any, Dict, Tuple
 
 import torch
-from torch.nn import Module
 import torch.optim as optim
 from datasets import Dataset, load_dataset
+from torch.nn import CrossEntropyLoss, Module
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import (
@@ -31,7 +31,7 @@ def load_data() -> Tuple[Dataset, Dataset]:
     dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "label"])
     return dataset["train"], dataset["validation"]
 
-class AdaptiveLRModel(Module):
+class AdaptiveLRModel(Module): # type: ignore[misc]
     """Custom model wrapper for adaptive learning rate experiments."""
     def __init__(self) -> None:
         super().__init__()
@@ -51,7 +51,7 @@ def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=1) if adapt_lr else None
 
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = CrossEntropyLoss()
     train_loader: DataLoader = DataLoader(train_data, batch_size=16, shuffle=True)
     val_loader: DataLoader = DataLoader(val_data, batch_size=16)
 
