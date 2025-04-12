@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 
-from tiny_scientist.utils.llm import create_client
 from tiny_scientist.writer import Writer
 
 
