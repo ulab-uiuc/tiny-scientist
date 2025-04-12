@@ -3,7 +3,7 @@ import os
 from typing import Any, Dict, Tuple
 
 import torch
-import torch.nn as nn
+from torch.nn import Module
 import torch.optim as optim
 from datasets import Dataset, load_dataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    PreTrainedToken,
 )
 
 # Define model and dataset
@@ -23,14 +24,14 @@ def load_data() -> Tuple[Dataset, Dataset]:
     dataset = load_dataset(DATASET_NAME, TASK_NAME)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    def tokenize_function(examples: Dict[str, Any]) -> Dict[str, Any]:
+    def tokenize_function(examples: Dataset) -> Dataset:
         return tokenizer(examples["sentence"], truncation=True, padding="max_length")
 
     dataset = dataset.map(tokenize_function, batched=True)
     dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "label"])
     return dataset["train"], dataset["validation"]
 
-class AdaptiveLRModel(nn.Module):
+class AdaptiveLRModel(Module):
     """Custom model wrapper for adaptive learning rate experiments."""
     def __init__(self) -> None:
         super().__init__()
