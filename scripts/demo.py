@@ -68,9 +68,6 @@ def main() -> None:
 
     intent = {"idea": initial_idea}
     scientist.think(intent)
-    import pdb
-
-    pdb.set_trace()
     scientist.code(baseline_result)
     scientist.write()
     scientist.review()
