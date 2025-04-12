@@ -52,10 +52,11 @@ class TinyScientist:
             tools=[],
         )
 
-    def think(self, intent: Dict[str, Any]) -> None:
+    def think(self, intent: str, pdf_content: str = "") -> None:
         print("🧠 Generating idea...")
-        ideas = self.thinker.think(intent, check_novelty=False, pdf_content="")
-        self.idea = ideas[0] if isinstance(ideas, list) else ideas
+        # idea = self.thinker.run(intent, 1, False, pdf_content)
+        idea = self.thinker.think(intent)
+        self.idea = idea
         idea_path = os.path.join(self.output_dir, "idea.json")
         with open(idea_path, "w") as f:
             json.dump(self.idea, f, indent=2)

@@ -17,15 +17,40 @@ novelty_system_prompt: |
   Decide a paper idea is novel if after sufficient searching, you have not found a paper that significantly overlaps with your idea.
   Decide a paper idea is not novel, if you have found a paper that significantly overlaps with your idea.
 
+query_prompt: |
+  Based on the following research idea:
+
+  ```
+  {idea}
+  ```
+  Please generate an optimized search query to find the most relevant related work in the scientific literature. The query should:
+
+  Include key terms from the research idea
+  Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
+  Be specific enough to find closely related work but not so narrow that it misses important papers
+  Be formatted for academic search engines
+
+  Respond in the following format:
+
+  RESPONSE:
+  ```json
+  <JSON>
+  ```
+
+  In <JSON>, respond in JSON format with ONLY the following field:
+  - "Query": The query you just generated
+
 # Complete prompts that combine all necessary information
 idea_first_prompt: |
-  Here are the ideas that you have already generated:
+  Generate a creative and impactful research idea based on the following intent:
 
   '''
-  {prev_ideas_string}
+  {intent}
   '''
 
+  ```
   {pdf_section}
+  ```
 
   Additionally, based on recent literature, here are some related works that might inform your next idea:
 
@@ -36,7 +61,7 @@ idea_first_prompt: |
   Based on the above, come up with the next impactful and creative research idea that addresses the following questions:
   1. What is the problem?
     - Provide a comprehensive description of the research problem, including background, current challenges, and why the issue persists.
-    - Include citations where relevant. All citations should follow APA style (e.g., [Workowski & Bolan, 2015]).
+    - Include citations where relevant. All citations should be in parentheses (e.g., (Workowski & Bolan, 2015)).
   2. Why is it interesting and important?
     - Explain in detail why the problem is interesting and important. Support your claims with references from recent literature.
   3. Why is it hard?
