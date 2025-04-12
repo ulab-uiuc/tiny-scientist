@@ -28,8 +28,7 @@ class Writer:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
     ) -> None:
-        self.model = model
-        self.client = create_client(model)
+        self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature

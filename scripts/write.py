@@ -55,13 +55,9 @@ def main() -> int:
     args: argparse.Namespace = parse_args()
 
     try:
-        # Create LLM client and model
-        client, model = create_client(args.model)
-
         # Initialize Writer
         writer = Writer(
-            model=model,
-            client=client,
+            model=args.model,
             output_dir=args.experiment,
             prompt_template_dir=args.prompt_template_dir,
             template=args.template,

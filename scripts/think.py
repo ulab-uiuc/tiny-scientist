@@ -109,12 +109,8 @@ def main() -> int:
             print(f"Error loading PDF: {e}")
 
     try:
-        # Create client and model
-        client, model = create_client(args.model)
-
         thinker = Thinker(
-            model=model,
-            client=client,
+            model=args.model,
             output_dir=args.output_dir,
             prompt_template_dir=args.prompt_template_dir,
             temperature=args.temperature,

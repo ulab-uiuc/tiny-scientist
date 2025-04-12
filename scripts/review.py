@@ -61,7 +61,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    client, model = create_client(args.model)
     formatter = InputFormatter()
 
     dummy_tools: List[BaseTool] = []
@@ -69,8 +68,7 @@ def main() -> int:
         tools=dummy_tools,
         num_reviews=args.reviews_num,
         num_reflections=args.reflection_num,
-        model=model,
-        client=client,
+        model=args.model,
         temperature=args.temperature,
         prompt_template_dir=args.prompt_template_dir,
     )

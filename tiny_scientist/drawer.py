@@ -11,8 +11,7 @@ from .utils.llm import create_client, get_response_from_llm
 class Drawer:
     def __init__(self, model: Any, prompt_template_dir: str, temperature: float = 0.75):
         """Initialize the Drawer with model configuration and prompt templates."""
-        self.model = model
-        self.client = create_client(model)
+        self.client, self.model = create_client(model)
         self.temperature = temperature
 
         # Load prompt templates

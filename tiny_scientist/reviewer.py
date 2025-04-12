@@ -24,8 +24,7 @@ class Reviewer:
         self.tools = tools
         self.num_reviews = num_reviews
         self.num_reflections = num_reflections
-        self.model = model
-        self.client = create_client(model)
+        self.client, self.model = create_client(model)
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
         self.config = Config(prompt_template_dir)

@@ -24,8 +24,7 @@ class Thinker:
     ):
         self.tools = tools
         self.iter_num = iter_num
-        self.model = model
-        self.client = create_client(model)
+        self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.temperature = temperature
         self.config = Config(prompt_template_dir)

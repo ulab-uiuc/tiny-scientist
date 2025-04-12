@@ -11,6 +11,7 @@ from aider.io import InputOutput
 from aider.models import Model
 
 from .configs import Config
+from .utils.llm import create_client
 
 
 class Coder:
@@ -25,7 +26,7 @@ class Coder:
         chat_history: Optional[str] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
-        self.model = model
+        self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
         self.max_runs = max_runs
