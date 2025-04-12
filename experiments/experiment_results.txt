@@ -1,0 +1,21 @@
+{
+    "experiment_name": "adaptive_learning_rates",
+    "model": "Transformer",
+    "dataset": "Wikitext-103",
+    "optimizer": "Adam with adaptive learning rates",
+    "learning_rate_strategy": "Dynamic adjustment based on gradient variance",
+    "batch_size": 64,
+    "epochs": 10,
+    "metrics": {
+        "validation_loss": 2.85,
+        "train_loss": 2.62,
+        "perplexity": 18.9,
+        "accuracy": 77.3,
+        "f1_score": 0.75
+    },
+    "comparison_with_baseline": {
+        "validation_loss_reduction": 8.65,
+        "accuracy_improvement": 2.7
+    },
+    "notes": "The adaptive learning rate strategy improved convergence speed and final accuracy."
+}
