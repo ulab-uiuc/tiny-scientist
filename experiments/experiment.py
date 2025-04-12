@@ -5,7 +5,7 @@ from typing import Any, Dict, Tuple
 import torch
 import torch.optim as optim
 from datasets import Dataset, load_dataset
-from torch.nn import Module, CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, Module
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import (
