@@ -6,7 +6,15 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 import anthropic
 import backoff
 import openai
+import toml
 from google.generativeai.types import GenerationConfig
+
+# Load config
+config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")
+if os.path.exists(config_path):
+    config = toml.load(config_path)
+else:
+    config = {"core": {}}
 
 MAX_NUM_TOKENS = 4096
 
@@ -313,9 +321,13 @@ def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
 
 
 def create_client(model: str) -> Tuple[Any, str]:
+    # Get llm_api_key from config
+    llm_api_key = config["core"].get("llm_api_key", "")
+
     if model.startswith("claude-"):
         print(f"Using Anthropic API with model {model}.")
-        return anthropic.Anthropic(), model
+        api_key = os.environ.get("ANTHROPIC_API_KEY", llm_api_key)
+        return anthropic.Anthropic(api_key=api_key), model
     elif model.startswith("bedrock") and "claude" in model:
         client_model = model.split("/")[-1]
         print(f"Using Amazon Bedrock with model {client_model}.")
@@ -326,24 +338,28 @@ def create_client(model: str) -> Tuple[Any, str]:
         return anthropic.AnthropicVertex(), client_model
     elif "gpt" in model:
         print(f"Using OpenAI API with model {model}.")
-        return openai.OpenAI(), model
+        api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
+        return openai.OpenAI(api_key=api_key), model
     elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
         print(f"Using OpenAI API with model {model}.")
-        return openai.OpenAI(), model
+        api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
+        return openai.OpenAI(api_key=api_key), model
     elif model in ["deepseek-chat", "deepseek-reasoner"]:
         print(f"Using OpenAI API with {model}.")
+        api_key = os.environ.get("DEEPSEEK_API_KEY", llm_api_key)
         return (
             openai.OpenAI(
-                api_key=os.environ["DEEPSEEK_API_KEY"],
+                api_key=api_key,
                 base_url="https://api.deepseek.com",
             ),
             model,
         )
     elif model == "llama3.1-405b":
         print(f"Using OpenAI API with {model}.")
+        api_key = os.environ.get("OPENROUTER_API_KEY", llm_api_key)
         return (
             openai.OpenAI(
-                api_key=os.environ["OPENROUTER_API_KEY"],
+                api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
             ),
             "meta-llama/llama-3.1-405b-instruct",

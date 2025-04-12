@@ -11,7 +11,6 @@ from aider.io import InputOutput
 from aider.models import Model
 
 from .configs import Config
-from .tool import CodeSearchTool
 
 
 class Coder:
