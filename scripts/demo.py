@@ -3,13 +3,15 @@ import json
 import os
 
 from tiny_scientist.scientist import TinyScientist
-from tiny_scientist.utils.llm import create_client
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run TinyScientist pipeline.")
     parser.add_argument(
-        "--output_dir", type=str, default="experiments/demo", help="Base output directory"
+        "--output_dir",
+        type=str,
+        default="experiments/demo",
+        help="Base output directory",
     )
     parser.add_argument(
         "--prompt_template_dir",
@@ -66,7 +68,9 @@ def main() -> None:
 
     intent = {"idea": initial_idea}
     scientist.think(intent)
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     scientist.code(baseline_result)
     scientist.write()
     scientist.review()

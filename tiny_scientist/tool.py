@@ -1,6 +1,5 @@
 import abc
 import os
-import os.path as osp
 import time
 from typing import Any, Dict, List, Optional, cast
 
@@ -8,7 +7,6 @@ import requests
 import toml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
-
 
 # Load config
 config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")

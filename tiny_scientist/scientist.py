@@ -12,8 +12,8 @@ from .writer import Writer
 class TinyScientist:
     def __init__(
         self,
-        model: str,
-        output_dir: str = './',
+        model: str = "gpt-4o",
+        output_dir: str = "./",
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
     ):

@@ -5,13 +5,11 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.llm import get_response_from_llm, create_client
+from .utils.llm import create_client, get_response_from_llm
 
 
 class Drawer:
-    def __init__(
-        self, model: Any, prompt_template_dir: str, temperature: float = 0.75
-    ):
+    def __init__(self, model: Any, prompt_template_dir: str, temperature: float = 0.75):
         """Initialize the Drawer with model configuration and prompt templates."""
         self.model = model
         self.client = create_client(model)
