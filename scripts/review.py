@@ -8,7 +8,7 @@ from typing import Dict, List
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.tool import BaseTool
 from tiny_scientist.utils.input_formatter import InputFormatter
-from tiny_scientist.utils.llm import AVAILABLE_LLMS, create_client
+from tiny_scientist.utils.llm import AVAILABLE_LLMS
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +61,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    client, model = create_client(args.model)
     formatter = InputFormatter()
 
     dummy_tools: List[BaseTool] = []
@@ -69,10 +68,9 @@ def main() -> int:
         tools=dummy_tools,
         num_reviews=args.reviews_num,
         num_reflections=args.reflection_num,
-        model=model,
-        client=client,
+        model=args.model,
         temperature=args.temperature,
-        config_dir=args.config_dir,
+        prompt_template_dir=args.prompt_template_dir,
     )
 
     # Load the paper text: if file exists, check extension to decide how to load.

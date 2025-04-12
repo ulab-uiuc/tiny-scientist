@@ -11,22 +11,23 @@ from aider.io import InputOutput
 from aider.models import Model
 
 from .configs import Config
+from .utils.llm import create_client
 
 
 class Coder:
     def __init__(
         self,
-        base_dir: str,
         model: str,
+        output_dir: str,
         max_iters: int = 4,
         max_runs: int = 5,
         max_stderr_output: int = 1500,
-        config_dir: Optional[str] = None,
+        prompt_template_dir: Optional[str] = None,
         chat_history: Optional[str] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
-        self.model = model
-        self.base_dir = osp.abspath(base_dir)
+        self.client, self.model = create_client(model)
+        self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
@@ -40,7 +41,7 @@ class Coder:
     ) -> None:
         """Setup Aider coder with the specified model."""
         io = InputOutput(
-            yes=True, chat_history_file=chat_history or f"{self.base_dir}/aider.txt"
+            yes=True, chat_history_file=chat_history or f"{self.output_dir}/aider.txt"
         )
 
         if model == "deepseek-coder-v2-0724":
@@ -66,8 +67,8 @@ class Coder:
         # Set files for this operation
 
         fnames = [
-            osp.join(self.base_dir, "experiment.py"),
-            osp.join(self.base_dir, "notes.txt"),
+            osp.join(self.output_dir, "experiment.py"),
+            osp.join(self.output_dir, "notes.txt"),
         ]
 
         self.setup_aider(self.model, fnames)
@@ -89,14 +90,14 @@ class Coder:
 
         result_summary = {}
         for run_num in range(1, self.max_runs + 1):
-            run_dir = osp.join(self.base_dir, f"run_{run_num}")
+            run_dir = osp.join(self.output_dir, f"run_{run_num}")
             result_path = osp.join(run_dir, "final_info.json")
             if osp.exists(result_path):
                 with open(result_path, "r") as f:
                     result_summary[f"run_{run_num}"] = json.load(f)
 
         # Save combined results
-        save_path = osp.join(self.base_dir, "experiment_results.txt")
+        save_path = osp.join(self.output_dir, "experiment_results.txt")
         with open(save_path, "w") as f:
             json.dump(result_summary, f, indent=2)
 
@@ -125,7 +126,7 @@ class Coder:
                 return False
 
             coder_out = self.coder.run(next_prompt)
-            exp_path = osp.join(self.base_dir, "experiment.py")
+            exp_path = osp.join(self.output_dir, "experiment.py")
 
             if "ALL_COMPLETED" in coder_out:
                 return True
@@ -165,8 +166,8 @@ class Coder:
         """Run a single experiment iteration."""
 
         shutil.copy(
-            osp.join(self.base_dir, "experiment.py"),
-            osp.join(self.base_dir, f"run_{run_num}.py"),
+            osp.join(self.output_dir, "experiment.py"),
+            osp.join(self.output_dir, f"run_{run_num}.py"),
         )
 
         # Run experiment
@@ -175,7 +176,7 @@ class Coder:
         try:
             result = subprocess.run(
                 command,
-                cwd=self.base_dir,
+                cwd=self.output_dir,
                 stderr=subprocess.PIPE,
                 text=True,
                 timeout=timeout,
@@ -196,7 +197,7 @@ class Coder:
 
             # Load and format results
             with open(
-                osp.join(self.base_dir, f"run_{run_num}", "final_info.json"), "r"
+                osp.join(self.output_dir, f"run_{run_num}", "final_info.json"), "r"
             ) as f:
                 results = json.load(f)
 
@@ -217,7 +218,7 @@ class Coder:
     def _create_plots(self, timeout: int = 600) -> bool:
         """Create plots from experimental results."""
         # Set files for this operation
-        self.coder.fnames = [osp.join(self.base_dir, "plot.py")]
+        self.coder.fnames = [osp.join(self.output_dir, "plot.py")]
 
         current_iter = 0
         next_prompt = self.prompts.plot_initial_prompt
@@ -239,7 +240,7 @@ class Coder:
         try:
             result = subprocess.run(
                 command,
-                cwd=self.base_dir,
+                cwd=self.output_dir,
                 stderr=subprocess.PIPE,
                 text=True,
                 timeout=timeout,
@@ -261,11 +262,11 @@ class Coder:
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
         # Set files for this operation
-        self.coder.fnames = [osp.join(self.base_dir, "notes.txt")]
+        self.coder.fnames = [osp.join(self.output_dir, "notes.txt")]
         self.coder.run(self.prompts.notes_prompt)
 
     def _cleanup_failed_run(self, run_num: int) -> None:
         """Clean up files from a failed run."""
-        run_dir = osp.join(self.base_dir, f"run_{run_num}")
+        run_dir = osp.join(self.output_dir, f"run_{run_num}")
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)

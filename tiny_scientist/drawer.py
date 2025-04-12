@@ -5,20 +5,17 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.llm import get_response_from_llm
+from .utils.llm import create_client, get_response_from_llm
 
 
 class Drawer:
-    def __init__(
-        self, model: Any, client: Any, config_dir: str, temperature: float = 0.75
-    ):
+    def __init__(self, model: Any, prompt_template_dir: str, temperature: float = 0.75):
         """Initialize the Drawer with model configuration and prompt templates."""
-        self.model = model
-        self.client = client
+        self.client, self.model = create_client(model)
         self.temperature = temperature
 
         # Load prompt templates
-        with open(osp.join(config_dir, "diagram_prompt.yaml"), "r") as f:
+        with open(osp.join(prompt_template_dir, "diagram_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
         # Process template instructions in diagram form

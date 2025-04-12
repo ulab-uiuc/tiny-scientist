@@ -25,12 +25,12 @@ def create_baseline_results() -> Dict[str, Any]:
     }
 
 
-def setup_experiment_directory(base_dir: str) -> None:
+def setup_experiment_directory(output_dir: str) -> None:
     """Set up the experiment directory with necessary files."""
-    os.makedirs(base_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     # Create an empty experiment.py file
-    with open(os.path.join(base_dir, "experiment.py"), "w") as f:
+    with open(os.path.join(output_dir, "experiment.py"), "w") as f:
         f.write(
             """
 # This is a placeholder experiment file that will be modified by the Coder
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         )
 
     # Create an empty notes.txt file
-    with open(os.path.join(base_dir, "notes.txt"), "w") as f:
+    with open(os.path.join(output_dir, "notes.txt"), "w") as f:
         f.write(
             "# Experiment Notes\n\nThis file will contain notes about the experiment.\n"
         )
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a trial of the Coder class")
     parser.add_argument(
-        "--base_dir",
+        "--output_dir",
         type=str,
         default="./experiment_trial",
         help="Base directory for the experiment",
@@ -92,25 +92,25 @@ def main() -> None:
         "--max_runs", type=int, default=2, help="Maximum experiment runs"
     )
     parser.add_argument(
-        "--config_dir", type=str, default="./configs", help="Config directory"
+        "--prompt_template_dir", type=str, default="./configs", help="Config directory"
     )
     args = parser.parse_args()
 
     # Set up the experiment directory
-    setup_experiment_directory(args.base_dir)
+    setup_experiment_directory(args.output_dir)
 
     print(f"Setting up Coder with model: {args.model}")
-    print(f"Base directory: {args.base_dir}")
+    print(f"Base directory: {args.output_dir}")
     print(f"Max iterations: {args.max_iters}")
     print(f"Max runs: {args.max_runs}")
 
     # Create the Coder instance
     coder = Coder(
-        base_dir=args.base_dir,
+        output_dir=args.output_dir,
         model=args.model,
         max_iters=args.max_iters,
         max_runs=args.max_runs,
-        config_dir=args.config_dir,
+        prompt_template_dir=args.prompt_template_dir,
     )
 
     # Create a sample idea and baseline results
@@ -125,7 +125,7 @@ def main() -> None:
 
     if success:
         print("\nExperiment completed successfully!")
-        print(f"Results and plots can be found in: {args.base_dir}")
+        print(f"Results and plots can be found in: {args.output_dir}")
     else:
         print("\nExperiment did not complete successfully.")
         print("Check the logs for more information.")

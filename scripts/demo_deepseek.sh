@@ -1,3 +1,3 @@
 #!/bin/zsh
 
-python demo.py --base_dir ../demo --config_dir ../configs --model deepseek-chat --template acl
+python demo.py --output_dir ../demo --prompt_template_dir ../configs --model deepseek-chat --template acl

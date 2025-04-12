@@ -3,16 +3,18 @@ import json
 import os
 
 from tiny_scientist.scientist import TinyScientist
-from tiny_scientist.utils.llm import create_client
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run TinyScientist pipeline.")
     parser.add_argument(
-        "--base_dir", type=str, default="experiments/demo", help="Base output directory"
+        "--output_dir",
+        type=str,
+        default="experiments/demo",
+        help="Base output directory",
     )
     parser.add_argument(
-        "--config_dir",
+        "--prompt_template_dir",
         type=str,
         default=None,
         help="Configuration directory with prompt YAML files",
@@ -26,15 +28,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if os.path.exists(args.base_dir):
+    if os.path.exists(args.output_dir):
         import shutil
 
-        shutil.rmtree(args.base_dir)
-        print(f"🧹 Cleared existing directory: {args.base_dir}")
-    os.makedirs(args.base_dir, exist_ok=True)
-
-    # Setup LLM client
-    client, model = create_client(args.model)
+        shutil.rmtree(args.output_dir)
+        print(f"🧹 Cleared existing directory: {args.output_dir}")
+    os.makedirs(args.output_dir, exist_ok=True)
 
     # Construct experiment intent and baseline result
     initial_idea = {
@@ -56,15 +55,14 @@ def main() -> None:
         "notes": "This baseline uses fixed step-size gradient descent on a quadratic bowl. Adaptive step-size methods aim to converge faster.",
     }
 
-    with open(os.path.join(args.base_dir, "baseline_results.txt"), "w") as f:
+    with open(os.path.join(args.output_dir, "baseline_results.txt"), "w") as f:
         json.dump(baseline_result, f, indent=2)
 
     # Instantiate TinyScientist and run pipeline
     scientist = TinyScientist(
-        model=model,
-        client=client,
-        base_dir=args.base_dir,
-        config_dir=args.config_dir,
+        model=args.model,
+        output_dir=args.output_dir,
+        prompt_template_dir=args.prompt_template_dir,
         template=args.template,
     )
 
@@ -74,7 +72,7 @@ def main() -> None:
     scientist.write()
     scientist.review()
 
-    print(f"\n📄 Final paper and review saved to: {args.base_dir}")
+    print(f"\n📄 Final paper and review saved to: {args.output_dir}")
 
 
 if __name__ == "__main__":

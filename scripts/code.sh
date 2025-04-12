@@ -1,3 +1,3 @@
 #!/bin/zsh
 
-python code.py --model gpt-4o --base_dir ../experiments
+python code.py --model gpt-4o --output_dir ../experiments

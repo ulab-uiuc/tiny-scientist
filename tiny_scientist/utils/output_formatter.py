@@ -15,7 +15,7 @@ class BaseOutputFormatter(abc.ABC):
         self,
         content: Dict[str, Any],
         references: Dict[str, Any],
-        base_dir: str,
+        output_dir: str,
         output_pdf_path: str,
         name: str,
         timeout: int = 30,
@@ -100,13 +100,13 @@ class ACLOutputFormatter(BaseOutputFormatter):
         self,
         content: Dict[str, Any],
         references: Dict[str, Any],
-        base_dir: str,
+        output_dir: str,
         output_pdf_path: str,
         name: str,
         timeout: int = 30,
     ) -> None:
         body_content = self._assemble_body(content)
-        dest_template_dir = self._set_output_dir(base_dir)
+        dest_template_dir = self._set_output_dir(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
@@ -132,7 +132,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
             output_pdf_path=output_pdf_path,
         )
 
-    def _set_output_dir(self, base_dir: str) -> str:
+    def _set_output_dir(self, output_dir: str) -> str:
         script_dir = osp.dirname(__file__)
         project_root = osp.abspath(osp.join(script_dir, ".."))
         source_template_dir = osp.join(
@@ -140,7 +140,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         )
 
         if osp.isdir(source_template_dir):
-            dest_template_dir = osp.join(base_dir, "latex")
+            dest_template_dir = osp.join(output_dir, "latex")
 
             if osp.exists(dest_template_dir):
                 shutil.rmtree(dest_template_dir)
@@ -201,13 +201,13 @@ class ICLROutputFormatter(BaseOutputFormatter):
         self,
         content: Dict[str, Any],
         references: Dict[str, Any],
-        base_dir: str,
+        output_dir: str,
         output_pdf_path: str,
         name: str,
         timeout: int = 30,
     ) -> None:
         body_content = self._assemble_body(content)
-        dest_template_dir = self._set_output_dir(base_dir)
+        dest_template_dir = self._set_output_dir(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
@@ -233,7 +233,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
             output_pdf_path=output_pdf_path,
         )
 
-    def _set_output_dir(self, base_dir: str) -> str:
+    def _set_output_dir(self, output_dir: str) -> str:
         script_dir = osp.dirname(__file__)
         project_root = osp.abspath(osp.join(script_dir, ".."))
         source_template_dir = osp.join(
@@ -241,7 +241,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
         )
 
         if osp.isdir(source_template_dir):
-            dest_template_dir = osp.join(base_dir, "latex")
+            dest_template_dir = osp.join(output_dir, "latex")
 
             if osp.exists(dest_template_dir):
                 shutil.rmtree(dest_template_dir)
