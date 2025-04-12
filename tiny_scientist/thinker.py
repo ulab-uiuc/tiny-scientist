@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .configs import Config
 from .tool import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.llm import extract_json_between_markers, get_response_from_llm
+from .utils.llm import extract_json_between_markers, get_response_from_llm, create_client
 
 
 class Thinker:
@@ -14,18 +14,17 @@ class Thinker:
         tools: List[Any],
         iter_num: int,
         model: str = "",
-        client: Any = None,
-        base_dir: str = "",
+        output_dir: str = "",
         temperature: float = 0.75,
-        config_dir: Optional[str] = None,
+        prompt_template_dir: Optional[str] = None,
     ):
         self.tools = tools
         self.iter_num = iter_num
         self.model = model
-        self.client = client
-        self.base_dir = base_dir
+        self.client = create_client(model)
+        self.output_dir = output_dir
         self.temperature = temperature
-        self.config = Config(config_dir)
+        self.config = Config(prompt_template_dir)
         self.searcher = PaperSearchTool()
 
         # Load prompt templates
@@ -242,7 +241,7 @@ class Thinker:
         return ideas
 
     def save_ideas(self, ideas: List[Dict[str, Any]]) -> None:
-        output_path = osp.join(self.base_dir, "ideas.json")
+        output_path = osp.join(self.output_dir, "ideas.json")
         with open(output_path, "w") as f:
             json.dump(ideas, f, indent=4)
         print(f"Saved {len(ideas)} ideas to {output_path}")

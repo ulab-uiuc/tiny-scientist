@@ -115,8 +115,8 @@ def main() -> int:
         thinker = Thinker(
             model=model,
             client=client,
-            base_dir=args.base_dir,
-            config_dir=args.config_dir,
+            output_dir=args.output_dir,
+            prompt_template_dir=args.prompt_template_dir,
             temperature=args.temperature,
             iter_num=args.num_reflections,
             tools=[],
@@ -125,7 +125,7 @@ def main() -> int:
         # Get initial idea
         if args.load_existing:
             try:
-                ideas_path = os.path.join(args.base_dir, "ideas.json")
+                ideas_path = os.path.join(args.output_dir, "ideas.json")
                 with open(ideas_path, "r") as f:
                     loaded_ideas = json.load(f)
                 if loaded_ideas:
@@ -159,7 +159,7 @@ def main() -> int:
             print(f"\nIdea {i+1}:")
             print(json.dumps(idea, indent=4))
 
-        output_path = args.output or os.path.join(args.base_dir, "refined_ideas.json")
+        output_path = args.output or os.path.join(args.output_dir, "refined_ideas.json")
         with open(output_path, "w") as f:
             json.dump(final_result, f, indent=4)
         print(f"\nRefined ideas saved to {output_path}")

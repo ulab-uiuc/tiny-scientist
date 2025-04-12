@@ -13,55 +13,50 @@ class TinyScientist:
     def __init__(
         self,
         model: str,
-        client: Any,
-        base_dir: str,
+        output_dir: str,
+        prompt_template_dir: Optional[str] = None,
         template: str = "acl",
-        config_dir: Optional[str] = None,
     ):
         self.model = model
-        self.client = client
-        self.base_dir = base_dir
+        self.output_dir = output_dir
         self.template = template
-        self.config_dir = config_dir
+        self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
 
         self.thinker = Thinker(
+            model=model,
+            output_dir=output_dir,
+            prompt_template_dir=prompt_template_dir,
             tools=[],
             iter_num=3,
-            model=model,
-            client=client,
-            base_dir=base_dir,
-            config_dir=config_dir,
         )
 
         self.coder = Coder(
-            base_dir=base_dir,
             model=model,
+            output_dir=output_dir,
+            prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
-            config_dir=config_dir,
         )
 
         self.writer = Writer(
             model=model,
-            client=client,
-            base_dir=base_dir,
+            output_dir=output_dir,
+            prompt_template_dir=prompt_template_dir,
             template=template,
-            config_dir=config_dir,
         )
 
         self.reviewer = Reviewer(
             model=model,
-            client=client,
+            prompt_template_dir=prompt_template_dir,
             tools=[],
-            config_dir=config_dir,
         )
 
     def think(self, intent: Dict[str, Any]) -> None:
         print("🧠 Generating idea...")
         ideas = self.thinker.think(intent, check_novelty=False, pdf_content="")
         self.idea = ideas[0] if isinstance(ideas, list) else ideas
-        idea_path = os.path.join(self.base_dir, "idea.json")
+        idea_path = os.path.join(self.output_dir, "idea.json")
         with open(idea_path, "w") as f:
             json.dump(self.idea, f, indent=2)
         print("✅ Idea saved.")
@@ -76,14 +71,14 @@ class TinyScientist:
     def write(self) -> None:
         print("📝 Writing paper...")
         idea = self.idea.get("idea", self.idea)
-        self.writer.run(idea=idea, folder_name=self.base_dir)
+        self.writer.run(idea=idea, folder_name=self.output_dir)
         print("✅ Paper written.")
 
     def review(self) -> None:
         print("🔍 Reviewing paper...")
         paper_name = self.idea.get("idea", self.idea)["Title"]
         pdf_name = f"{paper_name}.pdf"
-        pdf_path = os.path.join(self.base_dir, pdf_name)
+        pdf_path = os.path.join(self.output_dir, pdf_name)
         text = self.input_formatter.parse_paper_pdf_to_json(pdf_path)
         self.reviewer.run({"text": text})
         print("✅ Review complete.")

@@ -72,7 +72,7 @@ def main() -> int:
         model=model,
         client=client,
         temperature=args.temperature,
-        config_dir=args.config_dir,
+        prompt_template_dir=args.prompt_template_dir,
     )
 
     # Load the paper text: if file exists, check extension to decide how to load.

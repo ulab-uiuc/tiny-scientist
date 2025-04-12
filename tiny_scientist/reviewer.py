@@ -4,28 +4,26 @@ from typing import Any, Dict, List, Optional, Tuple
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.llm import extract_json_between_markers, get_response_from_llm
-
+from .utils.llm import extract_json_between_markers, get_response_from_llm, create_client
 
 class Reviewer:
     def __init__(
         self,
         model: str,
-        client: Any,
         tools: List[BaseTool],
         num_reviews: int = 3,  # Number of separate reviews to generate
         num_reflections: int = 2,  # Number of re_review calls per review
         temperature: float = 0.75,
-        config_dir: Optional[str] = None,
+        prompt_template_dir: Optional[str] = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
         self.num_reflections = num_reflections
         self.model = model
-        self.client = client
+        self.client = create_client(model)
         self.temperature = temperature
         # Initialize the searcher and set s2_api_key
-        self.config = Config(config_dir)
+        self.config = Config(prompt_template_dir)
         self.searcher = PaperSearchTool()
         # Cache for queries to avoid duplicate searches
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}

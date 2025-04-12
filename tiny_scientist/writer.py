@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
-from .utils.llm import extract_json_between_markers, get_response_from_llm
+from .utils.llm import extract_json_between_markers, get_response_from_llm, create_client
 from .utils.output_formatter import (
     ACLOutputFormatter,
     BaseOutputFormatter,
@@ -19,20 +19,19 @@ class Writer:
     def __init__(
         self,
         model: str,
-        client: Any,
-        base_dir: str,
+        output_dir: str,
         template: str,
         temperature: float = 0.75,
-        config_dir: Optional[str] = None,
+        prompt_template_dir: Optional[str] = None,
     ) -> None:
         self.model = model
-        self.client = client
-        self.base_dir = base_dir
+        self.client = create_client(model)
+        self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
         self.searcher: BaseTool = PaperSearchTool()
         self.formatter: BaseOutputFormatter
-        self.config = Config(config_dir)
+        self.config = Config(prompt_template_dir)
         if self.template == "acl":
             self.formatter = ACLOutputFormatter(self.client, self.model)
         elif self.template == "iclr":
@@ -74,8 +73,8 @@ class Writer:
         self.formatter.run(
             self.generated_sections,
             self.references,
-            self.base_dir,
-            f"{self.base_dir}/{paper_name}.pdf",
+            self.output_dir,
+            f"{self.output_dir}/{paper_name}.pdf",
             paper_name,
         )
 

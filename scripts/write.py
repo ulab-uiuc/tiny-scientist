@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to the experiment directory containing experiment details",
     )
     parser.add_argument(
-        "--config_dir",
+        "--prompt_template_dir",
         type=str,
         default="../configs",
         help="Path to directory containing model configurations",
@@ -62,8 +62,8 @@ def main() -> int:
         writer = Writer(
             model=model,
             client=client,
-            base_dir=args.experiment,
-            config_dir=args.config_dir,
+            output_dir=args.experiment,
+            prompt_template_dir=args.prompt_template_dir,
             template=args.template,
         )
 
