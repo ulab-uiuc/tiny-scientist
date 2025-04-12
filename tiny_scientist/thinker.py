@@ -32,7 +32,7 @@ class Thinker:
 
         # Load prompt templates
         self.prompts = self.config.prompt_template.thinker_prompt
-        self.found_papers = []
+        self.found_papers: List[Dict[str, Any]] = []
 
     def think(self, intent: str, pdf_content: str = "") -> str:
         """
@@ -53,11 +53,13 @@ class Thinker:
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
         # Save the idea
-        idea_dict = json.loads(idea)
+        raw_idea: Any = json.loads(idea)
+        if not isinstance(raw_idea, dict):
+            raw_idea = {}
         if self.found_papers:
-            idea_dict["References"] = self.found_papers
-        idea = json.dumps(idea_dict, indent=2)
-        self._save_ideas([idea_dict])
+            raw_idea["References"] = self.found_papers
+        idea = json.dumps(raw_idea, indent=2)
+        self._save_ideas([raw_idea])
 
         return idea
 
@@ -166,7 +168,7 @@ class Thinker:
         return json.dumps({"ideas": all_ideas}, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _generate_search_query(self, idea_json: str) -> str:
+    def _generate_search_query(self, idea_json: str) -> Any:
         """
         Generate an optimized search query based on the idea.
         """
@@ -182,7 +184,7 @@ class Thinker:
         )
 
         # Extract the query
-        query_json = extract_json_between_markers(text)
+        query_json: Any = extract_json_between_markers(text)
         return query_json["query"]
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -327,7 +329,7 @@ class Thinker:
 
         print(f"\nChecking novelty of idea: {idea_dict.get('Name', 'Unnamed')}")
 
-        msg_history = []
+        msg_history: List[Dict[str, Any]] = []
         papers_str = ""
 
         for iteration in range(max_iterations):

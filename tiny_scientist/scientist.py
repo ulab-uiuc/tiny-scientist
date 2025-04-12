@@ -56,7 +56,7 @@ class TinyScientist:
         print("🧠 Generating idea...")
         # idea = self.thinker.run(intent, 1, False, pdf_content)
         idea = self.thinker.think(intent)
-        self.idea = idea
+        self.idea = json.loads(idea)["Title"]
         idea_path = os.path.join(self.output_dir, "idea.json")
         with open(idea_path, "w") as f:
             json.dump(self.idea, f, indent=2)
@@ -65,21 +65,20 @@ class TinyScientist:
     def code(self, baseline_results: Dict[str, Any]) -> None:
         print("💻 Running experiments...")
         self.baseline_results = baseline_results
-        idea = self.idea.get("idea", self.idea)
+        idea = {"idea": self.idea}
         self.coder.run(idea, baseline_results=baseline_results)
         print("✅ Code executed.")
 
     def write(self) -> None:
         print("📝 Writing paper...")
-        idea = self.idea.get("idea", self.idea)
+        idea = {"idea": self.idea}
         self.writer.run(idea=idea, folder_name=self.output_dir)
         print("✅ Paper written.")
 
     def review(self) -> None:
         print("🔍 Reviewing paper...")
-        paper_name = self.idea.get("idea", self.idea)["Title"]
+        paper_name = self.idea
         pdf_name = f"{paper_name}.pdf"
         pdf_path = os.path.join(self.output_dir, pdf_name)
-        text = self.input_formatter.parse_paper_pdf_to_json(pdf_path)
-        self.reviewer.run({"text": text})
+        self.reviewer.run(pdf_path)
         print("✅ Review complete.")
