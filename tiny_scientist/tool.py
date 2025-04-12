@@ -10,22 +10,12 @@ import toml
 from .utils.error_handler import api_calling_error_exponential_backoff
 
 
-def load_config() -> str:
-    path = os.path.join(os.getcwd(), "config.toml")
-    if os.path.exists(path):
-        return path
-
-    path = os.path.join(os.getcwd(), "..", "config.toml")
-    if os.path.exists(path):
-        return path
-
-    path = os.path.join(osp.dirname(__file__), "config.toml")
-    if os.path.exists(path):
-        return path
-    return "You have to create a config.toml"
-
-
-config = toml.load(load_config())
+# Load config
+config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")
+if os.path.exists(config_path):
+    config = toml.load(config_path)
+else:
+    config = {"core": {}}
 
 
 class BaseTool(abc.ABC):

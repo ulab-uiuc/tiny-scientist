@@ -13,9 +13,9 @@ class TinyScientist:
     def __init__(
         self,
         model: str,
-        output_dir: str,
-        prompt_template_dir: Optional[str] = None,
+        output_dir: str = './',
         template: str = "acl",
+        prompt_template_dir: Optional[str] = None,
     ):
         self.model = model
         self.output_dir = output_dir
