@@ -155,6 +155,10 @@ class Thinker:
                 f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
 
+        if not all_ideas:
+            print("No valid ideas generated.")
+            return {}
+
         best_idea = max(all_ideas, key=lambda x: x.get("Score", 0))
         return best_idea
 
