@@ -109,7 +109,7 @@ class Reviewer:
         )
         return json.dumps(new_review, indent=2)
 
-    def run(self, pdf_path: str) -> str:
+    def run(self, pdf_path: str) -> Dict[str, Any]:
         """
         Execute the review process in an ensemble fashion.
         For each of num_reviews iterations, generate a review using review() and then refine it by calling

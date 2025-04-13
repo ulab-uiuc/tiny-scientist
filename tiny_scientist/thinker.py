@@ -34,7 +34,7 @@ class Thinker:
         self.prompts = self.config.prompt_template.thinker_prompt
         self.found_papers: List[Dict[str, Any]] = []
 
-    def think(self, intent: str, pdf_content: str = "") -> str:
+    def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         """
         Generate a single research idea based on the provided text intent.
         """
@@ -87,7 +87,7 @@ class Thinker:
         num_ideas: int = 1,
         check_novelty: bool = False,
         pdf_content: Optional[str] = None,
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
         Generate and refine multiple research ideas based on the provided intent string.
         For each idea, perform iterative refinement and generate an experiment plan.
@@ -269,7 +269,10 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_idea(
-        self, intent: str, related_works_string: str, pdf_content: str = ""
+        self,
+        intent: str,
+        related_works_string: str,
+        pdf_content: Optional[str] = None,
     ) -> str:
         """
         Generate a single research idea from an intent text.
