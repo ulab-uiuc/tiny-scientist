@@ -55,11 +55,11 @@ class TinyScientist:
     def think(self, intent: str, pdf_content: str = "") -> None:
         print("🧠 Generating idea...")
         # idea = self.thinker.run(intent, 1, False, pdf_content)
-        idea = self.thinker.think(intent)
+        idea = self.thinker.run(intent)
         self.idea = json.loads(idea)["Title"]
         idea_path = os.path.join(self.output_dir, "idea.json")
         with open(idea_path, "w") as f:
-            json.dump(self.idea, f, indent=2)
+            json.dump(idea, f, indent=2)
         print("✅ Idea saved.")
 
     def code(self, baseline_results: Dict[str, Any]) -> None:
