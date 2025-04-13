@@ -46,6 +46,8 @@ class CoderPrompt(BaseModel):
 class ThinkerPrompt(BaseModel):
     idea_system_prompt: str
     query_prompt: str
+    rethink_query_prompt: str
+    novelty_query_prompt: str
     novelty_system_prompt: str
     idea_first_prompt: str
     idea_reflection_prompt: str

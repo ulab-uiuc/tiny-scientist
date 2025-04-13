@@ -33,11 +33,13 @@ class Thinker:
         # Load prompt templates
         self.prompts = self.config.prompt_template.thinker_prompt
         self.found_papers: List[Dict[str, Any]] = []
+        self.intent = ""
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         """
         Generate a single research idea based on the provided text intent.
         """
+        self.intent = intent
         print(f"Generating research idea based on: {intent}")
         self.found_papers = []
 
@@ -66,7 +68,9 @@ class Thinker:
         Refine an existing research idea using one reflection iteration.
         """
         # Generate a search query for this idea
-        query = self._generate_search_query(idea_json)
+        query = self._generate_search_query(
+            idea_json, intent=self.intent, query_type="rethink"
+        )
         related_works = self.searcher.search_for_papers(query, result_limit=5)
         related_works_string = (
             self.searcher.format_paper_results(related_works)
@@ -164,11 +168,23 @@ class Thinker:
         )
         return best_idea
 
-    def _generate_search_query(self, idea_json: str) -> str:
+    def _generate_search_query(
+        self, content: str, intent: Optional[str] = None, query_type: str = "standard"
+    ) -> str:
         """
         Generate an optimized search query based on the idea.
         """
-        prompt = self.prompts.query_prompt.format(idea=idea_json)
+        prompt = ""
+        if query_type == "standard":
+            prompt = self.prompts.query_prompt.format(intent=content)
+        elif query_type == "rethink":
+            prompt = self.prompts.rethink_query_prompt.format(
+                intent=intent, idea=content
+            )
+        elif query_type == "novelty":
+            prompt = self.prompts.novelty_query_prompt.format(
+                intent=intent, idea=content
+            )
 
         response, _ = get_response_from_llm(
             prompt,
@@ -180,7 +196,7 @@ class Thinker:
         )
 
         # Extract the query
-        query_data: Any = extract_json_between_markers(response)
+        query_data = extract_json_between_markers(response)
         if query_data is None or "Query" not in query_data:
             return ""
         return str(query_data["Query"])
@@ -199,7 +215,9 @@ class Thinker:
         print("Generating experimental plan for the idea...")
 
         # Get the prompt
-        prompt = self.prompts.experiment_plan_prompt.format(idea=idea_json)
+        prompt = self.prompts.experiment_plan_prompt.format(
+            idea=idea_json, intent=self.intent
+        )
 
         # Call the LLM
         text, _ = get_response_from_llm(
@@ -241,6 +259,7 @@ class Thinker:
         """
         # Get the prompt
         prompt = self.prompts.idea_reflection_prompt.format(
+            intent=self.intent,
             current_round=current_round,
             num_reflections=self.iter_num,
             related_works_string=related_works_string,
@@ -328,55 +347,56 @@ class Thinker:
 
         print(f"\nChecking novelty of idea: {idea_dict.get('Name', 'Unnamed')}")
 
-        msg_history: List[Dict[str, Any]] = []
-        papers_str = ""
-
         for iteration in range(max_iterations):
             print(f"Novelty check iteration {iteration + 1}/{max_iterations}")
+
+            query = self._generate_search_query(
+                idea_json, intent=self.intent, query_type="novelty"
+            )
+            papers = self.searcher.search_for_papers(query)
+
+            if not papers:
+                print(f"No papers found in iteration {iteration + 1}")
+                papers_str = "No relevant papers found."
+            else:
+                papers_str = self.searcher.format_paper_results(papers)
+                print(f"Found {len(papers)} relevant papers")
+
+            if papers:
+                for paper in papers:
+                    self._add_reference(paper)
 
             # Get LLM decision or query
             prompt = self.prompts.novelty_prompt.format(
                 current_round=iteration + 1,
                 num_rounds=max_iterations,
-                idea=idea_dict,
+                intent=self.intent,
+                idea=idea_json,
                 last_query_results=papers_str,
             )
 
-            text, msg_history = get_response_from_llm(
+            text, _ = get_response_from_llm(
                 prompt,
                 client=self.client,
                 model=self.model,
                 system_message=self.prompts.novelty_system_prompt,
-                msg_history=msg_history,
+                msg_history=[],
             )
 
-            # Check for termination conditions
-            if "decision made: novel" in text.lower():
+            # Process the decision
+            if "NOVELTY CHECK: NOVEL" in text:
                 print("Decision: Idea is novel")
                 idea_dict["novel"] = True
                 break
-            if "decision made: not novel" in text.lower():
+            elif "NOVELTY CHECK: NOT NOVEL" in text:
                 print("Decision: Idea is not novel")
                 idea_dict["novel"] = False
                 break
-
-            # Extract and process search query
-            json_output = extract_json_between_markers(text)
-            if not json_output or "Query" not in json_output:
-                print(f"Failed to get query in iteration {iteration + 1}")
+            elif "NOVELTY CHECK: CONTINUE" in text:
+                print("Decision: Need more information to determine novelty")
                 continue
-
-            # Perform search
-            query = json_output["Query"]
-            print(f"Searching for: {query}")
-
-            papers = self.searcher.search_for_papers(query)
-            if not papers:
-                print(f"No papers found in iteration {iteration + 1}")
-                continue
-
-            papers_str = self.searcher.format_paper_results(papers)
-            print(f"Found {len(papers)} relevant papers")
+            else:
+                print(f"No clear decision in iteration {iteration + 1}, continuing")
 
         # If no decision was made, default to not novel
         if "novel" not in idea_dict:
