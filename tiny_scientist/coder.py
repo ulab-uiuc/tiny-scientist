@@ -62,7 +62,7 @@ class Coder:
             edit_format="diff",
         )
 
-    def run(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> bool:
+    def run(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> Tuple[bool, str]:
         """Run the complete experiment workflow."""
         # Set files for this operation
 
@@ -77,7 +77,7 @@ class Coder:
         success = self._run_experiment_loop(idea, baseline_results)
 
         if not success:
-            return False
+            return False, self.output_dir
 
         # # Create plots
         # success = self._create_plots()
@@ -103,7 +103,7 @@ class Coder:
 
         print(f"[System] All experiment results saved to {save_path}")
 
-        return True
+        return True, self.output_dir
 
     def _run_experiment_loop(
         self, idea: Dict[str, Any], baseline_results: Dict[str, Any]

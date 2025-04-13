@@ -1,5 +1,5 @@
 from pprint import pprint
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from .coder import Coder
 from .reviewer import Reviewer
@@ -58,19 +58,25 @@ class TinyScientist:
         pprint("✅ Idea generated.")
         return idea
 
-    def code(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> None:
+    def code(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> Tuple[bool, str]:
         pprint("💻 Running experiments...")
-        self.coder.run(idea=idea, baseline_results=baseline_results)
-        pprint("✅ Code executed.")
+        status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
+        if status:
+            pprint(f"✅ Experiment completed successfully. Results saved at {exp_path}")
+        else:
+            pprint(f"❌ Experiment failed. Please check {exp_path} for details.")
+        return status, exp_path
 
     def write(self, idea: Dict[str, Any], experiment_dir: str) -> None:
         pprint("📝 Writing paper...")
-        self.writer.run(idea=idea, experiment_dir=experiment_dir)
+        pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
+        pprint(f'Check the generated paper named as {paper_name} and saved at {pdf_path}')
         pprint("✅ Paper written.")
+        return pdf_path, paper_name
 
     def review(self, pdf_path: str) -> Dict[str, Any]:
         pprint("🔍 Reviewing paper...")
-        self.review = self.reviewer.run(pdf_path=pdf_path)
-        pprint(self.review, width=80, indent=2, compact=False)
+        review = self.reviewer.run(pdf_path=pdf_path)
+        pprint(review, width=80, indent=2, compact=False)
         pprint("✅ Review complete.")
-        return self.review
+        return review

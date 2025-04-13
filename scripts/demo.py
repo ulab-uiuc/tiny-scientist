@@ -36,16 +36,7 @@ def main() -> None:
     os.makedirs(args.output_dir, exist_ok=True)
 
     # Construct experiment intent and baseline result
-    initial_idea = {
-        "Name": "demo_project",
-        "Title": "Evaluating Adaptive Step Sizes in Numerical Optimization",
-        "Experiment": "Implement and compare different adaptive step size strategies (e.g., diminishing step size, line search) for optimizing a simple convex function like a 2D quadratic.",
-        "Interestingness": 6,
-        "Feasibility": 9,
-        "Novelty": 5,
-        "Score": 6,
-    }
-    baseline_result = {
+    baseline_results = {
         "experiment_name": "baseline_quadratic_optimization",
         "function": "f(x, y) = x^2 + y^2",
         "optimizer": "Gradient Descent",
@@ -56,7 +47,7 @@ def main() -> None:
     }
 
     with open(os.path.join(args.output_dir, "baseline_results.txt"), "w") as f:
-        json.dump(baseline_result, f, indent=2)
+        json.dump(baseline_results, f, indent=2)
 
     # Instantiate TinyScientist and run pipeline
     scientist = TinyScientist(
@@ -66,13 +57,10 @@ def main() -> None:
         template=args.template,
     )
 
-    intent = json.dumps(initial_idea, indent=2)
-    scientist.think(intent)
-    scientist.code(baseline_result)
-    scientist.write()
-    scientist.review()
-
-    print(f"\n📄 Final paper and review saved to: {args.output_dir}")
+    idea = scientist.think(intent='Evaluating Adaptive Step Sizes in Numerical Optimization')
+    scientist.code(idea=idea, baseline_results=baseline_results)
+    scientist.write(idea=idea, experiment_dir=args.output_dir)
+    review = scientist.review(pdf_path=os.path.join(args.output_dir, "experiment.pdf"))
 
 
 if __name__ == "__main__":
