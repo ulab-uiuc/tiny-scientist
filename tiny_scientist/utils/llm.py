@@ -333,6 +333,12 @@ def create_client(
     str,
 ]:
     llm_api_key = config["core"].get("llm_api_key", "")
+    client: Union[
+        anthropic.Anthropic,
+        anthropic.AnthropicBedrock,
+        anthropic.AnthropicVertex,
+        openai.OpenAI,
+    ]
 
     if model.startswith("claude-"):
         api_key = os.environ.get("ANTHROPIC_API_KEY", llm_api_key)

@@ -69,14 +69,14 @@ class TinyScientist:
             pprint(f"❌ Experiment failed. Please check {exp_path} for details.")
         return status, exp_path
 
-    def write(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
+    def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
         pprint("📝 Writing paper...")
         pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
         pprint(
             f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
         )
         pprint("✅ Paper written.")
-        return pdf_path, paper_name
+        return pdf_path
 
     def review(self, pdf_path: str) -> Dict[str, Any]:
         pprint("🔍 Reviewing paper...")
