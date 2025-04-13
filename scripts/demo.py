@@ -66,7 +66,7 @@ def main() -> None:
         template=args.template,
     )
 
-    intent = {"idea": initial_idea}
+    intent = json.dumps(initial_idea, indent=2)
     scientist.think(intent)
     scientist.code(baseline_result)
     scientist.write()

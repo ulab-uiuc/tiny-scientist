@@ -139,21 +139,13 @@ def main() -> int:
             print("No initial idea provided. Using default idea.")
             initial_idea = create_default_idea()
 
-        # Prepare initial idea dictionary
-        initial_idea_dict = {"idea": initial_idea}
-
         # Generate ideas and refine them by calling run()
         final_result = thinker.run(
-            initial_idea_dict,
+            initial_idea,
             num_ideas=args.num_ideas,
             check_novelty=args.check_novelty,
             pdf_content=pdf_content,  # Already a string
         )
-
-        print("\nGenerated and Refined Ideas:")
-        for i, idea in enumerate(final_result["ideas"]):
-            print(f"\nIdea {i+1}:")
-            print(json.dumps(idea, indent=4))
 
         output_path = args.output or os.path.join(args.output_dir, "refined_ideas.json")
         with open(output_path, "w") as f:

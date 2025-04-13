@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Union
 
 from .configs import Config
 from .tool import PaperSearchTool
@@ -32,218 +32,203 @@ class Thinker:
 
         # Load prompt templates
         self.prompts = self.config.prompt_template.thinker_prompt
+        self.found_papers: List[Dict[str, Any]] = []
 
-    def think(
-        self, intent: Dict[str, Any], check_novelty: bool, pdf_content: str
-    ) -> Dict[str, Dict[str, Any]]:
+    def think(self, intent: str, pdf_content: str = "") -> str:
         """
-        Generate a single research idea based on the provided intent.
-        The intent may include an initial idea; if not, the intent itself is used.
+        Generate a single research idea based on the provided text intent.
         """
-        # Use the "idea" field if available; otherwise, use intent directly.
-        initial_ideas = [intent.get("idea", intent)]
+        print(f"Generating research idea based on: {intent}")
+        self.found_papers = []
 
-        # Generate one idea
-        new_ideas = self.generate_ideas(
-            num_ideas=1,
-            ideas=initial_ideas,
-            num_reflections=self.iter_num,
-            pdf_content=pdf_content,
-        )
+        # Process PDF content if provided
+        if pdf_content and osp.isfile(pdf_content):
+            with open(pdf_content, "r", encoding="utf-8") as file:
+                pdf_content = file.read()
+            print(f"Using content from PDF file: {pdf_content}")
 
-        # Check novelty if requested
-        if check_novelty and new_ideas:
-            new_ideas = self.check_ideas(new_ideas, max_iterations=10)
+        related_works_string = self._search_and_add_references(intent, result_limit=5)
 
-        # Return the first idea or an empty dict
-        if new_ideas[1]:
-            return {"idea": new_ideas[1]}
-        else:
-            return {"idea": {}}
+        # Generate the idea
+        idea = self._generate_idea(intent, related_works_string, pdf_content)
 
-    def rethink(
-        self, info: Dict[str, Dict[str, Any]], current_round: int
-    ) -> Dict[str, Dict[str, Any]]:
+        # Save the idea
+        raw_idea: Any = json.loads(idea)
+        if not isinstance(raw_idea, dict):
+            raw_idea = {}
+        if self.found_papers:
+            raw_idea["References"] = self.found_papers
+        idea = json.dumps(raw_idea, indent=2)
+        self._save_ideas([raw_idea])
+
+        return idea
+
+    def rethink(self, idea_json: str, current_round: int = 1) -> str:
         """
         Refine an existing research idea using one reflection iteration.
         """
-        idea = info.get("idea", {})
-        new_idea, _, _ = self._reflect_idea(
-            idea,
-            current_round=current_round,
-            num_reflections=self.iter_num,
-            msg_history=[],
+        # Generate a search query for this idea
+        query = self._generate_search_query(idea_json)
+        related_works = self.searcher.search_for_papers(query, result_limit=5)
+        related_works_string = (
+            self.searcher.format_paper_results(related_works)
+            if related_works
+            else "No related works found."
         )
-        return {"idea": new_idea} if new_idea else info
+
+        # Search for related papers
+        refined_idea_json = self._reflect_idea(
+            idea_json, current_round, related_works_string
+        )
+
+        # Save the refined idea
+        idea_dict = json.loads(refined_idea_json)
+        self._save_ideas([idea_dict])
+
+        return refined_idea_json
 
     def run(
         self,
-        intent: Dict[str, Dict[str, str]],
+        intent: str,
         num_ideas: int = 1,
-        check_novelty: bool = True,
+        check_novelty: bool = False,
         pdf_content: str = "",
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> str:
         """
-        Generate and refine multiple research ideas based on the provided intent.
+        Generate and refine multiple research ideas based on the provided intent string.
+        For each idea, perform iterative refinement and generate an experiment plan.
         """
-        # 1. Check if we have an initial idea
-        initial_idea = intent.get("idea", intent)
-
         all_ideas = []
+
+        # Process PDF content if provided as a file path
+        if pdf_content and osp.isfile(pdf_content):
+            with open(pdf_content, "r", encoding="utf-8") as file:
+                pdf_content = file.read()
+            print(f"Using content from PDF file: {pdf_content}")
 
         # Loop to generate and refine multiple ideas
         for i in range(num_ideas):
             print(f"\nProcessing idea {i + 1}/{num_ideas}")
 
-            # 2. Generate a new idea using think
-            new_idea_result = self.think(
-                {"idea": initial_idea}, check_novelty, pdf_content
-            )
-            if not new_idea_result["idea"]:
+            # Reset the papers collection for this new idea
+            self.found_papers = []
+
+            # Generate a new idea
+            idea_json = self.think(intent, pdf_content)
+            idea_dict = json.loads(idea_json)
+
+            if not idea_dict:
                 print(f"Failed to generate idea {i + 1}")
                 continue
 
-            new_idea = new_idea_result["idea"]
-            print(f"Generated idea: {new_idea.get('Name', 'Unnamed')}")
+            print(f"Generated idea: {idea_dict.get('Name', 'Unnamed')}")
 
-            # 3. Rethink the new idea iter_num times, using tools in each iteration
-            current_idea = new_idea
+            # Rethink the new idea iter_num times, using tools in each iteration
+            current_idea_json = idea_json
             for j in range(self.iter_num):
                 print(f"  Refinement iteration {j + 1}/{self.iter_num}")
 
                 # Process through all tools
+                current_idea_dict = json.loads(current_idea_json)
                 for tool in self.tools:
-                    tool_input = json.dumps(current_idea)
+                    tool_input = json.dumps(current_idea_dict)
                     info = tool.run(tool_input)
-                    current_idea.update(info)
+                    current_idea_dict.update(info)
+                current_idea_json = json.dumps(current_idea_dict)
 
                 # Refine the idea
-                refined = self.rethink({"idea": current_idea}, current_round=j + 1)
-                current_idea = refined["idea"]
+                current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
 
-            all_ideas.append(current_idea)
+            # Generate an experimental plan for the idea after refinement
+            current_idea_with_experiment = self._generate_experiment_plan(
+                current_idea_json
+            )
+
+            # Check novelty if requested
+            if check_novelty:
+                current_idea_final = self._check_novelty(current_idea_with_experiment)
+            else:
+                current_idea_final = current_idea_with_experiment
+
+            # Add the idea to our collection
+            current_idea_dict = json.loads(current_idea_final)
+
+            if self.found_papers:
+                current_idea_dict["References"] = self.found_papers
+
+            all_ideas.append(current_idea_dict)
             print(
-                f"Completed refinement for idea: {current_idea.get('Name', 'Unnamed')}"
+                f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
 
         # Save all ideas
-        self.save_ideas(all_ideas)
+        self._save_ideas(all_ideas)
 
-        # Return all generated ideas
-        return {"ideas": all_ideas}
-
-    def generate_ideas(
-        self,
-        num_ideas: int = 1,
-        ideas: Optional[List[Dict[str, Any]]] = None,
-        num_reflections: int = 5,
-        pdf_content: str = "",
-    ) -> List[Dict[str, Any]]:
-        if not ideas:
-            raise ValueError("Initial ideas must be provided")
-
-        idea_collection = ideas.copy()
-        original_size = len(idea_collection)
-        print(f"Starting with {original_size} ideas, generating {num_ideas} new ideas")
-
-        for i in range(num_ideas):
-            print(
-                f"\nGenerating idea {original_size + i + 1}/{original_size + num_ideas}"
-            )
-
-            new_idea = self._generate_idea(
-                idea_collection, num_reflections, pdf_content
-            )
-            if new_idea:
-                # Generate an experimental plan for the newly generated idea.
-                experiment_plan = self.generate_experiment_plan(new_idea)
-                if experiment_plan:
-                    new_idea["Experiment"] = experiment_plan
-
-                query = new_idea.get("Title", "")
-                searched_papers = self.searcher.search_for_papers(
-                    query=query, result_limit=5
-                )
-                simplified_papers = (
-                    self.searcher.simplify_papers(searched_papers)
-                    if searched_papers
-                    else []
-                )
-                new_idea["SearchedPapers"] = (
-                    simplified_papers if simplified_papers else []
-                )
-
-                # Add the cited papers
-                citation_queries = new_idea.get("CitationQueries", [])
-                aggregated_papers = []
-                for query in citation_queries:
-                    papers = self.searcher.search_for_papers(
-                        query=query, result_limit=3
-                    )
-                    if papers:
-                        aggregated_papers.extend(self.searcher.simplify_papers(papers))
-
-                seen_titles = set()
-                final_papers = []
-                for paper in aggregated_papers:
-                    if paper["title"] not in seen_titles:
-                        final_papers.append(paper)
-                        seen_titles.add(paper["title"])
-                simplified_final_papers = (
-                    self.searcher.simplify_papers(final_papers) if final_papers else []
-                )
-                new_idea["CitedPapers"] = (
-                    simplified_final_papers if simplified_final_papers else []
-                )
-
-                idea_collection.append(new_idea)
-                print(f"Successfully generated idea: {new_idea.get('Name', 'Unnamed')}")
-            else:
-                print(f"Failed to generate idea {original_size + i + 1}")
-
-        return idea_collection
+        # Return all generated ideas as JSON
+        return json.dumps({"ideas": all_ideas}, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def generate_experiment_plan(
-        self, idea: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        print("Generating experimental plan for the idea...")
-        experiment_text, experiment_msg_history = get_response_from_llm(
-            self.prompts.experiment_plan_prompt.format(idea=json.dumps(idea, indent=2)),
+    def _generate_search_query(self, idea_json: str) -> Any:
+        """
+        Generate an optimized search query based on the idea.
+        """
+        prompt = self.prompts.query_prompt.format(idea=idea_json)
+
+        text, _ = get_response_from_llm(
+            prompt,
             client=self.client,
             model=self.model,
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
         )
-        experiment_plan = extract_json_between_markers(experiment_text)
-        if experiment_plan:
-            print("Experimental plan generated successfully.")
-        else:
+
+        # Extract the query
+        query_json: Any = extract_json_between_markers(text)
+        return query_json["query"]
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _generate_experiment_plan(self, idea_json: str) -> str:
+        """
+        Generate an experimental plan for the idea.
+        """
+        try:
+            idea_dict = json.loads(idea_json)
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON input")
+            return idea_json
+
+        print("Generating experimental plan for the idea...")
+
+        # Get the prompt
+        prompt = self.prompts.experiment_plan_prompt.format(idea=idea_json)
+
+        # Call the LLM
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.idea_system_prompt,
+            msg_history=[],
+            temperature=self.temperature,
+        )
+
+        # Extract the experiment plan
+        experiment_plan = extract_json_between_markers(text)
+        if not experiment_plan:
             print("Failed to generate experimental plan.")
-        return experiment_plan
+            return idea_json
 
-    def check_ideas(
-        self,
-        ideas: List[Dict[str, Any]],
-        max_iterations: int = 10,
-        engine: str = "semanticscholar",
-    ) -> List[Dict[str, Any]]:
-        if not ideas:
-            raise ValueError("Ideas must be provided for novelty checking")
+        # Add the experiment plan to the idea
+        idea_dict["Experiment"] = experiment_plan
 
-        for idx, idea in enumerate(ideas):
-            if "novel" in idea:
-                print(f"Skipping idea {idx}, already checked.")
-                continue
+        print("Experimental plan generated successfully.")
+        return json.dumps(idea_dict, indent=2)
 
-            print(f"\nChecking novelty of idea {idx}: {idea['Name']}")
-            idea["novel"] = self._check_idea(idea, max_iterations, engine)
-
-        self.save_ideas(ideas)
-        return ideas
-
-    def save_ideas(self, ideas: List[Dict[str, Any]]) -> None:
+    def _save_ideas(self, ideas: List[str]) -> None:
+        """
+        Save ideas to a JSON file.
+        """
         output_path = osp.join(self.output_dir, "ideas.json")
         with open(output_path, "w") as f:
             json.dump(ideas, f, indent=4)
@@ -251,80 +236,67 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _reflect_idea(
-        self,
-        idea: Dict[str, Any],
-        current_round: int,
-        num_reflections: int,
-        msg_history: List[Dict[str, Any]],
-    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], bool]:
-        # Ensure idea is a dict
-        if isinstance(idea, list):
-            idea = idea[0]
-        print(f"Iteration {current_round}/{num_reflections}")
+        self, idea_json: str, current_round: int, related_works_string: str
+    ) -> str:
+        """
+        Refine an existing research idea.
+        """
+        print(f"Refining idea - Iteration {current_round} / {self.iter_num}")
 
-        related_works_string = self.searcher.search_for_papers(
-            idea.get("Title", ""), result_limit=5
+        # Get the prompt
+        prompt = self.prompts.idea_reflection_prompt.format(
+            current_round=current_round,
+            num_reflections=self.iter_num,
+            related_works_string=related_works_string,
         )
 
-        text, msg_history = get_response_from_llm(
-            self.prompts.idea_reflection_prompt.format(
-                current_round=current_round,
-                num_reflections=num_reflections,
-                related_works_string=related_works_string,
-            ),
+        # Call the LLM
+        text, _ = get_response_from_llm(
+            prompt,
             client=self.client,
             model=self.model,
             system_message=self.prompts.idea_system_prompt,
-            msg_history=msg_history,
+            msg_history=[],
             temperature=self.temperature,
         )
 
+        # Extract the refined idea
         new_idea = extract_json_between_markers(text)
-        if isinstance(new_idea, list):
+        if isinstance(new_idea, list) and new_idea:
             new_idea = new_idea[0]
-        is_done = "I am done" in text
 
+        # If no valid idea was extracted, return the original
+        if not new_idea:
+            print("Failed to extract a valid idea from refinement")
+            return idea_json
+
+        # Check if refinement is complete
+        is_done = "I am done" in text
         if is_done:
             print(f"Idea refinement converged after {current_round} iterations.")
 
-        return new_idea, msg_history, is_done
+        return json.dumps(new_idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_idea(
-        self, idea_archive: List[Dict[str, Any]], num_reflections: int, pdf_content: str
-    ) -> Optional[Dict[str, Any]]:
-        # Ensure each entry in idea_archive is a dict (unwrap if necessary)
-        idea_archive = [
-            idea[0] if isinstance(idea, list) else idea for idea in idea_archive
-        ]
-
-        # Format previous ideas
-        prev_ideas_string = "\n\n".join(json.dumps(idea) for idea in idea_archive)
-
+        self, intent: str, related_works_string: str, pdf_content: str = ""
+    ) -> str:
+        """
+        Generate a single research idea from an intent text.
+        """
+        # Format PDF content section if provided
         pdf_section = (
             f"Based on the content of the following paper:\n\n{pdf_content}\n\n"
             if pdf_content
             else ""
         )
 
-        # Search for related papers
-        if idea_archive:
-            last_idea = idea_archive[-1]
-            last_idea_title = last_idea.get("Title", "")
-            related_works_string = (
-                self.searcher.search_for_papers(last_idea_title, result_limit=5)
-                if last_idea_title
-                else "No related works found."
-            )
-        else:
-            related_works_string = "No related works found."
-
-        print(f"Iteration 1/{num_reflections}")
-        text, msg_history = get_response_from_llm(
+        # Generate the idea
+        text, _ = get_response_from_llm(
             self.prompts.idea_first_prompt.format(
-                prev_ideas_string=prev_ideas_string,
+                intent=intent,
                 related_works_string=related_works_string,
-                num_reflections=num_reflections,
+                num_reflections=1,
                 pdf_section=pdf_section,
             ),
             client=self.client,
@@ -335,47 +307,44 @@ class Thinker:
         )
 
         idea = extract_json_between_markers(text)
-        if isinstance(idea, list):
+        if isinstance(idea, list) and idea:
             idea = idea[0]
 
         if not idea:
-            return None
+            print("Failed to generate a valid idea")
+            return json.dumps({})
 
-        # Reflection steps
-        if num_reflections > 1:
-            for j in range(num_reflections - 1):
-                current_round = j + 2
-                new_idea, msg_history, is_done = self._reflect_idea(
-                    idea=idea,
-                    current_round=current_round,
-                    num_reflections=num_reflections,
-                    msg_history=msg_history,
-                )
-                if not new_idea:
-                    break
-                idea = new_idea
-                if is_done:
-                    break
-
-        return idea
+        return json.dumps(idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _check_idea(
-        self, idea: Dict[str, Any], max_iterations: int, engine: str
-    ) -> bool:
+    def _check_novelty(self, idea_json: str, max_iterations: int = 10) -> str:
+        """
+        Check if the idea is novel by searching for similar papers.
+        """
+        try:
+            idea_dict = json.loads(idea_json)
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON input")
+            return idea_json
+
+        print(f"\nChecking novelty of idea: {idea_dict.get('Name', 'Unnamed')}")
+
         msg_history: List[Dict[str, Any]] = []
         papers_str = ""
+
         for iteration in range(max_iterations):
             print(f"Novelty check iteration {iteration + 1}/{max_iterations}")
 
             # Get LLM decision or query
+            prompt = self.prompts.novelty_prompt.format(
+                current_round=iteration + 1,
+                num_rounds=max_iterations,
+                idea=idea_dict,
+                last_query_results=papers_str,
+            )
+
             text, msg_history = get_response_from_llm(
-                self.prompts.novelty_prompt.format(
-                    current_round=iteration + 1,
-                    num_rounds=max_iterations,
-                    idea=idea,
-                    last_query_results=papers_str,
-                ),
+                prompt,
                 client=self.client,
                 model=self.model,
                 system_message=self.prompts.novelty_system_prompt,
@@ -385,16 +354,16 @@ class Thinker:
             # Check for termination conditions
             if "decision made: novel" in text.lower():
                 print("Decision: Idea is novel")
-                return True
+                idea_dict["novel"] = True
+                break
             if "decision made: not novel" in text.lower():
                 print("Decision: Idea is not novel")
-                return False
+                idea_dict["novel"] = False
+                break
 
             # Extract and process search query
-            if (
-                not (json_output := extract_json_between_markers(text))
-                or "Query" not in json_output
-            ):
+            json_output = extract_json_between_markers(text)
+            if not json_output or "Query" not in json_output:
                 print(f"Failed to get query in iteration {iteration + 1}")
                 continue
 
@@ -402,12 +371,81 @@ class Thinker:
             query = json_output["Query"]
             print(f"Searching for: {query}")
 
-            if not (papers := self.searcher.search_for_papers(query)):
+            papers = self.searcher.search_for_papers(query)
+            if not papers:
                 print(f"No papers found in iteration {iteration + 1}")
                 continue
 
             papers_str = self.searcher.format_paper_results(papers)
             print(f"Found {len(papers)} relevant papers")
 
-        print("Maximum iterations reached without decision, defaulting to not novel.")
-        return False
+        # If no decision was made, default to not novel
+        if "novel" not in idea_dict:
+            print(
+                "Maximum iterations reached without decision, defaulting to not novel."
+            )
+            idea_dict["novel"] = False
+
+        return json.dumps(idea_dict, indent=2)
+
+    def _format_authors(self, authors: Union[List[Any], str]) -> str:
+        """
+        Format author names according to our citation style.
+        """
+        if isinstance(authors, str):
+            return authors
+
+        if not isinstance(authors, list) or not authors:
+            return "Unknown Authors"
+
+        # Extract author names from list items
+        author_names = []
+        for author in authors:
+            if isinstance(author, dict) and "name" in author:
+                author_names.append(author["name"])
+            elif isinstance(author, str):
+                author_names.append(author)
+
+        # If no valid names were found, return unknown
+        if not author_names:
+            return "Unknown Authors"
+
+        # If there are more than three authors, use et al.
+        if len(author_names) > 3:
+            return f"{author_names[0]} et al."
+        else:
+            return ", ".join(author_names)
+
+    def _add_reference(self, paper: Dict[str, Any]) -> None:
+        """
+        Add a paper to our references list, avoiding duplicates.
+        """
+        # Create a reference entry
+        reference = {
+            "id": f"ref{len(self.found_papers) + 1}",
+            "title": paper.get("title", "Unknown Title"),
+            "authors": self._format_authors(paper.get("authors", [])),
+            "year": paper.get("year", "Unknown Year"),
+        }
+
+        # Check if we already have this paper by title
+        for existing_paper in self.found_papers:
+            if existing_paper["title"] == reference["title"]:
+                return
+
+        self.found_papers.append(reference)
+
+    def _search_and_add_references(self, intent: str, result_limit: int = 5) -> str:
+        """
+        Search for papers and add them to our references.
+        """
+        query = self._generate_search_query(intent)
+        papers = self.searcher.search_for_papers(query, result_limit=result_limit)
+        if papers:
+            for paper in papers:
+                self._add_reference(paper)
+        return (
+            self.searcher.format_paper_results(papers)
+            if papers
+            else "No related works found."
+        )
