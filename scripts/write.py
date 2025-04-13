@@ -70,7 +70,7 @@ def main() -> int:
         print("\nStarting paper write-up...")
         writer.run(
             idea=idea,
-            folder_name=args.experiment,
+            experiment_dir=args.experiment,
         )
 
     except Exception as e:

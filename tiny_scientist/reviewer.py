@@ -109,7 +109,7 @@ class Reviewer:
         )
         return json.dumps(new_review, indent=2)
 
-    def run(self, pdf_path: str) -> str:
+    def run(self, pdf_path: str) -> Dict[str, Any]:
         """
         Execute the review process in an ensemble fashion.
         For each of num_reviews iterations, generate a review using review() and then refine it by calling
@@ -129,7 +129,7 @@ class Reviewer:
                 current_review = self.re_review(current_review)
             all_reviews.append(json.loads(current_review))
         final_meta_review = self._write_meta_review(all_reviews)
-        return json.dumps(final_meta_review, indent=2)
+        return final_meta_review
 
     def _generate_query(self, text: str) -> str:
         """

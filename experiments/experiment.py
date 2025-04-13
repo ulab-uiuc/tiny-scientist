@@ -1,6 +1,6 @@
 import argparse
 import os
-from typing import Any, Dict, Tuple
+from typing import Tuple
 
 import torch
 import torch.optim as optim
@@ -8,16 +8,13 @@ from datasets import Dataset, load_dataset
 from torch.nn import CrossEntropyLoss, Module
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from transformers import (
-    AutoModelForSequenceClassification,
-    AutoTokenizer,
-    PreTrainedToken,
-)
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 # Define model and dataset
 MODEL_NAME = "bert-base-uncased"
 DATASET_NAME = "glue"
 TASK_NAME = "sst2"
+
 
 def load_data() -> Tuple[Dataset, Dataset]:
     """Loads the dataset and prepares train/test splits."""
@@ -31,17 +28,25 @@ def load_data() -> Tuple[Dataset, Dataset]:
     dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "label"])
     return dataset["train"], dataset["validation"]
 
-class AdaptiveLRModel(Module): # type: ignore[misc]
+
+class AdaptiveLRModel(Module):  # type: ignore[misc]
     """Custom model wrapper for adaptive learning rate experiments."""
+
     def __init__(self) -> None:
         super().__init__()
-        self.model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_NAME, num_labels=2
+        )
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.nn.modules.container.ModuleDict:
+    def forward(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ) -> torch.nn.modules.container.ModuleDict:
         return self.model(input_ids=input_ids, attention_mask=attention_mask)
 
 
-def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool = True) -> None:
+def train_and_evaluate(
+    output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool = True
+) -> None:
     """Trains the model with adaptive learning rates and evaluates performance."""
     train_data, val_data = load_data()
     model = AdaptiveLRModel()
@@ -49,7 +54,11 @@ def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool
     model.to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=1) if adapt_lr else None
+    scheduler = (
+        ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=1)
+        if adapt_lr
+        else None
+    )
 
     loss_fn = CrossEntropyLoss()
     train_loader: DataLoader = DataLoader(train_data, batch_size=16, shuffle=True)
@@ -62,7 +71,9 @@ def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool
         running_loss = 0.0
         for batch in train_loader:
             optimizer.zero_grad()
-            outputs = model(batch["input_ids"].to(device), batch["attention_mask"].to(device))
+            outputs = model(
+                batch["input_ids"].to(device), batch["attention_mask"].to(device)
+            )
             loss = loss_fn(outputs.logits, batch["label"].to(device))
             loss.backward()
             optimizer.step()
@@ -72,7 +83,9 @@ def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool
         val_loss = 0.0
         with torch.no_grad():
             for batch in val_loader:
-                outputs = model(batch["input_ids"].to(device), batch["attention_mask"].to(device))
+                outputs = model(
+                    batch["input_ids"].to(device), batch["attention_mask"].to(device)
+                )
                 loss = loss_fn(outputs.logits, batch["label"].to(device))
                 val_loss += loss.item()
 
@@ -90,10 +103,19 @@ def train_and_evaluate(output_dir: str, initial_lr: float = 5e-5, adapt_lr: bool
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Experiment with Adaptive Learning Rate")
-    parser.add_argument("--out_dir", type=str, required=True, help="Output directory for model checkpoints")
+    parser = argparse.ArgumentParser(
+        description="Experiment with Adaptive Learning Rate"
+    )
+    parser.add_argument(
+        "--out_dir",
+        type=str,
+        required=True,
+        help="Output directory for model checkpoints",
+    )
     parser.add_argument("--lr", type=float, default=5e-5, help="Initial learning rate")
-    parser.add_argument("--adaptive", action="store_true", help="Use adaptive learning rates")
+    parser.add_argument(
+        "--adaptive", action="store_true", help="Use adaptive learning rates"
+    )
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)

@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from .configs import Config
 from .tool import PaperSearchTool
@@ -34,7 +34,7 @@ class Thinker:
         self.prompts = self.config.prompt_template.thinker_prompt
         self.found_papers: List[Dict[str, Any]] = []
 
-    def think(self, intent: str, pdf_content: str = "") -> str:
+    def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         """
         Generate a single research idea based on the provided text intent.
         """
@@ -59,8 +59,6 @@ class Thinker:
             idea_dict["References"] = self.found_papers
         idea = json.dumps(idea_dict, indent=2)
 
-        self._save_ideas([idea_dict])
-
         return idea
 
     def rethink(self, idea_json: str, current_round: int = 1) -> str:
@@ -81,10 +79,6 @@ class Thinker:
             idea_json, current_round, related_works_string
         )
 
-        # Save the refined idea
-        idea_dict = json.loads(refined_idea_json)
-        self._save_ideas([idea_dict])
-
         return refined_idea_json
 
     def run(
@@ -92,8 +86,8 @@ class Thinker:
         intent: str,
         num_ideas: int = 1,
         check_novelty: bool = False,
-        pdf_content: str = "",
-    ) -> str:
+        pdf_content: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Generate and refine multiple research ideas based on the provided intent string.
         For each idea, perform iterative refinement and generate an experiment plan.
@@ -161,11 +155,14 @@ class Thinker:
                 f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
 
-        # Save all ideas
-        self._save_ideas(all_ideas)
+        if not all_ideas:
+            print("No valid ideas generated.")
+            return {}
 
-        # Return all generated ideas as JSON
-        return json.dumps({"ideas": all_ideas}, indent=2)
+        best_idea = cast(
+            Dict[str, Any], max(all_ideas, key=lambda x: x.get("Score", 0))
+        )
+        return best_idea
 
     def _generate_search_query(self, idea_json: str) -> str:
         """
@@ -278,7 +275,10 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_idea(
-        self, intent: str, related_works_string: str, pdf_content: str = ""
+        self,
+        intent: str,
+        related_works_string: str,
+        pdf_content: Optional[str] = None,
     ) -> str:
         """
         Generate a single research idea from an intent text.

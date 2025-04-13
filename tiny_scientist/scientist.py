@@ -1,6 +1,5 @@
-import json
-import os
-from typing import Any, Dict, Optional
+from pprint import pprint
+from typing import Any, Dict, Optional, Tuple
 
 from .coder import Coder
 from .reviewer import Reviewer
@@ -52,33 +51,36 @@ class TinyScientist:
             tools=[],
         )
 
-    def think(self, intent: str, pdf_content: str = "") -> None:
-        print("🧠 Generating idea...")
-        # idea = self.thinker.run(intent, 1, False, pdf_content)
-        idea = self.thinker.run(intent)
-        self.idea = json.loads(idea)["Title"]
-        idea_path = os.path.join(self.output_dir, "idea.json")
-        with open(idea_path, "w") as f:
-            json.dump(idea, f, indent=2)
-        print("✅ Idea saved.")
+    def think(self, intent: str, pdf_content: Optional[str] = None) -> Dict[str, Any]:
+        pprint("🧠 Generating idea...")
+        idea = self.thinker.run(intent=intent, pdf_content=pdf_content)
+        pprint(idea, width=80, indent=2, compact=False)
+        pprint("✅ Idea generated.")
+        return idea
 
-    def code(self, baseline_results: Dict[str, Any]) -> None:
-        print("💻 Running experiments...")
-        self.baseline_results = baseline_results
-        idea = {"idea": self.idea}
-        self.coder.run(idea, baseline_results=baseline_results)
-        print("✅ Code executed.")
+    def code(
+        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        pprint("💻 Running experiments...")
+        status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
+        if status:
+            pprint(f"✅ Experiment completed successfully. Results saved at {exp_path}")
+        else:
+            pprint(f"❌ Experiment failed. Please check {exp_path} for details.")
+        return status, exp_path
 
-    def write(self) -> None:
-        print("📝 Writing paper...")
-        idea = {"idea": self.idea}
-        self.writer.run(idea=idea, folder_name=self.output_dir)
-        print("✅ Paper written.")
+    def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
+        pprint("📝 Writing paper...")
+        pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
+        pprint(
+            f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
+        )
+        pprint("✅ Paper written.")
+        return pdf_path
 
-    def review(self) -> None:
-        print("🔍 Reviewing paper...")
-        paper_name = self.idea
-        pdf_name = f"{paper_name}.pdf"
-        pdf_path = os.path.join(self.output_dir, pdf_name)
-        self.reviewer.run(pdf_path)
-        print("✅ Review complete.")
+    def review(self, pdf_path: str) -> Dict[str, Any]:
+        pprint("🔍 Reviewing paper...")
+        review = self.reviewer.run(pdf_path=pdf_path)
+        pprint(review, width=80, indent=2, compact=False)
+        pprint("✅ Review complete.")
+        return review

@@ -3,7 +3,7 @@ import os.path as osp
 import re
 import time
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
@@ -36,20 +36,20 @@ class Writer:
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
         if self.template == "acl":
-            self.formatter = ACLOutputFormatter(self.client, self.model)
+            self.formatter = ACLOutputFormatter(model=self.model, client=self.client)
         elif self.template == "iclr":
-            self.formatter = ICLROutputFormatter(self.client, self.model)
+            self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
 
         self.prompts = self.config.prompt_template.writer_prompt
 
-    def run(self, idea: Dict[str, Any], folder_name: str) -> None:
-        with open(osp.join(folder_name, "experiment.py"), "r") as f:
+    def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
+        with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
             code = f.read()
 
-        with open(osp.join(folder_name, "baseline_results.txt"), "r") as f:
+        with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
             baseline_result = f.read()
 
-        with open(osp.join(folder_name, "experiment_results.txt"), "r") as f:
+        with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
             experiment_result = f.read()
 
         self.generated_sections: Dict[str, Any] = {}
@@ -73,13 +73,15 @@ class Writer:
 
         paper_name = idea.get("Title", "Research Paper")
 
+        output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         self.formatter.run(
-            self.generated_sections,
-            self.references,
-            self.output_dir,
-            f"{self.output_dir}/{paper_name}.pdf",
-            paper_name,
+            content=self.generated_sections,
+            references=self.references,
+            output_dir=self.output_dir,
+            output_pdf_path=output_pdf_path,
+            name=paper_name,
         )
+        return output_pdf_path, paper_name
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
         title = idea.get("Title", "Research Paper")
