@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from .configs import Config
 from .tool import PaperSearchTool
@@ -159,7 +159,9 @@ class Thinker:
             print("No valid ideas generated.")
             return {}
 
-        best_idea = max(all_ideas, key=lambda x: x.get("Score", 0))
+        best_idea = cast(
+            Dict[str, Any], max(all_ideas, key=lambda x: x.get("Score", 0))
+        )
         return best_idea
 
     def _generate_search_query(self, idea_json: str) -> str:

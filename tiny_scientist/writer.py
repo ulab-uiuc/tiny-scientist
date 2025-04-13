@@ -38,7 +38,7 @@ class Writer:
         if self.template == "acl":
             self.formatter = ACLOutputFormatter(model=self.model, client=self.client)
         elif self.template == "iclr":
-            self.formatter = ICLROutputFormatter(model=self.client, client=self.model)
+            self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
 
         self.prompts = self.config.prompt_template.writer_prompt
 
