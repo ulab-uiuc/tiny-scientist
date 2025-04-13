@@ -53,13 +53,13 @@ class Thinker:
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
         # Save the idea
-        raw_idea: Any = json.loads(idea)
-        if not isinstance(raw_idea, dict):
-            raw_idea = {}
+        idea_dict = json.loads(idea)
+
         if self.found_papers:
-            raw_idea["References"] = self.found_papers
-        idea = json.dumps(raw_idea, indent=2)
-        self._save_ideas([raw_idea])
+            idea_dict["References"] = self.found_papers
+        idea = json.dumps(idea_dict, indent=2)
+
+        self._save_ideas([idea_dict])
 
         return idea
 
@@ -126,7 +126,7 @@ class Thinker:
             # Rethink the new idea iter_num times, using tools in each iteration
             current_idea_json = idea_json
             for j in range(self.iter_num):
-                print(f"  Refinement iteration {j + 1}/{self.iter_num}")
+                print(f"Refining idea {j + 1}/{self.iter_num}")
 
                 # Process through all tools
                 current_idea_dict = json.loads(current_idea_json)
@@ -167,14 +167,13 @@ class Thinker:
         # Return all generated ideas as JSON
         return json.dumps({"ideas": all_ideas}, indent=2)
 
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _generate_search_query(self, idea_json: str) -> Any:
+    def _generate_search_query(self, idea_json: str) -> str:
         """
         Generate an optimized search query based on the idea.
         """
         prompt = self.prompts.query_prompt.format(idea=idea_json)
 
-        text, _ = get_response_from_llm(
+        response, _ = get_response_from_llm(
             prompt,
             client=self.client,
             model=self.model,
@@ -184,8 +183,10 @@ class Thinker:
         )
 
         # Extract the query
-        query_json: Any = extract_json_between_markers(text)
-        return query_json["query"]
+        query_data: Any = extract_json_between_markers(response)
+        if query_data is None or "Query" not in query_data:
+            return ""
+        return str(query_data["Query"])
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_experiment_plan(self, idea_json: str) -> str:
@@ -241,8 +242,6 @@ class Thinker:
         """
         Refine an existing research idea.
         """
-        print(f"Refining idea - Iteration {current_round} / {self.iter_num}")
-
         # Get the prompt
         prompt = self.prompts.idea_reflection_prompt.format(
             current_round=current_round,

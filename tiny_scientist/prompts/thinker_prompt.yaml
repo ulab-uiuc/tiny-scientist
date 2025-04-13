@@ -98,7 +98,6 @@ idea_first_prompt: |
   - "Feasibility": A rating from 1 to 10 (lowest to highest).
   - "Novelty": A rating from 1 to 10 (lowest to highest).
   - "Score": Your assessment of this idea on the standard 1-10 ML conference scale.
-  - "CitationQueries": A list of strings representing the citation queries corresponding to the papers cited in your text (e.g., ["Wu, 2023", "Bhardwaj, 2022", "Moskalenko, 2024"])
 
   Be cautious and realistic on your ratings.
   This JSON will be automatically parsed, so ensure the format is precise.
@@ -134,10 +133,22 @@ idea_reflection_prompt: |
   THOUGHT:
   <THOUGHT>
 
-  NEW IDEA JSON:
+  REFLECTED IDEA JSON:
   ```json
   <JSON>
   ```
+  In <JSON>, provide the reflected idea in JSON format with the following fields:
+  - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
+  - "Title": A title for the idea, will be used for the report writing.
+  - "Problem": Answer to question 1.
+  - "Importance": Answer to question 2.
+  - "Difficulty": Answer to question 3.
+  - "NoveltyComparison": Answer to question 4.
+  - "Approach": Answer to question 5.
+  - "Interestingness": A rating from 1 to 10 (lowest to highest).
+  - "Feasibility": A rating from 1 to 10 (lowest to highest).
+  - "Novelty": A rating from 1 to 10 (lowest to highest).
+  - "Score": Your assessment of this idea on the standard 1-10 ML conference scale.
 
   If there is nothing to improve, simply repeat the previous JSON EXACTLY after the thought and include "I am done" at the end of the thoughts but before the JSON.
   ONLY INCLUDE "I am done" IF YOU ARE MAKING NO MORE CHANGES.
@@ -203,5 +214,8 @@ experiment_plan_prompt: |
   ```json
   <JSON>
   ```
-    In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
-    In <JSON>, include detailed paragraphs for "Model", "Dataset", and "Metric".
+  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
+  In <JSON>, provide the experimental plan in JSON format with the following fields:
+  - "Model": Description of model architecture
+  - "Dataset": Description of dataset
+  - "Metric": Description of evaluation metric
