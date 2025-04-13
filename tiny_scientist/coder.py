@@ -62,7 +62,9 @@ class Coder:
             edit_format="diff",
         )
 
-    def run(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> Tuple[bool, str]:
+    def run(
+        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
+    ) -> Tuple[bool, str]:
         """Run the complete experiment workflow."""
         # Set files for this operation
 

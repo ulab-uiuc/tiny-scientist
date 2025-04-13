@@ -57,10 +57,14 @@ def main() -> None:
         template=args.template,
     )
 
-    idea = scientist.think(intent='Evaluating Adaptive Step Sizes in Numerical Optimization')
-    scientist.code(idea=idea, baseline_results=baseline_results)
-    scientist.write(idea=idea, experiment_dir=args.output_dir)
-    review = scientist.review(pdf_path=os.path.join(args.output_dir, "experiment.pdf"))
+    idea = scientist.think(
+        intent="Evaluating Adaptive Step Sizes in Numerical Optimization"
+    )
+    status, experiment_dir = scientist.code(
+        idea=idea, baseline_results=baseline_results
+    )
+    pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
+    scientist.review(pdf_path=pdf_path)
 
 
 if __name__ == "__main__":

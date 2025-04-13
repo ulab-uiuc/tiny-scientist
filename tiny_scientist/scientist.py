@@ -58,7 +58,9 @@ class TinyScientist:
         pprint("✅ Idea generated.")
         return idea
 
-    def code(self, idea: Dict[str, Any], baseline_results: Dict[str, Any]) -> Tuple[bool, str]:
+    def code(
+        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
+    ) -> Tuple[bool, str]:
         pprint("💻 Running experiments...")
         status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
         if status:
@@ -70,7 +72,9 @@ class TinyScientist:
     def write(self, idea: Dict[str, Any], experiment_dir: str) -> None:
         pprint("📝 Writing paper...")
         pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
-        pprint(f'Check the generated paper named as {paper_name} and saved at {pdf_path}')
+        pprint(
+            f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
+        )
         pprint("✅ Paper written.")
         return pdf_path, paper_name
 
