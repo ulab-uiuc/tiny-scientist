@@ -42,14 +42,14 @@ class Writer:
 
         self.prompts = self.config.prompt_template.writer_prompt
 
-    def run(self, idea: Dict[str, Any], folder_name: str) -> None:
-        with open(osp.join(folder_name, "experiment.py"), "r") as f:
+    def run(self, idea: Dict[str, Any], experiment_dir: str) -> None:
+        with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
             code = f.read()
 
-        with open(osp.join(folder_name, "baseline_results.txt"), "r") as f:
+        with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
             baseline_result = f.read()
 
-        with open(osp.join(folder_name, "experiment_results.txt"), "r") as f:
+        with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
             experiment_result = f.read()
 
         self.generated_sections: Dict[str, Any] = {}

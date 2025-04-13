@@ -129,7 +129,7 @@ class Reviewer:
                 current_review = self.re_review(current_review)
             all_reviews.append(json.loads(current_review))
         final_meta_review = self._write_meta_review(all_reviews)
-        return json.dumps(final_meta_review, indent=2)
+        return final_meta_review
 
     def _generate_query(self, text: str) -> str:
         """
