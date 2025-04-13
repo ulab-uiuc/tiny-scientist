@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, cast, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import anthropic
 import backoff
@@ -321,7 +321,17 @@ def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
     return None  # No valid JSON found
 
 
-def create_client(model: str) -> Tuple[Union[anthropic.Anthropic, anthropic.AnthropicBedrock, anthropic.AnthropicVertex, openai.OpenAI], str]:
+def create_client(
+    model: str,
+) -> Tuple[
+    Union[
+        anthropic.Anthropic,
+        anthropic.AnthropicBedrock,
+        anthropic.AnthropicVertex,
+        openai.OpenAI,
+    ],
+    str,
+]:
     llm_api_key = config["core"].get("llm_api_key", "")
 
     if model.startswith("claude-"):
