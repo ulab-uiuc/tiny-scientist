@@ -1,8 +1,19 @@
 {
     "Name": "adaptive_learning_rates",
     "Title": "Exploring Adaptive Learning Rate Strategies for Transformer Models",
-    "Experiment": "Modify the optimizer to implement a dynamically adjusting learning rate based on gradient variance.",
+    "Problem": "Transformer-based models are highly sensitive to learning rate schedules. Fixed or manually tuned learning rates often lead to suboptimal convergence and require extensive trial-and-error tuning to generalize across tasks and datasets. While optimizers like Adam and its variants are widely used, there remains a limited understanding of how real-time gradient-based adaptations could improve stability and efficiency during training.",
+    "Importance": "Improving the adaptability of learning rates could substantially reduce instability during training and lessen the need for extensive hyperparameter tuning. This would democratize fine-tuning Transformer models across compute-constrained environments and improve reproducibility across diverse NLP tasks.",
+    "Difficulty": "The main challenge lies in designing learning rate control mechanisms that dynamically respond to optimization signals like gradient variance without inducing instability or large computational overhead. It also requires careful integration into existing optimization frameworks and benchmarking across multiple tasks.",
+    "NoveltyComparison": "Most previous work on learning rate schedules relies on fixed heuristics like cosine decay, warm-up steps, or cyclical patterns. In contrast, our approach dynamically adjusts learning rates based on statistical analysis of the gradient magnitude variance. This design draws from adaptive control theory and second-order optimization insights to provide more fine-grained and context-aware adaptation strategies.",
+    "Approach": "This work proposes a method that integrates gradient variance monitoring into the optimizer. If gradient variance exceeds a predefined threshold, the learning rate is reduced to enhance stability. If variance is low, a more aggressive learning rate is applied to accelerate convergence. The method is implemented in a PyTorch-based optimizer and benchmarked on standard Transformer architectures.",
+    "Experiment": {
+      "Model": "We use a BERT-base Transformer model and implement a custom optimizer subclass based on AdamW. The optimizer tracks moving averages of gradient variance to adjust the learning rate dynamically. Baselines include standard AdamW with cosine decay, linear warm-up, and constant schedules. The implementation uses HuggingFace Transformers and PyTorch Lightning for training pipelines.",
+      "Dataset": "We evaluate the approach using the GLUE benchmark suite. Key tasks include SST-2 for sentiment classification and MRPC for paraphrase detection. These tasks are selected due to their sensitivity to learning rate choices during fine-tuning. Datasets are loaded via HuggingFace Datasets with standard preprocessing and evaluation metrics.",
+      "Metric": "We report task-specific accuracy and F1 scores. Additional metrics include convergence speed (epochs to 90% of peak performance), training stability (standard deviation across runs with different seeds), and robustness across different batch sizes. Each experiment is repeated 3 times to compute variance."
+    },
     "Interestingness": 8,
     "Feasibility": 7,
-    "Novelty": 9
-}
+    "Novelty": 9,
+    "IntentAlignment": 9,
+    "Score": 8
+  }

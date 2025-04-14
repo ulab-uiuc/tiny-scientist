@@ -1,28 +1,69 @@
+experiment_keyword_prompt: |
+  The experiment is organized into three sections:
+  ## Model Section:
+  {model}
+
+  ## Dataset Section:
+  {dataset}
+
+  ## Metric Section:
+  {metric}
+
+  Your job is to extract the essential names of models, datasets, and evaluation metrics that are directly useful for coding and experimentation.
+
+  ### Output Format:
+  Return a JSON object with the following structure:
+  ```json
+  {{
+    "model": ["Model1", "Model2", ...],
+    "dataset": ["Dataset1", "Dataset2", ...],
+    "metric": ["Metric1", "Metric2", ...]
+  }}
+
 experiment_prompt: |
-  Your goal is to implement the following idea: {title}.
-  The proposed experiment is as follows: {idea}.
-  You are given a total of up to {max_runs} runs to complete the necessary experiments.
+  You are writing a Python script named `experiment.py` that must be runnable.
 
-  First, decide the experiments you want to run. If you're sweeping over a hyperparameter, clearly define what value to use in each run.
+  ## Research Context
+  Title: {title}
+  Problem: {problem}
+  Novelty: {novelty}
+  Proposed Approach: {approach}
 
-  The vanilla baseline results are already provided below, so you do not need to re-run the baseline:
+  ## Experimental Setup
+  The following describes the experiment setup. You must base your implementation strictly on this structure:
 
-  {baseline_results}
+  Models/Algorithms to use: {model}
+  Datasets involved: {dataset}
+  Evaluation metrics: {metric}
 
-  For each run, we will execute the **exact command**:
+  ## Execution Command (DO NOT MODIFY):
+  You have {max_runs} runs to complete this experiment. For each run, the script will be executed using:
   `python experiment.py --out_dir=run_i`
-  where `i` is the run number (e.g., `run_1`, `run_2`, ...). DO NOT modify this command or the way the output directory is named.
+  where `i` is the run number (`run_1`, `run_2`, etc.).
 
-  YOU MUST ENSURE experiment.py:
-    1. Parses the `--out_dir` argument.
-    2. Creates the output directory using `os.makedirs(out_dir, exist_ok=True)`.
-    3. Performs actual model training and evaluation — DO NOT simulate results using random numbers.
-    4. Implements `compute_loss`, `evaluate_model`, and `log_results` with real logic.
-    5. **Saves results as a dictionary (e.g., loss, accuracy, etc.) in a file named `final_info.json` placed directly inside `out_dir`** — do **not** save into nested folders like `out_dir/variant_name/final_info.json`.
+  ## YOU MUST ENSURE experiment.py:
+  1. Parses the `--out_dir` argument.
+  2. Creates the output directory using `os.makedirs(out_dir, exist_ok=True)`.
+  3. Performs actual model training and evaluation — DO NOT simulate results using random numbers or hardcode experiment result, all result should get from execution.
+  4. Implements evaluation metircs with real logic.
+  5. **Saves results as a dictionary in a file named `final_info.json` placed directly inside `out_dir`** — do **not** save into nested folders like `out_dir/variant_name/final_info.json`.
 
+  ## Computational Constraints
+  - Ensure the code is computationally affordable to run on a single GPU or CPU machine.
+  - Avoid using large models like GPT, T5, BERT-large, or full ImageNet training.
+  - Prefer small-scale tasks, toy models, or low-cost benchmarks (e.g., MNIST, UCI datasets, small MLPs or ResNet18).
+  - Do not use complex distributed training or multi-GPU setups.
+  
   Do not add extra command-line arguments.
   If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.
+
+  ## Baseline Results
+  You do not need to re-run the baseline. Its results are provided below:
+  {baseline_results}
+
+  ---
+  Please begin writing the `experiment.py` file now.
 
 experiment_success_prompt: |
   Run {run_num} completed. Here are the results:

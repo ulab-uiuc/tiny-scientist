@@ -33,6 +33,7 @@ class WriterPrompt(BaseModel):
 
 
 class CoderPrompt(BaseModel):
+    experiment_keyword_prompt: str
     experiment_prompt: str
     experiment_success_prompt: str
     experiment_error_prompt: str

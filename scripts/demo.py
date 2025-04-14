@@ -60,6 +60,7 @@ def main() -> None:
     idea = scientist.think(
         intent="Evaluating Adaptive Step Sizes in Numerical Optimization"
     )
+
     status, experiment_dir = scientist.code(
         idea=idea, baseline_results=baseline_results
     )

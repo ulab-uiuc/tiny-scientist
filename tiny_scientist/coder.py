@@ -11,7 +11,7 @@ from aider.io import InputOutput
 from aider.models import Model
 
 from .configs import Config
-from .utils.llm import create_client
+from .utils.llm import create_client, get_response_from_llm
 
 
 class Coder:
@@ -79,15 +79,13 @@ class Coder:
         success = self._run_experiment_loop(idea, baseline_results)
 
         if not success:
+            # Even if failed, save an empty result file to avoid breaking writer
+            save_path = osp.join(self.output_dir, "experiment_results.txt")
+            with open(save_path, "w") as f:
+                json.dump({}, f, indent=2)
+            print(f"[System] No experiments succeeded, but wrote empty result to {save_path}")
             return False, self.output_dir
 
-        # # Create plots
-        # success = self._create_plots()
-        # if not success:
-        #     print("[System] Plotting failed. Please check the logs.")
-        #     return False
-
-        # Update notes
         self._update_notes()
 
         result_summary = {}
@@ -106,6 +104,44 @@ class Coder:
         print(f"[System] All experiment results saved to {save_path}")
 
         return True, self.output_dir
+    
+    def _format_experiment_for_prompt(self, exp: Dict[str, str]) -> Tuple[str, str, str]:
+        llm_prompt = self.prompts.experiment_keyword_prompt.format(
+            model=exp["Model"],
+            dataset=exp["Dataset"],
+            metric=exp["Metric"]
+        )
+
+        llm_output, _ = get_response_from_llm(
+            msg=llm_prompt,
+            client=self.client,
+            model=self.model,
+            system_message="You are helping an AI agent extract implementation-relevant key information from an experiment description.",
+        )
+
+        try:
+            # Clean and parse JSON block
+            llm_output_clean = llm_output.strip().strip("`").strip("json").strip()
+            keyword_info = json.loads(llm_output_clean)
+        except json.JSONDecodeError:
+            print("[System] Failed to parse LLM keyword JSON.")
+            keyword_info = {
+                "model": [],
+                "dataset": [],
+                "metric": [],
+            }
+
+        model_kw = ", ".join(keyword_info.get("model", []))
+        dataset_kw = ", ".join(keyword_info.get("dataset", []))
+        metric_kw = ", ".join(keyword_info.get("metric", []))
+
+        return model_kw, dataset_kw, metric_kw
+
+    def _summarize_to_bullets(self, 
+                              paragraph: str) -> str:
+        # Simple sentence-splitting bullet conversion
+        lines = paragraph.strip().split(". ")
+        return "\n".join(f"- {line.strip().rstrip('.')}" for line in lines if line)
 
     def _run_experiment_loop(
         self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
@@ -115,9 +151,16 @@ class Coder:
         run_time = 1
 
         # Initial prompt
+        model, dataset, metric = self._format_experiment_for_prompt(idea["Experiment"])
+ 
         next_prompt = self.prompts.experiment_prompt.format(
             title=idea["Title"],
-            idea=idea["Experiment"],
+            problem=idea["Problem"],
+            novelty=idea["NoveltyComparison"],
+            approach=idea["Approach"],
+            model = model,
+            dataset = dataset,
+            metric = metric,
             max_runs=self.max_runs,
             baseline_results=baseline_results,
         )
@@ -202,7 +245,9 @@ class Coder:
                 osp.join(self.output_dir, f"run_{run_num}", "final_info.json"), "r"
             ) as f:
                 results = json.load(f)
-
+            
+            print(results)
+            
             results = {
                 k: v["means"] if isinstance(v, dict) and "means" in v else v
                 for k, v in results.items()
@@ -217,49 +262,6 @@ class Coder:
             self._cleanup_failed_run(run_num)
             return 1, self.prompts.experiment_timeout_prompt.format(timeout=timeout)
 
-    def _create_plots(self, timeout: int = 600) -> bool:
-        """Create plots from experimental results."""
-        # Set files for this operation
-        self.coder.fnames = [osp.join(self.output_dir, "plot.py")]
-
-        current_iter = 0
-        next_prompt = self.prompts.plot_initial_prompt
-
-        while True:
-            self.coder.run(next_prompt)
-            return_code, next_prompt = self._run_plotting(timeout)
-
-            current_iter += 1
-            if return_code == 0 or current_iter >= self.max_iters:
-                break
-
-        return return_code == 0
-
-    def _run_plotting(self, timeout: int) -> Tuple[int, str]:
-        """Run the plotting script."""
-        command = ["python", "plot.py"]
-
-        try:
-            result = subprocess.run(
-                command,
-                cwd=self.output_dir,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=timeout,
-            )
-
-            if result.stderr:
-                print(result.stderr, file=sys.stderr)
-
-            if result.returncode != 0:
-                print(f"Plotting failed with return code {result.returncode}")
-                return 1, self.prompts.plot_error_prompt.format(error=result.stderr)
-
-            return 0, ""
-
-        except TimeoutExpired:
-            print(f"Plotting timed out after {timeout} seconds")
-            return 1, self.prompts.plot_timeout_prompt.format(timeout=timeout)
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
