@@ -103,8 +103,7 @@ Edit `config.toml` to include your keys, such as:
 
 ```toml
 [core]
-openai_api_key = "sk-xxxx"
-anthropic_api_key = "..."
+llm_api_key = "xxxx"
 ```
 
 No need to export environment variables manually—just set this once.
@@ -119,7 +118,7 @@ We’re working on extending support for more tools, models, and paper formats. 
 @misc{tinyscientist,
 author       = {Haofei Yu and Keyang Xuan and Fenghai Li and Zijie Lei and Jiaxuan You},
 title        = {TinyScientist: A Lightweight Framework for Building Research Agents},
-howpublished = {[https://github.com/Jiayi-Pan/TinyZero](https://github.com/ulab-uiuc/tiny-scientist)},
+howpublished = {https://github.com/ulab-uiuc/tiny-scientist},
 note         = {Accessed: 2025-04-14},
 year         = {2025}
 }
