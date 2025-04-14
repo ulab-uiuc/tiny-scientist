@@ -65,7 +65,7 @@ class Writer:
             "Discussion",
             "Conclusion",
         ]:
-            self._write_section(idea, code, baseline_result, experiment_result, section)
+            self._write_section(idea, code, experiment_result, section, baseline_result)
 
         self._write_related_work(idea)
         self._refine_paper()
@@ -109,13 +109,12 @@ class Writer:
         self,
         idea: Dict[str, Any],
         code: str,
-        baseline_result: str,
         experiment_result: str,
         section: str,
+        baseline_result: Optional[str] = '',
     ) -> None:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
-
         if section in ["Introduction"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],

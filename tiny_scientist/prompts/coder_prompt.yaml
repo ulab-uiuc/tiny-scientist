@@ -59,8 +59,8 @@ experiment_prompt: |
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.
 
   ## Baseline Results
-  You do not need to re-run the baseline. Its results are provided below:
-  {baseline_results}
+  You do not need to re-run the baseline. If available, the results are provided below:
+    {baseline_results}
 
   ---
   Please begin writing the `experiment.py` file now.
