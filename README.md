@@ -31,8 +31,9 @@
 Our codebase is structured around three core components to support an extensible framework: **core**, **tools**, and **formatters**. The **core** module provides essential functionalities, **tools** enhance and extend these core capabilities, and **formatters** handle input/output tasks such as LaTeX template rendering.
 
 <p align="center">
-  <img src="assets/architecure.png" alt="architecture" width="50%"/>
+  <img src="assets/architecture.png" alt="architecture" width="50%"/>
 </p>
+
 
 # Installation
 
