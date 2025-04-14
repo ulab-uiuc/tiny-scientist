@@ -1,9 +1,12 @@
 import abc
+import os
 import os.path as osp
 import re
 import shutil
 import subprocess
 from typing import Any, Dict
+
+import requests
 
 from .bib_manager import BibManager
 from .water_marker import WaterMarker
@@ -90,6 +93,66 @@ class BaseOutputFormatter(abc.ABC):
             return preamble + "\n" + body_content + "\n" + ending
 
 
+class TemplateDownloader:
+    @staticmethod
+    def download_acl_template(output_dir: str) -> str:
+        print(f"Downloading ACL template from GitHub to {output_dir}")
+        dest_template_dir = osp.join(output_dir, "latex")
+        os.makedirs(dest_template_dir, exist_ok=True)
+
+        # GitHub repository URL for ACL
+        acl_api_url = (
+            "https://api.github.com/repos/acl-org/acl-style-files/contents/latex"
+        )
+        response = requests.get(acl_api_url)
+        response.raise_for_status()
+
+        files_data = response.json()
+        for file_info in files_data:
+            if file_info["type"] == "file":
+                file_url = file_info["download_url"]
+                filename = file_info["name"]
+
+                print(f"Downloading {filename}...")
+                file_response = requests.get(file_url)
+                file_response.raise_for_status()
+
+                with open(osp.join(dest_template_dir, filename), "wb") as f:
+                    f.write(file_response.content)
+
+        return dest_template_dir
+
+    @staticmethod
+    def download_iclr_template(output_dir: str) -> str:
+        print(f"Downloading ICLR template from GitHub to {output_dir}")
+        dest_template_dir = osp.join(output_dir, "latex")
+        os.makedirs(dest_template_dir, exist_ok=True)
+
+        # Get list of files in the iclr2025 directory
+        iclr_api_url = (
+            "https://api.github.com/repos/ICLR/Master-Template/contents/iclr2025"
+        )
+        response = requests.get(iclr_api_url)
+        response.raise_for_status()
+
+        files_data = response.json()
+
+        # Download each file in the directory
+        for file_info in files_data:
+            if file_info["type"] == "file":
+                file_url = file_info["download_url"]
+                filename = file_info["name"]
+
+                print(f"Downloading {filename}...")
+                file_response = requests.get(file_url)
+                file_response.raise_for_status()
+
+                with open(osp.join(dest_template_dir, filename), "wb") as f:
+                    f.write(file_response.content)
+
+        return dest_template_dir
+
+
 class ACLOutputFormatter(BaseOutputFormatter):
     def __init__(self, model: str, client: Any) -> None:
         self.template = "acl"
@@ -106,11 +169,11 @@ class ACLOutputFormatter(BaseOutputFormatter):
         timeout: int = 30,
     ) -> None:
         body_content = self._assemble_body(content)
-        dest_template_dir = self._set_output_dir(output_dir)
+        dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
-        main_tex_path = osp.join(dest_template_dir, "latex", "acl_latex.tex")
+        main_tex_path = osp.join(dest_template_dir, "acl_latex.tex")
 
         with open(main_tex_path, "r", encoding="utf-8") as f:
             template_text = f.read()
@@ -207,7 +270,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
         timeout: int = 30,
     ) -> None:
         body_content = self._assemble_body(content)
-        dest_template_dir = self._set_output_dir(output_dir)
+        dest_template_dir = TemplateDownloader.download_iclr_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
