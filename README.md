@@ -70,7 +70,6 @@ export OPENAI_API_KEY=your-key-here
 Now you can use Tiny-Scientist in Python with only a few lines of code:
 
 ```python
-import json
 from tiny_scientist import TinyScientist
 
 scientist = TinyScientist(model="gpt-4o")
@@ -79,7 +78,7 @@ scientist = TinyScientist(model="gpt-4o")
 idea = scientist.think(intent="Graph neural network and large language model")
 
 # Step 2: Run experiments (you can provide baseline_results if available)
-status, experiment_dir = scientist.code(idea=idea, baseline_results={})
+status, experiment_dir = scientist.code(idea=idea)
 
 # Step 3: Write a paper
 pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
