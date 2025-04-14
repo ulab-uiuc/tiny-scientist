@@ -46,6 +46,7 @@ pip install tiny-scientist
 #### Option 2: Install from source
 
 ```bash
+# create conda environment
 conda create -n tiny-scientist python=3.10
 conda activate tiny-scientist
 
@@ -66,7 +67,7 @@ export OPENAI_API_KEY=your-key-here
 # or use DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
 ```
 
-Now you can use Tiny-Scientist in Python:
+Now you can use Tiny-Scientist in Python with only a few lines of code:
 
 ```python
 import json
