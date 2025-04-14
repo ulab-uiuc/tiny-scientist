@@ -148,7 +148,16 @@ abstract_prompt: |
   {title}
 
   **Research Problem**:
-  What are the challenges in the current methods that this research aims to solve?
+  {problem}
+
+  **Research Challenege**:
+  {difficulty}
+
+  **Research Importance**:
+  {importance}
+
+  **Research Novelty**:
+  {novelty}
 
   **Proposed Experiment**:
   {experiment}
@@ -166,32 +175,57 @@ abstract_prompt: |
 
 section_prompt:
   Introduction: |
-    Please fill in the Introduction section of the writeup. Some tips are provided below:
-    {section_tips}
+    You are writing the Introduction section of a top-tier AI research paper. 
+    The section should establish motivation, define the research gap, explain the proposed solution, highlight contributions, and end with a roadmap.
 
-    The **core idea** of this work is: **{title}**.
+    You must incorporate the following structured information:
 
-    The **motivation** behind this idea is: **{experiment}**.
-    - Explain why this problem is important and relevant to the field.
-    - Describe any limitations of existing approaches that this work aims to address.
-    - Provide high-level intuition on why this method is expected to be beneficial.
+    ## Core Information
+    - Title: **{title}**
+    - Research Problem: **{problem}**
+    - Importance: **{importance}**
+    - Difficulty: **{difficulty}**
+    - Novelty: **{novelty}**
+    - Experiment Plan: **{experiment}**
 
-    The key **contributions** of this work include:
-    - Clearly outline 2-3 specific contributions of the paper.
-    - Highlight how these contributions advance the field.
+    ## Write the Introduction with the following structure:
 
-    Conclude the introduction with a **roadmap** of the paper:
-    - Briefly summarize what each section of the paper covers.
+    1. **Motivation & Relevance**  
+      - Begin with the broader context and why this topic matters now.
+      - Emphasize the importance of the problem to the field.
+
+    2. **Problem Statement & Challenges**  
+      - Clearly describe the gap or limitations in existing methods.
+      - Explain what makes this problem hard and why it's unresolved.
+
+    3. **Proposed Solution Overview**  
+      - Briefly describe the core idea and why it is promising.
+      - Mention what sets your solution apart (e.g., methodology, evaluation scope).
+
+    4. **Contributions**  
+      - Bullet 2–3 specific, novel contributions.
+      - Each contribution should be clear, measurable, and valuable to the community.
+
+    5. **Paper Roadmap**  
+      - End with a sentence summarizing what each section of the paper contains.
+
+    Use professional, academic language, and aim for depth, clarity, and impact.
 
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
     Some tips are provided below:
     {section_tips}
 
+    The **research problem** is: **{problem}**.
+    The **importance** of this problem is: **{importance}**.
+    The **difficulty** of this problem is: **{difficulty}**.
+    The **novelty** of this work is: **{novelty}**.
+
+    - **Explicit structure** mimics typical method sections in real papers.
     - Describe the approach taken in this paper and why it was chosen.
     - If applicable, formalize the method mathematically.
     - Clearly define any novel techniques, modifications, or extensions.
-    - Explain the algorithmic workflow and key implementation details.
+    - Explain the algorithmic workflow and key implementation in detail to make sure every point is clear.
 
     This section must be written based on the **provided code and experimental modifications**.
     The proposed experiment was: **{experiment}**.
@@ -206,6 +240,11 @@ section_prompt:
 
     Some tips are provided below:
     {section_tips}
+
+    The **research problem** is: **{problem}**.
+    The **importance** of this problem is: **{importance}**.
+    The **difficulty** of this problem is: **{difficulty}**.
+    The **novelty** of this work is: **{novelty}**.
 
     - Describe the dataset(s) used for evaluation.
     - Specify key experimental settings, including hardware/software configurations.
@@ -281,7 +320,7 @@ citation_related_work_prompt: |
   Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
 
   The title of the paper is: {idea_title}
-  The motivation and focus of the paper is: {experiment}
+  The problem of the paper is: {problem}
 
   This is round {round_num} out of {total_rounds}. You have already collected the following papers:
   {collected_papers}
@@ -296,7 +335,8 @@ add_citation_prompt: |
   Given current version of the paper
 
   The title of the paper is: {idea_title}
-  The motivation and focus of the paper is: {experiment}
+  The problem of the paper is: {problem}
+  The challenges of the paper are: {challenges}
 
   You are reviewing the following section: {section}
   Current content of the section:

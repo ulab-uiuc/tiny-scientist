@@ -85,12 +85,15 @@ class Writer:
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
         title = idea.get("Title", "Research Paper")
-        experiment = idea.get("Experiment", "No experiment details provided")
 
         abstract_prompt = self.prompts.abstract_prompt.format(
             abstract_tips=self.prompts.section_tips["Abstract"],
             title=title,
-            experiment=experiment,
+            problem =idea["Problem"],
+            importance=idea["Importance"],
+            difficulty=idea["Difficulty"],
+            novelty=idea["NoveltyComparison"],
+            experiment=idea["Experiment"],
         )
 
         abstract_content, _ = get_response_from_llm(
@@ -111,12 +114,16 @@ class Writer:
         section: str,
     ) -> None:
         title = idea.get("Title", "Research Paper")
-        experiment = idea.get("Experiment", "No experiment details provided")
+        experiment = idea.get("Experiment")
 
         if section in ["Introduction"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 title=title,
+                problem =idea["Problem"],
+                importance=idea["Importance"],
+                difficulty=idea["Difficulty"],
+                novelty=idea["NoveltyComparison"],
                 experiment=experiment,
             )
         elif section in ["Conclusion"]:
@@ -127,6 +134,10 @@ class Writer:
         elif section in ["Method", "Experimental_Setup"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
+                problem =idea["Problem"],
+                importance=idea["Importance"],
+                difficulty=idea["Difficulty"],
+                novelty=idea["NoveltyComparison"],
                 experiment=experiment,
                 code=code,
             )
@@ -151,7 +162,6 @@ class Writer:
         self, idea: Dict[str, Any], num_cite_rounds: int, total_num_papers: int
     ) -> List[str]:
         idea_title = idea.get("Title", "Research Paper")
-        experiment = idea.get("Experiment", "No experiment details provided")
 
         num_papers = (
             total_num_papers // num_cite_rounds
@@ -163,7 +173,7 @@ class Writer:
         for round_num in range(num_cite_rounds):
             prompt = self.prompts.citation_related_work_prompt.format(
                 idea_title=idea_title,
-                experiment=experiment,
+                problem =idea["Problem"],
                 num_papers=num_papers,
                 round_num=round_num + 1,
                 collected_papers=collected_papers,
@@ -329,7 +339,6 @@ class Writer:
 
     def _add_citations(self, idea: Dict[str, Any]) -> None:
         idea_title = idea.get("Title", "Research Paper")
-        experiment = idea.get("Experiment", "No experiment details provided")
 
         for section in ["Introduction", "Method", "Experimental_Setup", "Discussion"]:
             if section in self.generated_sections.keys():
@@ -339,7 +348,9 @@ class Writer:
 
                     add_citation_prompt = self.prompts.add_citation_prompt.format(
                         idea_title=idea_title,
-                        experiment=experiment,
+                        problem =idea["Problem"],
+                        importance=idea["Importance"],
+                        challenges=idea["Difficulty"],
                         section=section,
                         section_content=original_content,
                     )
