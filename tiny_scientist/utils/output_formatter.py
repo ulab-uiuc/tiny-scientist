@@ -74,7 +74,7 @@ class BaseOutputFormatter(abc.ABC):
             if content:
                 cleaned_content = self._clean_latex_content(content)
                 section_title = section_titles[section]
-                if section_title != None:
+                if section_title is not None:
                     starts_with_section = re.match(rf"\\section\{{{re.escape(section_title)}\}}", cleaned_content, re.IGNORECASE)
                     starts_with_text = cleaned_content.lower().startswith(section_title.lower())
                     if not starts_with_section and not starts_with_text:
