@@ -193,9 +193,30 @@ class InputFormatter:
         """
         Convenience method to load a PDF, convert it to text, parse the markdown,
         and return a structured JSON-like Python dictionary.
+
+        If no sections are found during parsing, returns the raw PDF text in a
+        compatible format with "title": "", "header": "", and a single section
+        containing the full text.
         """
         pdf_text = self._load_paper(pdf_path, num_pages=num_pages, min_size=min_size)
-        return self._parse_markdown(pdf_text)
+        parsed_result = self._parse_markdown(pdf_text)
+
+        # If no sections were found, return the raw text in a compatible format
+        if not parsed_result.get("sections"):
+            print("No sections found in parsed result, returning raw text")
+            return {
+                "title": "",
+                "header": "",
+                "sections": [
+                    {
+                        "section_name": "Full Text",
+                        "content": pdf_text,
+                        "subsections": [],
+                    }
+                ],
+            }
+
+        return parsed_result
 
     def parse_review_json(self, review_path: str) -> Dict[str, Any]:
         """
