@@ -117,7 +117,7 @@ We’re working on extending support for more tools, models, and paper formats. 
 # Citation
 
 ```
-@misc{tinyzero,
+@misc{tinyscientist,
 author       = {Haofei Yu and Keyang Xuan and Fenghai Li and Zijie Lei and Jiaxuan You},
 title        = {TinyScientist},
 howpublished = {[https://github.com/Jiayi-Pan/TinyZero](https://github.com/ulab-uiuc/tiny-scientist)},
