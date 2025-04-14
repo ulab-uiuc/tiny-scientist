@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import pymupdf
 import pymupdf4llm
 from pypdf import PdfReader
+import requests
+import os
 
 
 class InputFormatter:
@@ -17,7 +19,7 @@ class InputFormatter:
         finally to PyPDF2. Returns the extracted text as a single string.
         """
         try:
-            if num_pages is None:
+            if (num_pages is None):
                 text = pymupdf4llm.to_markdown(pdf_path)
             else:
                 reader = PdfReader(pdf_path)
@@ -204,3 +206,43 @@ class InputFormatter:
         """
         review_text = self._load_review(review_path)
         return self._parse_markdown(review_text)
+
+    def download_template(self, url: str, save_path: str) -> None:
+        """
+        Downloads a file from the given URL and saves it to the specified path.
+
+        Args:
+            url (str): The URL to download the file from.
+            save_path (str): The local path to save the downloaded file.
+        """
+        try:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            with open(save_path, 'wb') as file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
+            print(f"Template downloaded successfully and saved to {save_path}")
+        except requests.RequestException as e:
+            print(f"Failed to download template from {url}: {e}")
+
+    def get_acl_template(self, save_dir: str) -> None:
+        """
+        Downloads the ACL LaTeX template to the specified directory.
+
+        Args:
+            save_dir (str): The directory to save the ACL template.
+        """
+        acl_url = "https://example.com/acl_latex_template.zip"  # Replace with actual URL
+        save_path = os.path.join(save_dir, "acl_latex_template.zip")
+        self.download_template(acl_url, save_path)
+
+    def get_iclr_template(self, save_dir: str) -> None:
+        """
+        Downloads the ICLR LaTeX template to the specified directory.
+
+        Args:
+            save_dir (str): The directory to save the ICLR template.
+        """
+        iclr_url = "https://example.com/iclr_latex_template.zip"  # Replace with actual URL
+        save_path = os.path.join(save_dir, "iclr_latex_template.zip")
+        self.download_template(iclr_url, save_path)
