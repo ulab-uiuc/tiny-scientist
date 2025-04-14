@@ -119,7 +119,7 @@ We’re working on extending support for more tools, models, and paper formats. 
 ```
 @misc{tinyscientist,
 author       = {Haofei Yu and Keyang Xuan and Fenghai Li and Zijie Lei and Jiaxuan You},
-title        = {TinyScientist},
+title        = {TinyScientist: A Lightweight Framework for Building Research Agents},
 howpublished = {[https://github.com/Jiayi-Pan/TinyZero](https://github.com/ulab-uiuc/tiny-scientist)},
 note         = {Accessed: 2025-04-14},
 year         = {2025}
