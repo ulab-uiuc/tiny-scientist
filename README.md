@@ -79,9 +79,7 @@ scientist = TinyScientist(model="gpt-4o")
 idea = scientist.think(intent="Graph neural network and large language model")
 
 # Step 2: Run experiments (you can provide baseline_results if available)
-# Replace with actual JSON string or object
-baseline_results = {}
-status, experiment_dir = scientist.code(idea=idea, baseline_results=baseline_results)
+status, experiment_dir = scientist.code(idea=idea, baseline_results={})
 
 # Step 3: Write a paper
 pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
