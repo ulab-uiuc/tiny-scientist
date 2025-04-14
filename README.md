@@ -80,7 +80,7 @@ idea = scientist.think(intent="Graph neural network and large language model")
 
 # Step 2: Run experiments (you can provide baseline_results if available)
 # Replace with actual JSON string or object
-baseline_results = json.loads("...")
+baseline_results = {}
 status, experiment_dir = scientist.code(idea=idea, baseline_results=baseline_results)
 
 # Step 3: Write a paper
