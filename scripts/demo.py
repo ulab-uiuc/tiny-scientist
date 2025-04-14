@@ -64,8 +64,9 @@ def main() -> None:
     status, experiment_dir = scientist.code(
         idea=idea, baseline_results=baseline_results
     )
-    pdf_path = scientist.write(idea=idea, 
-                               experiment_dir=experiment_dir)
+    if status is False:
+        return
+    pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
     scientist.review(pdf_path=pdf_path)
 
 
