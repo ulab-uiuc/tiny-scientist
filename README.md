@@ -5,7 +5,7 @@
 <h1 align="center">TinyScientist: A Lightweight Framework for Building Research Agents</h1>
 
 <div align="center">
-  
+
 [![PyPI version](https://img.shields.io/pypi/v/tiny-scientist)](https://pypi.org/project/tiny-scientist/)
 [![Python 3.10](https://img.shields.io/badge/python-%E2%89%A53.10-blue)](https://www.python.org/downloads/release/python-3109/)
 [![GitHub pull request](https://img.shields.io/badge/PRs-welcome-red)](https://github.com/hiyouga/LLaMA-Factory/pulls)
@@ -30,7 +30,9 @@
 
 Our codebase is structured around three core components to support an extensible framework: **core**, **tools**, and **formatters**. The **core** module provides essential functionalities, **tools** enhance and extend these core capabilities, and **formatters** handle input/output tasks such as LaTeX template rendering.
 
-![architecure](assets/architecure.png)
+<p align="center">
+  <img src="assets/architecure.png" alt="architecture" width="50%"/>
+</p>
 
 # Installation
 
@@ -76,7 +78,7 @@ idea = scientist.think(intent="Graph neural network and large language model")
 
 # Step 2: Run experiments (you can provide baseline_results if available)
 # Replace with actual JSON string or object
-baseline_results = json.loads("...")  
+baseline_results = json.loads("...")
 status, experiment_dir = scientist.code(idea=idea, baseline_results=baseline_results)
 
 # Step 3: Write a paper
