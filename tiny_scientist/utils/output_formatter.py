@@ -45,7 +45,7 @@ class BaseOutputFormatter(abc.ABC):
         return "\n".join(cleaned_lines)
 
     def _wrap_tables_in_latex(self, content: str) -> str:
-        def replacer(match):
+        def replacer(match: re.Match) -> str:
             tabular_block = match.group(1)
 
             # Check if the tabular block is already inside a table environment
