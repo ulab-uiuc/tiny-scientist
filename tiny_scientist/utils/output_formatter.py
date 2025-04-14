@@ -56,12 +56,29 @@ class BaseOutputFormatter(abc.ABC):
             "Conclusion",
         ]
 
+        section_titles = {
+            "Abstract": None,
+            "Introduction": "Introduction",
+            "Related_Work": "Related Work",
+            "Method": "Method",
+            "Experimental_Setup": "Experimental Setup",
+            "Results": "Results",
+            "Discussion": "Discussion",
+            "Conclusion": "Conclusion",
+        }
+
         body = ""
         for section in section_order:
             raw = contents.get(section, "")
             content = raw.get("text", "") if isinstance(raw, dict) else raw
             if content:
                 cleaned_content = self._clean_latex_content(content)
+                section_title = section_titles[section]
+                if section_title != None:
+                    starts_with_section = re.match(rf"\\section\{{{re.escape(section_title)}\}}", cleaned_content, re.IGNORECASE)
+                    starts_with_text = cleaned_content.lower().startswith(section_title.lower())
+                    if not starts_with_section and not starts_with_text:
+                        body += f"\\section{{{section_title}}}\n"    
                 body += f"{cleaned_content}\n\n"
 
         body += "\n\n\\bibliography{custom}"

@@ -9,6 +9,7 @@ from torch.nn import CrossEntropyLoss, Module
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers.modeling_outputs import BaseModelOutput
 
 # Define model and dataset
 MODEL_NAME = "bert-base-uncased"
@@ -40,7 +41,7 @@ class AdaptiveLRModel(Module):  # type: ignore[misc]
 
     def forward(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor
-    ) -> torch.nn.modules.container.ModuleDict:
+    ) -> BaseModelOutput:
         return self.model(input_ids=input_ids, attention_mask=attention_mask)
 
 
@@ -61,8 +62,8 @@ def train_and_evaluate(
     )
 
     loss_fn = CrossEntropyLoss()
-    train_loader: DataLoader = DataLoader(train_data, batch_size=16, shuffle=True)
-    val_loader: DataLoader = DataLoader(val_data, batch_size=16)
+    train_loader: DataLoader[Dataset] = DataLoader(train_data, batch_size=16, shuffle=True)
+    val_loader: DataLoader[Dataset] = DataLoader(val_data, batch_size=16)
 
     best_val_loss = float("inf")
 
