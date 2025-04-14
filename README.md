@@ -5,6 +5,7 @@
 <h1 align="center">TinyScientist: A Lightweight Framework for Building Research Agents</h1>
 
 <div align="center">
+  
 [![PyPI version](https://img.shields.io/pypi/v/tiny-scientist)](https://pypi.org/project/tiny-scientist/)
 [![Python 3.10](https://img.shields.io/badge/python-%E2%89%A53.10-blue)](https://www.python.org/downloads/release/python-3109/)
 [![GitHub pull request](https://img.shields.io/badge/PRs-welcome-orange)](https://github.com/hiyouga/LLaMA-Factory/pulls)
