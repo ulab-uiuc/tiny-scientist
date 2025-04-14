@@ -6,68 +6,112 @@
 
 <div align="center">
 
+[![PyPI version](https://img.shields.io/pypi/v/tiny-scientist)](https://pypi.org/project/tiny-scientist/)
 [![Python 3.10](https://img.shields.io/badge/python-%E2%89%A53.10-blue)](https://www.python.org/downloads/release/python-3109/)
-[![GitHub pull request](https://img.shields.io/badge/PRs-welcome-orange)](https://github.com/hiyouga/LLaMA-Factory/pulls)
+[![GitHub pull request](https://img.shields.io/badge/PRs-welcome-red)](https://github.com/hiyouga/LLaMA-Factory/pulls)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://pre-commit.com/)
 [![bear-ified](https://raw.githubusercontent.com/beartype/beartype-assets/main/badge/bear-ified.svg)](https://beartype.readthedocs.io)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 </div>
 
-## Introduction
+# Introduction
 
-Welcome to **Tiny-Scientist**, Tiny-Scientist is an automated research agent framework that simulates the full lifecycle of a research process-—from ideation to implementation, paper writing, and review. This cutting-edge platform equips researchers with:
+**Tiny-Scientist** is a lightweight, user-friendly framework for automating the entire lifecycle of scientific research—**from ideation to implementation, writing, and review**. Designed for flexibility, it integrates smoothly with your favorite LLMs and search tools.
 
-1. *End-to-End Automation*: Seamlessly generates novel research ideas, codes experiments, writes full papers, and conducts reviews—all powered by state-of-the-art LLMs.
-2. *Modular Intelligence Agents*: Includes dedicated modules—Thinker, Coder, Writer, and Reviewer—each specialized for a distinct phase of the research workflow.
-3. *Customizable and Extensible*: Designed for flexibility, allowing integration with various search tools and paper templates.
+#### Core Features
 
-🔸 **Core Functions**
+- 🧠 **Think**: Generate structured research ideas from an intent string.
+- 💻 **Code**: Automatically generate and run experiments based on the idea.
+- ✍️ **Write**: Convert your results and ideas into a conference-style paper.
+- 📝 **Review**: Review any form of paper and output structured feedback in JSON.
 
-* 🧠 Think: Automatically generates innovative research ideas through iterative reasoning and refinement.
-* 💻 Code: Translates research ideas into executable code with minimal human input. Supports experiment setup, baseline comparison.
-* ✍️ Write: Generates full-length academic papers with well-structured sections, integrated citation management, and support for multiple conference templates.
-* 📝 Review: Evaluates academic drafts using structured reviewing criteria inspired by top-tier conferences.
+#### Software Architecture
+
+Our codebase is structured around three core components to support an extensible framework: **core**, **tools**, and **formatters**. The **core** module provides essential functionalities, **tools** enhance and extend these core capabilities, and **formatters** handle input/output tasks such as LaTeX template rendering.
+
+<p align="center">
+  <img src="assets/architecture.png" alt="architecture" width="100%"/>
+</p>
 
 
-## Get started
+# Installation
 
-### Install from pip
-
-You can install `tiny-scientist` from `pypi` to use it as a package:
+#### Option 1: Install via pip (recommended)
 
 ```bash
 pip install tiny-scientist
 ```
 
-### Install from scratch
-
-Use a virtual environment to install all dependencies with one command `poetry install`:
+#### Option 2: Install from source
 
 ```bash
+# create conda environment
 conda create -n tiny-scientist python=3.10
 conda activate tiny-scientist
+
+# Install Poetry
 curl -sSL https://install.python-poetry.org | python3
 export PATH="$HOME/.local/bin:$PATH"
+
+# Install dependencies
 poetry install
 ```
 
-### Config environment variables
-Envrionment variables and database related configs are required to code successfully. The recommended way to set all the required values is to use the provided configuration template.
+# Get started
 
-Step 1: Copy the defaulty configuration template
+Before running any code, set your API key:
+
+```bash
+export OPENAI_API_KEY=your-key-here
+# or use DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
+```
+
+Now you can use Tiny-Scientist in Python with only a few lines of code:
+
+```python
+import json
+from tiny_scientist import TinyScientist
+
+scientist = TinyScientist(model="gpt-4o")
+
+# Step 1: Generate a json-format research idea
+idea = scientist.think(intent="Graph neural network and large language model")
+
+# Step 2: Run experiments (you can provide baseline_results if available)
+# Replace with actual JSON string or object
+baseline_results = json.loads("...")
+status, experiment_dir = scientist.code(idea=idea, baseline_results=baseline_results)
+
+# Step 3: Write a paper
+pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
+
+# Step 4: Review the paper
+review = scientist.review(pdf_path=pdf_path)
+```
+
+# Managing API Keys (Optional)
+
+You can configure keys using a `.toml` file for convenience beyond exporting.
+
+#### Step 1: Copy the template
+
 ```bash
 cp config.template.toml config.toml
 ```
 
-Step 2: Fill in the Required Fields
-```bash
-vim config.toml
+#### Step 2: Fill in your API credentials
+
+Edit `config.toml` to include your keys, such as:
+
+```toml
+[core]
+openai_api_key = "sk-xxxx"
+anthropic_api_key = "..."
 ```
 
-Step 3 (optional): Then fill in the necessary API keys and parameters. For example:
-```bash
-[core]
-# S2 API Key for accessing scientific research data
-s2_api_key = "your-semantic-scholar-api-key"
-```
+No need to export environment variables manually—just set this once.
+
+# Contribution
+
+We’re working on extending support for more tools, models, and paper formats. Contributions welcome!
