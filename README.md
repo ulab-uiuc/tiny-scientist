@@ -103,8 +103,7 @@ Edit `config.toml` to include your keys, such as:
 
 ```toml
 [core]
-openai_api_key = "sk-xxxx"
-anthropic_api_key = "..."
+llm_api_key = "xxxx"
 ```
 
 No need to export environment variables manually—just set this once.
