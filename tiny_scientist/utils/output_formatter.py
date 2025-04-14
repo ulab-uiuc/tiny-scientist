@@ -213,7 +213,6 @@ class ACLOutputFormatter(BaseOutputFormatter):
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
         fname = "acl_latex.tex"
-        cwd = osp.join(cwd, "latex")
 
         compile_target = fname
         if not osp.exists(osp.join(cwd, compile_target)):
