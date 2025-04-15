@@ -2,7 +2,7 @@ import os.path as osp
 from typing import Any, Dict, Optional
 
 from .llm import get_response_from_llm
-
+from rich import print
 
 class BibManager:
     def __init__(self, model: str, client: Any) -> None:

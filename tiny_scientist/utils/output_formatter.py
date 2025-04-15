@@ -10,7 +10,7 @@ import requests
 
 from .bib_manager import BibManager
 from .water_marker import WaterMarker
-
+from rich import print
 
 class BaseOutputFormatter(abc.ABC):
     @abc.abstractmethod

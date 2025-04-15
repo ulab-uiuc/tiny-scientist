@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pymupdf
 import pymupdf4llm
 from pypdf import PdfReader
+from rich import print
 
 
 class InputFormatter:
