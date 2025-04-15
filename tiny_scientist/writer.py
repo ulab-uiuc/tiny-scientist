@@ -48,11 +48,14 @@ class Writer:
         with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
             code = f.read()
 
-        with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
-            baseline_result = f.read()
-
         with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
             experiment_result = f.read()
+
+        if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
+            with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
+                baseline_result = f.read()
+        else:
+            baseline_result = ""
 
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
