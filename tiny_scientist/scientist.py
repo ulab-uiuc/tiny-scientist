@@ -1,4 +1,4 @@
-from pprint import pprint
+from rich import print
 from typing import Any, Dict, Optional, Tuple
 
 from .coder import Coder
@@ -6,6 +6,7 @@ from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
+from rich import print
 
 
 class TinyScientist:
@@ -52,35 +53,35 @@ class TinyScientist:
         )
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> Dict[str, Any]:
-        pprint("🧠 Generating idea...")
+        print("🧠 Generating idea...")
         idea = self.thinker.run(intent=intent, pdf_content=pdf_content)
-        pprint(idea, width=80, indent=2, compact=False)
-        pprint("✅ Idea generated.")
+        print(idea)
+        print("✅ Idea generated.")
         return idea
 
     def code(
-        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
+        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {},
     ) -> Tuple[bool, str]:
-        pprint("💻 Running experiments...")
+        print("💻 Running experiments...")
         status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
         if status:
-            pprint(f"✅ Experiment completed successfully. Results saved at {exp_path}")
+            print(f"✅ Experiment completed successfully. Results saved at {exp_path}")
         else:
-            pprint(f"❌ Experiment failed. Please check {exp_path} for details.")
+            print(f"❌ Experiment failed. Please check {exp_path} for details.")
         return status, exp_path
 
     def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
-        pprint("📝 Writing paper...")
+        print("📝 Writing paper...")
         pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
-        pprint(
+        print(
             f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
         )
-        pprint("✅ Paper written.")
+        print("✅ Paper written.")
         return pdf_path
 
     def review(self, pdf_path: str) -> Dict[str, Any]:
-        pprint("🔍 Reviewing paper...")
+        print("🔍 Reviewing paper...")
         review = self.reviewer.run(pdf_path=pdf_path)
-        pprint(review, width=80, indent=2, compact=False)
-        pprint("✅ Review complete.")
+        print(review, width=80, indent=2, compact=False)
+        print("✅ Review complete.")
         return review
