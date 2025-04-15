@@ -36,7 +36,7 @@ def api_calling_error_exponential_backoff(
             while attempts < modified_retries:
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
+                except Exception:
                     wait_time = modified_base_wait_time * (2**attempts)
                     print(f"Attempt {attempts + 1} failed.")
                     print(f"Waiting {wait_time} seconds before retrying...")

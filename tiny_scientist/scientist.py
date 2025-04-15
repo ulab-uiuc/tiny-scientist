@@ -1,12 +1,12 @@
-from rich import print
 from typing import Any, Dict, Optional, Tuple
+
+from rich import print
 
 from .coder import Coder
 from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
-from rich import print
 
 
 class TinyScientist:
@@ -60,7 +60,9 @@ class TinyScientist:
         return idea
 
     def code(
-        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {},
+        self,
+        idea: Dict[str, Any],
+        baseline_results: Optional[Dict[str, Any]] = {},
     ) -> Tuple[bool, str]:
         print("💻 Running experiments...")
         status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
