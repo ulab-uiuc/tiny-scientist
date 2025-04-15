@@ -1,6 +1,8 @@
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from rich import print
+
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff

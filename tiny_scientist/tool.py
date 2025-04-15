@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, cast
 import requests
 import toml
 import yaml
+from rich import print
 
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
@@ -31,6 +32,7 @@ class CodeSearchTool(BaseTool):
         return
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        print(f"Searching for code with query: {query}")
         results = {}
         repos = self.search_github_repositories(query)
 
@@ -187,6 +189,7 @@ class PaperSearchTool(BaseTool):
     def search_for_papers(
         self, query: str, result_limit: int = 3
     ) -> Optional[List[Dict[str, Any]]]:
+        print(f"Searching for papers with query: {query}")
         engine = config["core"].get("engine", "semanticscholar")
         if not query:
             return None
@@ -212,8 +215,6 @@ class PaperSearchTool(BaseTool):
             headers={"X-API-KEY": self.s2_api_key} if self.s2_api_key else {},
             params=params,
         )
-        print(f"Response Status Code: {rsp.status_code}")
-        # print(f"Response Content: {rsp.text[:500]}")
         rsp.raise_for_status()
 
         results = rsp.json()
