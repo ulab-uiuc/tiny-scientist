@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from rich import print
 
@@ -31,7 +31,7 @@ class Reviewer:
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
         self.searcher = PaperSearchTool()
-        self._query_cache = {}
+        self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
 
         self.prompts = self.config.prompt_template.reviewer_prompt
@@ -42,17 +42,18 @@ class Reviewer:
     def review(self, pdf_path: str) -> str:
         formatter = InputFormatter()
         text = formatter.parse_paper_pdf_to_json(pdf_path=pdf_path)
+        paper_text = str(text)
         print(f"Using content from PDF file: {pdf_path}")
 
-        if not text:
+        if not paper_text:
             raise ValueError("No paper text provided for review.")
 
-        query = self._generate_query(str(text))
+        query = self._generate_query(paper_text)
 
         related_works_string = self._get_related_works(query)
         self.last_related_works_string = related_works_string
 
-        base_prompt = self._build_review_prompt(text, related_works_string)
+        base_prompt = self._build_review_prompt(paper_text, related_works_string)
         system_prompt = self.prompts.reviewer_system_prompt_neg
 
         review, _ = self._generate_review(base_prompt, system_prompt, msg_history=[])
@@ -117,12 +118,7 @@ class Reviewer:
         base_prompt = self.prompts.neurips_form.format(
             related_works_string=related_works_string
         )
-        return (
-            base_prompt
-            + "\nHere is the paper you are asked to review:\n```\n"
-            + str(text)
-            + "\n```"
-        )
+        return f"{base_prompt}\nHere is the paper you are asked to review:\n```\n{text}\n```"
 
     def _generate_query(self, text: str) -> str:
         query_prompt = self.prompts.query_prompt.format(paper_text=text)
