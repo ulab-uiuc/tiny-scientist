@@ -2,6 +2,7 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from rich import print
+
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -32,7 +33,7 @@ class Reviewer:
         self.searcher = PaperSearchTool()
         self._query_cache = {}
         self.last_related_works_string = ""
-        
+
         self.prompts = self.config.prompt_template.reviewer_prompt
         self.prompts.neurips_form = self.prompts.neurips_form.format(
             template_instructions=self.prompts.template_instructions
@@ -53,20 +54,18 @@ class Reviewer:
 
         base_prompt = self._build_review_prompt(text, related_works_string)
         system_prompt = self.prompts.reviewer_system_prompt_neg
-        
-        review, _ = self._generate_review(
-            base_prompt, system_prompt, msg_history=[]
-        )
+
+        review, _ = self._generate_review(base_prompt, system_prompt, msg_history=[])
         return json.dumps(review, indent=2)
 
     def re_review(self, review_json: str) -> str:
         current_review = json.loads(review_json)
         if not current_review:
             raise ValueError("No review provided for re-review.")
-            
+
         system_prompt = self.prompts.reviewer_system_prompt_neg
         related_works_string = self.last_related_works_string
-        
+
         new_review, _, _ = self._reflect_review(
             review=current_review,
             reviewer_system_prompt=system_prompt,
@@ -77,24 +76,24 @@ class Reviewer:
 
     def run(self, pdf_path: str) -> Dict[str, Any]:
         all_reviews = []
-        
+
         for i in range(self.num_reviews):
             print(f"Generating {i + 1}/{self.num_reviews} review")
             current_review = self.review(pdf_path)
-            
+
             # Apply tools to review
             for tool in self.tools:
                 tool_input = json.dumps({"review": current_review})
                 tool_output = tool.run(tool_input)
                 if "review" in tool_output:
                     current_review = tool_output["review"]["review"]
-            
+
             # Apply reflections
             for j in range(self.num_reflections):
                 current_review = self.re_review(current_review)
-                
+
             all_reviews.append(json.loads(current_review))
-            
+
         return self._write_meta_review(all_reviews)
 
     def _get_related_works(self, query: str) -> str:
@@ -111,14 +110,19 @@ class Reviewer:
         else:
             related_works_string = "No related works found."
             print("❎No Related Works Found")
-            
+
         return related_works_string
 
     def _build_review_prompt(self, text: str, related_works_string: str) -> str:
         base_prompt = self.prompts.neurips_form.format(
             related_works_string=related_works_string
         )
-        return base_prompt + "\nHere is the paper you are asked to review:\n```\n" + str(text) + "\n```"
+        return (
+            base_prompt
+            + "\nHere is the paper you are asked to review:\n```\n"
+            + str(text)
+            + "\n```"
+        )
 
     def _generate_query(self, text: str) -> str:
         query_prompt = self.prompts.query_prompt.format(paper_text=text)
@@ -142,7 +146,7 @@ class Reviewer:
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         if msg_history is None:
             msg_history = []
-            
+
         llm_review, msg_history = get_response_from_llm(
             base_prompt,
             model=self.model,
@@ -169,7 +173,7 @@ class Reviewer:
                 related_works_string=related_works_string
             )
         )
-        
+
         text, msg_history = get_response_from_llm(
             updated_prompt,
             client=self.client,
@@ -178,10 +182,10 @@ class Reviewer:
             msg_history=msg_history,
             temperature=self.temperature,
         )
-        
+
         new_review = extract_json_between_markers(text)
         is_done = "I am done" in text
-        
+
         return new_review or {}, msg_history, is_done
 
     def _write_meta_review(self, reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -192,12 +196,12 @@ class Reviewer:
             f"\nReview {i + 1}:\n```\n{json.dumps(r)}\n```\n"
             for i, r in enumerate(reviews)
         )
-        
+
         meta_prompt = self.prompts.neurips_form + formatted_reviews
         meta_system_prompt = self.prompts.meta_reviewer_system_prompt.format(
             reviewer_count=len(reviews)
         )
-        
+
         llm_meta_review, _ = get_response_from_llm(
             meta_prompt,
             model=self.model,
@@ -206,11 +210,11 @@ class Reviewer:
             msg_history=[],
             temperature=self.temperature,
         )
-        
+
         meta_review = extract_json_between_markers(llm_meta_review)
         if meta_review is None:
             return {}
-            
+
         return self._aggregate_scores(meta_review, reviews)
 
     def _aggregate_scores(
@@ -236,10 +240,10 @@ class Reviewer:
                 and isinstance(r[score], (int, float))
                 and min_val <= r[score] <= max_val
             ]
-            
+
             if valid_scores:
                 meta_review[score] = int(round(sum(valid_scores) / len(valid_scores)))
-                
+
         return meta_review
 
     @staticmethod
@@ -253,5 +257,5 @@ class Reviewer:
                 f"{i}: {paper.get('title', 'No title')}. {paper.get('source', 'No authors')}. "
                 f"{paper.get('info', 'No venue')}"
             )
-            
+
         return "\n\n".join(paper_strings)

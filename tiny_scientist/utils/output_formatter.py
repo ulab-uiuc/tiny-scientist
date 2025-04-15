@@ -7,10 +7,11 @@ import subprocess
 from typing import Any, Dict, Match
 
 import requests
+from rich import print
 
 from .bib_manager import BibManager
 from .water_marker import WaterMarker
-from rich import print
+
 
 class BaseOutputFormatter(abc.ABC):
     @abc.abstractmethod

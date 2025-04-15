@@ -46,12 +46,13 @@ class CodeSearchTool(BaseTool):
         self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250
     ) -> str:
         import re
+
         import spacy
 
         title = idea.get("Title", "")
         experiment = idea.get("Experiment", "")
         combined_text = f"{title}. {experiment}"
-        
+
         nlp = spacy.load("en_core_web_sm")
         doc = nlp(combined_text)
         candidates = set()
@@ -119,7 +120,9 @@ class CodeSearchTool(BaseTool):
         }
 
         response = requests.get(url, headers=headers, params=params)
-        print(f"GitHub {search_type.capitalize()} Response Status Code: {response.status_code}")
+        print(
+            f"GitHub {search_type.capitalize()} Response Status Code: {response.status_code}"
+        )
         response.raise_for_status()
 
         results = response.json()
@@ -167,7 +170,7 @@ class PaperSearchTool(BaseTool):
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
         papers = self.search_for_papers(query)
-        
+
         if papers:
             for i, paper in enumerate(papers):
                 paper_id = paper.get("paperId", None)
@@ -204,7 +207,7 @@ class PaperSearchTool(BaseTool):
             "limit": result_limit,
             "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
         }
-        
+
         headers = {"X-API-KEY": self.s2_api_key} if self.s2_api_key else {}
         rsp = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
@@ -262,19 +265,21 @@ class PaperSearchTool(BaseTool):
             ),
             "Unknown",
         )
-        
-        authors_list = [author["author"]["display_name"] for author in work["authorships"]]
+
+        authors_list = [
+            author["author"]["display_name"] for author in work["authorships"]
+        ]
         authors = (
             " and ".join(authors_list)
             if len(authors_list) < 20
             else f"{authors_list[0]} et al."
         )
-        
+
         abstract = work.get("abstract", "")
         if len(abstract) > max_abstract_length:
             print(f"[WARNING] {work['title']}: Abstract is too long, truncating.")
             abstract = abstract[:max_abstract_length]
-            
+
         return {
             "title": work["title"],
             "authors": authors,
@@ -296,7 +301,7 @@ class PaperSearchTool(BaseTool):
 Number of citations: {paper["citationCount"]}
 Abstract: {paper["abstract"]}"""
             )
-            
+
         return "\n\n".join(paper_strings)
 
     @staticmethod
@@ -304,10 +309,12 @@ Abstract: {paper["abstract"]}"""
         simplified = []
         for paper in papers:
             raw_authors = paper.get("authors", [])
-            
+
             if isinstance(raw_authors, list):
                 authors_list = [
-                    author["name"] if isinstance(author, dict) and "name" in author else str(author)
+                    author["name"]
+                    if isinstance(author, dict) and "name" in author
+                    else str(author)
                     for author in raw_authors
                 ]
             else:
@@ -316,13 +323,15 @@ Abstract: {paper["abstract"]}"""
             if len(authors_list) > 2:
                 authors_list = [authors_list[0] + " et al."]
 
-            simplified.append({
-                "year": paper.get("year"),
-                "title": paper.get("title"),
-                "abstract": paper.get("abstract"),
-                "authors": authors_list,
-            })
-            
+            simplified.append(
+                {
+                    "year": paper.get("year"),
+                    "title": paper.get("title"),
+                    "abstract": paper.get("abstract"),
+                    "authors": authors_list,
+                }
+            )
+
         return simplified
 
 
@@ -330,14 +339,19 @@ class DrawerTool(BaseTool):
     def __init__(self, model: Any, prompt_template_dir: str, temperature: float = 0.75):
         self.client, self.model = create_client(model)
         self.temperature = temperature
-        
+
         # Load prompt templates
         with open(osp.join(prompt_template_dir, "diagram_prompt.yaml"), "r") as f:
             self.prompts = yaml.safe_load(f)
 
         # Process template instructions
-        if "template_instructions" in self.prompts and "few_shot_instructions" in self.prompts:
-            self.prompts["few_shot_instructions"] = self.prompts["few_shot_instructions"].replace(
+        if (
+            "template_instructions" in self.prompts
+            and "few_shot_instructions" in self.prompts
+        ):
+            self.prompts["few_shot_instructions"] = self.prompts[
+                "few_shot_instructions"
+            ].replace(
                 "{{ template_instructions }}", self.prompts["template_instructions"]
             )
 
@@ -362,8 +376,10 @@ class DrawerTool(BaseTool):
         drawer_system_prompt: Optional[str] = None,
     ) -> Any:
         # Use default system prompt if none provided
-        drawer_system_prompt = drawer_system_prompt or self.prompts.get("diagram_system_prompt_base")
-        
+        drawer_system_prompt = drawer_system_prompt or self.prompts.get(
+            "diagram_system_prompt_base"
+        )
+
         # Prepare prompt with the few-shot example
         base_prompt = self._prepare_diagram_prompt(text, example)
 
@@ -377,7 +393,9 @@ class DrawerTool(BaseTool):
     def _prepare_diagram_prompt(self, text: str, example: Optional[str] = None) -> str:
         if example:
             # Format with the example
-            few_shot_prompt = self.prompts["few_shot_instructions"].format(example=example)
+            few_shot_prompt = self.prompts["few_shot_instructions"].format(
+                example=example
+            )
             base_prompt = f"{few_shot_prompt}\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
         else:
             # Use just the template instructions
@@ -394,7 +412,7 @@ class DrawerTool(BaseTool):
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
         # Ensure msg_history is a list
         msg_history = msg_history or []
-        
+
         # Generate diagram
         llm_response, msg_history = get_response_from_llm(
             base_prompt,
@@ -419,13 +437,15 @@ class DrawerTool(BaseTool):
         if summary_start != -1:
             summary_end = response.find("DIAGRAM SVG:", summary_start)
             if summary_end != -1:
-                result["summary"] = response[summary_start + 8:summary_end].strip()
+                result["summary"] = response[summary_start + 8 : summary_end].strip()
 
         # Extract the SVG
         svg_start = response.find("```svg", summary_start if summary_start != -1 else 0)
         if svg_start == -1:
             # Try without language specifier
-            svg_start = response.find("```", summary_start if summary_start != -1 else 0)
+            svg_start = response.find(
+                "```", summary_start if summary_start != -1 else 0
+            )
             if svg_start != -1:
                 svg_start += 3  # Skip past ```
         else:
