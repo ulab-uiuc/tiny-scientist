@@ -202,7 +202,7 @@ class PaperSearchTool(BaseTool):
     def _search_semanticscholar(
         self, query: str, result_limit: int
     ) -> Optional[List[Dict[str, Any]]]:
-        params = {
+        params: Dict[str, str | int] = {
             "query": query,
             "limit": result_limit,
             "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
