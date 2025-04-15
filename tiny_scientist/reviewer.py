@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple
 
 from rich import print
 
