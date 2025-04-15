@@ -49,7 +49,7 @@ section_tips:
     - Emphasize what’s **new** and how it extends prior work.
     - Be as explicit as possible about algorithmic flow, data dependencies, and expected behavior.
     - Assume readers will try to re-implement your method — make that feasible.
-    
+
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
     - Do not imagine unknown hardware details.
@@ -199,23 +199,23 @@ section_prompt:
 
     ## Write the Introduction with the following structure:
 
-    1. **Motivation & Relevance**  
+    1. **Motivation & Relevance**
       - Begin with the broader context and why this topic matters now.
       - Emphasize the importance of the problem to the field.
 
-    2. **Problem Statement & Challenges**  
+    2. **Problem Statement & Challenges**
       - Clearly describe the gap or limitations in existing methods.
       - Explain what makes this problem hard and why it's unresolved.
 
-    3. **Proposed Solution Overview**  
+    3. **Proposed Solution Overview**
       - Briefly describe the core idea and why it is promising.
       - Mention what sets your solution apart (e.g., methodology, evaluation scope).
 
-    4. **Contributions**  
+    4. **Contributions**
       - Bullet 2–3 specific, novel contributions.
       - Each contribution should be clear, measurable, and valuable to the community.
 
-    5. **Paper Roadmap**  
+    5. **Paper Roadmap**
       - End with a sentence summarizing what each section of the paper contains.
 
     Use professional, academic language, and aim for depth, clarity, and impact.
@@ -294,7 +294,7 @@ section_prompt:
     - Discuss error analysis, ablation studies, and potential limitations.
 
     All results must be based on the actual experiment execution logs.
-    
+
     **Baseline results** (may be empty if not available):
     {baseline_results}
 

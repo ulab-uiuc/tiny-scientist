@@ -62,7 +62,9 @@ def train_and_evaluate(
     )
 
     loss_fn = CrossEntropyLoss()
-    train_loader: DataLoader[Dataset] = DataLoader(train_data, batch_size=16, shuffle=True)
+    train_loader: DataLoader[Dataset] = DataLoader(
+        train_data, batch_size=16, shuffle=True
+    )
     val_loader: DataLoader[Dataset] = DataLoader(val_data, batch_size=16)
 
     best_val_loss = float("inf")

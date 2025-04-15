@@ -18,51 +18,10 @@ temperature = 0.75
 llm_api_key = ""
 
 # S2 API Key for accessing scientific research data
-s2_api_key = ""
+#s2_api_key = ""
 
-#################################### Authentication ####################################
-[auth]
-# GitHub Token for accessing repositories
-github_token = ""
+# GITHUB TOKEN for accessing GitHub repositories
+#github_token = ""
 
-#################################### Thinker ####################################
-[thinker]
-# Skip generation
-#skip_generation = false
-
-# Maximum number of idea generations
-#max_num_generations = 20
-
-# Number of reflections for improving generated ideas
-#num_reflections = 5
-
-# Whether to check novelty of ideas (true/false)
-#check_novelty = true
-
-# Search engine for novelty checking (options: "semanticscholar")
+# paper searching engine
 #engine = "semanticscholar"
-
-# Maximum attempts to refine ideas
-#max_attempts = 10
-
-#################################### Writer ####################################
-[writer]
-# Number of citation rounds for paper generation
-#num_cite_rounds = 20
-
-# Reference search engine for citations (options: "semanticscholar")
-#engine = "semanticscholar"
-
-#################################### Reviewer ####################################
-[reviewer]
-# Number of reflections of each review
-#num_reflections = 1
-
-# Number of ensemble reviews for improved accuracy
-#num_reviews = 1
-
-# Whether to return message history in the review
-#return_msg_history = false
-
-# Custom system prompt for the reviewer (if needed)
-#reviewer_system_prompt = ""

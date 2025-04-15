@@ -53,7 +53,7 @@ experiment_prompt: |
   - Avoid using large models like GPT, T5, BERT-large, or full ImageNet training.
   - Prefer small-scale tasks, toy models, or low-cost benchmarks (e.g., MNIST, UCI datasets, small MLPs or ResNet18).
   - Do not use complex distributed training or multi-GPU setups.
-  
+
   Do not add extra command-line arguments.
   If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.

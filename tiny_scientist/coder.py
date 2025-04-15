@@ -65,7 +65,6 @@ class Coder:
     def run(
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
     ) -> Tuple[bool, str]:
-
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),
@@ -81,7 +80,9 @@ class Coder:
             save_path = osp.join(self.output_dir, "experiment_results.txt")
             with open(save_path, "w") as f:
                 json.dump({}, f, indent=2)
-            print(f"[System] No experiments succeeded, but wrote empty result to {save_path}")
+            print(
+                f"[System] No experiments succeeded, but wrote empty result to {save_path}"
+            )
             return False, self.output_dir
 
         self._update_notes()
@@ -102,12 +103,12 @@ class Coder:
         print(f"[System] All experiment results saved to {save_path}")
 
         return True, self.output_dir
-    
-    def _format_experiment_for_prompt(self, exp: Dict[str, str]) -> Tuple[str, str, str]:
+
+    def _format_experiment_for_prompt(
+        self, exp: Dict[str, str]
+    ) -> Tuple[str, str, str]:
         llm_prompt = self.prompts.experiment_keyword_prompt.format(
-            model=exp["Model"],
-            dataset=exp["Dataset"],
-            metric=exp["Metric"]
+            model=exp["Model"], dataset=exp["Dataset"], metric=exp["Metric"]
         )
 
         llm_output, _ = get_response_from_llm(
@@ -135,8 +136,7 @@ class Coder:
 
         return model_kw, dataset_kw, metric_kw
 
-    def _summarize_to_bullets(self, 
-                              paragraph: str) -> str:
+    def _summarize_to_bullets(self, paragraph: str) -> str:
         # Simple sentence-splitting bullet conversion
         lines = paragraph.strip().split(". ")
         return "\n".join(f"- {line.strip().rstrip('.')}" for line in lines if line)
@@ -150,15 +150,15 @@ class Coder:
 
         # Initial prompt
         model, dataset, metric = self._format_experiment_for_prompt(idea["Experiment"])
- 
+
         next_prompt = self.prompts.experiment_prompt.format(
             title=idea["Title"],
             problem=idea["Problem"],
             novelty=idea["NoveltyComparison"],
             approach=idea["Approach"],
-            model = model,
-            dataset = dataset,
-            metric = metric,
+            model=model,
+            dataset=dataset,
+            metric=metric,
             max_runs=self.max_runs,
             baseline_results=baseline_results,
         )
@@ -243,7 +243,7 @@ class Coder:
                 osp.join(self.output_dir, f"run_{run_num}", "final_info.json"), "r"
             ) as f:
                 results = json.load(f)
-            
+
             if isinstance(results, dict):
                 results = {
                     k: v["means"] if isinstance(v, dict) and "means" in v else v
@@ -257,7 +257,6 @@ class Coder:
                 for k, v in results.items()
             }
 
-
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1
             )
@@ -266,7 +265,6 @@ class Coder:
             print(f"Run {run_num} timed out after {timeout} seconds")
             self._cleanup_failed_run(run_num)
             return 1, self.prompts.experiment_timeout_prompt.format(timeout=timeout)
-
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
