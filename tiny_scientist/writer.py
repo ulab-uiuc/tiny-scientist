@@ -89,7 +89,7 @@ class Writer:
         abstract_prompt = self.prompts.abstract_prompt.format(
             abstract_tips=self.prompts.section_tips["Abstract"],
             title=title,
-            problem =idea["Problem"],
+            problem=idea["Problem"],
             importance=idea["Importance"],
             difficulty=idea["Difficulty"],
             novelty=idea["NoveltyComparison"],
@@ -111,7 +111,7 @@ class Writer:
         code: str,
         experiment_result: str,
         section: str,
-        baseline_result: Optional[str] = '',
+        baseline_result: Optional[str] = "",
     ) -> None:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
@@ -119,7 +119,7 @@ class Writer:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 title=title,
-                problem =idea["Problem"],
+                problem=idea["Problem"],
                 importance=idea["Importance"],
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
@@ -133,7 +133,7 @@ class Writer:
         elif section in ["Method", "Experimental_Setup"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
-                problem =idea["Problem"],
+                problem=idea["Problem"],
                 importance=idea["Importance"],
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
@@ -172,7 +172,7 @@ class Writer:
         for round_num in range(num_cite_rounds):
             prompt = self.prompts.citation_related_work_prompt.format(
                 idea_title=idea_title,
-                problem =idea["Problem"],
+                problem=idea["Problem"],
                 num_papers=num_papers,
                 round_num=round_num + 1,
                 collected_papers=collected_papers,
@@ -347,7 +347,7 @@ class Writer:
 
                     add_citation_prompt = self.prompts.add_citation_prompt.format(
                         idea_title=idea_title,
-                        problem =idea["Problem"],
+                        problem=idea["Problem"],
                         importance=idea["Importance"],
                         challenges=idea["Difficulty"],
                         section=section,

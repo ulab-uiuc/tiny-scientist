@@ -49,7 +49,10 @@ class BaseOutputFormatter(abc.ABC):
             tabular_block = match.group(1)
 
             # Check if the tabular block is already inside a table environment
-            if "\\begin{table}" in content[:match.start()] and "\\end{table}" in content[match.end():]:
+            if (
+                "\\begin{table}" in content[: match.start()]
+                and "\\end{table}" in content[match.end() :]
+            ):
                 return tabular_block  # Already inside a table, skip wrapping
 
             return (
@@ -64,10 +67,7 @@ class BaseOutputFormatter(abc.ABC):
             )
 
         return re.sub(
-            r"(\\begin{tabular}.*?\\end{tabular})",
-            replacer,
-            content,
-            flags=re.DOTALL
+            r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
     def _assemble_body(self, contents: Dict[str, Dict[str, Any]]) -> str:
@@ -102,10 +102,16 @@ class BaseOutputFormatter(abc.ABC):
                 cleaned_content = self._wrap_tables_in_latex(cleaned_content)
                 section_title = section_titles[section]
                 if section_title is not None:
-                    starts_with_section = re.match(rf"\\section\{{{re.escape(section_title)}\}}", cleaned_content, re.IGNORECASE)
-                    starts_with_text = cleaned_content.lower().startswith(section_title.lower())
+                    starts_with_section = re.match(
+                        rf"\\section\{{{re.escape(section_title)}\}}",
+                        cleaned_content,
+                        re.IGNORECASE,
+                    )
+                    starts_with_text = cleaned_content.lower().startswith(
+                        section_title.lower()
+                    )
                     if not starts_with_section and not starts_with_text:
-                        body += f"\\section{{{section_title}}}\n"    
+                        body += f"\\section{{{section_title}}}\n"
                 body += f"{cleaned_content}\n\n"
 
         body += "\n\n\\bibliography{custom}"
