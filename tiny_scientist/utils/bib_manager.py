@@ -1,6 +1,8 @@
 import os.path as osp
 from typing import Any, Dict, Optional
 
+from rich import print
+
 from .llm import get_response_from_llm
 
 
