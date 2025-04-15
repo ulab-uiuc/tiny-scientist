@@ -84,6 +84,6 @@ class TinyScientist:
     def review(self, pdf_path: str) -> Dict[str, Any]:
         print("🔍 Reviewing paper...")
         review = self.reviewer.run(pdf_path=pdf_path)
-        print(review, width=80, indent=2, compact=False)
+        print(review)
         print("✅ Review complete.")
         return review
