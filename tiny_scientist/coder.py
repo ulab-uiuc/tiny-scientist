@@ -63,10 +63,8 @@ class Coder:
         )
 
     def run(
-        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
+        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
     ) -> Tuple[bool, str]:
-        """Run the complete experiment workflow."""
-        # Set files for this operation
 
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
@@ -144,7 +142,7 @@ class Coder:
         return "\n".join(f"- {line.strip().rstrip('.')}" for line in lines if line)
 
     def _run_experiment_loop(
-        self, idea: Dict[str, Any], baseline_results: Dict[str, Any]
+        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
     ) -> bool:
         """Run the experiment loop with multiple iterations if needed."""
         current_iter = 0
@@ -246,12 +244,19 @@ class Coder:
             ) as f:
                 results = json.load(f)
             
-            print(results)
-            
+            if isinstance(results, dict):
+                results = {
+                    k: v["means"] if isinstance(v, dict) and "means" in v else v
+                    for k, v in results.items()
+                }
+            elif isinstance(results, list):
+                results = {f"entry_{i+1}": entry for i, entry in enumerate(results)}
+
             results = {
                 k: v["means"] if isinstance(v, dict) and "means" in v else v
                 for k, v in results.items()
             }
+
 
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1

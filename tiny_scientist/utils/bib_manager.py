@@ -13,7 +13,7 @@ class BibManager:
         self, references: Dict[str, Any], dest_template_dir: str, template: str
     ) -> None:
         if template == "acl":
-            bib_path = osp.join(dest_template_dir, "latex", "custom.bib")
+            bib_path = osp.join(dest_template_dir, "custom.bib")
         if template == "iclr":
             # you should create a custom.bib file in the iclr folder
             bib_path = osp.join(dest_template_dir, "custom.bib")

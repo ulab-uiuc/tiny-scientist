@@ -4,7 +4,7 @@ import os.path as osp
 import re
 import shutil
 import subprocess
-from typing import Any, Dict
+from typing import Any, Dict, Match
 
 import requests
 
@@ -44,6 +44,32 @@ class BaseOutputFormatter(abc.ABC):
             cleaned_lines.append(line)
         return "\n".join(cleaned_lines)
 
+    def _wrap_tables_in_latex(self, content: str) -> str:
+        def replacer(match: Match[str]) -> str:
+            tabular_block = match.group(1)
+
+            # Check if the tabular block is already inside a table environment
+            if "\\begin{table}" in content[:match.start()] and "\\end{table}" in content[match.end():]:
+                return tabular_block  # Already inside a table, skip wrapping
+
+            return (
+                "\\begin{table}[ht]\n"
+                "\\centering\n"
+                "\\resizebox{\\linewidth}{!}{%\n"
+                f"{tabular_block}\n"
+                "}\n"
+                "\\caption{}\n"
+                "\\label{}\n"
+                "\\end{table}"
+            )
+
+        return re.sub(
+            r"(\\begin{tabular}.*?\\end{tabular})",
+            replacer,
+            content,
+            flags=re.DOTALL
+        )
+
     def _assemble_body(self, contents: Dict[str, Dict[str, Any]]) -> str:
         section_order = [
             "Abstract",
@@ -73,6 +99,7 @@ class BaseOutputFormatter(abc.ABC):
             content = raw.get("text", "") if isinstance(raw, dict) else raw
             if content:
                 cleaned_content = self._clean_latex_content(content)
+                cleaned_content = self._wrap_tables_in_latex(cleaned_content)
                 section_title = section_titles[section]
                 if section_title is not None:
                     starts_with_section = re.match(rf"\\section\{{{re.escape(section_title)}\}}", cleaned_content, re.IGNORECASE)
