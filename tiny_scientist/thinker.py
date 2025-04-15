@@ -84,7 +84,7 @@ class Thinker:
                 print(f"Failed to generate idea {i + 1}")
                 continue
 
-            print(f"Generated idea: {idea_dict.get('Name', 'Unnamed')}")
+            print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
 
             current_idea_json = self._refine_idea(idea_json)
             current_idea_with_experiment = self._generate_experiment_plan(
