@@ -80,11 +80,13 @@ idea = scientist.think(intent="Evaluating adaptive step sizes in numerical optim
 # Step 2: Run experiments (you can provide baseline_results if available)
 status, experiment_dir = scientist.code(idea=idea)
 
-# Step 3: Write a paper
-pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
+# if the experiments run successfully
+if status is True:
+    # Step 3: Write a paper
+    pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
 
-# Step 4: Review the paper
-review = scientist.review(pdf_path=pdf_path)
+    # Step 4: Review the paper
+    review = scientist.review(pdf_path=pdf_path)
 ```
 
 # Managing API Keys (Optional)
