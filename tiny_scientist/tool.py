@@ -27,7 +27,7 @@ class BaseTool(abc.ABC):
 
 class CodeSearchTool(BaseTool):
     def __init__(self) -> None:
-        self.github_token = config["auth"].get("github_token", None)
+        self.github_token = config["core"].get("github_token", None)
         return
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
@@ -187,7 +187,7 @@ class PaperSearchTool(BaseTool):
     def search_for_papers(
         self, query: str, result_limit: int = 3
     ) -> Optional[List[Dict[str, Any]]]:
-        engine = config["thinker"].get("engine", "semanticscholar")
+        engine = config["core"].get("engine", "semanticscholar")
         if not query:
             return None
 
