@@ -63,10 +63,10 @@ class Writer:
         self._write_abstract(idea)
 
         for section in [
-            "Introduction",
             "Method",
             "Experimental_Setup",
             "Results",
+            "Introduction",
             "Discussion",
             "Conclusion",
         ]:
@@ -129,6 +129,8 @@ class Writer:
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
+                method_section = self.generated_sections.get("Method", ""),
+                results_section= self.generated_sections.get("Results", ""),
             )
         elif section in ["Conclusion"]:
             section_prompt = self.prompts.section_prompt[section].format(

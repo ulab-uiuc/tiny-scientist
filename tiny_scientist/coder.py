@@ -231,6 +231,13 @@ class Coder:
 
             if result.returncode != 0:
                 print(f"Run {run_num} failed with return code {result.returncode}")
+                if "ModuleNotFoundError" in result.stderr and getattr(self, "auto_install", True):
+                    missing_pkg = self._extract_missing_package(result.stderr)
+                    print(f"[System] Missing package detected: {missing_pkg}. Attempting to install...")
+                    subprocess.run([sys.executable, "-m", "pip", "install", missing_pkg])
+                    print("[System] Re-running after installing dependency...")
+                    return self._run_single_experiment(run_num, timeout=timeout)
+                    
                 self._cleanup_failed_run(run_num)
 
                 stderr_output = result.stderr
@@ -278,3 +285,11 @@ class Coder:
         run_dir = osp.join(self.output_dir, f"run_{run_num}")
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)
+
+    def _extract_missing_package(self, stderr: str) -> str:
+        for line in stderr.splitlines():
+            if "ModuleNotFoundError" in line:
+                parts = line.split("'")
+                if len(parts) >= 2:
+                    return parts[1]
+        return "unknown-package"

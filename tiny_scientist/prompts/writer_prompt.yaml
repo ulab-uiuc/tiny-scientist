@@ -73,7 +73,6 @@ section_tips:
     - Acknowledge limitations in the findings and suggest possible improvements.
     - Offer realistic ideas for future work or applications of your method.
 
-
   Conclusion: |
     - Brief recap of the entire paper.
     - To keep going with the analogy, you can think of future work as (potential) academic offspring.
@@ -183,42 +182,45 @@ abstract_prompt: |
 
 section_prompt:
   Introduction: |
-    Please fill in the Introduction section of the writeup. The section should establish motivation, define the research gap, explain the proposed solution, highlight contributions, and end with a roadmap.
-    Some tips are provided below:
-    {section_tips}
+    You are writing the Introduction section of a top-tier AI research paper.
 
-    You must incorporate the following structured information:
+    Your goal is to clearly define the motivation, research gap, proposed solution, key contributions, and paper structure — in a way that is engaging, specific, and technically grounded.
 
-    ## Core Information
+    The following structured context must be incorporated:
+
     - Title: **{title}**
     - Research Problem: **{problem}**
     - Importance: **{importance}**
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
+    - Written Method Section:  
+    ```text
+    {method_section}
+    ```
+    - Written Results Section:  
+    ```text
+    {results_section}
+    ```
 
-    ## Write the Introduction with the following structure:
+    Your introduction should follow this structure:
 
-    1. **Motivation & Relevance**
-      - Begin with the broader context and why this topic matters now.
-      - Emphasize the importance of the problem to the field.
+    1. **Context & Motivation**  
+      Start with a compelling opening that highlights why this topic matters, especially now. Emphasize broader relevance and urgency.
 
-    2. **Problem Statement & Challenges**
-      - Clearly describe the gap or limitations in existing methods.
-      - Explain what makes this problem hard and why it's unresolved.
+    2. **Research Gap & Challenge**  
+      Precisely state what problem remains unsolved. What are the limitations of prior work? Why is this problem difficult?
 
-    3. **Proposed Solution Overview**
-      - Briefly describe the core idea and why it is promising.
-      - Mention what sets your solution apart (e.g., methodology, evaluation scope).
+    3. **Proposed Approach**  
+      Briefly explain your core idea. Focus on what is new, how it addresses the gap, and what makes your approach promising.
 
-    4. **Contributions**
-      - Bullet 2–3 specific, novel contributions.
-      - Each contribution should be clear, measurable, and valuable to the community.
+    4. **Contributions**  
+      List 2–3 **specific, novel contributions** as bullet points. These must be concrete and measurable.
 
-    5. **Paper Roadmap**
-      - End with a sentence summarizing what each section of the paper contains.
+    5. **Roadmap**  
+      Conclude with a 1–2 sentence overview of what each major section of the paper will cover.
 
-    Use professional, academic language, and aim for depth, clarity, and impact.
+    Write in a clear, professional academic tone. Prioritize specificity, depth, and logical flow.
 
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.

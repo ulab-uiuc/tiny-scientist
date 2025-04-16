@@ -16,12 +16,6 @@ def parse_args() -> argparse.Namespace:
         help="Path to the experiment directory containing experiment details",
     )
     parser.add_argument(
-        "--prompt_template_dir",
-        type=str,
-        default="../configs",
-        help="Path to directory containing model configurations",
-    )
-    parser.add_argument(
         "--model",
         type=str,
         default="gpt-4o",
@@ -58,14 +52,13 @@ def main() -> int:
         writer = Writer(
             model=args.model,
             output_dir=args.experiment,
-            prompt_template_dir=args.prompt_template_dir,
             template=args.template,
         )
 
         # idea should be import from args.experiemnt and idea.json
         with open(os.path.join(args.experiment, "idea.json"), "r") as f:
             idea = json.load(f)
-
+    
         # Perform paper writing
         print("\nStarting paper write-up...")
         writer.run(
