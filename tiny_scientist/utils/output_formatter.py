@@ -1,9 +1,11 @@
 import abc
 import os
 import os.path as osp
+import platform
 import re
 import shutil
 import subprocess
+import sys
 from typing import Any, Dict, Match
 
 import requests
@@ -263,12 +265,35 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        fname = "acl_latex.tex"
+        def _ensure_pdflatex() -> None:
+            if shutil.which("pdflatex") is not None:
+                return
+            system = platform.system()
+            print("[System] pdflatex not found. Attempting to install...")
 
+            try:
+                if system == "Darwin":
+                    subprocess.run(["brew", "install", "--cask", "mactex"], check=True)
+                    print("[System] Installed MacTeX via Homebrew.")
+                elif system == "Linux":
+                    subprocess.run(["sudo", "apt-get", "update"], check=True)
+                    subprocess.run(["sudo", "apt-get", "install", "-y", "texlive-full"], check=True)
+                    print("[System] Installed TeX Live via apt.")
+                else:
+                    raise RuntimeError("Unsupported system for automatic pdflatex installation.")
+            except Exception as e:
+                print(f"[Error] Automatic pdflatex installation failed: {e}")
+                sys.exit(1)
+
+        _ensure_pdflatex()
+
+        fname = "acl_latex.tex"
         compile_target = fname
+
         if not osp.exists(osp.join(cwd, compile_target)):
             print(f"File {compile_target} not found in {cwd}.")
             return
+
 
         if not compile_target:
             print("Error: No .tex file found to compile. Aborting.")
