@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, cast
 
 from rich import print
 
@@ -32,34 +32,26 @@ class Thinker:
         self.config = Config(prompt_template_dir)
         self.searcher = PaperSearchTool()
         self.prompts = self.config.prompt_template.thinker_prompt
-        self.found_papers: List[Dict[str, Any]] = []
         self.intent = ""
+        self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
         print(f"Generating research idea based on: {intent}")
-        self.found_papers = []
 
         pdf_content = self._load_pdf_content(pdf_content)
-        related_works_string = self._search_and_add_references(intent, result_limit=5)
+        query = self._generate_search_query(intent)
+        related_works_string = self._get_related_works(query)
+
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
-        idea_dict = json.loads(idea)
-        if self.found_papers:
-            idea_dict["References"] = self.found_papers
-
-        return json.dumps(idea_dict, indent=2)
+        return idea
 
     def rethink(self, idea_json: str, current_round: int = 1) -> str:
         query = self._generate_search_query(
             idea_json, intent=self.intent, query_type="rethink"
         )
-        related_works = self.searcher.search_for_papers(query, result_limit=5)
-        related_works_string = (
-            self.searcher.format_paper_results(related_works)
-            if related_works
-            else "No related works found."
-        )
+        related_works_string = self._get_related_works(query)
 
         return self._reflect_idea(idea_json, current_round, related_works_string)
 
@@ -75,7 +67,6 @@ class Thinker:
 
         for i in range(num_ideas):
             print(f"\nProcessing idea {i + 1}/{num_ideas}")
-            self.found_papers = []
 
             idea_json = self.think(intent, pdf_content)
             idea_dict = json.loads(idea_json)
@@ -98,8 +89,6 @@ class Thinker:
             )
 
             current_idea_dict = json.loads(current_idea_final)
-            if self.found_papers:
-                current_idea_dict["References"] = self.found_papers
 
             all_ideas.append(current_idea_dict)
             print(
@@ -136,6 +125,24 @@ class Thinker:
             current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
 
         return current_idea_json
+
+    def _get_related_works(self, query: str) -> str:
+        """Get related works using query caching, similar to Reviewer class"""
+        if query in self._query_cache:
+            related_papers = self._query_cache[query]
+            print("✅ Using cached query results")
+        else:
+            print(f"Searching for papers with query: {query}")
+            results_dict = self.searcher.run(query)
+            related_papers = list(results_dict.values()) if results_dict else []
+            self._query_cache[query] = related_papers
+
+            if related_papers:
+                print("✅ Related Works Found")
+            else:
+                print("❎ No Related Works Found")
+
+        return self._format_paper_results(related_papers)
 
     def _generate_search_query(
         self, content: str, intent: Optional[str] = None, query_type: str = "standard"
@@ -287,16 +294,7 @@ class Thinker:
             query = self._generate_search_query(
                 idea_json, intent=self.intent, query_type="novelty"
             )
-            papers = self.searcher.search_for_papers(query)
-
-            papers_str = "No relevant papers found."
-            if papers:
-                papers_str = self.searcher.format_paper_results(papers)
-                print(f"Found {len(papers)} relevant papers")
-                for paper in papers:
-                    self._add_reference(paper)
-            else:
-                print(f"No papers found in iteration {iteration + 1}")
+            papers_str = self._get_related_works(query)
 
             prompt = self.prompts.novelty_prompt.format(
                 current_round=iteration + 1,
@@ -336,54 +334,17 @@ class Thinker:
 
         return json.dumps(idea_dict, indent=2)
 
-    def _format_authors(self, authors: Union[List[Any], str]) -> str:
-        if isinstance(authors, str):
-            return authors
+    @staticmethod
+    def _format_paper_results(papers: List[Dict[str, Any]]) -> str:
+        """Format paper results exactly like Reviewer class"""
+        if not papers:
+            return "No papers found."
 
-        if not isinstance(authors, list) or not authors:
-            return "Unknown Authors"
+        paper_strings = []
+        for i, paper in enumerate(papers):
+            paper_strings.append(
+                f"{i}: {paper.get('title', 'No title')}. {paper.get('source', 'No authors')}. "
+                f"{paper.get('info', 'No venue')}"
+            )
 
-        author_names = []
-        for author in authors:
-            if isinstance(author, dict) and "name" in author:
-                author_names.append(author["name"])
-            elif isinstance(author, str):
-                author_names.append(author)
-
-        if not author_names:
-            return "Unknown Authors"
-
-        return (
-            f"{author_names[0]} et al."
-            if len(author_names) > 3
-            else ", ".join(author_names)
-        )
-
-    def _add_reference(self, paper: Dict[str, Any]) -> None:
-        reference = {
-            "id": f"ref{len(self.found_papers) + 1}",
-            "title": paper.get("title", "Unknown Title"),
-            "authors": self._format_authors(paper.get("authors", [])),
-            "year": paper.get("year", "Unknown Year"),
-        }
-
-        if any(
-            existing["title"] == reference["title"] for existing in self.found_papers
-        ):
-            return
-
-        self.found_papers.append(reference)
-
-    def _search_and_add_references(self, intent: str, result_limit: int = 5) -> str:
-        query = self._generate_search_query(intent)
-        papers = self.searcher.search_for_papers(query, result_limit=result_limit)
-
-        if papers:
-            for paper in papers:
-                self._add_reference(paper)
-
-        return (
-            self.searcher.format_paper_results(papers)
-            if papers
-            else "No related works found."
-        )
+        return "\n\n".join(paper_strings)

@@ -43,22 +43,7 @@ def main() -> int:
         searcher = CodeSearchTool()
         print(f"Searching for {args.search_type} on GitHub...")
 
-        if args.search_type == "repositories":
-            repos = searcher.search_github_repositories(
-                query=args.query, result_limit=args.result_limit
-            )
-            if repos is None:
-                print("No repositories found.")
-                return 1
-            results = searcher._extract_github_repo_info(repos)
-        else:
-            code = searcher.search_github_code(
-                query=args.query, result_limit=args.result_limit
-            )
-            if code is None:
-                print("No code snippets found.")
-                return 1
-            results = searcher._extract_github_code_info(code)
+        results = searcher.run(query=args.query, search_type=args.search_type)
 
         if not results:
             print("No results found.")

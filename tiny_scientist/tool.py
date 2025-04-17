@@ -1,4 +1,5 @@
 import abc
+import json
 import os
 import os.path as osp
 import time
@@ -27,10 +28,23 @@ class CodeSearchTool(BaseTool):
     def __init__(self) -> None:
         self.github_token = config["core"].get("github_token", None)
 
-    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+    def run(
+        self, query: str, search_type: str = "repositories"
+    ) -> Dict[str, Dict[str, str]]:
         print(f"Searching for code with query: {query}")
         results = {}
-        repos = self.search_github_repositories(query)
+
+        try:
+            idea = json.loads(query)
+            if isinstance(idea, dict) and any(
+                k in idea for k in ["Title", "Experiment"]
+            ):
+                query = self.format_github_repo_query(idea)
+                print(f"Formatted query from idea: {query}")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        repos = self._search_github(query=query, search_type=search_type)
 
         if repos:
             for i, repo in enumerate(repos):
@@ -91,18 +105,8 @@ class CodeSearchTool(BaseTool):
 
         return full_query
 
-    def search_github_repositories(
-        self, query: str, result_limit: int = 10
-    ) -> Optional[List[Dict[str, Any]]]:
-        return self._search_github(query, result_limit, search_type="repositories")
-
-    def search_github_code(
-        self, query: str, result_limit: int = 10
-    ) -> Optional[List[Dict[str, Any]]]:
-        return self._search_github(query, result_limit, search_type="code")
-
     def _search_github(
-        self, query: str, result_limit: int, search_type: str
+        self, query: str, search_type: str, result_limit: int = 10
     ) -> Optional[List[Dict[str, Any]]]:
         if search_type not in ["repositories", "code"]:
             raise ValueError("search_type must be either 'repositories' or 'code'.")
@@ -288,51 +292,6 @@ class PaperSearchTool(BaseTool):
             "abstract": abstract,
             "citationCount": work.get("cited_by_count", 0),
         }
-
-    @staticmethod
-    def format_paper_results(papers: Optional[List[Dict[str, Any]]]) -> str:
-        if not papers:
-            return "No papers found."
-
-        paper_strings = []
-        for i, paper in enumerate(papers):
-            paper_strings.append(
-                f"""{i}: {paper["title"]}. {paper["authors"]}. {paper["venue"]}, {paper["year"]}.
-Number of citations: {paper["citationCount"]}
-Abstract: {paper["abstract"]}"""
-            )
-
-        return "\n\n".join(paper_strings)
-
-    @staticmethod
-    def simplify_papers(papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        simplified = []
-        for paper in papers:
-            raw_authors = paper.get("authors", [])
-
-            if isinstance(raw_authors, list):
-                authors_list = [
-                    author["name"]
-                    if isinstance(author, dict) and "name" in author
-                    else str(author)
-                    for author in raw_authors
-                ]
-            else:
-                authors_list = [str(raw_authors)]
-
-            if len(authors_list) > 2:
-                authors_list = [authors_list[0] + " et al."]
-
-            simplified.append(
-                {
-                    "year": paper.get("year"),
-                    "title": paper.get("title"),
-                    "abstract": paper.get("abstract"),
-                    "authors": authors_list,
-                }
-            )
-
-        return simplified
 
 
 class DrawerTool(BaseTool):
