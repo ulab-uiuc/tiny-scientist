@@ -194,30 +194,30 @@ section_prompt:
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
-    - Written Method Section:  
+    - Written Method Section:
     ```text
     {method_section}
     ```
-    - Written Results Section:  
+    - Written Results Section:
     ```text
     {results_section}
     ```
 
     Your introduction should follow this structure:
 
-    1. **Context & Motivation**  
+    1. **Context & Motivation**
       Start with a compelling opening that highlights why this topic matters, especially now. Emphasize broader relevance and urgency.
 
-    2. **Research Gap & Challenge**  
+    2. **Research Gap & Challenge**
       Precisely state what problem remains unsolved. What are the limitations of prior work? Why is this problem difficult?
 
-    3. **Proposed Approach**  
+    3. **Proposed Approach**
       Briefly explain your core idea. Focus on what is new, how it addresses the gap, and what makes your approach promising.
 
-    4. **Contributions**  
+    4. **Contributions**
       List 2–3 **specific, novel contributions** as bullet points. These must be concrete and measurable.
 
-    5. **Roadmap**  
+    5. **Roadmap**
       Conclude with a 1–2 sentence overview of what each major section of the paper will cover.
 
     Write in a clear, professional academic tone. Prioritize specificity, depth, and logical flow.

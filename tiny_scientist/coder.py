@@ -231,13 +231,19 @@ class Coder:
 
             if result.returncode != 0:
                 print(f"Run {run_num} failed with return code {result.returncode}")
-                if "ModuleNotFoundError" in result.stderr and getattr(self, "auto_install", True):
+                if "ModuleNotFoundError" in result.stderr and getattr(
+                    self, "auto_install", True
+                ):
                     missing_pkg = self._extract_missing_package(result.stderr)
-                    print(f"[System] Missing package detected: {missing_pkg}. Attempting to install...")
-                    subprocess.run([sys.executable, "-m", "pip", "install", missing_pkg])
+                    print(
+                        f"[System] Missing package detected: {missing_pkg}. Attempting to install..."
+                    )
+                    subprocess.run(
+                        [sys.executable, "-m", "pip", "install", missing_pkg]
+                    )
                     print("[System] Re-running after installing dependency...")
                     return self._run_single_experiment(run_num, timeout=timeout)
-                    
+
                 self._cleanup_failed_run(run_num)
 
                 stderr_output = result.stderr

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from rich import print
 
 from .configs import Config
-from .tool import BaseTool, PaperSearchTool
+from .tool import BaseTool, DrawerTool, PaperSearchTool
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
@@ -35,6 +35,7 @@ class Writer:
         self.template = template
         self.temperature = temperature
         self.searcher: BaseTool = PaperSearchTool()
+        self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
         if self.template == "acl":
@@ -110,6 +111,20 @@ class Writer:
 
         self.generated_sections["Abstract"] = abstract_content
 
+    def _generate_diagram_for_section(
+        self, section: str, content: str
+    ) -> Optional[Dict[str, str]]:
+        """Generate a diagram for a specific section if appropriate."""
+        if section in ["Method", "Experimental_Setup", "Results"]:
+            try:
+                diagram_result = self.drawer.run(content)
+                if diagram_result and "diagram" in diagram_result:
+                    return diagram_result["diagram"]
+            except Exception as e:
+                print(f"[WARNING] Failed to generate diagram for {section}: {e}")
+                traceback.print_exc()
+        return None
+
     def _write_section(
         self,
         idea: Dict[str, Any],
@@ -129,8 +144,8 @@ class Writer:
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
-                method_section = self.generated_sections.get("Method", ""),
-                results_section= self.generated_sections.get("Results", ""),
+                method_section=self.generated_sections.get("Method", ""),
+                results_section=self.generated_sections.get("Results", ""),
             )
         elif section in ["Conclusion"]:
             section_prompt = self.prompts.section_prompt[section].format(
@@ -161,6 +176,12 @@ class Writer:
             model=self.model,
             system_message=self.prompts.write_system_prompt,
         )
+
+        # Generate diagram for appropriate sections
+        diagram = self._generate_diagram_for_section(section, section_content)
+        if diagram:
+            # Add diagram to the section content
+            section_content += f"\n\n\\begin{{figure}}[h]\n\\centering\n{diagram['svg']}\n\\caption{{{diagram['summary']}}}\n\\end{{figure}}\n"
 
         self.generated_sections[section] = section_content
 
