@@ -9,11 +9,14 @@ diagram_system_prompt_base: |
   4. Include appropriate labels, arrows, and annotations
   5. Make the diagram scalable and maintainable
   6. Focus on clarity and readability over artistic complexity
+  7. Ensure the SVG code is compatible with LaTeX figure environment
+  8. Use LaTeX-compatible fonts and symbols in labels
+  9. Keep the diagram size reasonable for a single-column academic paper
 
   Your response must include:
-  1. A SUMMARY section describing the key elements of the diagram
-  2. A DIAGRAM SVG section containing the actual SVG code
-  3. The SVG must be valid and self-contained
+  1. A SUMMARY section describing the key elements of the diagram (this will be used as the figure caption)
+  2. A DIAGRAM SVG section containing the actual SVG code (this will be embedded in a LaTeX figure)
+  3. The SVG must be valid, self-contained, and LaTeX-compatible
 
 template_instructions: |
   Please create a professional academic diagram based on the provided text.
@@ -23,10 +26,12 @@ template_instructions: |
   - Include clear labels and annotations
   - Be scalable and maintainable
   - Follow academic diagramming conventions
+  - Be compatible with LaTeX figure environment
+  - Use LaTeX-compatible fonts and symbols
 
   Your response must include:
-  1. A SUMMARY section describing the key elements of the diagram
-  2. A DIAGRAM SVG section containing the actual SVG code
+  1. A SUMMARY section describing the key elements of the diagram (will be used as figure caption)
+  2. A DIAGRAM SVG section containing the actual SVG code (will be embedded in LaTeX)
 
 few_shot_instructions: |
   Here is an example of how to create a diagram:
@@ -45,6 +50,10 @@ error_list: |
   - Missing summary section
   - Missing SVG section
   - Invalid SVG syntax
+  - Non-LaTeX compatible SVG elements
+  - Incompatible fonts or symbols
+  - Oversized diagrams
+  - Poor figure caption content
 
 refinement_prompt: |
   Please review and refine the diagram you just created.
@@ -58,3 +67,4 @@ refinement_prompt: |
   """
 
   Please provide an improved version that addresses any issues while maintaining the core message and structure.
+  Ensure the diagram is properly formatted for LaTeX integration.
