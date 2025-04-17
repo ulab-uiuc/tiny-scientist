@@ -277,10 +277,14 @@ class ACLOutputFormatter(BaseOutputFormatter):
                     print("[System] Installed MacTeX via Homebrew.")
                 elif system == "Linux":
                     subprocess.run(["sudo", "apt-get", "update"], check=True)
-                    subprocess.run(["sudo", "apt-get", "install", "-y", "texlive-full"], check=True)
+                    subprocess.run(
+                        ["sudo", "apt-get", "install", "-y", "texlive-full"], check=True
+                    )
                     print("[System] Installed TeX Live via apt.")
                 else:
-                    raise RuntimeError("Unsupported system for automatic pdflatex installation.")
+                    raise RuntimeError(
+                        "Unsupported system for automatic pdflatex installation."
+                    )
             except Exception as e:
                 print(f"[Error] Automatic pdflatex installation failed: {e}")
                 sys.exit(1)
@@ -293,7 +297,6 @@ class ACLOutputFormatter(BaseOutputFormatter):
         if not osp.exists(osp.join(cwd, compile_target)):
             print(f"File {compile_target} not found in {cwd}.")
             return
-
 
         if not compile_target:
             print("Error: No .tex file found to compile. Aborting.")

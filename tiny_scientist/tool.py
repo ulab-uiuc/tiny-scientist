@@ -1,15 +1,14 @@
 import abc
 import json
 import os
-import os.path as osp
 import time
 from typing import Any, Dict, List, Optional, cast
 
 import requests
 import toml
-import yaml
 from rich import print
 
+from .configs import Config
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
 
@@ -295,23 +294,27 @@ class PaperSearchTool(BaseTool):
 
 
 class DrawerTool(BaseTool):
-    def __init__(self, model: Any, prompt_template_dir: str, temperature: float = 0.75):
+    def __init__(
+        self,
+        model: Any,
+        prompt_template_dir: Optional[str] = None,
+        temperature: float = 0.75,
+    ):
         self.client, self.model = create_client(model)
         self.temperature = temperature
 
-        # Load prompt templates
-        with open(osp.join(prompt_template_dir, "diagram_prompt.yaml"), "r") as f:
-            self.prompts = yaml.safe_load(f)
+        # Load prompt templates using Config
+        self.config = Config(prompt_template_dir)
+        self.prompts = self.config.prompt_template.drawer_prompt
 
         # Process template instructions
-        if (
-            "template_instructions" in self.prompts
-            and "few_shot_instructions" in self.prompts
+        if hasattr(self.prompts, "template_instructions") and hasattr(
+            self.prompts, "few_shot_instructions"
         ):
-            self.prompts["few_shot_instructions"] = self.prompts[
-                "few_shot_instructions"
-            ].replace(
-                "{{ template_instructions }}", self.prompts["template_instructions"]
+            self.prompts.few_shot_instructions = (
+                self.prompts.few_shot_instructions.replace(
+                    "{{ template_instructions }}", self.prompts.template_instructions
+                )
             )
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -335,8 +338,8 @@ class DrawerTool(BaseTool):
         drawer_system_prompt: Optional[str] = None,
     ) -> Any:
         # Use default system prompt if none provided
-        drawer_system_prompt = drawer_system_prompt or self.prompts.get(
-            "diagram_system_prompt_base"
+        drawer_system_prompt = (
+            drawer_system_prompt or self.prompts.diagram_system_prompt_base
         )
 
         # Prepare prompt with the few-shot example
@@ -352,13 +355,11 @@ class DrawerTool(BaseTool):
     def _prepare_diagram_prompt(self, text: str, example: Optional[str] = None) -> str:
         if example:
             # Format with the example
-            few_shot_prompt = self.prompts["few_shot_instructions"].format(
-                example=example
-            )
+            few_shot_prompt = self.prompts.few_shot_instructions.format(example=example)
             base_prompt = f"{few_shot_prompt}\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
         else:
             # Use just the template instructions
-            base_prompt = f"{self.prompts['template_instructions']}\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
+            base_prompt = f"{self.prompts.template_instructions}\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
 
         return str(base_prompt)
 

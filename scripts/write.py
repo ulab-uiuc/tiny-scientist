@@ -58,7 +58,7 @@ def main() -> int:
         # idea should be import from args.experiemnt and idea.json
         with open(os.path.join(args.experiment, "idea.json"), "r") as f:
             idea = json.load(f)
-    
+
         # Perform paper writing
         print("\nStarting paper write-up...")
         writer.run(
