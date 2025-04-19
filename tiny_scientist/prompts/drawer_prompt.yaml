@@ -57,6 +57,13 @@ error_list: |
 
 refinement_prompt: |
   Please review and refine the diagram you just created.
+  Focus on:
+  - Adding modular structure (e.g., labeled stages for "Input", "Processing", "Output")
+  - Including visual indicators for dynamic processes (e.g., dashed arrows for adaptive flows)
+  - Better layout alignment (use horizontal or vertical symmetry)
+  - Distinguishing components visually (via grouping boxes or layout space)
+  - Fixing SVG issues: alignment, font size, spacing, and arrow direction
+  
   Your output must include both a SUMMARY and a valid SVG diagram.
   Pay particular attention to fixing any errors such as:
   {error_list}

@@ -1,9 +1,11 @@
 import abc
 import json
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional, cast
 
+import cairosvg
 import requests
 import toml
 from rich import print
@@ -414,6 +416,25 @@ class DrawerTool(BaseTool):
         if svg_start != -1:
             svg_end = response.find("```", svg_start)
             if svg_end != -1:
-                result["svg"] = response[svg_start:svg_end].strip()
+                raw_svg = response[svg_start:svg_end].strip()
+                result["svg"] = self._clean_svg(raw_svg)
 
         return result
+
+    def _clean_svg(self, svg: str) -> str:
+
+        # Strip any outer code block delimiters
+        svg = svg.strip()
+        svg = re.sub(r"^```(?:svg)?", "", svg)
+        svg = re.sub(r"```$", "", svg)
+
+        # Replace problematic ampersands
+        svg = svg.replace("&", "&amp;")
+
+        # Ensure no double XML declarations
+        svg = re.sub(r"<\?xml.*?\?>", "", svg, count=1)
+
+        # Remove extra whitespace lines
+        svg = "\n".join([line for line in svg.splitlines() if line.strip()])
+
+        return svg.strip()

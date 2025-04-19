@@ -28,6 +28,14 @@ class BaseOutputFormatter(abc.ABC):
     ) -> None:
         pass
 
+
+    def strip_latex(self, text: str) -> str:
+        text = re.sub(r'%.*', '', text)
+        text = re.sub(r'\\[a-zA-Z]+\{.*?\}', '', text)
+        text = re.sub(r'\\begin\{.*?\}.*?\\end\{.*?\}', '', text, flags=re.DOTALL)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+    
     def _clean_latex_content(self, content: str) -> str:
         match = re.search(r"```latex\s*(.*?)\s*```", content, flags=re.DOTALL)
         if match:
@@ -73,6 +81,7 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
+    
     def _assemble_body(self, contents: Dict[str, Dict[str, Any]]) -> str:
         section_order = [
             "Abstract",
@@ -391,6 +400,32 @@ class ICLROutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
+        def _ensure_pdflatex() -> None:
+            if shutil.which("pdflatex") is not None:
+                return
+            system = platform.system()
+            print("[System] pdflatex not found. Attempting to install...")
+
+            try:
+                if system == "Darwin":
+                    subprocess.run(["brew", "install", "--cask", "mactex"], check=True)
+                    print("[System] Installed MacTeX via Homebrew.")
+                elif system == "Linux":
+                    subprocess.run(["sudo", "apt-get", "update"], check=True)
+                    subprocess.run(
+                        ["sudo", "apt-get", "install", "-y", "texlive-full"], check=True
+                    )
+                    print("[System] Installed TeX Live via apt.")
+                else:
+                    raise RuntimeError(
+                        "Unsupported system for automatic pdflatex installation."
+                    )
+            except Exception as e:
+                print(f"[Error] Automatic pdflatex installation failed: {e}")
+                sys.exit(1)
+
+        _ensure_pdflatex()
+        
         fname = "iclr2025_conference.tex"
 
         compile_target = fname
