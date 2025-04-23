@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from rich import print
 
@@ -98,7 +98,7 @@ class Thinker:
             ranked_ideas = self._evaluate_ideas(all_ideas, intent)
             return ranked_ideas[0]
         elif len(all_ideas) == 1:
-            return all_ideas[0]
+            return cast(Dict[str, Any], all_ideas[0])
         else:
             print("No valid ideas generated.")
             return {}
@@ -165,11 +165,13 @@ class Thinker:
 
     def _parse_evaluation_result(
         self, evaluation_text: str, original_ideas: List[Dict[str, Any]]
-    ) -> (List)[Dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """Parse evaluation result and update idea dictionaries with rankings"""
         # Extract JSON from response
         evaluation_data = extract_json_between_markers(evaluation_text)
-
+        if not evaluation_data:
+            print("Failed to extract JSON from evaluation response")
+            return []
         # Create mapping from idea name to original idea dict
         idea_map = {idea.get("Name", ""): idea for idea in original_ideas}
 
