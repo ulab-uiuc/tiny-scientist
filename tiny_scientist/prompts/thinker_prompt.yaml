@@ -5,6 +5,55 @@ idea_system_prompt: >
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You want to generate creative and impactful research ideas that can be feasibly investigated with the code provided.
   Be critical and realistic in your assessments.
+evaluation_system_prompt: >
+  You are an expert AI research reviewer who evaluates scientific ideas with rigor and fairness.
+  Your role is to comparatively evaluate multiple research ideas and rank them based on their
+  scientific merit, feasibility, novelty, and alignment with the original research intent.
+  Be thoughtful, objective, and provide clear justifications for your rankings.
+idea_evaluation_prompt: |
+  You are tasked with evaluating and ranking multiple research ideas generated for the following research intent:
+
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  RESEARCH IDEAS TO EVALUATE:
+  ```
+  {ideas}
+  ```
+  Please evaluate these ideas comparatively, considering:
+
+  1. Intent Alignment: How well does each idea address the original research intent?
+  2. Scientific Merit: How significant is the potential contribution to the field?
+  3. Novelty: How original is the idea compared to existing work?
+  4. Feasibility: How practical is implementation within reasonable resource constraints?
+  5. Risk/Reward Balance: Do high-risk ideas offer proportionally high rewards?
+
+  For each idea, identify its key strengths and weaknesses relative to the other ideas.
+  Then rank the ideas from best (1) to worst, with clear justifications for each ranking.
+
+  Respond in the following format:
+
+  COMPARATIVE ANALYSIS:
+  <ANALYSIS>
+
+  EVALUATION JSON:
+  ```json
+  <JSON>
+  ```
+
+  In <ANALYSIS>, provide a thoughtful comparative analysis discussing the trade-offs between ideas.
+  In <JSON>, provide the evaluation results in JSON format with the following structure:
+  "ranked_ideas": A list of ranked idea objects, each containing:
+  - "Name": The original name of the idea as in the input JSON
+  - "Rank": A number indicating the rank (1 = best, 2 = second best, etc.)
+  - "Justification": A brief explanation of why the idea received this ranking
+  - "Strengths": A list of the idea's primary strengths compared to other ideas
+  - "Weaknesses": A list of the idea's primary weaknesses compared to other ideas
+  - "Score": Your assessment of this idea on the standard 1-10 ML conference scale
+
+  Ensure your evaluation is fair, comprehensive, and based solely on the scientific and practical merits of each idea.
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have an idea and you want to check if it is novel or not. I.e., not overlapping significantly with existing literature or already well explored.
@@ -42,9 +91,9 @@ rethink_query_prompt: |
   Based on the following research idea and the original intent:
 
   ORIGINAL INTENT:
-  '''
+  ```
   {intent}
-  '''
+  ```
 
   CURRENT IDEA:
   ```
@@ -73,9 +122,9 @@ novelty_query_prompt: |
   Based on the following research idea and the original intent:
 
   ORIGINAL INTENT:
-  '''
+  ```
   {intent}
-  '''
+  ```
 
   CURRENT IDEA:
   ```
@@ -104,9 +153,9 @@ novelty_query_prompt: |
 idea_first_prompt: |
   Generate a creative and impactful research idea based on the following intent:
 
-  '''
+  ```
   {intent}
-  '''
+  ```
 
   ```
   {pdf_section}
@@ -178,9 +227,9 @@ idea_reflection_prompt: |
   Round {current_round}/{num_reflections}.
 
   ORIGINAL INTENT:
-  '''
+  ```
   {intent}
-  '''
+  ```
 
   In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea you just created, then reevaluate your research idea with a focus on the following aspects:
     - Intent Alignment: Does your idea directly address the original intent? If not, how can you refocus it?
@@ -233,19 +282,19 @@ novelty_prompt: |
   You are assessing the novelty of the following research idea in the context of the original intent:
 
   ORIGINAL INTENT:
-  '''
+  ```
   {intent}
-  '''
+  ```
 
   CURRENT IDEA:
-  """
+  ```
   {idea}
-  """
+  ```
 
   SEARCH RESULTS FROM PREVIOUS QUERY:
-  """
+  ```
   {last_query_results}
-  """
+  ```
 
   Respond in the following format:
 
@@ -275,9 +324,9 @@ experiment_plan_prompt: |
   ```
 
   And the ORIGINAL INTENT:
-  '''
+  ```
   {intent}
-  '''
+  ```
 
   Develop a concise experimental plan focusing on three key components. Your response should heavily rely on literature search; use the approaches from relevant papers as references. Include:
     - "Model": Provide a paragraph describing the model architecture or algorithm. Explain what other papers have used and why that approach is effective.

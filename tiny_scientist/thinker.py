@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 from rich import print
 
@@ -94,12 +94,14 @@ class Thinker:
             print(
                 f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
-
-        if not all_ideas:
+        if len(all_ideas) > 1:
+            ranked_ideas = self._evaluate_ideas(all_ideas, intent)
+            return ranked_ideas[0]
+        elif len(all_ideas) == 1:
+            return all_ideas[0]
+        else:
             print("No valid ideas generated.")
             return {}
-
-        return cast(Dict[str, Any], max(all_ideas, key=lambda x: x.get("Score", 0)))
 
     def _load_pdf_content(self, pdf_path: Optional[str] = None) -> Optional[str]:
         if pdf_path and osp.isfile(pdf_path):
@@ -125,6 +127,76 @@ class Thinker:
             current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
 
         return current_idea_json
+
+    def _evaluate_ideas(
+        self, ideas: List[Dict[str, Any]], intent: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Comparatively evaluate multiple research ideas and return them sorted by rank.
+        """
+        # Format ideas for prompt
+        ideas_json = json.dumps(ideas, indent=2)
+
+        # Get evaluation from LLM using new prompt
+        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
+
+        # Parse evaluation result and assign ranks
+        ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
+
+        # Return ideas sorted by rank
+        return ranked_ideas
+
+    def _get_idea_evaluation(self, ideas_json: str, intent: str) -> str:
+        """Get comparative evaluation from LLM"""
+        prompt = self.prompts.idea_evaluation_prompt.format(
+            intent=intent, ideas=ideas_json
+        )
+
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.evaluation_system_prompt,
+            msg_history=[],
+            temperature=0.3,
+        )
+
+        return text
+
+    def _parse_evaluation_result(
+        self, evaluation_text: str, original_ideas: List[Dict[str, Any]]
+    ) -> (List)[Dict[str, Any]]:
+        """Parse evaluation result and update idea dictionaries with rankings"""
+        # Extract JSON from response
+        evaluation_data = extract_json_between_markers(evaluation_text)
+
+        # Create mapping from idea name to original idea dict
+        idea_map = {idea.get("Name", ""): idea for idea in original_ideas}
+
+        # Create ranked list
+        ranked_ideas = []
+        for ranked_item in evaluation_data.get("ranked_ideas", []):
+            idea_name = ranked_item.get("Name", "")
+            if idea_name in idea_map:
+                # Get original idea and update with ranking data
+                idea = idea_map[idea_name].copy()
+
+                # Add ranking information
+                idea["Rank"] = ranked_item.get("Rank")
+                idea["EvaluationJustification"] = ranked_item.get("Justification", "")
+                idea["ComparativeStrengths"] = ranked_item.get("Strengths", [])
+                idea["ComparativeWeaknesses"] = ranked_item.get("Weaknesses", [])
+
+                # Update score if provided in evaluation
+                if "score" in ranked_item:
+                    idea["Score"] = ranked_item.get("Score")
+
+                ranked_ideas.append(idea)
+
+        # Sort by rank
+        ranked_ideas.sort(key=lambda x: x.get("Rank", float("inf")))
+
+        return ranked_ideas
 
     def _get_related_works(self, query: str) -> str:
         """Get related works using query caching, similar to Reviewer class"""
