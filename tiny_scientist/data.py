@@ -56,3 +56,11 @@ class ThinkerPrompt(BaseModel):
     idea_reflection_prompt: str
     novelty_prompt: str
     experiment_plan_prompt: str
+
+
+class DrawerPrompt(BaseModel):
+    diagram_system_prompt_base: str
+    template_instructions: str
+    few_shot_instructions: str
+    error_list: str
+    refinement_prompt: str
