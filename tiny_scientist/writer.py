@@ -121,13 +121,14 @@ class Writer:
             try:
                 diagram_result = self.drawer.run(content)
                 if diagram_result and "diagram" in diagram_result:
-                    
                     diagram = diagram_result["diagram"]
 
                     pdf_filename = f"diagram_{section.lower()}.pdf"
                     pdf_path = os.path.join(self.output_dir, "latex", pdf_filename)
                     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-                    cairosvg.svg2pdf(bytestring=diagram["svg"].encode("utf-8"), write_to=pdf_path)
+                    cairosvg.svg2pdf(
+                        bytestring=diagram["svg"].encode("utf-8"), write_to=pdf_path
+                    )
 
                     return {
                         "summary": diagram["summary"],
@@ -137,7 +138,7 @@ class Writer:
         \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
         \\caption{{{diagram['summary']}}}
         \\end{{figure}}
-        """
+        """,
                     }
             except Exception as e:
                 print(f"[WARNING] Failed to generate diagram for {section}: {e}")
@@ -154,7 +155,7 @@ class Writer:
     ) -> None:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
-        print(f'Writing section: {section}...')
+        print(f"Writing section: {section}...")
         if section in ["Introduction"]:
             method_content = self.formatter.strip_latex(
                 self.generated_sections.get("Method", "")
@@ -171,7 +172,7 @@ class Writer:
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
                 method_section=method_content,
-                abstract=abstract_content
+                abstract=abstract_content,
             )
         elif section in ["Conclusion"]:
             section_prompt = self.prompts.section_prompt[section].format(
@@ -205,7 +206,7 @@ class Writer:
 
         # Generate diagram for appropriate sections
         diagram = self._generate_diagram_for_section(section, section_content)
-      
+
         if diagram:
             # Add diagram to the section content
             # section_content += f"\n\n\\begin{{figure}}[h]\n\\centering\n{diagram['svg']}\n\\caption{{{diagram['summary']}}}\n\\end{{figure}}\n"

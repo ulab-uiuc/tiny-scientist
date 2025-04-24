@@ -5,7 +5,6 @@ import re
 import time
 from typing import Any, Dict, List, Optional, cast
 
-import cairosvg
 import requests
 import toml
 from rich import print
@@ -196,7 +195,9 @@ class PaperSearchTool(BaseTool):
 
         engine = config["core"].get("engine", "semanticscholar")
         if engine == "semanticscholar":
-            print(f"[semantic scholar API calling] Searching for papers with query: {query}")
+            print(
+                f"[semantic scholar API calling] Searching for papers with query: {query}"
+            )
             return self._search_semanticscholar(query, result_limit)
         elif engine == "openalex":
             print(f"[openalex API calling] Searching for papers with query: {query}")
@@ -423,7 +424,6 @@ class DrawerTool(BaseTool):
         return result
 
     def _clean_svg(self, svg: str) -> str:
-
         # Strip any outer code block delimiters
         svg = svg.strip()
         svg = re.sub(r"^```(?:svg)?", "", svg)
