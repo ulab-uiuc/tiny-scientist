@@ -39,7 +39,7 @@ def api_calling_error_exponential_backoff(
                 except Exception:
                     wait_time = modified_base_wait_time * (2**attempts)
                     print(
-                        f"Attempt {attempts + 1} failed. Waiting {wait_time} seconds before retrying..."
+                        f"[API calling error] Attempt {attempts + 1} failed. Waiting {wait_time} seconds before retrying..."
                     )
                     time.sleep(wait_time)
                     attempts += 1

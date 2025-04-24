@@ -154,6 +154,7 @@ class Writer:
     ) -> None:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
+        print(f'Writing section: {section}...')
         if section in ["Introduction"]:
             method_content = self.formatter.strip_latex(
                 self.generated_sections.get("Method", "")
@@ -368,7 +369,7 @@ class Writer:
             "Conclusion",
         ]:
             if section in self.generated_sections.keys():
-                print(f"REFINING SECTION: {section}")
+                print(f"Refining section: {section}...")
                 second_refinement_prompt = (
                     self.prompts.second_refinement_prompt.format(
                         section=section,
