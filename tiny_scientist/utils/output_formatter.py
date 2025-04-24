@@ -28,14 +28,13 @@ class BaseOutputFormatter(abc.ABC):
     ) -> None:
         pass
 
-
     def strip_latex(self, text: str) -> str:
-        text = re.sub(r'%.*', '', text)
-        text = re.sub(r'\\[a-zA-Z]+\{.*?\}', '', text)
-        text = re.sub(r'\\begin\{.*?\}.*?\\end\{.*?\}', '', text, flags=re.DOTALL)
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"%.*", "", text)
+        text = re.sub(r"\\[a-zA-Z]+\{.*?\}", "", text)
+        text = re.sub(r"\\begin\{.*?\}.*?\\end\{.*?\}", "", text, flags=re.DOTALL)
+        text = re.sub(r"\s+", " ", text).strip()
         return text
-    
+
     def _clean_latex_content(self, content: str) -> str:
         match = re.search(r"```latex\s*(.*?)\s*```", content, flags=re.DOTALL)
         if match:
@@ -81,7 +80,6 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
-    
     def _assemble_body(self, contents: Dict[str, Dict[str, Any]]) -> str:
         section_order = [
             "Abstract",
@@ -425,7 +423,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
                 sys.exit(1)
 
         _ensure_pdflatex()
-        
+
         fname = "iclr2025_conference.tex"
 
         compile_target = fname

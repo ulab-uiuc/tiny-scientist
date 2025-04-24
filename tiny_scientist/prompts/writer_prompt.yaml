@@ -196,7 +196,7 @@ section_prompt:
     ```text
     {method_section}
     ```
-    
+
     Please remember that Introduction section is a enriched version of the abstract, should be much longer and detail than abstract.
     ```
     {abstract}

@@ -5,7 +5,6 @@ import re
 import time
 from typing import Any, Dict, List, Optional, cast
 
-import cairosvg
 import requests
 import toml
 from rich import print
@@ -32,7 +31,7 @@ class CodeSearchTool(BaseTool):
     def run(
         self, query: str, search_type: str = "repositories"
     ) -> Dict[str, Dict[str, str]]:
-        print(f"Searching for code with query: {query}")
+        print(f"[github API calling] Searching for code with query: {query}")
         results = {}
 
         try:
@@ -41,7 +40,7 @@ class CodeSearchTool(BaseTool):
                 k in idea for k in ["Title", "Experiment"]
             ):
                 query = self.format_github_repo_query(idea)
-                print(f"Formatted query from idea: {query}")
+                print(f"[github API calling] Formatted query from idea: {query}")
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -191,14 +190,17 @@ class PaperSearchTool(BaseTool):
     def search_for_papers(
         self, query: str, result_limit: int = 3
     ) -> Optional[List[Dict[str, Any]]]:
-        print(f"Searching for papers with query: {query}")
         if not query:
             return None
 
         engine = config["core"].get("engine", "semanticscholar")
         if engine == "semanticscholar":
+            print(
+                f"[semantic scholar API calling] Searching for papers with query: {query}"
+            )
             return self._search_semanticscholar(query, result_limit)
         elif engine == "openalex":
+            print(f"[openalex API calling] Searching for papers with query: {query}")
             return self._search_openalex(query, result_limit)
         else:
             raise NotImplementedError(f"{engine=} not supported!")
@@ -422,7 +424,6 @@ class DrawerTool(BaseTool):
         return result
 
     def _clean_svg(self, svg: str) -> str:
-
         # Strip any outer code block delimiters
         svg = svg.strip()
         svg = re.sub(r"^```(?:svg)?", "", svg)

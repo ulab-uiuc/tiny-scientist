@@ -63,7 +63,7 @@ refinement_prompt: |
   - Better layout alignment (use horizontal or vertical symmetry)
   - Distinguishing components visually (via grouping boxes or layout space)
   - Fixing SVG issues: alignment, font size, spacing, and arrow direction
-  
+
   Your output must include both a SUMMARY and a valid SVG diagram.
   Pay particular attention to fixing any errors such as:
   {error_list}
