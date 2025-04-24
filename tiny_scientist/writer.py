@@ -1,10 +1,12 @@
 import json
+import os
 import os.path as osp
 import re
 import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
+import cairosvg
 from rich import print
 
 from .configs import Config
@@ -119,7 +121,24 @@ class Writer:
             try:
                 diagram_result = self.drawer.run(content)
                 if diagram_result and "diagram" in diagram_result:
-                    return diagram_result["diagram"]
+                    
+                    diagram = diagram_result["diagram"]
+
+                    pdf_filename = f"diagram_{section.lower()}.pdf"
+                    pdf_path = os.path.join(self.output_dir, "latex", pdf_filename)
+                    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+                    cairosvg.svg2pdf(bytestring=diagram["svg"].encode("utf-8"), write_to=pdf_path)
+
+                    return {
+                        "summary": diagram["summary"],
+                        "tex": f"""
+        \\begin{{figure}}[h]
+        \\centering
+        \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
+        \\caption{{{diagram['summary']}}}
+        \\end{{figure}}
+        """
+                    }
             except Exception as e:
                 print(f"[WARNING] Failed to generate diagram for {section}: {e}")
                 traceback.print_exc()
@@ -136,6 +155,12 @@ class Writer:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
         if section in ["Introduction"]:
+            method_content = self.formatter.strip_latex(
+                self.generated_sections.get("Method", "")
+            )
+            abstract_content = self.formatter.strip_latex(
+                self.generated_sections.get("Abstract", "")
+            )
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 title=title,
@@ -144,8 +169,8 @@ class Writer:
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
-                method_section=self.generated_sections.get("Method", ""),
-                results_section=self.generated_sections.get("Results", ""),
+                method_section=method_content,
+                abstract=abstract_content
             )
         elif section in ["Conclusion"]:
             section_prompt = self.prompts.section_prompt[section].format(
@@ -179,10 +204,11 @@ class Writer:
 
         # Generate diagram for appropriate sections
         diagram = self._generate_diagram_for_section(section, section_content)
+      
         if diagram:
             # Add diagram to the section content
-            section_content += f"\n\n\\begin{{figure}}[h]\n\\centering\n{diagram['svg']}\n\\caption{{{diagram['summary']}}}\n\\end{{figure}}\n"
-
+            # section_content += f"\n\n\\begin{{figure}}[h]\n\\centering\n{diagram['svg']}\n\\caption{{{diagram['summary']}}}\n\\end{{figure}}\n"
+            section_content += f"\n\n{diagram['tex']}"
         self.generated_sections[section] = section_content
 
     def _get_citations_related_work(

@@ -176,15 +176,13 @@ abstract_prompt: |
 
   Use this information to write a concise and well-structured abstract.
 
-  Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
-
   Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
 section_prompt:
   Introduction: |
     You are writing the Introduction section of a top-tier AI research paper.
-
-    Your goal is to clearly define the motivation, research gap, proposed solution, key contributions, and paper structure — in a way that is engaging, specific, and technically grounded.
+    Some tips are provided below:
+    {section_tips}
 
     The following structured context must be incorporated:
 
@@ -198,27 +196,18 @@ section_prompt:
     ```text
     {method_section}
     ```
-    - Written Results Section:
-    ```text
-    {results_section}
+    
+    Please remember that Introduction section is a enriched version of the abstract, should be much longer and detail than abstract.
+    ```
+    {abstract}
     ```
 
     Your introduction should follow this structure:
-
     1. **Context & Motivation**
-      Start with a compelling opening that highlights why this topic matters, especially now. Emphasize broader relevance and urgency.
-
     2. **Research Gap & Challenge**
-      Precisely state what problem remains unsolved. What are the limitations of prior work? Why is this problem difficult?
-
     3. **Proposed Approach**
-      Briefly explain your core idea. Focus on what is new, how it addresses the gap, and what makes your approach promising.
-
     4. **Contributions**
-      List 2–3 **specific, novel contributions** as bullet points. These must be concrete and measurable.
-
     5. **Roadmap**
-      Conclude with a 1–2 sentence overview of what each major section of the paper will cover.
 
     Write in a clear, professional academic tone. Prioritize specificity, depth, and logical flow.
 
