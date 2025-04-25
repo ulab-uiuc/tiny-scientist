@@ -95,13 +95,61 @@ class Thinker:
                 f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
         if len(all_ideas) > 1:
-            ranked_ideas = self._evaluate_ideas(all_ideas, intent)
-            return ranked_ideas[0]
+            print(f"Ranking {len(all_ideas)} ideas...")
+            ranked_ideas = self.rank(all_ideas)
+            if ranked_ideas:
+                return cast(Dict[str, Any], ranked_ideas[0])
+            else:
+                print("Warning: Idea ranking failed. Using highest scored idea.")
+                return max(all_ideas, key=lambda x: x.get("Score", 0))
         elif len(all_ideas) == 1:
-            return cast(Dict[str, Any], all_ideas[0])
+            print("Evaluating single idea...")
+            evaluated_idea = self.evaluate(all_ideas[0])
+            return cast(Dict[str, Any], evaluated_idea)
         else:
             print("No valid ideas generated.")
             return {}
+
+    def evaluate(
+        self, idea: Dict[str, Any], intent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Evaluate a single research idea."""
+        intent = intent or self.intent
+
+        idea_json = json.dumps(idea, indent=2)
+        prompt = self.prompts.idea_single_evaluation_prompt.format(
+            intent=intent, idea=idea_json
+        )
+
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.evaluation_system_prompt,
+            msg_history=[],
+            temperature=0.3,
+        )
+
+        evaluation_data = extract_json_between_markers(text)
+        if not evaluation_data:
+            return idea
+
+        updated_idea = idea.copy()
+        updated_idea.update(evaluation_data)
+
+        return updated_idea
+
+    def rank(
+        self, ideas: List[Dict[str, Any]], intent: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Rank multiple research ideas."""
+        intent = intent or self.intent
+
+        ideas_json = json.dumps(ideas, indent=2)
+        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
+        ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
+
+        return ranked_ideas
 
     def _load_pdf_content(self, pdf_path: Optional[str] = None) -> Optional[str]:
         if pdf_path and osp.isfile(pdf_path):
@@ -127,24 +175,6 @@ class Thinker:
             current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
 
         return current_idea_json
-
-    def _evaluate_ideas(
-        self, ideas: List[Dict[str, Any]], intent: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Comparatively evaluate multiple research ideas and return them sorted by rank.
-        """
-        # Format ideas for prompt
-        ideas_json = json.dumps(ideas, indent=2)
-
-        # Get evaluation from LLM using new prompt
-        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
-
-        # Parse evaluation result and assign ranks
-        ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
-
-        # Return ideas sorted by rank
-        return ranked_ideas
 
     def _get_idea_evaluation(self, ideas_json: str, intent: str) -> str:
         """Get comparative evaluation from LLM"""

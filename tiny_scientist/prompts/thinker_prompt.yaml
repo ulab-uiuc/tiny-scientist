@@ -10,6 +10,47 @@ evaluation_system_prompt: >
   Your role is to comparatively evaluate multiple research ideas and rank them based on their
   scientific merit, feasibility, novelty, and alignment with the original research intent.
   Be thoughtful, objective, and provide clear justifications for your rankings.
+idea_single_evaluation_prompt: |
+  You are tasked with evaluating the research idea generated for the following research intent:
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  IDEA:
+  ```
+  {idea}
+  ```
+  Please evaluate these ideas comparatively, considering:
+
+  1. Intent Alignment: How well does each idea address the original research intent?
+  2. Scientific Merit: How significant is the potential contribution to the field?
+  3. Novelty: How original is the idea compared to existing work?
+  4. Feasibility: How practical is implementation within reasonable resource constraints?
+  5. Risk/Reward Balance: Do high-risk ideas offer proportionally high rewards?
+  For the idea, identify its key strengths and weaknesses.
+
+  Respond in the following format:
+
+    COMPARATIVE ANALYSIS:
+    <ANALYSIS>
+
+    EVALUATION JSON:
+    ```json
+    <JSON>
+    ```
+
+    In <ANALYSIS>, provide a thoughtful comparative analysis discussing the trade-offs between ideas.
+    In <JSON>, provide the evaluation results in JSON format with the following structure:
+    "ranked_ideas": A list of ranked idea objects, each containing:
+    - "Name": The original name of the idea as in the input JSON
+    - "Rank": A number indicating the rank (1 = best, 2 = second best, etc.)
+    - "Justification": A brief explanation of why the idea received this ranking
+    - "Strengths": A list of the idea's primary strengths compared to other ideas
+    - "Weaknesses": A list of the idea's primary weaknesses compared to other ideas
+    - "Score": Your assessment of this idea on the standard 1-10 ML conference scale
+
+    Ensure your evaluation is fair, comprehensive, and based solely on the scientific and practical merits of each idea.
 idea_evaluation_prompt: |
   You are tasked with evaluating and ranking multiple research ideas generated for the following research intent:
 
