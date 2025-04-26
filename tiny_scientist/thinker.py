@@ -1,6 +1,6 @@
 import json
 import os.path as osp
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from rich import print
 
@@ -61,7 +61,7 @@ class Thinker:
         num_ideas: int = 1,
         check_novelty: bool = False,
         pdf_content: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         all_ideas = []
         pdf_content = self._load_pdf_content(pdf_content)
 
@@ -78,14 +78,14 @@ class Thinker:
             print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
 
             current_idea_json = self._refine_idea(idea_json)
-            current_idea_with_experiment = self._generate_experiment_plan(
-                current_idea_json
-            )
+            # current_idea_with_experiment = self._generate_experiment_plan(
+            #     current_idea_json
+            # )
 
             current_idea_final = (
-                self._check_novelty(current_idea_with_experiment)
+                self._check_novelty(current_idea_json)
                 if check_novelty
-                else current_idea_with_experiment
+                else current_idea_json
             )
 
             current_idea_dict = json.loads(current_idea_final)
@@ -97,47 +97,12 @@ class Thinker:
         if len(all_ideas) > 1:
             print(f"Ranking {len(all_ideas)} ideas...")
             ranked_ideas = self.rank(all_ideas)
-            if ranked_ideas:
-                return cast(Dict[str, Any], ranked_ideas[0])
-            else:
-                print("Warning: Idea ranking failed. Using highest scored idea.")
-                return max(all_ideas, key=lambda x: x.get("Score", 0))
+            return ranked_ideas
         elif len(all_ideas) == 1:
-            print("Evaluating single idea...")
-            evaluated_idea = self.evaluate(all_ideas[0])
-            return cast(Dict[str, Any], evaluated_idea)
+            return cast(Dict[str, Any], all_ideas[0])
         else:
             print("No valid ideas generated.")
             return {}
-
-    def evaluate(
-        self, idea: Dict[str, Any], intent: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Evaluate a single research idea."""
-        intent = intent or self.intent
-
-        idea_json = json.dumps(idea, indent=2)
-        prompt = self.prompts.idea_single_evaluation_prompt.format(
-            intent=intent, idea=idea_json
-        )
-
-        text, _ = get_response_from_llm(
-            prompt,
-            client=self.client,
-            model=self.model,
-            system_message=self.prompts.evaluation_system_prompt,
-            msg_history=[],
-            temperature=0.3,
-        )
-
-        evaluation_data = extract_json_between_markers(text)
-        if not evaluation_data:
-            return idea
-
-        updated_idea = idea.copy()
-        updated_idea.update(evaluation_data)
-
-        return updated_idea
 
     def rank(
         self, ideas: List[Dict[str, Any]], intent: Optional[str] = None
@@ -150,6 +115,34 @@ class Thinker:
         ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
 
         return ranked_ideas
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def generate_experiment_plan(self, idea: str) -> str:
+        idea_dict = json.loads(idea)
+
+        print("Generating experimental plan for the idea...")
+        prompt = self.prompts.experiment_plan_prompt.format(
+            idea=idea, intent=self.intent
+        )
+
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.idea_system_prompt,
+            msg_history=[],
+            temperature=self.temperature,
+        )
+
+        experiment_plan = extract_json_between_markers(text)
+        if not experiment_plan:
+            print("Failed to generate experimental plan.")
+            return idea
+
+        idea_dict["Experiment"] = experiment_plan
+        print("Experimental plan generated successfully.")
+
+        return json.dumps(idea_dict, indent=2)
 
     def _load_pdf_content(self, pdf_path: Optional[str] = None) -> Optional[str]:
         if pdf_path and osp.isfile(pdf_path):
@@ -214,19 +207,22 @@ class Thinker:
                 idea = idea_map[idea_name].copy()
 
                 # Add ranking information
-                idea["Rank"] = ranked_item.get("Rank")
-                idea["EvaluationJustification"] = ranked_item.get("Justification", "")
-                idea["ComparativeStrengths"] = ranked_item.get("Strengths", [])
-                idea["ComparativeWeaknesses"] = ranked_item.get("Weaknesses", [])
+                idea["FeasibilityRanking"] = ranked_item.get("FeasibilityRanking")
+                idea["NoveltyRanking"] = ranked_item.get("NoveltyRanking")
+                idea["ImpactRanking"] = ranked_item.get("ImpactRanking")
 
-                # Update score if provided in evaluation
-                if "score" in ranked_item:
-                    idea["Score"] = ranked_item.get("Score")
-
+                # Remove all the scoring, using ranking instead
+                if "Interestingness" in idea:
+                    del idea["Interestingness"]
+                if "Feasibility" in idea:
+                    del idea["Feasibility"]
+                if "Novelty" in idea:
+                    del idea["Novelty"]
+                if "IntentAlignment" in idea:
+                    del idea["IntentAlignment"]
+                if "Score" in idea:
+                    del idea["Score"]
                 ranked_ideas.append(idea)
-
-        # Sort by rank
-        ranked_ideas.sort(key=lambda x: x.get("Rank", float("inf")))
 
         return ranked_ideas
 
@@ -273,38 +269,6 @@ class Thinker:
 
         query_data = extract_json_between_markers(response)
         return str(query_data.get("Query", "")) if query_data else ""
-
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _generate_experiment_plan(self, idea_json: str) -> str:
-        try:
-            idea_dict = json.loads(idea_json)
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON input")
-            return idea_json
-
-        print("Generating experimental plan for the idea...")
-        prompt = self.prompts.experiment_plan_prompt.format(
-            idea=idea_json, intent=self.intent
-        )
-
-        text, _ = get_response_from_llm(
-            prompt,
-            client=self.client,
-            model=self.model,
-            system_message=self.prompts.idea_system_prompt,
-            msg_history=[],
-            temperature=self.temperature,
-        )
-
-        experiment_plan = extract_json_between_markers(text)
-        if not experiment_plan:
-            print("Failed to generate experimental plan.")
-            return idea_json
-
-        idea_dict["Experiment"] = experiment_plan
-        print("Experimental plan generated successfully.")
-
-        return json.dumps(idea_dict, indent=2)
 
     def _save_ideas(self, ideas: List[str]) -> None:
         output_path = osp.join(self.output_dir, "ideas.json")
