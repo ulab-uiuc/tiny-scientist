@@ -61,6 +61,9 @@ def main() -> None:
         intent="Evaluating Adaptive Step Sizes in Numerical Optimization"
     )
 
+    if isinstance(idea, list):
+        idea = idea[0]
+
     status, experiment_dir = scientist.code(
         idea=idea, baseline_results=baseline_results
     )
