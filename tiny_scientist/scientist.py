@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from rich import print
 
@@ -54,7 +54,7 @@ class TinyScientist:
 
     def think(
         self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         print("🧠 Generating idea...")
         idea = self.thinker.run(
             intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
