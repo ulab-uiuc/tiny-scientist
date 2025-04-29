@@ -24,10 +24,10 @@ section_tips:
 
   Introduction: |
     - Think of the introduction as a comprehensive preview of the entire paper.
-    - Open with context: why now, why this field, and what’s at stake.
-    - Define the exact problem and why it’s still unsolved despite prior efforts.
+    - Open with context: why now, why this field, and what's at stake.
+    - Define the exact problem and why it's still unsolved despite prior efforts.
     - Clarify your insight or hypothesis that led to the proposed approach.
-    - Explicitly state what’s new and how your work differs from previous methods.
+    - Explicitly state what's new and how your work differs from previous methods.
     - Outline the methodology and evaluation approach at a high level.
     - List contributions in bullets (aim for specificity, not generic points).
     - Include a roadmap that previews each major section of the paper.
@@ -43,10 +43,10 @@ section_tips:
 
   Method: |
     - Clearly describe what your method does and how it works.
-    - Start with intuition before diving into formal equations or code details.
-    - Use the same naming as in your figures/code to ensure consistency.
+    - Start with intuition before diving into formal equations or experiment details.
+    - Use the same naming as in your figures/experiment logs to ensure consistency.
     - Formalize the key parts: models, loss functions, algorithms, and modules.
-    - Emphasize what’s **new** and how it extends prior work.
+    - Emphasize what's **new** and how it extends prior work.
     - Be as explicit as possible about algorithmic flow, data dependencies, and expected behavior.
     - Assume readers will try to re-implement your method — make that feasible.
 
@@ -88,7 +88,7 @@ error_list: |
   - Any relevant figures that have not yet been included in the text
   - Improper closing of environments (e.g., use \end{figure} for \begin{figure})
   - Duplicate headers (e.g., multiple \section{Introduction})
-  - Unescaped special characters (e.g., use shakespeare\_char instead of shakespeare_char)
+  - Unescaped special characters (e.g., use shakespeare_char instead of shakespeare_char)
   - Incorrect closing of environments (e.g., </end{figure}> instead of \end{figure})
 
 refinement_prompt: |
@@ -212,7 +212,7 @@ section_prompt:
     Write in a clear, professional academic tone. Prioritize specificity, depth, and logical flow.
 
   Method: |
-    Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
+    Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided experiment logs**.
     Some tips are provided below:
     {section_tips}
 
@@ -227,16 +227,16 @@ section_prompt:
     - Clearly define any novel techniques, modifications, or extensions.
     - Explain the algorithmic workflow and key implementation in detail to make sure every point is clear.
 
-    This section must be written based on the **provided code and experimental modifications**.
+    This section must be written based on the **provided experiment logs and experimental modifications**.
     The proposed experiment was: **{experiment}**.
-    The implementation code was:
+    The implementation details can be derived from the experiment logs:
 
-    ```python
-    {code}
+    ```
+    {experiment_log}
     ```
 
   Experimental_Setup: |
-    Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
+    Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **experiment logs, dataset, and experimental configuration**.
 
     Some tips are provided below:
     {section_tips}
@@ -252,10 +252,10 @@ section_prompt:
     - Detail evaluation metrics and baselines used for comparison.
 
     The experiments were run using the following method: **{experiment}**.
-    The dataset, optimizer, and model settings are derived from the provided implementation.
+    The dataset, optimizer, and model settings can be derived from the provided experiment logs:
 
-    ```python
-    {code}
+    ```
+    {experiment_log}
     ```
 
   Discussion: |
@@ -271,7 +271,7 @@ section_prompt:
     **Baseline results** (may be empty if not available):
     {baseline_results}
 
-    Do not restate raw metrics. Instead, reflect on their implications, relative performance, and what they say about the method’s effectiveness.
+    Do not restate raw metrics. Instead, reflect on their implications, relative performance, and what they say about the method's effectiveness.
 
     Maintain a critical and scholarly tone. Do not introduce new experiments or citations in this section.
 

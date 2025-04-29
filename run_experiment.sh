@@ -2,7 +2,7 @@
 
 # Set default values
 MODEL="gpt-4o"
-DOMAIN="general"
+DOMAIN="physics"
 OUTPUT_DIR="./output"
 MAX_ITER=10
 TEMPLATE="acl"

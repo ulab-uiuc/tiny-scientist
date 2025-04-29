@@ -279,7 +279,7 @@ class ReactExperimenter:
                 else:
                     result_str = str(result)
                 
-                logger.info(f"Tool {tool_name} execution result: {result_str[:200]}...")
+                logger.info(f"Tool {tool_name} execution result: {result_str[:2000]}...")
                 return result_str
                 
             except TypeError as e:
@@ -392,6 +392,7 @@ class ReactExperimenter:
                         
                         # Execute the tool
                         logger.info(f"Executing tool: {tool_name}")
+                        logger.info(f"Tool arguments: {tool_args}")
                         observation = self._execute_tool(tool_name, tool_args)
                         
                         # Log the tool result
@@ -415,64 +416,142 @@ class ReactExperimenter:
                                                 for tr in tool_results])
                     
                     current_prompt = (
-                        "The tools have been executed. Here are the results:\n\n"
+                        "Here are the observations from your tool executions:\n\n"
                         f"{result_summary}\n\n"
-                        "Based on these results, continue reasoning about the experiment. "
-                        "You can use more tools if needed, or provide a final answer if you've completed the experiment."
+                        "Based on these observations, continue your experiment using the Thought-Action cycle. "
+                        "First provide your reasoning, then decide on your next action or provide a final answer."
                     )
                 
                 # If the response is text (not a tool call)
                 elif isinstance(response, str):
-                    logger.info(f"LLM Response: {response[:200]}...")
+                    logger.info(f"LLM Response: {response[:2000]}...")
+                    
+                    # Parse the Thought and Action from the text response
+                    thought_match = re.search(r"Thought:\s*(.*?)(?=\n\s*Action:|\n\s*Final Answer:|$)", response, re.DOTALL)
+                    action_match = re.search(r"Action:\s*(.*?)(?=\n\s*Thought:|$)", response, re.DOTALL)
+                    final_answer_match = re.search(r"Final Answer:\s*(.*?)(?=\n\s*Thought:|$)", response, re.DOTALL)
+                    
+                    # Extract the thought for logging
+                    thought = thought_match.group(1).strip() if thought_match else ""
+                    logger.info(f"Thought: {thought[:200]}...")
                     
                     # Check if this is a final answer
-                    if "Final Answer:" in response or "FINAL ANSWER:" in response:
+                    if final_answer_match:
                         logger.info("Final answer detected")
+                        final_answer_text = final_answer_match.group(1).strip()
                         
                         # Try to extract structured results from the final answer
                         try:
-                            # Look for JSON in the response
+                            # Try to parse the final answer as JSON
+                            final_result = json.loads(final_answer_text)
+                            success = True
+                            logger.info(f"Experiment completed successfully with result: {json.dumps(final_result, indent=2)}")
+                            
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Could not parse final answer as JSON: {e}")
+                            # Try to extract JSON using regex
                             json_pattern = r'\{.*\}'
-                            match = re.search(json_pattern, response, re.DOTALL)
+                            match = re.search(json_pattern, final_answer_text, re.DOTALL)
                             
                             if match:
-                                final_result = json.loads(match.group(0))
+                                try:
+                                    final_result = json.loads(match.group(0))
+                                    success = True
+                                except json.JSONDecodeError:
+                                    logger.warning("Could not parse extracted JSON from final answer")
+                                    final_result = {
+                                        "success": False,
+                                        "raw_response": final_answer_text,
+                                        "note": "Failed to parse structured results"
+                                    }
                             else:
                                 # If no JSON, create a simple result with the full text
-                                final_answer_text = response.split("Final Answer:", 1)[1].strip() if "Final Answer:" in response else response.split("FINAL ANSWER:", 1)[1].strip()
                                 final_result = {
+                                    "success": True,
                                     "conclusion": final_answer_text,
                                     "experiment_complete": True
                                 }
                             
-                            success = True
-                            logger.info(f"Experiment completed successfully with result: {json.dumps(final_result, indent=2)}")
-                            
-                        except (json.JSONDecodeError, IndexError) as e:
-                            logger.warning(f"Could not parse final answer properly: {e}")
-                            final_result = {
-                                "raw_response": response,
-                                "note": "Failed to parse structured results"
-                            }
-                        
                         break  # Exit the ReAct loop when we get a final answer
                     
-                    # If it's just reasoning, prepare for the next iteration
-                    current_prompt = (
-                        "You gave this reasoning:\n\n"
-                        f"{response[:1000]}{'...' if len(response) > 1000 else ''}\n\n"
-                        "Continue the experiment. You can use tools to gather data, perform calculations, "
-                        "or analyze results. Once you've completed the experiment, provide a final answer "
-                        "with your conclusions."
-                    )
+                    # If it's an Action, process it
+                    elif action_match:
+                        action_text = action_match.group(1).strip()
+                        logger.info(f"Action: {action_text}")
+                        
+                        # Check if the action appears to be a JSON tool call
+                        if action_text.startswith('{') and action_text.endswith('}'):
+                            try:
+                                # Try to parse the action as JSON
+                                action_data = json.loads(action_text)
+                                
+                                # Check if it has the required fields for a tool call
+                                if "tool_name" in action_data and "arguments" in action_data:
+                                    tool_name = action_data["tool_name"]
+                                    tool_args = json.dumps(action_data["arguments"])
+                                    
+                                    # Execute the tool
+                                    logger.info(f"Executing tool from text action: {tool_name}")
+                                    observation = self._execute_tool(tool_name, tool_args)
+                                    
+                                    # Add the observation to the next prompt
+                                    current_prompt = (
+                                        f"Observation: {observation}\n\n"
+                                        "Continue your experiment using the Thought-Action cycle based on this observation."
+                                    )
+                                else:
+                                    # It's a JSON object but not a tool call
+                                    logger.info("Action is a JSON object but not a tool call, treating as analysis")
+                                    # Treat as a non-tool action (analysis)
+                                    current_prompt = (
+                                        f"Observation: I've recorded your analysis: {action_text[:500]}...\n\n"
+                                        "Continue your experiment using the Thought-Action cycle."
+                                    )
+                            except json.JSONDecodeError:
+                                # Not valid JSON, treat as a textual action
+                                logger.info("Action is not valid JSON, treating as textual analysis/plan")
+                                current_prompt = (
+                                    f"Observation: I've noted your analysis/plan: {action_text[:500]}...\n\n"
+                                    "Continue your experiment using the Thought-Action cycle."
+                                )
+                        else:
+                            # Definitely not JSON, treat as a textual action (analysis, observation, or plan)
+                            logger.info("Processing textual action (analysis/observation/plan)")
+                            
+                            # Add to experiment log for final paper generation
+                            if "experiment_log" not in final_result:
+                                final_result["experiment_log"] = []
+                                
+                            final_result["experiment_log"].append({
+                                "type": "analysis",
+                                "thought": thought,
+                                "action": action_text
+                            })
+                            
+                            current_prompt = (
+                                f"Observation: I've recorded your analysis/plan.\n\n"
+                                "Continue your experiment using the Thought-Action cycle. "
+                                "You can proceed to the next step or provide a final answer if the experiment is complete."
+                            )
+                    
+                    # If neither Action nor Final Answer, prompt for proper format
+                    else:
+                        logger.warning("Response missing proper Action or Final Answer format")
+                        current_prompt = (
+                            "Your response was not properly formatted. Please follow the Thought-Action format:\n\n"
+                            "Thought: [your reasoning]\n"
+                            "Action: [Your next action - either a tool call in JSON format or analysis/planning in text]\n\n"
+                            "Or if you're concluding the experiment:\n\n"
+                            "Thought: [your reasoning]\n"
+                            "Final Answer: {\"success\": true/false, \"results\": {...}, \"conclusion\": \"...\"}"
+                        )
                 
                 # Handle unexpected response format
                 else:
                     logger.error(f"Unexpected response format: {type(response)}")
                     current_prompt = (
                         "There was an error processing your last response. "
-                        "Please continue with the experiment using clear reasoning "
-                        "and proper tool usage when needed."
+                        "Please continue the experiment using the proper Thought-Action format."
                     )
             
             except Exception as e:

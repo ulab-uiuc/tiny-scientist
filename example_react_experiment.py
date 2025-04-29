@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""
+Example script for running experiments with TinyScientist using the ReAct approach.
+
+This script demonstrates how to use TinyScientist's react_experiment method
+which leverages Reasoning and Acting (ReAct) to perform domain-specific
+experiments using specialized tools.
+"""
+
 import argparse
 import os
 from pathlib import Path
@@ -73,9 +81,16 @@ def main():
     )
     
     # Step 1: Generate research idea
+    # This uses the thinker component to develop a structured research plan
+    print("Generating research idea...")
     idea = scientist.think(intent=args.intent)
     
     # Step 2: Execute experiment using react_experiment method
+    # The ReactExperimenter will:
+    # - Load domain-specific tools (chemistry, physics, or general)
+    # - Run a ReAct loop where the LLM reasons and acts using available tools
+    # - Log the experiment process and results
+    print(f"Executing {args.domain} experiment with ReAct...")
     status, experiment_dir = scientist.react_experiment(
         idea=idea, 
         domain=args.domain,
@@ -85,9 +100,13 @@ def main():
     # If experiment successful, generate research paper
     if status:
         # Step 3: Write paper
+        # This uses the experiment logs and results to generate a structured paper
+        print("Writing research paper...")
         pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
         
         # Step 4: Review paper (optional)
+        # This analyzes the paper for quality and scientific merit
+        print("Reviewing paper...")
         review = scientist.review(pdf_path=pdf_path)
         
         print(f"✅ Experiment workflow complete!")

@@ -254,7 +254,6 @@ class Writer:
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment_description, # Original description for context
-                # code=code, # Remove code
                 experiment_log=method_context, # Add experiment log
             )
         elif section in ["Results", "Discussion"]:
