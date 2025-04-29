@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple
 from rich import print
 
 from .coder import Coder
+from .react_experimenter import ReactExperimenter
 from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
@@ -70,6 +71,46 @@ class TinyScientist:
             print(f"✅ Experiment completed successfully. Results saved at {exp_path}")
         else:
             print(f"❌ Experiment failed. Please check {exp_path} for details.")
+        return status, exp_path
+
+    def react_experiment(
+        self,
+        idea: Dict[str, Any],
+        domain: str = "general",
+        baseline_results: Optional[Dict[str, Any]] = None,
+        max_iterations: int = 10,
+    ) -> Tuple[bool, str]:
+        """
+        Run experiments using the ReactExperimenter with domain-specific tools.
+        
+        Args:
+            idea: Dictionary containing experiment details
+            domain: Domain for the experiment (e.g., "chemistry", "physics", "general")
+            baseline_results: Optional dictionary of baseline results for comparison
+            max_iterations: Maximum number of ReAct iterations
+            
+        Returns:
+            Tuple of (success, experiment_directory)
+        """
+        print(f"🔬 Running {domain} experiments using ReAct agent...")
+        
+        # Initialize ReactExperimenter with the specified domain
+        reactor = ReactExperimenter(
+            model=self.model,
+            output_dir=self.output_dir,
+            domain=domain,
+            max_iterations=max_iterations,
+            prompt_template_dir=self.prompt_template_dir,
+        )
+        
+        # Run the experiment
+        status, exp_path = reactor.run(idea=idea, baseline_results=baseline_results)
+        
+        if status:
+            print(f"✅ ReAct experiment completed successfully. Results saved at {exp_path}")
+        else:
+            print(f"❌ ReAct experiment failed or reached max iterations. Check {exp_path} for details.")
+        
         return status, exp_path
 
     def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:

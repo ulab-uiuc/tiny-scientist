@@ -295,6 +295,117 @@ def get_response_from_llm(
     return content, new_msg_history
 
 
+@backoff.on_exception(backoff.expo, (openai.RateLimitError, openai.APITimeoutError))
+def get_batch_responses_from_llm_with_tools(
+    msg: str,
+    client: Any,
+    model: str,
+    system_message: str,
+    tools: List[Dict[str, Any]],
+    print_debug: bool = False,
+    msg_history: Any = None,
+    temperature: float = 0.75,
+    n_responses: int = 1,
+) -> Tuple[List[Union[str, Dict[str, Any]]], List[List[Dict[str, str]]]]:
+    """
+    Gets batch responses from LLM, potentially including tool calls.
+    Currently primarily supports OpenAI models.
+    Returns a list of responses (string or tool call dict) and the updated message histories.
+    """
+    if msg_history is None:
+        msg_history = []
+
+    all_responses: List[Union[str, Dict[str, Any]]] = []
+    all_new_histories: List[List[Dict[str, str]]] = []
+
+    # Assuming OpenAI client for tool calling
+    if isinstance(client, openai.OpenAI) and (
+        "gpt" in model or model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]
+    ):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *new_msg_history,
+                ],
+                tools=tools,
+                tool_choice="auto", # Or specify a tool like {"type": "function", "function": {"name": "my_function"}}
+                temperature=temperature,
+                max_tokens=MAX_NUM_TOKENS,
+                n=n_responses,
+                stop=None,
+                seed=0, # Seed might not be available for all models or with tool use
+            )
+
+            for choice in response.choices:
+                response_message = choice.message
+                current_history = new_msg_history + [response_message.model_dump(exclude_unset=True)] # Add assistant response (tool call or text)
+
+                if response_message.tool_calls:
+                    # Store tool call information
+                    tool_call_info = {
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": tc.type,
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for tc in response_message.tool_calls
+                        ]
+                    }
+                    all_responses.append(tool_call_info)
+
+                    # Note: History for tool calls needs the tool response added later
+                    # For simplicity here, we just append the assistant's request
+                    all_new_histories.append(current_history)
+
+                else:
+                    # Store text response
+                    content = response_message.content or ""
+                    all_responses.append(content)
+                    all_new_histories.append(current_history) # History is complete here
+
+        except Exception as e:
+            print(f"Error during LLM call with tools: {e}")
+            # Fallback or error handling
+            for _ in range(n_responses):
+                 all_responses.append(f"Error: {e}")
+                 all_new_histories.append(msg_history + [{"role": "user", "content": msg}, {"role":"assistant", "content": f"Error: {e}"}])
+
+    else:
+        # Fallback for models without direct tool support or non-OpenAI clients
+        print(f"[WARNING] Tool calling requested for model '{model}' which might not have direct support in this implementation. Falling back to standard generation.")
+        contents, histories = get_batch_responses_from_llm(
+            msg=msg,
+            client=client,
+            model=model,
+            system_message=system_message,
+            print_debug=print_debug,
+            msg_history=msg_history,
+            temperature=temperature,
+            n_responses=n_responses,
+        )
+        all_responses = contents
+        all_new_histories = histories
+
+
+    if print_debug:
+        print()
+        print("*" * 20 + " LLM (Tools) START " + "*" * 20)
+        for i, (resp, history) in enumerate(zip(all_responses, all_new_histories)):
+            print(f"Response {i}: {resp}")
+            # print(f"History {i}: {history}") # History might be long
+        print("*" * 21 + " LLM (Tools) END " + "*" * 21)
+        print()
+
+    return all_responses, all_new_histories
+
+
 def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
