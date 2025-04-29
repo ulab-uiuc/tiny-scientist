@@ -56,6 +56,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # Install dependencies
 poetry install
+conda install -c conda-forge cairo
 ```
 
 # Get started
