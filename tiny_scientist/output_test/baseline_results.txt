@@ -1,0 +1,12 @@
+{
+  "experiment_name": "baseline_quadratic_optimization",
+  "function": "f(x, y) = x^2 + y^2",
+  "optimizer": "Gradient Descent",
+  "step_size": 0.1,
+  "iterations": 100,
+  "metrics": {
+    "final_function_value": 0.001,
+    "steps_to_convergence": 85
+  },
+  "notes": "This baseline uses fixed step-size gradient descent on a quadratic bowl. Adaptive step-size methods aim to converge faster."
+}

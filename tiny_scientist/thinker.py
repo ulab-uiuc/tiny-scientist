@@ -33,19 +33,180 @@ class Thinker:
         self.searcher = PaperSearchTool()
         self.prompts = self.config.prompt_template.thinker_prompt
         self.intent = ""
+        self.domain = ""
+        self.experiment_type = ""
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
+        
+        # Define different agent roles and their prompts
+        self.agents = {
+            "methodologist": {
+                "role": "Research Methodologist",
+                "expertise": "experimental design and methodology",
+                "focus": "methodological rigor, experimental setup, and statistical analysis"
+            },
+            "domain_expert": {
+                "role": "Domain Expert",
+                "expertise": "domain-specific knowledge and applications",
+                "focus": "practical implications, domain relevance, and real-world applications"
+            },
+            "theorist": {
+                "role": "Theoretical Researcher",
+                "expertise": "theoretical foundations and mathematical modeling",
+                "focus": "theoretical soundness, mathematical rigor, and conceptual clarity"
+            }
+        }
+        
+        # Discussion history
+        self.discussion_history = []
 
-    def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
+    def _get_agent_prompt(self, agent_info: Dict[str, str], idea_json: str, intent: str, related_works: str, history: List[Dict[str, str]]) -> str:
+        """Generate a prompt for a specific agent role."""
+        history_str = "\n".join([
+            f"{msg['role']} ({msg['agent']}): {msg['content']}"
+            for msg in history
+        ]) if history else "No previous discussion."
+        
+        return self.prompts.group_discussion_prompt.format(
+            role=agent_info['role'],
+            expertise=agent_info['expertise'],
+            focus=agent_info['focus'],
+            idea=idea_json,
+            intent=intent,
+            related_works=related_works,
+            history=history_str
+        )
+
+    def _conduct_group_discussion(self, idea_json: str, num_rounds: int = 3) -> List[Dict[str, Any]]:
+        """Conduct a multi-agent discussion about the research idea."""
+        print(f"\nStarting multi-agent discussion with {len(self.agents)} agents...")
+        
+        # Get related works for the discussion
+        query = self._generate_search_query(idea_json, intent=self.intent)
+        related_works_string = self._get_related_works(query)
+        
+        # Initialize discussion history
+        self.discussion_history = []
+        group_opinions = []
+        
+        # Conduct multiple rounds of discussion
+        for round_num in range(num_rounds):
+            print(f"\nRound {round_num + 1} discussion:")
+            
+            # Each agent takes a turn
+            for agent_name, agent_info in self.agents.items():
+                print(f"\n{agent_info['role']}'s turn:")
+                
+                # Generate prompt for this agent
+                prompt = self._get_agent_prompt(
+                    agent_info,
+                    idea_json,
+                    self.intent,
+                    related_works_string,
+                    self.discussion_history
+                )
+                
+                # Get agent's response
+                text, _ = get_response_from_llm(
+                    prompt,
+                    client=self.client,
+                    model=self.model,
+                    system_message=self.prompts.idea_system_prompt,
+                    msg_history=[],
+                    temperature=self.temperature,
+                )
+                
+                # Extract the agent's opinion
+                group_opinion = {
+                    "agent": agent_name,
+                    "role": agent_info['role'],
+                    "thought": text.split("SUGGESTIONS:")[0].replace("THOUGHT:", "").strip(),
+                    "suggestions": text.split("SUGGESTIONS:")[1].split("RATING:")[0].strip(),
+                    "rating": float(text.split("RATING:")[1].strip().split()[0])
+                }
+                
+                # Add to discussion history
+                self.discussion_history.append({
+                    "agent": agent_name,
+                    "role": agent_info['role'],
+                    "content": f"{group_opinion['thought']}\nSuggestions: {group_opinion['suggestions']}"
+                })
+                
+                group_opinions.append(group_opinion)
+                print(f"{agent_info['role']} completed their analysis.")
+        
+        return group_opinions
+
+    def think(
+        self, 
+        intent: str, 
+        domain: str = "", 
+        experiment_type: str = "", 
+        pdf_content: Optional[str] = None,
+        num_rounds: int = 3
+    ) -> str:
         self.intent = intent
+        self.domain = domain
+        self.experiment_type = experiment_type
         print(f"Generating research idea based on: {intent}")
+        if domain:
+            print(f"Domain: {domain}")
+        if experiment_type:
+            print(f"Experiment type: {experiment_type}")
 
         pdf_content = self._load_pdf_content(pdf_content)
         query = self._generate_search_query(intent)
         related_works_string = self._get_related_works(query)
 
+        # Generate initial idea
         idea = self._generate_idea(intent, related_works_string, pdf_content)
+        
+        # Conduct multi-agent discussion
+        group_opinions = self._conduct_group_discussion(idea, num_rounds)
+        
+        # Combine group opinions and refine the idea
+        refined_idea = self._refine_idea_with_group_opinions(idea, group_opinions)
+        
+        return refined_idea
 
-        return idea
+    def _refine_idea_with_group_opinions(self, idea_json: str, group_opinions: List[Dict[str, Any]]) -> str:
+        """Refine the idea based on group discussions."""
+        print("\nRefining idea based on group discussions...")
+        
+        # Create a prompt to synthesize group opinions
+        synthesis_prompt = f"""
+        Based on the following group discussions, please refine the research idea:
+        
+        Original idea:
+        {idea_json}
+        
+        Group discussions:
+        {json.dumps(group_opinions, indent=2)}
+        
+        Please refine the idea by:
+        1. Addressing the concerns raised by the groups
+        2. Incorporating valuable suggestions
+        3. Maintaining the core concept while improving it
+        
+        Respond in the same JSON format as the original idea.
+        """
+        
+        # Get refined idea
+        text, _ = get_response_from_llm(
+            synthesis_prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.idea_system_prompt,
+            msg_history=[],
+            temperature=self.temperature,
+        )
+        
+        # Extract the refined idea
+        refined_idea = extract_json_between_markers(text)
+        if not refined_idea:
+            print("Failed to extract refined idea from group discussions")
+            return idea_json
+            
+        return json.dumps(refined_idea, indent=2)
 
     def rethink(self, idea_json: str, current_round: int = 1) -> str:
         query = self._generate_search_query(
@@ -58,17 +219,21 @@ class Thinker:
     def run(
         self,
         intent: str,
+        domain: str = "",
+        experiment_type: str = "",
         num_ideas: int = 1,
         check_novelty: bool = False,
         pdf_content: Optional[str] = None,
     ) -> Dict[str, Any]:
         all_ideas = []
+        self.domain = domain
+        self.experiment_type = experiment_type
         pdf_content = self._load_pdf_content(pdf_content)
 
         for i in range(num_ideas):
             print(f"\nProcessing idea {i + 1}/{num_ideas}")
 
-            idea_json = self.think(intent, pdf_content)
+            idea_json = self.think(intent, domain, experiment_type, pdf_content)
             idea_dict = json.loads(idea_json)
 
             if not idea_dict:
@@ -170,6 +335,65 @@ class Thinker:
         query_data = extract_json_between_markers(response)
         return str(query_data.get("Query", "")) if query_data else ""
 
+    def _determine_experiment_type(self, idea_dict: Dict[str, Any]) -> str:
+        """Determine if the experiment should be physical or computational based on the domain."""
+        # If experiment_type is explicitly provided, use it
+        if self.experiment_type:
+            return self.experiment_type
+            
+        # If domain is explicitly provided, use it to determine experiment type
+        if self.domain:
+            # Physical experiment domains
+            physical_domains = [
+                "Biology", "Physics", "Chemistry", "Material Science", "Medical Science"
+            ]
+            
+            # Computational experiment domains
+            computational_domains = [
+                "Information Science"
+            ]
+            
+            if self.domain in physical_domains:
+                return 'physical'
+            elif self.domain in computational_domains:
+                return 'computational'
+        
+        # Fallback to keyword detection if domain is not provided
+        # Keywords that suggest physical experiments
+        physical_keywords = {
+            'chemistry': ['chemical', 'reaction', 'compound', 'molecule', 'synthesis', 'catalyst'],
+            'physics': ['particle', 'force', 'energy', 'wave', 'field', 'measurement'],
+            'biology': ['cell', 'organism', 'tissue', 'gene', 'protein', 'enzyme'],
+            'materials': ['material', 'fabrication', 'synthesis', 'characterization']
+        }
+        
+        # Keywords that suggest computational experiments
+        computational_keywords = {
+            'computer_science': ['algorithm', 'program', 'software', 'computation', 'code'],
+            'information_science': ['data', 'information', 'analysis', 'processing'],
+            'mathematics': ['mathematical', 'equation', 'model', 'simulation']
+        }
+        
+        # Combine all text fields to check for keywords
+        text_to_check = ' '.join([
+            idea_dict.get('Title', ''),
+            idea_dict.get('Problem', ''),
+            idea_dict.get('Approach', '')
+        ]).lower()
+        
+        # Check for physical experiment keywords
+        for domain, keywords in physical_keywords.items():
+            if any(keyword in text_to_check for keyword in keywords):
+                return 'physical'
+                
+        # Check for computational experiment keywords
+        for domain, keywords in computational_keywords.items():
+            if any(keyword in text_to_check for keyword in keywords):
+                return 'computational'
+                
+        # Default to computational if no clear indicators
+        return 'computational'
+
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_experiment_plan(self, idea_json: str) -> str:
         try:
@@ -179,9 +403,22 @@ class Thinker:
             return idea_json
 
         print("Generating experimental plan for the idea...")
-        prompt = self.prompts.experiment_plan_prompt.format(
-            idea=idea_json, intent=self.intent
-        )
+        
+        # Determine experiment type
+        experiment_type = self._determine_experiment_type(idea_dict)
+        print(f"Detected experiment type: {experiment_type}")
+        
+        # Choose appropriate prompt based on experiment type
+        if experiment_type == 'physical':
+            prompt = self.prompts.physical_experiment_plan_prompt.format(
+                idea=idea_json, 
+                intent=self.intent
+            )
+        else:
+            prompt = self.prompts.experiment_plan_prompt.format(
+                idea=idea_json, 
+                intent=self.intent
+            )
 
         text, _ = get_response_from_llm(
             prompt,
@@ -197,6 +434,8 @@ class Thinker:
             print("Failed to generate experimental plan.")
             return idea_json
 
+        # Add experiment type to the plan
+        experiment_plan['Type'] = experiment_type
         idea_dict["Experiment"] = experiment_plan
         print("Experimental plan generated successfully.")
 

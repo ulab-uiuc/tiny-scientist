@@ -54,6 +54,8 @@ class ThinkerPrompt(BaseModel):
     idea_reflection_prompt: str
     novelty_prompt: str
     experiment_plan_prompt: str
+    group_discussion_prompt: str
+    physical_experiment_plan_prompt: str
 
 
 class DrawerPrompt(BaseModel):

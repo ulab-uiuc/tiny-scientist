@@ -52,9 +52,20 @@ class TinyScientist:
             tools=[],
         )
 
-    def think(self, intent: str, pdf_content: Optional[str] = None) -> Dict[str, Any]:
+    def think(
+        self, 
+        intent: str, 
+        domain: str = "", 
+        experiment_type: str = "", 
+        pdf_content: Optional[str] = None
+    ) -> Dict[str, Any]:
         print("🧠 Generating idea...")
-        idea = self.thinker.run(intent=intent, pdf_content=pdf_content)
+        idea = self.thinker.run(
+            intent=intent, 
+            domain=domain, 
+            experiment_type=experiment_type, 
+            pdf_content=pdf_content
+        )
         print(idea)
         print("✅ Idea generated.")
         return idea

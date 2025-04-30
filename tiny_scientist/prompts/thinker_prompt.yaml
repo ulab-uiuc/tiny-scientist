@@ -302,3 +302,76 @@ experiment_plan_prompt: |
   - "Model": Description of model architecture
   - "Dataset": Description of dataset
   - "Metric": Description of evaluation metric
+
+physical_experiment_plan_prompt: |
+  Given the following research idea:
+
+  ```
+  {idea}
+  ```
+
+  And the ORIGINAL INTENT:
+  '''
+  {intent}
+  '''
+
+  Develop a comprehensive physical experimental plan focusing on four key components. Your response should heavily rely on literature search and standard laboratory practices. Include:
+    - "Equipment": Provide a detailed list of required laboratory equipment, instruments, and materials. Explain why each piece is necessary and reference standard protocols.
+    - "Procedure": Provide a step-by-step experimental procedure, including safety protocols, control experiments, and data collection methods. Reference established laboratory protocols where applicable.
+    - "Controls": Describe necessary control experiments and baseline measurements. Explain how these controls validate the experimental results.
+    - "Metrics": Describe the measurements, observations, and data collection methods. Include both qualitative and quantitative metrics, and reference standard analytical methods.
+
+  IMPORTANT: Your experiment plan MUST directly support investigation of the original intent. Ensure that your experimental design directly addresses the research question posed in the original intent and builds upon the idea that was generated.
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  EXPERIMENT PLAN JSON:
+  ```json
+  <JSON>
+  ```
+
+  In <THOUGHT>, briefly discuss your reasoning behind the chosen experimental approach and how it aligns with the original intent. Consider safety, reproducibility, and how this experiment will effectively test the hypotheses.
+
+  In <JSON>, provide the experimental plan in JSON format with the following fields:
+  - "Equipment": List of required equipment and materials
+  - "Procedure": Step-by-step experimental procedure
+  - "Controls": Description of control experiments
+  - "Metrics": Description of measurements and observations
+
+group_discussion_prompt: |
+  You are a {role} with expertise in {expertise}.
+  Your focus is on {focus}.
+  
+  You are participating in a research discussion about the following idea:
+  
+  Current idea:
+  {idea}
+  
+  Original intent:
+  {intent}
+  
+  Related works:
+  {related_works}
+  
+  Discussion history:
+  {history}
+  
+  Please provide your analysis and suggestions, considering:
+  1. Strengths and weaknesses from your perspective
+  2. Potential improvements
+  3. Alternative approaches
+  4. Feasibility concerns
+  5. Novelty assessment
+  
+  Respond in the following format:
+  THOUGHT:
+  <your detailed analysis>
+  
+  SUGGESTIONS:
+  <specific suggestions for improvement>
+  
+  RATING:
+  <your rating of the idea as a single number, e.g., 7.5,on a scale of 1-10>
