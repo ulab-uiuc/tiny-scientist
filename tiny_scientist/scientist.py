@@ -28,7 +28,7 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            iter_num=1,
+            iter_num=3,
             search_papers=True,
             generate_exp_plan=True,
         )
@@ -55,7 +55,7 @@ class TinyScientist:
         )
 
     def think(
-        self, intent: str, num_ideas: int = 3, pdf_content: Optional[str] = None
+        self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         print("🧠 Generating idea...")
         idea = self.thinker.run(
