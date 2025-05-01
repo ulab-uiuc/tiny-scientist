@@ -110,6 +110,12 @@ llm_api_key = "xxxx"
 
 No need to export environment variables manually—just set this once.
 
+# Q&A
+
+If you face "cairo"-related errors, cario is a system-level dependency, please run `conda install -c conda-forge cairo` or `brew install cairo`.
+
+If you face errors related to pdflatex, this is also a system-level dependency for latex rendering, please run `brew install --cask mactex`.
+
 # Contribution
 
 We’re working on extending support for more tools, models, and paper formats. Contributions welcome!
