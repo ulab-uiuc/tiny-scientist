@@ -19,6 +19,7 @@ class Thinker:
         self,
         tools: List[Any],
         iter_num: int,
+        search_papers: bool = False,
         model: str = "",
         output_dir: str = "",
         temperature: float = 0.75,
@@ -31,6 +32,7 @@ class Thinker:
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
         self.searcher = PaperSearchTool()
+        self.search_papers = search_papers
         self.prompts = self.config.prompt_template.thinker_prompt
         self.intent = ""
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
@@ -40,9 +42,11 @@ class Thinker:
         print(f"Generating research idea based on: {intent}")
 
         pdf_content = self._load_pdf_content(pdf_content)
-        query = self._generate_search_query(intent)
-        related_works_string = self._get_related_works(query)
-
+        if self.search_papers:
+            query = self._generate_search_query(intent)
+            related_works_string = self._get_related_works(query)
+        else:
+            related_works_string = "No Related Works Found"
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
         return idea
@@ -78,9 +82,6 @@ class Thinker:
             print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
 
             current_idea_json = self._refine_idea(idea_json)
-            # current_idea_with_experiment = self._generate_experiment_plan(
-            #     current_idea_json
-            # )
 
             current_idea_final = (
                 self._check_novelty(current_idea_json)
@@ -95,9 +96,7 @@ class Thinker:
                 f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
         if len(all_ideas) > 1:
-            print(f"Ranking {len(all_ideas)} ideas...")
-            ranked_ideas = self.rank(all_ideas)
-            return ranked_ideas
+            return all_ideas
         elif len(all_ideas) == 1:
             return cast(Dict[str, Any], all_ideas[0])
         else:
@@ -115,6 +114,133 @@ class Thinker:
         ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
 
         return ranked_ideas
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def modify_idea(
+        self, original_idea, modifications, behind_idea=None, all_ideas=None
+    ):
+        """
+        Modify an idea based on score adjustments.
+        """
+        # Extract required information from modifications
+        instruction_lines = []
+        behind_content = (
+            behind_idea.get("content", "") if behind_idea else "(No reference idea)"
+        )
+
+        for mod in modifications:
+            metric_name = {
+                "noveltyScore": "Novelty",
+                "feasibilityScore": "Feasibility",
+                "impactScore": "Impact",
+            }.get(mod["metric"])
+
+            direction = mod["direction"]
+            instruction_lines.append(
+                {
+                    "metric": metric_name,
+                    "direction": direction,
+                    "reference": behind_content,
+                }
+            )
+
+        # Prepare the prompt using the template from YAML
+        prompt = self.prompts.modify_idea_prompt.format(
+            idea=json.dumps(original_idea),
+            modifications=json.dumps(instruction_lines),
+            intent=self.intent,
+        )
+
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.idea_system_prompt,
+            msg_history=[],
+            temperature=self.temperature,
+        )
+
+        # Extract modified idea from response
+        modified_idea = extract_json_between_markers(text)
+        if not modified_idea:
+            print("Failed to extract modified idea")
+            return original_idea
+
+        # Apply metadata from original idea
+        modified_idea["id"] = f"node-{len(all_ideas) + 1}" if all_ideas else "node-1"
+        modified_idea["parent_id"] = original_idea.get("id", "unknown")
+        modified_idea["is_modified"] = True
+
+        # Re-rank the modified idea along with all other ideas
+        if all_ideas:
+            ranking_ideas = [
+                idea for idea in all_ideas if idea.get("id") != original_idea.get("id")
+            ]
+            ranking_ideas.append(modified_idea)
+
+            ranked_ideas = self.rank(ranking_ideas, self.intent)
+
+            for idea in ranked_ideas:
+                if idea.get("id") == modified_idea.get("id"):
+                    return idea
+
+        return modified_idea
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def merge_ideas(self, idea_a, idea_b, all_ideas=None):
+        """
+        Merge two ideas into a new one.
+        """
+        # Using the merge prompt template from YAML
+        prompt = self.prompts.merge_ideas_prompt.format(
+            idea_a=json.dumps(idea_a), idea_b=json.dumps(idea_b), intent=self.intent
+        )
+
+        # Call LLM to get merged content
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.idea_system_prompt,
+            msg_history=[],
+            temperature=self.temperature,
+        )
+
+        # Extract the merged idea from response
+        merged_idea = extract_json_between_markers(text)
+        if not merged_idea:
+            print("Failed to extract merged idea")
+            return None
+
+        # Add metadata about the merged sources
+        merged_idea["id"] = f"node-{len(all_ideas) + 1}" if all_ideas else "node-1"
+        merged_idea["parent_ids"] = [
+            idea_a.get("id", "unknown"),
+            idea_b.get("id", "unknown"),
+        ]
+        merged_idea["is_merged"] = True
+
+        # Re-rank the merged idea along with all other ideas
+        if all_ideas:
+            # Create a list with all ideas except the ones being merged, plus the new merged idea
+            ranking_ideas = [
+                idea
+                for idea in all_ideas
+                if idea.get("id") != idea_a.get("id")
+                and idea.get("id") != idea_b.get("id")
+            ]
+            ranking_ideas.append(merged_idea)
+
+            # Rank all ideas together
+            ranked_ideas = self.rank(ranking_ideas, self.intent)
+
+            # Find and return the merged idea from the ranked list
+            for idea in ranked_ideas:
+                if idea.get("id") == merged_idea.get("id"):
+                    return idea
+
+        # If no other ideas provided or ranking failed, return just the merged idea
+        return merged_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def generate_experiment_plan(self, idea: str) -> str:
@@ -210,7 +336,9 @@ class Thinker:
                 idea["FeasibilityRanking"] = ranked_item.get("FeasibilityRanking")
                 idea["NoveltyRanking"] = ranked_item.get("NoveltyRanking")
                 idea["ImpactRanking"] = ranked_item.get("ImpactRanking")
-
+                idea["NoveltyReason"] = ranked_item.get("NoveltyReason", "")
+                idea["FeasibilityReason"] = ranked_item.get("FeasibilityReason", "")
+                idea["ImpactReason"] = ranked_item.get("ImpactReason", "")
                 # Remove all the scoring, using ranking instead
                 if "Interestingness" in idea:
                     del idea["Interestingness"]

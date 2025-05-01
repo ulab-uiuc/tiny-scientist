@@ -38,6 +38,10 @@ idea_evaluation_prompt: |
      - "NoveltyRanking": A number from 1 to the total number of ideas, where 1 is most novel
      - "ImpactRanking": A number from 1 to the total number of ideas, where 1 is highest impact
 
+  3. For EACH idea, also provide a brief reasoning for each ranking:
+     - "NoveltyReason": Brief explanation (1-2 sentences) of why this idea received its novelty ranking
+     - "FeasibilityReason": Brief explanation (1-2 sentences) of why this idea received its feasibility ranking
+     - "ImpactReason": Brief explanation (1-2 sentences) of why this idea received its impact ranking
   These three rankings must be completely separate and independent from each other. For example, the idea ranked #1 in impact might be ranked #3 in feasibility.
 
   Respond in the following format:
@@ -57,8 +61,87 @@ idea_evaluation_prompt: |
   - "FeasibilityRanking": A number from 1 to total ideas, ranking feasibility
   - "NoveltyRanking": A number from 1 to total ideas, ranking novelty
   - "ImpactRanking": A number from 1 to total ideas, ranking impact
-
+  - "NoveltyReason": Explanation of the novelty ranking
+  - "FeasibilityReason": Explanation of the feasibility ranking
+  - "ImpactReason": Explanation of the impact ranking
   Ensure your evaluation is fair, comprehensive, and based solely on the scientific and practical merits of each idea.
+modify_idea_prompt: |
+  Given a research idea and a set of requested modifications, generate a modified version of the idea.
+
+  ORIGINAL RESEARCH IDEA:
+  ```
+  {idea}
+  ```
+
+  REQUESTED MODIFICATIONS:
+  ```
+  {modifications}
+  ```
+
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+  Carefully consider how to preserve the core strengths of the original idea while enhancing it according to the requested modifications. Ensure the modified idea maintains strong alignment with the original research intent.
+
+  For each modification request, adjust the corresponding aspect (Novelty, Feasibility, or Impact) by emphasizing or de-emphasizing relevant characteristics.
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  MODIFIED IDEA JSON:
+  ```json
+  <JSON>
+  ```
+
+  In <THOUGHT>, explain your reasoning for the modifications and how they enhance the idea.
+  In <JSON>, provide the modified idea with the same structure as the original, including all original fields.
+
+merge_ideas_prompt: |
+  You are tasked with merging two research ideas into a single, stronger idea that combines the best aspects of both.
+
+  IDEA A:
+  ```
+  {idea_a}
+  ```
+
+  IDEA B:
+  ```
+  {idea_b}
+  ```
+
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  Create a new research idea that:
+  1. Preserves the most valuable aspects of both original ideas
+  2. Resolves any contradictions or tensions between them
+  3. Maintains strong alignment with the original research intent
+  4. Is more novel, feasible, or impactful than either original idea alone
+
+  Respond in the following format:
+  THOUGHT:
+  <THOUGHT>
+
+  MERGED IDEA JSON:
+  ```json
+  <JSON>
+  ```
+
+  In <THOUGHT>, explain your reasoning for how you combined elements from both ideas and why the merged result is stronger.
+  In <JSON>, provide the merged idea with the same structure as the original ideas, including all required fields:
+  - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
+  - "Title": A title for the idea, will be used for the report writing.
+  - "Problem": Answer to question 1.
+  - "Importance": Answer to question 2.
+  - "Difficulty": Answer to question 3.
+  - "NoveltyComparison": Answer to question 4.
+  - "Approach": Answer to question 5.
+
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have an idea and you want to check if it is novel or not. I.e., not overlapping significantly with existing literature or already well explored.
