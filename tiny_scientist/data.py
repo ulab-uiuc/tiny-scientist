@@ -48,6 +48,8 @@ class ThinkerPrompt(BaseModel):
     idea_system_prompt: str
     evaluation_system_prompt: str
     idea_evaluation_prompt: str
+    modify_idea_prompt: str
+    merge_ideas_prompt: str
     query_prompt: str
     rethink_query_prompt: str
     novelty_query_prompt: str

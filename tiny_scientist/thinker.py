@@ -117,8 +117,12 @@ class Thinker:
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def modify_idea(
-        self, original_idea, modifications, behind_idea=None, all_ideas=None
-    ):
+        self,
+        original_idea: Dict[str, Any],
+        modifications: List[Dict[str, Any]],
+        behind_idea: Optional[Dict[str, Any]] = None,
+        all_ideas: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         """
         Modify an idea based on score adjustments.
         """
@@ -187,7 +191,12 @@ class Thinker:
         return modified_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def merge_ideas(self, idea_a, idea_b, all_ideas=None):
+    def merge_ideas(
+        self,
+        idea_a: Dict[str, Any],
+        idea_b: Dict[str, Any],
+        all_ideas: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Merge two ideas into a new one.
         """
