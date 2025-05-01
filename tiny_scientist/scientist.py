@@ -30,6 +30,7 @@ class TinyScientist:
             tools=[],
             iter_num=3,
             search_papers=True,
+            generate_exp_plan=True,
         )
 
         self.coder = Coder(

@@ -19,7 +19,8 @@ class Thinker:
         self,
         tools: List[Any],
         iter_num: int,
-        search_papers: bool = False,
+        search_papers: bool = True,
+        generate_exp_plan: bool = True,
         model: str = "",
         output_dir: str = "",
         temperature: float = 0.75,
@@ -33,6 +34,7 @@ class Thinker:
         self.config = Config(prompt_template_dir)
         self.searcher = PaperSearchTool()
         self.search_papers = search_papers
+        self.generate_exp_plan = generate_exp_plan
         self.prompts = self.config.prompt_template.thinker_prompt
         self.intent = ""
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
@@ -82,11 +84,14 @@ class Thinker:
             print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
 
             current_idea_json = self._refine_idea(idea_json)
-
             current_idea_final = (
-                self._check_novelty(current_idea_json)
-                if check_novelty
-                else current_idea_json
+                self.generate_experiment_plan(current_idea_json)
+                if self.generate_exp_plan
+                else (
+                    self._check_novelty(current_idea_json)
+                    if check_novelty
+                    else current_idea_json
+                )
             )
 
             current_idea_dict = json.loads(current_idea_final)
