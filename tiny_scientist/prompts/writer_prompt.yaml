@@ -63,6 +63,7 @@ section_tips:
     - If results exist: includes ablation studies to show that specific parts of the method are relevant.
     - Discusses limitations of the method.
     - Make sure to include all the results from the experiments, and include all relevant figures.
+    - When you write the table, you should wrap the table with \resizebox{\textwidth}{!}{% ... } to make sure the size of the table is normal.
 
   Discussion: |
     - Analyze what the experimental results reveal in the context of the original research question.
