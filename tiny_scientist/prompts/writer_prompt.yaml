@@ -64,7 +64,6 @@ section_tips:
     - Discusses limitations of the method.
     - Make sure to include all the results from the experiments, and include all relevant figures.
     - When you write the table, you should wrap the table with \resizebox{\columnwidth}{!}{% ... } to make sure the size of the table is normal.
-    - When you write the table, you should add \usepackage{booktabs} at the beginning of the latex and use \midrule, \toprule, \bottomrule instead of \hline.
 
   Discussion: |
     - Analyze what the experimental results reveal in the context of the original research question.
