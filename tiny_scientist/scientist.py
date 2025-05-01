@@ -58,12 +58,12 @@ class TinyScientist:
         self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         print("🧠 Generating idea...")
-        idea = self.thinker.run(
+        ideas = self.thinker.run(
             intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
         )
-        print(idea)
+        print(ideas)
         print("✅ Idea generated.")
-        return idea
+        return ideas
 
     def code(
         self,
