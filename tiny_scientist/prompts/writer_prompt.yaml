@@ -100,6 +100,9 @@ refinement_prompt: |
 
   Do not introduce new references or citations that were not already included.
   Do not add any new content beyond refinement of what is already present.
+  When you write the table, you must wrap the table with \resizebox{\linewidth}{!}{% ... } to make sure the size of the table is normal.
+  When you write the table, you must add \usepackage{booktabs} at the beginning of the latex and use \midrule, \toprule, \bottomrule instead of \hline.
+
 
   Pay particular attention to fixing any errors such as:
   {error_list}
