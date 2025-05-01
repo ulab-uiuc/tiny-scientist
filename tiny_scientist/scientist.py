@@ -28,8 +28,8 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            iter_num=0,
-            search_papers=False,
+            iter_num=3,
+            search_papers=True,
         )
 
         self.coder = Coder(
