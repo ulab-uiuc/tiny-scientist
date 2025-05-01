@@ -28,7 +28,7 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            iter_num=3,
+            iter_num=1,
             search_papers=True,
             generate_exp_plan=True,
         )
