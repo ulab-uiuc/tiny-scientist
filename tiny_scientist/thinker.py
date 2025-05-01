@@ -84,14 +84,17 @@ class Thinker:
             print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
 
             current_idea_json = self._refine_idea(idea_json)
-            current_idea_final = (
+
+            current_idea_exp = (
                 self.generate_experiment_plan(current_idea_json)
                 if self.generate_exp_plan
-                else (
-                    self._check_novelty(current_idea_json)
-                    if check_novelty
-                    else current_idea_json
-                )
+                else current_idea_json
+            )
+
+            current_idea_final = (
+                self._check_novelty(current_idea_exp)
+                if check_novelty
+                else current_idea_exp
             )
 
             current_idea_dict = json.loads(current_idea_final)
