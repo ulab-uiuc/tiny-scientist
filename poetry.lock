@@ -1659,7 +1659,7 @@ files = [
     {file = "importlib_metadata-7.2.1-py3-none-any.whl", hash = "sha256:ffef94b0b66046dd8ea2d619b701fe978d9264d38f3998bc4c27ec3b146a87c8"},
     {file = "importlib_metadata-7.2.1.tar.gz", hash = "sha256:509ecb2ab77071db5137c655e24ceb3eee66e7bbc6574165d0d114d9fc4bbe68"},
 ]
-markers = {dev = "python_version < \"3.10\""}
+markers = {dev = "python_version == \"3.9\""}
 
 [package.dependencies]
 zipp = ">=0.5"
@@ -4281,6 +4281,18 @@ files = [
 catalogue = ">=2.0.3,<2.1.0"
 
 [[package]]
+name = "sseclient-py"
+version = "1.7.2"
+description = "SSE client for Python"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "sseclient-py-1.7.2.tar.gz", hash = "sha256:ba3197d314766eccb72a1dda80b5fa14a0fbba07d796a287654c07edde88fe0f"},
+    {file = "sseclient_py-1.7.2-py2.py3-none-any.whl", hash = "sha256:a758653b13b78df42cdb696740635a26cb72ad433b75efb68dbbb163d099b6a9"},
+]
+
+[[package]]
 name = "stack-data"
 version = "0.6.3"
 description = "Extract data from python stack frames and tracebacks for informative displays"
@@ -4442,6 +4454,27 @@ webencodings = ">=0.4"
 [package.extras]
 doc = ["sphinx", "sphinx_rtd_theme"]
 test = ["pytest", "ruff"]
+
+[[package]]
+name = "together"
+version = "0.2.4"
+description = "Python client for Together's Cloud Platform!"
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+files = [
+    {file = "together-0.2.4-py3-none-any.whl", hash = "sha256:fdf5b70e2d517e855fae5821e1ef8f164e938710d662fe3f4fadf5ac39f1c2a3"},
+    {file = "together-0.2.4.tar.gz", hash = "sha256:85896985f41bcd6f308ac4d925d1827e915d1e5e65057f92e990610a3085c94a"},
+]
+
+[package.dependencies]
+requests = "*"
+sseclient-py = "1.7.2"
+tqdm = "*"
+typer = "*"
+
+[package.extras]
+quality = ["black (>=23.1,<24.0)", "mypy (>=1.3.0)", "ruff (>=0.0.241,<=0.0.259)", "types-requests (>=2.31.0.1)", "types-tqdm (>=4.65.0.0)"]
 
 [[package]]
 name = "tokenizers"
@@ -4875,7 +4908,7 @@ files = [
     {file = "typing_extensions-4.12.2-py3-none-any.whl", hash = "sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d"},
     {file = "typing_extensions-4.12.2.tar.gz", hash = "sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8"},
 ]
-markers = {dev = "python_version < \"3.10\"", test = "python_version < \"3.10\""}
+markers = {dev = "python_version == \"3.9\"", test = "python_version == \"3.9\""}
 
 [[package]]
 name = "uritemplate"
@@ -5194,7 +5227,7 @@ files = [
     {file = "zipp-3.20.1-py3-none-any.whl", hash = "sha256:9960cd8967c8f85a56f920d5d507274e74f9ff813a0ab8889a5b5be2daf44064"},
     {file = "zipp-3.20.1.tar.gz", hash = "sha256:c22b14cc4763c5a5b04134207736c107db42e9d3ef2d9779d465f5f1bcba572b"},
 ]
-markers = {dev = "python_version < \"3.10\""}
+markers = {dev = "python_version == \"3.9\""}
 
 [package.extras]
 check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1)"]
@@ -5207,4 +5240,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9, <3.12"
-content-hash = "932391440e660de85f51f805088c23e39c334672e4c97b294a33691ed1b62827"
+content-hash = "536fe3896c31f7c28f9c71095676d6b413c519bdf543153762935b05f8f8c8e1"
