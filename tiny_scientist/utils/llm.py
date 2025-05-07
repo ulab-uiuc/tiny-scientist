@@ -50,6 +50,22 @@ AVAILABLE_LLMS = [
     # Google Gemini models
     "gemini-1.5-flash",
     "gemini-1.5-pro",
+    # Together AI models - Meta Llama models
+    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    "meta-llama/Llama-3.2-3B-Instruct-Turbo",
+    # Together AI models - Qwen models
+    "Qwen/Qwen2.5-7B-Instruct-Turbo",
+    "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    "Qwen/Qwen3-235B-A22B-fp8-tput",
+    # Together AI models - DeepSeek models
+    "deepseek-ai/DeepSeek-V3",
+    # Together AI models - Mistral models
+    "mistralai/Mistral-Small-24B-Instruct-2501",
 ]
 
 
@@ -107,6 +123,31 @@ def get_batch_responses_from_llm(
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
+    elif any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
+        # Together AI models
+        content = []
+        new_msg_history = []
+        
+        for _ in range(n_responses):
+            together_msg_history = msg_history + [{"role": "user", "content": msg}]
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *together_msg_history,
+                ],
+                temperature=temperature,
+                max_tokens=MAX_NUM_TOKENS,
+                n=1,
+                stop=None,
+            )
+            
+            resp_content = response.choices[0].message.content
+            content.append(resp_content)
+            updated_history = together_msg_history + [{"role": "assistant", "content": resp_content}]
+            new_msg_history.append(updated_history)
     else:
         content, new_msg_history = [], []
         for _ in range(n_responses):
@@ -276,6 +317,24 @@ def get_response_from_llm(
         )
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
+        # Together AI models
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -377,6 +436,57 @@ def get_batch_responses_from_llm_with_tools(
                  all_responses.append(f"Error: {e}")
                  all_new_histories.append(msg_history + [{"role": "user", "content": msg}, {"role":"assistant", "content": f"Error: {e}"}])
 
+    # Handle Together AI models with function calling
+    elif hasattr(client, "together") and any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        try:
+            # Try to use function calling with Together AI models
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *new_msg_history,
+                ],
+                tools=tools,
+                temperature=temperature,
+                max_tokens=MAX_NUM_TOKENS
+            )
+            
+            for choice in response.choices:
+                response_message = choice.message
+                current_history = new_msg_history + [{"role": "assistant", "content": response_message.content or ""}]
+                
+                if hasattr(response_message, "tool_calls") and response_message.tool_calls:
+                    # Store tool call information for Together AI
+                    tool_call_info = {
+                        "tool_calls": [
+                            {
+                                "id": tc.id if hasattr(tc, "id") else f"call_{i}",
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for i, tc in enumerate(response_message.tool_calls)
+                        ]
+                    }
+                    all_responses.append(tool_call_info)
+                    all_new_histories.append(current_history)
+                else:
+                    # Store text response
+                    content = response_message.content or ""
+                    all_responses.append(content)
+                    all_new_histories.append(current_history)
+                    
+        except Exception as e:
+            print(f"Error during Together AI call with tools: {e}")
+            for _ in range(n_responses):
+                all_responses.append(f"Error with Together AI tool calls: {e}")
+                all_new_histories.append(msg_history + [{"role": "user", "content": msg}, {"role":"assistant", "content": f"Error: {e}"}])
+
     else:
         # Fallback for models without direct tool support or non-OpenAI clients
         print(f"[WARNING] Tool calling requested for model '{model}' which might not have direct support in this implementation. Falling back to standard generation.")
@@ -440,6 +550,7 @@ def create_client(
         anthropic.AnthropicBedrock,
         anthropic.AnthropicVertex,
         openai.OpenAI,
+        Any,  # Together AI client
     ],
     str,
 ]:
@@ -449,6 +560,7 @@ def create_client(
         anthropic.AnthropicBedrock,
         anthropic.AnthropicVertex,
         openai.OpenAI,
+        Any,  # Together AI client
     ]
 
     if model.startswith("claude-"):
@@ -494,6 +606,29 @@ def create_client(
             )
         client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
         return client, "meta-llama/llama-3.1-405b-instruct"
+    
+    elif any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
+        # Together AI client
+        try:
+            from together import Together
+        except ImportError:
+            raise ImportError(
+                "To use Together AI models, you need to install the 'together' package: pip install together"
+            )
+        
+        api_key = os.environ.get("TOGETHER_API_KEY", llm_api_key)
+        if not api_key:
+            raise ValueError(
+                f"Missing Together AI API key to use {model}. Set TOGETHER_API_KEY or llm_api_key in config.toml."
+            )
+        
+        # Create the Together client and set an attribute to identify it
+        client = Together(api_key=api_key)
+        client.together = True  # Add this attribute to identify Together client
+        
+        return client, model
 
     else:
         raise ValueError(f"Model {model} not supported.")
