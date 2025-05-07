@@ -384,7 +384,7 @@ def get_batch_responses_from_llm_with_tools(
     ):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         try:
-            response = client.chat.completions.create(
+            response = client.chat.completions.create( # type: ignore[call-overload]
                 model=model,
                 messages=[
                     {"role": "system", "content": system_message},
