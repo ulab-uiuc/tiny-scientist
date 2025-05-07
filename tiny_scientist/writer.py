@@ -117,7 +117,7 @@ class Writer:
         self, section: str, content: str
     ) -> Optional[Dict[str, str]]:
         """Generate a diagram for a specific section if appropriate."""
-        if section in ["Method", "Experimental_Setup", "Results"]:
+        if section in ["Introduction", "Method", "Experimental_Setup", "Results"]:
             try:
                 diagram_result = self.drawer.run(content)
                 if diagram_result and "diagram" in diagram_result:

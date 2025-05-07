@@ -63,6 +63,7 @@ section_tips:
     - If results exist: includes ablation studies to show that specific parts of the method are relevant.
     - Discusses limitations of the method.
     - Make sure to include all the results from the experiments, and include all relevant figures.
+    - When you write the table, you should wrap the table with \resizebox{\columnwidth}{!}{% ... } to make sure the size of the table is normal.
 
   Discussion: |
     - Analyze what the experimental results reveal in the context of the original research question.
@@ -98,6 +99,9 @@ refinement_prompt: |
 
   Do not introduce new references or citations that were not already included.
   Do not add any new content beyond refinement of what is already present.
+  When you write the table, you must wrap the table with \resizebox{\columnwidth}{!}{% ... } to make sure the size of the table is normal.
+  When you write the table, you must add \usepackage{booktabs} at the beginning of the latex and use \midrule, \toprule, \bottomrule instead of \hline.
+
 
   Pay particular attention to fixing any errors such as:
   {error_list}
