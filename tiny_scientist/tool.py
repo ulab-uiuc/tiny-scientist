@@ -19,9 +19,38 @@ config = toml.load(config_path) if os.path.exists(config_path) else {"core": {}}
 
 
 class BaseTool(abc.ABC):
+    """
+    Base class for all tools in the Tiny Scientist framework.
+    
+    All tools must implement the run method and include proper documentation
+    of their functionality and parameters to assist the LLM in using them.
+    """
+    
     @abc.abstractmethod
-    def run(self, query: str) -> Dict[str, Dict[str, str]]:
-        pass
+    def run(self, **kwargs) -> Any:
+        """
+        Execute the tool with the provided parameters.
+        
+        Each tool must override this method with proper documentation of
+        parameters and return values to assist the LLM in tool usage.
+        
+        Returns:
+            Result of the tool execution
+        """
+        raise NotImplementedError("Each tool must implement the run method.")
+    
+    def safety_detect(self, **kwargs) -> Dict[str, Any]:
+        """
+        Optional safety check for tool inputs.
+        
+        This method can be implemented by tools to check for potentially
+        unsafe inputs before execution. Returns a dictionary with at least
+        a 'allowed' boolean field indicating if execution is safe.
+        
+        Returns:
+            Dictionary with safety assessment including 'allowed' field
+        """
+        return {"allowed": True, "reason": "No safety check implemented."}
 
 
 class CodeSearchTool(BaseTool):
@@ -168,10 +197,22 @@ class CodeSearchTool(BaseTool):
 
 
 class PaperSearchTool(BaseTool):
+    """Tool for searching and retrieving academic paper information."""
+    
     def __init__(self) -> None:
         self.s2_api_key = config["core"].get("s2_api_key", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        """
+        Search for academic papers based on a query string.
+        
+        Args:
+            query: Search query (e.g., paper title, keywords, author)
+            
+        Returns:
+            Dictionary mapping paper titles to metadata including abstracts, 
+            authors, publication dates, and bibtex citations
+        """
         results = {}
         papers = self.search_for_papers(query)
 
@@ -298,12 +339,15 @@ class PaperSearchTool(BaseTool):
 
 
 class DrawerTool(BaseTool):
+    """Tool for generating diagrams and visualizations."""
+    
     def __init__(
         self,
         model: Any,
         prompt_template_dir: Optional[str] = None,
         temperature: float = 0.75,
     ):
+        """Initialize the diagram generation tool."""
         self.client, self.model = create_client(model)
         self.temperature = temperature
 

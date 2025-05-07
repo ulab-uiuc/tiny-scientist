@@ -112,7 +112,7 @@ No need to export environment variables manually—just set this once.
 
 # Contribution
 
-We’re working on extending support for more tools, models, and paper formats. Contributions welcome!
+We're working on extending support for more tools, models, and paper formats. Contributions welcome!
 
 # Citation
 
@@ -125,3 +125,122 @@ note         = {Accessed: 2025-04-14},
 year         = {2025}
 }
 ```
+
+# TinyScientist ReAct
+
+This project extends TinyScientist with ReAct (Reasoning + Acting) capabilities for conducting domain-specific scientific experiments through a combination of LLM reasoning and specialized tool usage.
+
+## Overview
+
+The TinyScientist ReAct module allows you to:
+
+1. Run experiments in specific domains (chemistry, physics, or general) using specialized scientific tools
+2. Generate research papers based on experiment results
+3. Produce scientific analyses with proper reasoning and methodology
+
+## Requirements
+
+- Python 3.8+
+- Required packages (install via `pip install -r requirements.txt`)
+- Access to OpenAI API or other supported LLM APIs
+
+## Quick Start
+
+The easiest way to run an experiment is using the provided bash script:
+
+```bash
+# Make the script executable
+chmod +x run_experiment.sh
+
+# Run a chemistry experiment
+./run_experiment.sh --chemistry
+
+# Run a physics experiment
+./run_experiment.sh --physics
+
+# Run a general experiment
+./run_experiment.sh --general
+```
+
+## Advanced Usage
+
+The bash script supports additional parameters:
+
+```bash
+./run_experiment.sh --help
+```
+
+Output:
+```
+Usage: run_experiment.sh [options]
+Options:
+  -h, --help              Show this help message
+  -m, --model MODEL       Specify the LLM model (default: gpt-4o)
+  -d, --domain DOMAIN     Set domain: chemistry, physics, general (default: general)
+  -i, --intent TEXT       Specify experiment intent
+  -o, --output DIR        Set output directory (default: ./output)
+  --max-iter NUM          Set maximum iterations (default: 10)
+  -t, --template FORMAT   Paper template: acl, iclr (default: acl)
+
+Predefined experiment examples:
+  --chemistry             Run chemistry experiment (solubility study)
+  --physics               Run physics experiment (thermal-electrical property comparison)
+  --general               Run general ML experiment
+```
+
+## Python API
+
+You can also directly use the Python script:
+
+```bash
+python example_react_experiment.py --domain chemistry --intent "Investigate how temperature affects the solubility of NaCl in water"
+```
+
+Or import the TinyScientist class in your own code:
+
+```python
+from tiny_scientist import TinyScientist
+
+scientist = TinyScientist(model="gpt-4o")
+idea = scientist.think(intent="Your research question")
+status, experiment_dir = scientist.react_experiment(
+    idea=idea,
+    domain="chemistry",
+    max_iterations=15
+)
+```
+
+## Available Domains and Tools
+
+### Chemistry
+- `MoleculeReactionTool`: Simulates chemical reactions between molecules
+- `MoleculePropertyTool`: Retrieves properties of chemical compounds
+- `SolubilityTool`: Determines solubility of compounds in various solvents
+
+### Physics
+- `KinematicsTool`: Calculates kinematic quantities in classical mechanics
+- `ElectricalTool`: Calculates electrical quantities using Ohm's Law
+- `ThermodynamicsTool`: Performs thermodynamic calculations and simulations
+
+### General
+- Includes all tools from both domains
+
+## Example Workflow
+
+1. The system generates a research idea based on your intent
+2. The ReAct agent iteratively:
+   - Reasons about the next step (Thought)
+   - Selects and calls appropriate tools (Action)
+   - Analyzes results (Observation)
+3. Once the experiment is complete, a research paper is generated
+4. A scientific review of the paper is provided
+
+## Troubleshooting
+
+- If tools aren't loading correctly, check that the `tiny_scientist/tools` directory contains the correct tool files
+- For LLM API errors, verify your API keys are set correctly
+- Experiment logs are saved in the output directory for debugging
+
+## License
+
+[MIT License](LICENSE)

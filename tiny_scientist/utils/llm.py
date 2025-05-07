@@ -435,7 +435,7 @@ def get_batch_responses_from_llm_with_tools(
             for _ in range(n_responses):
                  all_responses.append(f"Error: {e}")
                  all_new_histories.append(msg_history + [{"role": "user", "content": msg}, {"role":"assistant", "content": f"Error: {e}"}])
-    
+
     # Handle Together AI models with function calling
     elif hasattr(client, "together") and any(model.startswith(prefix) for prefix in [
         "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
