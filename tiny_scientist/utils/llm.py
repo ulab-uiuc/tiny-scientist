@@ -8,6 +8,7 @@ import backoff
 import openai
 import toml
 from google.generativeai.types import GenerationConfig
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 
 # Load config
 config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")
@@ -362,7 +363,7 @@ def get_batch_responses_from_llm_with_tools(
     system_message: str,
     tools: List[Dict[str, Any]],
     print_debug: bool = False,
-    msg_history: Any = None,
+    msg_history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.75,
     n_responses: int = 1,
 ) -> Tuple[List[Union[str, Dict[str, Any]]], List[List[Dict[str, str]]]]:
@@ -500,7 +501,8 @@ def get_batch_responses_from_llm_with_tools(
             temperature=temperature,
             n_responses=n_responses,
         )
-        all_responses = contents
+        for item in contents:
+            all_responses.append(item)
         all_new_histories = histories
 
 
