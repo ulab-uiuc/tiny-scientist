@@ -145,7 +145,7 @@ class Writer:
         self, section: str, content: str
     ) -> Optional[Dict[str, str]]:
         """Generate a diagram for a specific section if appropriate."""
-        if section in ["Method", "Experimental_Setup", "Results"]:
+        if section in ["Introduction", "Method", "Experimental_Setup", "Results"]:
             try:
                 # Use the section text content to generate the diagram
                 diagram_input = self.formatter.strip_latex(content) # Get plain text

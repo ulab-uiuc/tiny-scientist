@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from rich import print
 
@@ -30,6 +30,8 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             tools=[],
             iter_num=3,
+            search_papers=True,
+            generate_exp_plan=True,
         )
 
         self.coder = Coder(
@@ -53,12 +55,16 @@ class TinyScientist:
             tools=[],
         )
 
-    def think(self, intent: str, pdf_content: Optional[str] = None) -> Dict[str, Any]:
+    def think(
+        self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         print("🧠 Generating idea...")
-        idea = self.thinker.run(intent=intent, pdf_content=pdf_content)
-        print(idea)
+        ideas = self.thinker.run(
+            intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
+        )
+        print(ideas)
         print("✅ Idea generated.")
-        return idea
+        return ideas
 
     def code(
         self,
