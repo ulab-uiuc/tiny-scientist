@@ -1,0 +1,82 @@
+[
+  {
+    "Task": "Inject CRISPR-Cas9 components into zebrafish embryos to study gene function.",
+    "tool": "Microinjection System - The Eppendorf FemtoJet 4i (2023 edition)"
+  },
+  {
+    "Task": "Introduce fluorescent dye into individual plant cells to observe cellular processes under a microscope.",
+    "tool": "Microinjection System - The Eppendorf FemtoJet 4i (2023 edition)"
+  },
+  {
+    "Task": "Microinject siRNA into cultured mammalian cells to knock down a specific gene and analyze its effect on cell proliferation.",
+    "tool": "Microinjection System - The Eppendorf FemtoJet 4i (2023 edition)"
+  },
+  {
+    "Task": "Deliver small-molecule drugs into C. elegans to study their impact on nematode development and behavior.",
+    "tool": "Microinjection System - The Eppendorf FemtoJet 4i (2023 edition)"
+  },
+  {
+    "Task": "Evaluate the thermal dose distribution in a phantom model using the Sonalleve MR‑HIFU R37 to ensure uniform ablation coverage.",
+    "tool": "Focused Ultrasound Ablation System - The Profound Medical Sonalleve MR‑HIFU R37 (2023 edition)"
+  },
+  {
+    "Task": "Conduct a precision ablation test on a gel-based phantom to assess the accuracy of lesion targeting by the Sonalleve MR‑HIFU R37.",
+    "tool": "Focused Ultrasound Ablation System - The Profound Medical Sonalleve MR‑HIFU R37 (2023 edition)"
+  },
+  {
+    "Task": "Perform a pilot study on the ablation of benign fibroadenomas in breast tissue models to evaluate the effectiveness of the Sonalleve MR‑HIFU R37 in non-invasive treatments.",
+    "tool": "Focused Ultrasound Ablation System - The Profound Medical Sonalleve MR‑HIFU R37 (2023 edition)"
+  },
+  {
+    "Task": "Test the efficiency of the Sonalleve MR‑HIFU R37 in ablating liver tissue in an ex vivo model to simulate treatment protocols for hepatic tumors.",
+    "tool": "Focused Ultrasound Ablation System - The Profound Medical Sonalleve MR‑HIFU R37 (2023 edition)"
+  },
+  {
+    "Task": "Amplify a specific segment of DNA from a plant sample to analyze genetic markers.",
+    "tool": "PCR Thermocycler - The Eppendorf Mastercycler X50 (2024 edition)"
+  },
+  {
+    "Task": "Perform a quantitative PCR to determine the expression levels of a gene of interest in human tissue samples.",
+    "tool": "PCR Thermocycler - The Eppendorf Mastercycler X50 (2024 edition)"
+  },
+  {
+    "Task": "Conduct a multiplex PCR to simultaneously detect multiple viral pathogens in a clinical sample.",
+    "tool": "PCR Thermocycler - The Eppendorf Mastercycler X50 (2024 edition)"
+  },
+  {
+    "Task": "Optimize the annealing temperature for a newly designed set of primers intended for bacterial species identification.",
+    "tool": "PCR Thermocycler - The Eppendorf Mastercycler X50 (2024 edition)"
+  },
+  {
+    "Task": "Conduct a particle size distribution analysis of a saline solution aerosol to determine optimal settings for inhalation therapy devices.",
+    "tool": "Aerosol Generator - The TSI Model 3076 Constant Output Atomizer"
+  },
+  {
+    "Task": "Perform a stability test on a pharmaceutical formulation by generating aerosols and measuring the evaporation rate over a fixed time period.",
+    "tool": "Aerosol Generator - The TSI Model 3076 Constant Output Atomizer"
+  },
+  {
+    "Task": "Generate and capture aerosolized vegetable oil particles to evaluate the efficiency of air filtration systems in an industrial kitchen setting.",
+    "tool": "Aerosol Generator - The TSI Model 3076 Constant Output Atomizer"
+  },
+  {
+    "Task": "Create a controlled aerosol environment using a water-based solution to assess the performance of a new optical particle counter in detecting fine particulate matter.",
+    "tool": "Aerosol Generator - The TSI Model 3076 Constant Output Atomizer"
+  },
+  {
+    "Task": "Conduct a dose-response study on cultured cancer cells to determine the effect of varying X-ray doses on cell viability.",
+    "tool": "X-ray Irradiator - The Precision X‑RAD 320 (2023 edition)"
+  },
+  {
+    "Task": "Perform radiation sterilization of surgical instruments to evaluate the efficacy of X-ray irradiation in eliminating microbial contaminants.",
+    "tool": "X-ray Irradiator - The Precision X‑RAD 320 (2023 edition)"
+  },
+  {
+    "Task": "Irradiate a mouse model to study the acute effects of specific doses of X-ray radiation on bone marrow cell apoptosis.",
+    "tool": "X-ray Irradiator - The Precision X‑RAD 320 (2023 edition)"
+  },
+  {
+    "Task": "Investigate the impact of X-ray irradiation on the structural integrity of polymer materials used in medical devices by applying a standardized radiation dose.",
+    "tool": "X-ray Irradiator - The Precision X‑RAD 320 (2023 edition)"
+  }
+]

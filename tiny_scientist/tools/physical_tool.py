@@ -1,765 +1,519 @@
 import json
-import math
+import os
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 from ..tool import BaseTool
 from ..utils.llm import create_client, get_response_from_llm
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-class KinematicsTool(BaseTool):
-    """Tool for calculating kinematic quantities in classical mechanics."""
-    
-    def safety_detect(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Check if the requested calculation is safe to perform."""
-        # Extract relevant values to check
-        velocity = inputs.get("velocity", 0)
-        acceleration = inputs.get("acceleration", 0)
-        time = inputs.get("time", 0)
-        mass = inputs.get("mass", 0)
-        
-        # Check for unreasonable values
-        if isinstance(velocity, (int, float)) and abs(velocity) > 3e8:  # Speed of light
-            return {
-                "safe": False,
-                "reason": f"Velocity {velocity} exceeds the speed of light (3e8 m/s)",
-                "allowed": False
-            }
-            
-        if isinstance(time, (int, float)) and time < 0:
-            return {
-                "safe": False,
-                "reason": f"Negative time value {time} is not physically meaningful",
-                "allowed": False
-            }
-            
-        if isinstance(mass, (int, float)) and mass < 0:
-            return {
-                "safe": False,
-                "reason": f"Negative mass value {mass} is not physically meaningful",
-                "allowed": False
-            }
-        
-        # Check for extremely large values that might cause numerical issues
-        for name, value in inputs.items():
-            if isinstance(value, (int, float)) and abs(value) > 1e20:
-                return {
-                    "safe": False,
-                    "reason": f"Value for {name} ({value}) is unreasonably large",
-                    "allowed": False
-                }
-        
-        # Default to allowing if no issues detected
-        return {"safe": True, "reason": "No safety concerns detected", "allowed": True}
-    
-    def run(
-        self, 
-        calculation_type: str,
-        initial_velocity: Optional[float] = None,
-        final_velocity: Optional[float] = None,
-        acceleration: Optional[float] = None,
-        time: Optional[float] = None,
-        displacement: Optional[float] = None,
-        mass: Optional[float] = None
-    ) -> Dict[str, Any]:
-        """
-        Calculate kinematic quantities based on the provided parameters.
-        
-        Args:
-            calculation_type: Type of calculation to perform
-                ("motion", "force", "energy", "momentum", etc.)
-            initial_velocity: Initial velocity in m/s
-            final_velocity: Final velocity in m/s
-            acceleration: Acceleration in m/s²
-            time: Time in seconds
-            displacement: Displacement in meters
-            mass: Mass in kg (for force, energy, momentum calculations)
-            
-        Returns:
-            Dictionary with calculated results
-        """
-        # Check safety first
-        inputs = {
-            "velocity": max(abs(initial_velocity or 0), abs(final_velocity or 0)),
-            "acceleration": acceleration or 0,
-            "time": time or 0,
-            "displacement": displacement or 0,
-            "mass": mass or 0
-        }
-        safety_result = self.safety_detect(inputs)
-        if not safety_result.get("allowed", True):
-            return {
-                "success": False,
-                "error": "Safety check failed",
-                "details": safety_result
-            }
-        
-        result = {"success": True, "calculation_type": calculation_type}
-        
-        # Uniform motion calculations
-        if calculation_type.lower() in ["motion", "uniform motion", "kinematics"]:
-            # Kinematic equations:
-            # v = u + at
-            # s = ut + 0.5at²
-            # v² = u² + 2as
-            # s = 0.5(u+v)t
-            
-            # Calculate any missing value based on available inputs
-            if initial_velocity is not None and acceleration is not None and time is not None:
-                final_vel = initial_velocity + acceleration * time
-                result["final_velocity"] = final_vel
-                
-                displ = initial_velocity * time + 0.5 * acceleration * time**2
-                result["displacement"] = displ
-                
-            elif initial_velocity is not None and final_velocity is not None and time is not None:
-                accel = (final_velocity - initial_velocity) / time
-                result["acceleration"] = accel
-                
-                displ = 0.5 * (initial_velocity + final_velocity) * time
-                result["displacement"] = displ
-                
-            elif initial_velocity is not None and final_velocity is not None and acceleration is not None:
-                if acceleration != 0:
-                    time_val = (final_velocity - initial_velocity) / acceleration
-                    result["time"] = time_val
-                    
-                    displ = (final_velocity**2 - initial_velocity**2) / (2 * acceleration)
-                    result["displacement"] = displ
-                else:
-                    # Constant velocity case
-                    result["time"] = "Infinite (constant velocity with zero acceleration)"
-                    result["note"] = "Cannot determine displacement without time"
-                    
-            elif initial_velocity is not None and acceleration is not None and displacement is not None:
-                discriminant = initial_velocity**2 + 2 * acceleration * displacement
-                if discriminant >= 0:
-                    final_vel = math.sqrt(discriminant)
-                    result["final_velocity"] = final_vel
-                    
-                    time_val = (final_vel - initial_velocity) / acceleration if acceleration != 0 else displacement / initial_velocity
-                    result["time"] = time_val
-                else:
-                    result["success"] = False
-                    result["error"] = "Invalid parameters: displacement not achievable with given initial velocity and acceleration"
-                    
-            else:
-                result["success"] = False
-                result["error"] = "Insufficient parameters provided. Need at least 3 of: initial_velocity, final_velocity, acceleration, time, displacement"
-        
-        # Force calculations (F = ma)
-        elif calculation_type.lower() in ["force", "newton's second law"]:
-            if mass is not None and acceleration is not None:
-                force = mass * acceleration
-                result["force"] = force
-                result["unit"] = "newtons (N)"
-            elif mass is not None and force is not None:
-                acceleration_val = force / mass
-                result["acceleration"] = acceleration_val
-                result["unit"] = "m/s²"
-            elif force is not None and acceleration is not None:
-                mass_val = force / acceleration
-                result["mass"] = mass_val
-                result["unit"] = "kg"
-            else:
-                result["success"] = False
-                result["error"] = "Insufficient parameters for force calculation. Need at least 2 of: mass, force, acceleration"
-        
-        # Energy calculations
-        elif calculation_type.lower() in ["energy", "kinetic energy", "potential energy"]:
-            if "kinetic" in calculation_type.lower() and mass is not None:
-                if final_velocity is not None:
-                    kinetic_energy = 0.5 * mass * final_velocity**2
-                    result["kinetic_energy"] = kinetic_energy
-                    result["unit"] = "joules (J)"
-                elif initial_velocity is not None:
-                    kinetic_energy = 0.5 * mass * initial_velocity**2
-                    result["kinetic_energy"] = kinetic_energy
-                    result["unit"] = "joules (J)"
-                    result["note"] = "Calculated using initial velocity as final velocity was not provided"
-                else:
-                    result["success"] = False
-                    result["error"] = "Velocity is required for kinetic energy calculation"
-            
-            elif "potential" in calculation_type.lower() and mass is not None:
-                if displacement is not None:  # Treating displacement as height for potential energy
-                    gravity = 9.8  # m/s², acceleration due to gravity on Earth
-                    potential_energy = mass * gravity * displacement
-                    result["potential_energy"] = potential_energy
-                    result["unit"] = "joules (J)"
-                else:
-                    result["success"] = False
-                    result["error"] = "Height (displacement) is required for potential energy calculation"
-            else:
-                result["success"] = False
-                result["error"] = "Insufficient parameters for energy calculation"
-        
-        # Momentum calculations (p = mv)
-        elif calculation_type.lower() in ["momentum", "linear momentum"]:
-            if mass is not None:
-                if final_velocity is not None:
-                    momentum = mass * final_velocity
-                    result["momentum"] = momentum
-                    result["unit"] = "kg·m/s"
-                elif initial_velocity is not None:
-                    momentum = mass * initial_velocity
-                    result["momentum"] = momentum
-                    result["unit"] = "kg·m/s"
-                    result["note"] = "Calculated using initial velocity as final velocity was not provided"
-                else:
-                    result["success"] = False
-                    result["error"] = "Velocity is required for momentum calculation"
-            else:
-                result["success"] = False
-                result["error"] = "Mass is required for momentum calculation"
-        
-        else:
-            result["success"] = False
-            result["error"] = f"Unknown calculation type: {calculation_type}"
-        
-        # Add input parameters to the result
-        result["parameters"] = {
-            "initial_velocity": initial_velocity,
-            "final_velocity": final_velocity,
-            "acceleration": acceleration,
-            "time": time,
-            "displacement": displacement,
-            "mass": mass
-        }
-        
-        return result
-
-
-class ElectricalTool(BaseTool):
-    """Tool for calculating electrical quantities using Ohm's Law and related formulas."""
+class PhysicalToolUtility(BaseTool):
+    """Base class for all physical tools with safety checking capabilities."""
     
     def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
-        """Initialize the tool with a language model for simulations."""
-        self.client, self.model = create_client(model)
-    
-    def safety_detect(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Check if the requested electrical calculation is safe."""
-        # Extract relevant values to check
-        voltage = inputs.get("voltage", 0)
-        current = inputs.get("current", 0)
-        
-        # Check for dangerous levels of electrical parameters
-        if isinstance(voltage, (int, float)) and voltage > 50:  # Generally, voltage > 50V is considered dangerous
-            return {
-                "safe": True,  # Still safe for calculation, just add a warning
-                "reason": f"WARNING: Voltage of {voltage}V is potentially dangerous to humans",
-                "warning": "High voltage",
-                "allowed": True
-            }
-            
-        if isinstance(current, (int, float)) and current > 0.1:  # Current > 100mA can be lethal
-            return {
-                "safe": True,  # Still safe for calculation, just add a warning
-                "reason": f"WARNING: Current of {current}A is potentially dangerous to humans",
-                "warning": "High current",
-                "allowed": True
-            }
-        
-        # Check for negative resistance which is not physically meaningful
-        resistance = inputs.get("resistance", 0)
-        if isinstance(resistance, (int, float)) and resistance < 0:
-            return {
-                "safe": False,
-                "reason": f"Negative resistance value {resistance} is not physically meaningful",
-                "allowed": False
-            }
-        
-        # Default to allowing if no issues detected
-        return {"safe": True, "reason": "No safety concerns detected", "allowed": True}
-    
-    def run(
-        self, 
-        calculation_type: str,
-        voltage: Optional[float] = None,
-        current: Optional[float] = None,
-        resistance: Optional[float] = None,
-        power: Optional[float] = None,
-        time: Optional[float] = None,
-        component: Optional[str] = None
-    ) -> Dict[str, Any]:
         """
-        Calculate electrical quantities based on the provided parameters.
+        Initialize the physical tool utility.
         
         Args:
-            calculation_type: Type of calculation to perform
-                ("ohm", "power", "energy", "circuit", etc.)
-            voltage: Voltage in volts (V)
-            current: Current in amperes (A)
-            resistance: Resistance in ohms (Ω)
-            power: Power in watts (W)
-            time: Time in seconds (for energy calculations)
-            component: Description of electrical component (for additional context)
-            
-        Returns:
-            Dictionary with calculated results
+            model: LLM model to use for safety assessments
         """
-        # Check safety first
-        inputs = {
-            "voltage": voltage or 0,
-            "current": current or 0,
-            "resistance": resistance or 0,
-            "power": power or 0,
-            "time": time or 0
-        }
-        safety_result = self.safety_detect(inputs)
-        
-        result = {"success": True, "calculation_type": calculation_type}
-        
-        # Add safety warnings if present
-        if safety_result.get("warning"):
-            result["warning"] = safety_result.get("warning")
-            result["safety_note"] = safety_result.get("reason")
-        
-        # Check if calculation is allowed to proceed
-        if not safety_result.get("allowed", True):
-            return {
-                "success": False,
-                "error": "Safety check failed",
-                "details": safety_result
-            }
-        
-        # Ohm's Law calculations (V = IR)
-        if calculation_type.lower() in ["ohm", "ohm's law", "resistance"]:
-            if voltage is not None and current is not None and current != 0:
-                resistance_val = voltage / current
-                result["resistance"] = resistance_val
-                result["unit"] = "ohms (Ω)"
-                
-            elif voltage is not None and resistance is not None and resistance != 0:
-                current_val = voltage / resistance
-                result["current"] = current_val
-                result["unit"] = "amperes (A)"
-                
-            elif current is not None and resistance is not None:
-                voltage_val = current * resistance
-                result["voltage"] = voltage_val
-                result["unit"] = "volts (V)"
-                
-            else:
-                result["success"] = False
-                result["error"] = "Insufficient parameters for Ohm's Law calculation. Need at least 2 of: voltage, current, resistance"
-        
-        # Power calculations (P = VI, P = I²R, P = V²/R)
-        elif calculation_type.lower() in ["power", "electrical power"]:
-            if voltage is not None and current is not None:
-                power_val = voltage * current
-                result["power"] = power_val
-                result["unit"] = "watts (W)"
-                
-            elif current is not None and resistance is not None:
-                power_val = current**2 * resistance
-                result["power"] = power_val
-                result["unit"] = "watts (W)"
-                
-            elif voltage is not None and resistance is not None and resistance != 0:
-                power_val = voltage**2 / resistance
-                result["power"] = power_val
-                result["unit"] = "watts (W)"
-                
-            elif power is not None:
-                if voltage is not None and voltage != 0:
-                    current_val = power / voltage
-                    result["current"] = current_val
-                    result["unit_current"] = "amperes (A)"
-                    
-                    resistance_val = voltage**2 / power
-                    result["resistance"] = resistance_val
-                    result["unit_resistance"] = "ohms (Ω)"
-                    
-                elif current is not None and current != 0:
-                    voltage_val = power / current
-                    result["voltage"] = voltage_val
-                    result["unit_voltage"] = "volts (V)"
-                    
-                    resistance_val = power / current**2
-                    result["resistance"] = resistance_val
-                    result["unit_resistance"] = "ohms (Ω)"
-                    
-                elif resistance is not None:
-                    current_val = math.sqrt(power / resistance)
-                    result["current"] = current_val
-                    result["unit_current"] = "amperes (A)"
-                    
-                    voltage_val = math.sqrt(power * resistance)
-                    result["voltage"] = voltage_val
-                    result["unit_voltage"] = "volts (V)"
-                    
-                else:
-                    result["success"] = False
-                    result["error"] = "Insufficient parameters for power calculation. Need power and one of: voltage, current, resistance"
-            else:
-                result["success"] = False
-                result["error"] = "Insufficient parameters for power calculation. Need at least 2 of: voltage, current, resistance, or power and 1 other parameter"
-        
-        # Energy calculations (E = Pt)
-        elif calculation_type.lower() in ["energy", "electrical energy"]:
-            if power is not None and time is not None:
-                energy = power * time
-                result["energy"] = energy
-                result["unit"] = "joules (J)"
-                
-                # Convert to kilowatt-hours if appropriate
-                if energy > 1000:
-                    energy_kwh = energy / 3600000  # 1 kWh = 3,600,000 J
-                    result["energy_kwh"] = energy_kwh
-                    result["unit_kwh"] = "kilowatt-hours (kWh)"
-            else:
-                result["success"] = False
-                result["error"] = "Both power and time are required for energy calculation"
-        
-        # Circuit analysis (use LLM for more complex cases)
-        elif calculation_type.lower() in ["circuit", "circuit analysis"]:
-            if component:
-                prompt = f"""
-                Perform circuit analysis for the following component/circuit:
-                Component/Circuit: {component}
-                
-                Provided parameters:
-                - Voltage: {voltage if voltage is not None else 'Not provided'}
-                - Current: {current if current is not None else 'Not provided'}
-                - Resistance: {resistance if resistance is not None else 'Not provided'}
-                - Power: {power if power is not None else 'Not provided'}
-                - Time: {time if time is not None else 'Not provided'}
-                
-                Analyze the circuit and provide calculations for unknown parameters.
-                Format your response as JSON with the calculated values and explanations.
-                """
-                
-                response, _ = get_response_from_llm(
-                    msg=prompt,
-                    client=self.client,
-                    model=self.model,
-                    system_message="You are an electrical engineering expert performing accurate circuit analysis.",
-                    temperature=0.2
-                )
-                
-                try:
-                    # Extract JSON from response
-                    circuit_analysis = json.loads(response)
-                    # Add metadata
-                    circuit_analysis["success"] = True
-                    circuit_analysis["component"] = component
-                    return circuit_analysis
-                except json.JSONDecodeError:
-                    # Fallback to returning the raw text if JSON parsing fails
-                    return {
-                        "success": True,
-                        "component": component,
-                        "analysis": response,
-                        "parameters": inputs,
-                        "note": "Response formatting failed, returning raw analysis"
-                    }
-            else:
-                result["success"] = False
-                result["error"] = "Component description is required for circuit analysis"
-        
-        else:
-            result["success"] = False
-            result["error"] = f"Unknown calculation type: {calculation_type}"
-        
-        # Add input parameters to the result
-        result["parameters"] = {
-            "voltage": voltage,
-            "current": current,
-            "resistance": resistance,
-            "power": power,
-            "time": time,
-            "component": component
-        }
-        
-        return result
-
-
-class ThermodynamicsTool(BaseTool):
-    """Tool for thermodynamic calculations and simulations."""
-    
-    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
-        """Initialize the tool with a language model for simulations."""
         self.client, self.model = create_client(model)
-    
-    def safety_detect(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Check if the requested thermodynamic calculation is safe."""
-        # Extract relevant values to check
-        temperature = inputs.get("temperature", 0)
-        pressure = inputs.get("pressure", 0)
         
-        # Check for extreme temperature values
-        if isinstance(temperature, (int, float)):
-            # Check for absolute zero violation
-            if temperature < 0 and inputs.get("temperature_unit", "K").upper() == "K":
-                return {
-                    "safe": False,
-                    "reason": f"Temperature {temperature}K is below absolute zero, which is physically impossible",
-                    "allowed": False
-                }
+        # Load physical tools data
+        self.tools_data = self._load_tools_data()
+        self.tools_by_name = {tool['tool_name']: tool for tool in self.tools_data}
+        
+    def _load_tools_data(self) -> List[Dict[str, Any]]:
+        """Load physical tools data from JSON file."""
+        try:
+            # Try to locate the JSON file - first attempt relative path
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            json_path = os.path.join(base_dir, "data/ScienceSafetyData/Tool/phy_tool.json")
             
-            # Check for extremely high temperatures
-            if temperature > 1e8:  # Arbitrarily high temperature
-                return {
-                    "safe": True,  # Still calculate, but warn
-                    "reason": f"Temperature {temperature} is extremely high",
-                    "warning": "Extreme temperature",
-                    "allowed": True
-                }
-        
-        # Check for negative pressure (vacuum can only go to 0 Pa absolute)
-        if isinstance(pressure, (int, float)) and pressure < 0:
-            return {
-                "safe": False,
-                "reason": f"Negative pressure {pressure} is not physically meaningful",
-                "allowed": False
-            }
-        
-        # Default to allowing if no issues detected
-        return {"safe": True, "reason": "No safety concerns detected", "allowed": True}
+            if not os.path.exists(json_path):
+                # Alternative paths
+                alternate_paths = [
+                    "data/ScienceSafetyData/Tool/phy_tool.json",
+                    "./data/ScienceSafetyData/Tool/phy_tool.json"
+                ]
+                
+                for path in alternate_paths:
+                    if os.path.exists(path):
+                        json_path = path
+                        break
+            
+            with open(json_path, 'r') as f:
+                tools_data = json.load(f)
+                logger.info(f"Successfully loaded physics tool data: {len(tools_data)} tools")
+                return tools_data
+                
+        except Exception as e:
+            logger.error(f"Failed to load physics tool data: {e}")
+            # Return empty list as fallback
+            return []
     
-    def run(
-        self, 
-        calculation_type: str,
-        temperature: Optional[float] = None,
-        temperature_unit: str = "K",  # K, C, or F
-        pressure: Optional[float] = None,
-        pressure_unit: str = "Pa",  # Pa, bar, atm
-        volume: Optional[float] = None,
-        volume_unit: str = "m3",  # m3, L
-        mass: Optional[float] = None,
-        substance: Optional[str] = None,
-        initial_state: Optional[Dict[str, Any]] = None,
-        final_state: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def safety_detect(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Calculate thermodynamic quantities based on the provided parameters.
+        Generic safety checking method for physical tools.
         
         Args:
-            calculation_type: Type of calculation to perform
-                ("gas law", "heat", "entropy", "process", etc.)
-            temperature: Temperature value
-            temperature_unit: Unit of temperature (K, C, F)
-            pressure: Pressure value
-            pressure_unit: Unit of pressure (Pa, bar, atm)
-            volume: Volume value
-            volume_unit: Unit of volume (m3, L)
-            mass: Mass in kg
-            substance: Name of substance for specific calculations
-            initial_state: Dictionary of initial state parameters
-            final_state: Dictionary of final state parameters
+            tool_name: Name of the physical tool
+            parameters: Dictionary of tool parameter values
             
         Returns:
-            Dictionary with calculated results
+            Dictionary with safety assessment including 'allowed' field
         """
-        # Standardize units for calculations
-        temp_k = temperature
-        if temperature is not None:
-            if temperature_unit.upper() == "C":
-                temp_k = temperature + 273.15
-            elif temperature_unit.upper() == "F":
-                temp_k = (temperature - 32) * 5/9 + 273.15
-        
-        pres_pa = pressure
-        if pressure is not None:
-            if pressure_unit.lower() == "bar":
-                pres_pa = pressure * 100000
-            elif pressure_unit.lower() == "atm":
-                pres_pa = pressure * 101325
-        
-        vol_m3 = volume
-        if volume is not None:
-            if volume_unit.lower() == "l":
-                vol_m3 = volume / 1000
-        
-        # Check safety first with standardized units
-        inputs = {
-            "temperature": temp_k,
-            "temperature_unit": "K",
-            "pressure": pres_pa,
-            "pressure_unit": "Pa",
-            "volume": vol_m3,
-            "volume_unit": "m3",
-            "mass": mass or 0,
-            "substance": substance or ""
-        }
-        safety_result = self.safety_detect(inputs)
-        
-        result = {"success": True, "calculation_type": calculation_type}
-        
-        # Add safety warnings if present
-        if safety_result.get("warning"):
-            result["warning"] = safety_result.get("warning")
-            result["safety_note"] = safety_result.get("reason")
-        
-        # Check if calculation is allowed to proceed
-        if not safety_result.get("allowed", True):
+        # Return error if tool doesn't exist
+        if tool_name not in self.tools_by_name:
             return {
-                "success": False,
-                "error": "Safety check failed",
-                "details": safety_result
+                "allowed": False,
+                "reason": f"Unknown tool: '{tool_name}'. Available tools: {list(self.tools_by_name.keys())}"
             }
         
-        # Ideal Gas Law calculations (PV = nRT)
-        if calculation_type.lower() in ["gas law", "ideal gas law"]:
-            # Universal gas constant
-            R = 8.3145  # J/(mol·K)
-            
-            # If mass and substance are provided, we can calculate moles
-            moles = None
-            if mass is not None and substance is not None:
-                # Use LLM to get molecular weight if needed
-                prompt = f"What is the molecular weight of {substance} in g/mol? Just return the numerical value."
-                response, _ = get_response_from_llm(
-                    msg=prompt,
-                    client=self.client,
-                    model=self.model,
-                    system_message="You are a chemistry expert providing accurate molecular weights.",
-                    temperature=0.1
-                )
-                
-                try:
-                    # Try to extract a number from the response
-                    import re
-                    molecular_weight_match = re.search(r"(\d+\.?\d*|\.\d+)", response)
-                    if molecular_weight_match:
-                        molecular_weight = float(molecular_weight_match.group(1))
-                        moles = mass * 1000 / molecular_weight  # Convert mass from kg to g
-                        result["moles"] = moles
-                        result["molecular_weight"] = molecular_weight
-                except Exception:
-                    result["note"] = "Could not calculate moles from mass and substance"
-            
-            # Calculations based on available parameters
-            if pres_pa is not None and vol_m3 is not None and temp_k is not None:
-                if moles is None:
-                    # Calculate moles using PV = nRT
-                    moles = (pres_pa * vol_m3) / (R * temp_k)
-                    result["moles"] = moles
-                
-                # Also provide the value of PV/T as a check
-                pv_t = pres_pa * vol_m3 / temp_k
-                result["PV/T"] = pv_t
-                result["nR"] = moles * R
-                
-            elif pres_pa is not None and vol_m3 is not None and moles is not None:
-                # Calculate temperature
-                temp_k = (pres_pa * vol_m3) / (moles * R)
-                result["temperature"] = temp_k
-                result["temperature_celsius"] = temp_k - 273.15
-                
-            elif pres_pa is not None and temp_k is not None and moles is not None:
-                # Calculate volume
-                vol_m3 = (moles * R * temp_k) / pres_pa
-                result["volume"] = vol_m3
-                result["volume_liters"] = vol_m3 * 1000
-                
-            elif vol_m3 is not None and temp_k is not None and moles is not None:
-                # Calculate pressure
-                pres_pa = (moles * R * temp_k) / vol_m3
-                result["pressure"] = pres_pa
-                result["pressure_bar"] = pres_pa / 100000
-                result["pressure_atm"] = pres_pa / 101325
-                
-            else:
-                result["success"] = False
-                result["error"] = "Insufficient parameters for gas law calculation. Need at least 3 of: pressure, volume, temperature, and moles (or mass and substance)"
+        tool_data = self.tools_by_name[tool_name]
         
-        # Heat and work calculations
-        elif calculation_type.lower() in ["heat", "work", "energy transfer"]:
-            if initial_state and final_state:
-                # For more complex cases or when full states are provided, use LLM
-                prompt = f"""
-                Calculate the heat and work for a thermodynamic process with:
-                
-                Initial state: {json.dumps(initial_state)}
-                Final state: {json.dumps(final_state)}
-                Substance: {substance or 'Unknown'}
-                
-                Format your response as JSON with heat, work, and explanation fields.
-                Use standard SI units, and include the sign convention (+ for system gaining heat/work).
-                """
-                
-                response, _ = get_response_from_llm(
-                    msg=prompt,
-                    client=self.client,
-                    model=self.model,
-                    system_message="You are a thermodynamics expert calculating accurate heat and work values.",
-                    temperature=0.2
-                )
-                
-                try:
-                    # Extract JSON from response
-                    calculation_result = json.loads(response)
-                    # Add metadata
-                    calculation_result["success"] = True
-                    calculation_result["substance"] = substance
-                    calculation_result["initial_state"] = initial_state
-                    calculation_result["final_state"] = final_state
-                    return calculation_result
-                except json.JSONDecodeError:
-                    # Fallback to returning the raw text if JSON parsing fails
-                    return {
-                        "success": True,
-                        "substance": substance,
-                        "analysis": response,
-                        "initial_state": initial_state,
-                        "final_state": final_state,
-                        "note": "Response formatting failed, returning raw analysis"
-                    }
-            else:
-                # Handle simpler calculations or provide guidance
-                result["success"] = False
-                result["error"] = "Insufficient parameters for heat/work calculation. Need initial and final states."
-                result["suggestion"] = "For a heat or work calculation, provide initial_state and final_state dictionaries with temperature, pressure, and volume information."
+        # Check if safety thresholds exist
+        if "risks_detection" not in tool_data or "threshold_conditions" not in tool_data["risks_detection"]:
+            return {
+                "allowed": True,
+                "reason": "This tool has no defined safety threshold conditions."
+            }
         
-        # For other calculation types, use LLM
-        else:
-            # Prepare a prompt based on the calculation type and available parameters
-            param_description = ", ".join([f"{k}: {v}" for k, v in inputs.items() if v])
-            prompt = f"""
-            Perform a {calculation_type} calculation with the following parameters:
-            {param_description}
+        # Check each threshold condition
+        threshold_conditions = tool_data["risks_detection"]["threshold_conditions"]
+        violations = []
+        
+        for condition in threshold_conditions:
+            param = condition["parameter"]
             
-            Format your response as JSON with calculated values and explanations.
-            Use proper SI units and provide unit conversions where helpful.
-            """
+            # Skip parameters not provided
+            if param not in parameters:
+                continue
+                
+            param_value = parameters[param]
+            threshold = condition["threshold"]
             
+            # Check threshold conditions
+            if isinstance(threshold, dict):  # Range condition
+                lower_bound = threshold.get("lower_bound")
+                upper_bound = threshold.get("upper_bound")
+                
+                if lower_bound is not None and param_value < lower_bound:
+                    violations.append({
+                        "parameter": param,
+                        "value": param_value,
+                        "threshold": f"not less than {lower_bound}",
+                        "condition": condition["condition"]
+                    })
+                elif upper_bound is not None and param_value > upper_bound:
+                    violations.append({
+                        "parameter": param,
+                        "value": param_value,
+                        "threshold": f"not greater than {upper_bound}",
+                        "condition": condition["condition"]
+                    })
+            else:  # Single threshold condition
+                # Most conditions involve not exceeding the threshold
+                if param_value >= threshold:
+                    violations.append({
+                        "parameter": param,
+                        "value": param_value,
+                        "threshold": threshold,
+                        "condition": condition["condition"]
+                    })
+        
+        # Return not allowed if violations exist
+        if violations:
+            return {
+                "allowed": False,
+                "reason": "Parameters violate safety thresholds",
+                "violations": violations
+            }
+        
+        # Use LLM for more advanced safety assessment
+        safety_result = self._assess_safety_with_llm(tool_name, parameters)
+        
+        return safety_result
+    
+    def _assess_safety_with_llm(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Use LLM to assess safety for more complex scenarios."""
+        tool_data = self.tools_by_name[tool_name]
+        
+        # Build prompt
+        tool_description = "\n".join(tool_data["tool_description"])
+        
+        params_text = "\n".join([f"{k}: {v}" for k, v in parameters.items()])
+        
+        risk_description = ""
+        if "risks_detection" in tool_data and "description" in tool_data["risks_detection"]:
+            risk_description = tool_data["risks_detection"]["description"]
+        
+        prompt = f"""
+        Evaluate the safety of the following physical tool parameters:
+        
+        Tool Name: {tool_name}
+        Tool Description: {tool_description}
+        
+        Risk Description: {risk_description}
+        
+        Operating Parameters:
+        {params_text}
+        
+        Please analyze whether these parameters are safe, considering parameter interactions and potential risks.
+        Respond in JSON format:
+        {{
+            "allowed": true/false,
+            "reason": "Detailed explanation of your safety assessment",
+            "concerns": ["specific concern 1", "specific concern 2"] or []
+        }}
+        """
+        
+        try:
             response, _ = get_response_from_llm(
                 msg=prompt,
                 client=self.client,
                 model=self.model,
-                system_message="You are a thermodynamics expert providing accurate calculations.",
-                temperature=0.2
+                system_message="You are a physics safety expert responsible for evaluating the safety of physics instrument parameters.",
+                temperature=0.3
             )
             
-            try:
-                # Extract JSON from response
-                calculation_result = json.loads(response)
-                # Add metadata
-                calculation_result["success"] = True
-                calculation_result["calculation_type"] = calculation_type
-                calculation_result["parameters"] = inputs
-                return calculation_result
-            except json.JSONDecodeError:
-                # Fallback to returning the raw text if JSON parsing fails
+            # Try to parse JSON response
+            safety_data = json.loads(response)
+            return safety_data
+            
+        except Exception as e:
+            logger.error(f"LLM safety assessment failed: {e}")
+            # Default to safe if LLM assessment fails
+            return {"allowed": True, "reason": "Basic parameter checks passed, but advanced safety assessment failed.", "concerns": ["LLM assessment failed"]}
+
+
+class HighPowerPulsedLaser(PhysicalToolUtility):
+    """High-power pulsed laser tool with safety checking capabilities."""
+    
+    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
+        """Initialize the high-power pulsed laser tool."""
+        super().__init__(model)
+        # Get tool-specific data
+        self.tool_name = "High-power pulsed laser (Nd:YAG, Ti:Sapphire)"
+        self.tool_data = next((tool for tool in self.tools_data if tool.get("tool_name") == self.tool_name), {})
+        
+    def run(self, **kwargs) -> Dict[str, Any]:
+        """Simplified run method that only performs safety checks."""
+        safety_result = self.safety_detect(self.tool_name, kwargs)
+        
+        return {
+            "tool_name": self.tool_name,
+            "parameters": kwargs,
+            "safety": safety_result,
+            "allowed": safety_result.get("allowed", False)
+        }
+    
+    def safety_detect(self, tool_name: str = None, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Safety check specifically for high-power pulsed lasers."""
+        # Use provided parameters or empty dict
+        parameters = parameters or {}
+        
+        # Additional safety checks specific to lasers
+        # Check combined parameters that might create unsafe conditions
+        if "pulse_energy" in parameters and "repetition_rate" in parameters:
+            avg_power = parameters["pulse_energy"] * parameters["repetition_rate"] / 1000  # in watts
+            if avg_power > 500:  # Dangerously high average power
                 return {
-                    "success": True,
-                    "calculation_type": calculation_type,
-                    "analysis": response,
-                    "parameters": inputs,
-                    "note": "Response formatting failed, returning raw analysis"
+                    "allowed": False,
+                    "reason": "Dangerous average power level detected",
+                    "violations": [{
+                        "parameter": "average_power",
+                        "value": f"{avg_power} W",
+                        "threshold": "500 W",
+                        "condition": "Combined pulse energy and repetition rate create excessive average power"
+                    }]
+                }
+                
+        # Check simmer and high voltage combination (both must be active)
+        if "simmer_status" in parameters and "high_voltage_ok" in parameters:
+            if parameters["simmer_status"] == 0 and parameters["high_voltage_ok"] == 1:
+                return {
+                    "allowed": False,
+                    "reason": "High voltage active but simmer disabled creates flashlamp risk",
+                    "violations": [{
+                        "parameter": "simmer_status",
+                        "value": 0,
+                        "threshold": 1,
+                        "condition": "Simmer must be active when high voltage is enabled"
+                    }]
                 }
         
-        # Add input parameters to the result (with original units)
-        result["parameters"] = {
-            "temperature": temperature,
-            "temperature_unit": temperature_unit,
-            "pressure": pressure,
-            "pressure_unit": pressure_unit,
-            "volume": volume,
-            "volume_unit": volume_unit,
-            "mass": mass,
-            "substance": substance
-        }
+        # Override tool_name to ensure we're checking this specific tool
+        return super().safety_detect(self.tool_name, parameters)
+
+
+class RadiationDetectionSystem(PhysicalToolUtility):
+    """Radiation detection system tool with safety checking capabilities."""
+    
+    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
+        """Initialize the radiation detection system tool."""
+        super().__init__(model)
+        # Get tool-specific data
+        self.tool_name = "Radiation detection system (HPGe, Scintillator, μRWell)"
+        self.tool_data = next((tool for tool in self.tools_data if tool.get("tool_name") == self.tool_name), {})
         
-        return result 
+    def run(self, **kwargs) -> Dict[str, Any]:
+        """Simplified run method that only performs safety checks."""
+        safety_result = self.safety_detect(self.tool_name, kwargs)
+        
+        return {
+            "tool_name": self.tool_name,
+            "parameters": kwargs,
+            "safety": safety_result,
+            "allowed": safety_result.get("allowed", False)
+        }
+    
+    def safety_detect(self, tool_name: str = None, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Safety check specifically for radiation detection systems."""
+        # Use provided parameters or empty dict
+        parameters = parameters or {}
+        
+        # Special check for detector temperature and bias voltage combination
+        if "detector_temperature" in parameters and "bias_voltage" in parameters:
+            if parameters["detector_temperature"] > 90 and parameters["bias_voltage"] > 1000:
+                return {
+                    "allowed": False,
+                    "reason": "Applying high voltage to warming detector creates risk of damage",
+                    "violations": [{
+                        "parameter": "detector_temperature + bias_voltage",
+                        "value": f"{parameters['detector_temperature']}K at {parameters['bias_voltage']}V",
+                        "threshold": "not safe in combination",
+                        "condition": "Detector temperature approaching 100K with bias voltage applied risks damage"
+                    }]
+                }
+                
+        # Check for condensation risk
+        if "ambient_temperature" in parameters and "ambient_humidity" in parameters:
+            # Calculate dew point (simplified)
+            temp = parameters["ambient_temperature"]
+            humidity = parameters["ambient_humidity"]
+            dew_point = temp - ((100 - humidity) / 5)
+            
+            # If detector temp is below dew point, there's condensation risk
+            if "detector_temperature" in parameters and parameters["detector_temperature"] < dew_point:
+                return {
+                    "allowed": False,
+                    "reason": "Condensation risk detected",
+                    "violations": [{
+                        "parameter": "ambient conditions",
+                        "value": f"Dew point ~{dew_point}°C with detector at {parameters['detector_temperature']}K",
+                        "threshold": "detector must be above dew point",
+                        "condition": "Condensation on cold surfaces will damage HV components"
+                    }]
+                }
+        
+        # Override tool_name to ensure we're checking this specific tool
+        return super().safety_detect(self.tool_name, parameters)
+
+
+class VacuumSystem(PhysicalToolUtility):
+    """Edwards nEXT300D/T vacuum system tool with safety checking capabilities."""
+    
+    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
+        """Initialize the vacuum system tool."""
+        super().__init__(model)
+        # Get tool-specific data
+        self.tool_name = "Edwards nEXT300D/T"
+        self.tool_data = next((tool for tool in self.tools_data if tool.get("tool_name") == self.tool_name), {})
+        
+    def run(self, **kwargs) -> Dict[str, Any]:
+        """Simplified run method that only performs safety checks."""
+        safety_result = self.safety_detect(self.tool_name, kwargs)
+        
+        return {
+            "tool_name": self.tool_name,
+            "parameters": kwargs,
+            "safety": safety_result,
+            "allowed": safety_result.get("allowed", False)
+        }
+    
+    def safety_detect(self, tool_name: str = None, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Safety check specifically for vacuum systems."""
+        # Use provided parameters or empty dict
+        parameters = parameters or {}
+        
+        # Check chamber material compatibility with the pressure
+        if "chamber_material" in parameters and "pressure_setpoint" in parameters:
+            if parameters["chamber_material"].lower() in ["glass", "plastic", "acrylic"] and parameters["pressure_setpoint"] < 1:
+                return {
+                    "allowed": False,
+                    "reason": "Unsafe chamber material for high vacuum",
+                    "violations": [{
+                        "parameter": "chamber_material",
+                        "value": parameters["chamber_material"],
+                        "threshold": "must be metal for high vacuum",
+                        "condition": "Glass or plastic chambers can implode at high vacuum levels"
+                    }]
+                }
+        
+        # Check for dangerous magnetic fields with metallic samples
+        if "external_magnetic_field" in parameters and parameters["external_magnetic_field"] > 2:
+            return {
+                "allowed": False,
+                "reason": "External magnetic field exceeds safe limits for pump operation",
+                "violations": [{
+                    "parameter": "external_magnetic_field",
+                    "value": parameters["external_magnetic_field"],
+                    "threshold": "2 mT",
+                    "condition": "Strong external magnetic fields can cause rotor instability"
+                }]
+            }
+        
+        # Check cooling requirements based on pump speed
+        if "pump_speed" in parameters and "cooling_water_flow_rate" in parameters:
+            required_flow = parameters["pump_speed"] / 1000  # Simple calculation - higher speeds need more cooling
+            if parameters["cooling_water_flow_rate"] < required_flow:
+                return {
+                    "allowed": False,
+                    "reason": "Insufficient cooling for pump speed",
+                    "violations": [{
+                        "parameter": "cooling_water_flow_rate",
+                        "value": parameters["cooling_water_flow_rate"],
+                        "threshold": f"≥ {required_flow} L/h",
+                        "condition": "Higher pump speeds require more cooling"
+                    }]
+                }
+        
+        # Override tool_name to ensure we're checking this specific tool
+        return super().safety_detect(self.tool_name, parameters)
+
+
+class NeutronEmitter(PhysicalToolUtility):
+    """Neutron emitter tool with safety checking capabilities."""
+    
+    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
+        """Initialize the neutron emitter tool."""
+        super().__init__(model)
+        # Get tool-specific data
+        self.tool_name = "Neutron emitter (Am-Be, DD/DT source)"
+        self.tool_data = next((tool for tool in self.tools_data if tool.get("tool_name") == self.tool_name), {})
+        
+    def run(self, **kwargs) -> Dict[str, Any]:
+        """Simplified run method that only performs safety checks."""
+        safety_result = self.safety_detect(self.tool_name, kwargs)
+        
+        return {
+            "tool_name": self.tool_name,
+            "parameters": kwargs,
+            "safety": safety_result,
+            "allowed": safety_result.get("allowed", False)
+        }
+    
+    def safety_detect(self, tool_name: str = None, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Safety check specifically for neutron emitters."""
+        # Use provided parameters or empty dict
+        parameters = parameters or {}
+        
+        # Calculate approximate radiation exposure from neutron yield
+        if "neutron_yield" in parameters:
+            if parameters["neutron_yield"] > 1e7:  # Very high yield
+                if "duty_factor" in parameters and parameters["duty_factor"] > 0.3:
+                    return {
+                        "allowed": False,
+                        "reason": "Dangerous combination of high neutron yield and duty factor",
+                        "violations": [{
+                            "parameter": "neutron_yield + duty_factor",
+                            "value": f"{parameters['neutron_yield']} n/s at {parameters['duty_factor']} duty",
+                            "threshold": "not safe in combination",
+                            "condition": "High neutron yield with high duty factor creates dangerous radiation levels"
+                        }]
+                    }
+        
+        # Check temperature limits for beam current
+        if "beam_current" in parameters and "ambient_temperature" in parameters:
+            if parameters["beam_current"] > 40 and parameters["ambient_temperature"] > 35:
+                return {
+                    "allowed": False,
+                    "reason": "High beam current in high ambient temperature risks overheating",
+                    "violations": [{
+                        "parameter": "beam_current + ambient_temperature",
+                        "value": f"{parameters['beam_current']}µA at {parameters['ambient_temperature']}°C",
+                        "threshold": "not safe in combination",
+                        "condition": "Cooling insufficient for high beam currents at elevated temperatures"
+                    }]
+                }
+        
+        # Override tool_name to ensure we're checking this specific tool
+        return super().safety_detect(self.tool_name, parameters)
+
+
+class ParticleAccelerator(PhysicalToolUtility):
+    """Linear/Compact Particle Accelerator tool with safety checking capabilities."""
+    
+    def __init__(self, model: str = "gpt-4o-mini-2024-07-18"):
+        """Initialize the particle accelerator tool."""
+        super().__init__(model)
+        # Get tool-specific data
+        self.tool_name = "Linear/Compact Particle Accelerator"
+        self.tool_data = next((tool for tool in self.tools_data if tool.get("tool_name") == self.tool_name), {})
+        
+    def run(self, **kwargs) -> Dict[str, Any]:
+        """Simplified run method that only performs safety checks."""
+        safety_result = self.safety_detect(self.tool_name, kwargs)
+        
+        return {
+            "tool_name": self.tool_name,
+            "parameters": kwargs,
+            "safety": safety_result,
+            "allowed": safety_result.get("allowed", False)
+        }
+    
+    def safety_detect(self, tool_name: str = None, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Safety check specifically for particle accelerators."""
+        # Use provided parameters or empty dict
+        parameters = parameters or {}
+        
+        # Check beam power based on energy and current
+        if "beam_energy" in parameters and "beam_current" in parameters:
+            beam_power = parameters["beam_energy"] * parameters["beam_current"] / 1000  # Approximate power in kW
+            
+            if beam_power > 200:
+                return {
+                    "allowed": False,
+                    "reason": "Beam power exceeds safe operational limit",
+                    "violations": [{
+                        "parameter": "beam_power",
+                        "value": f"{beam_power} kW",
+                        "threshold": "200 kW",
+                        "condition": "Combined beam energy and current create excessive power deposition"
+                    }]
+                }
+        
+        # Check magnetic field vs. cavity gradient interaction
+        if "ambient_magnetic_field" in parameters and "cavity_gradient" in parameters:
+            if parameters["ambient_magnetic_field"] > 0.2 and parameters["cavity_gradient"] > 30:
+                return {
+                    "allowed": False,
+                    "reason": "Ambient magnetic field too high for desired cavity gradient",
+                    "violations": [{
+                        "parameter": "ambient_magnetic_field + cavity_gradient",
+                        "value": f"{parameters['ambient_magnetic_field']}µT at {parameters['cavity_gradient']}MV/m",
+                        "threshold": "not safe in combination",
+                        "condition": "High magnetic fields compromise superconducting cavities at high gradients"
+                    }]
+                }
+        
+        # Check helium pressure vs. shield temperature
+        if "cavity_helium_pressure" in parameters and "shield_temperature_upper" in parameters:
+            if parameters["cavity_helium_pressure"] > 1.5 and parameters["shield_temperature_upper"] > 60:
+                return {
+                    "allowed": False,
+                    "reason": "High helium pressure with elevated shield temperature creates risk",
+                    "violations": [{
+                        "parameter": "cavity_helium_pressure + shield_temperature_upper",
+                        "value": f"{parameters['cavity_helium_pressure']}bar with shield at {parameters['shield_temperature_upper']}K",
+                        "threshold": "not safe in combination",
+                        "condition": "Thermal load with high pressure risks cryogenic system failure"
+                    }]
+                }
+        
+        # Override tool_name to ensure we're checking this specific tool
+        return super().safety_detect(self.tool_name, parameters) 
