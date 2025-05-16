@@ -125,14 +125,13 @@ def get_batch_responses_from_llm(
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
-    elif any(
-        model.startswith(prefix)
-        for prefix in ["meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"]
-    ):
+    elif any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
         # Together AI models
         content = []
         new_msg_history = []
-
+        
         for _ in range(n_responses):
             together_msg_history = msg_history + [{"role": "user", "content": msg}]
             response = client.chat.completions.create(
@@ -146,7 +145,6 @@ def get_batch_responses_from_llm(
                 n=1,
                 stop=None,
             )
-
             resp_content = response.choices[0].message.content
             content.append(resp_content)
             updated_history = together_msg_history + [
@@ -322,10 +320,9 @@ def get_response_from_llm(
         )
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif any(
-        model.startswith(prefix)
-        for prefix in ["meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"]
-    ):
+    elif any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
         # Together AI models
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -409,7 +406,6 @@ def get_batch_responses_from_llm_with_tools(
                 current_history = new_msg_history + [
                     response_message.model_dump(exclude_unset=True)
                 ]  # Add assistant response (tool call or text)
-
                 if response_message.tool_calls:
                     # Store tool call information
                     tool_call_info = {
@@ -502,7 +498,6 @@ def get_batch_responses_from_llm_with_tools(
                     content = response_message.content or ""
                     all_responses.append(content)
                     all_new_histories.append(current_history)
-
         except Exception as e:
             print(f"Error during Together AI call with tools: {e}")
             for _ in range(n_responses):
@@ -636,6 +631,29 @@ def create_client(
             )
         client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
         return client, "meta-llama/llama-3.1-405b-instruct"
+    
+    elif any(model.startswith(prefix) for prefix in [
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+    ]):
+        # Together AI client
+        try:
+            from together import Together
+        except ImportError:
+            raise ImportError(
+                "To use Together AI models, you need to install the 'together' package: pip install together"
+            )
+        
+        api_key = os.environ.get("TOGETHER_API_KEY", llm_api_key)
+        if not api_key:
+            raise ValueError(
+                f"Missing Together AI API key to use {model}. Set TOGETHER_API_KEY or llm_api_key in config.toml."
+            )
+        
+        # Create the Together client and set an attribute to identify it
+        client = Together(api_key=api_key)
+        client.together = True  # Add this attribute to identify Together client
+        
+        return client, model
 
     elif any(
         model.startswith(prefix)
