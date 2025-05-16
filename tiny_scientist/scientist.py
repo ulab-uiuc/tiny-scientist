@@ -8,6 +8,8 @@ from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
+from .writer_mini import WriterMini
+from .review_rewrite import ReviewRewriter
 
 
 class TinyScientist:
@@ -53,6 +55,21 @@ class TinyScientist:
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
+        )
+
+        self.writer_mini = WriterMini(
+            model=model,
+            output_dir=output_dir,
+            prompt_template_dir=prompt_template_dir,
+            template=template,
+        )
+
+        self.review_rewriter = ReviewRewriter(
+            model=model,
+            prompt_template_dir=prompt_template_dir,
+            tools=[],
+            num_reviews=1,
+            num_reflections=0,
         )
 
     def think(
@@ -128,9 +145,26 @@ class TinyScientist:
         print("✅ Paper written.")
         return pdf_path
 
+    def write_mini(self, idea: Dict[str, Any]) -> str:
+        """Writes a conceptual paper using WriterMini based on an idea."""
+        print("📝 Writing mini conceptual paper...")
+        pdf_path, paper_name = self.writer_mini.run(idea=idea)
+        print(
+            f"Check the generated mini paper named as {paper_name} and saved at {pdf_path}"
+        )
+        print("✅ Mini paper written.")
+        return pdf_path
+
     def review(self, pdf_path: str) -> Dict[str, Any]:
         print("🔍 Reviewing paper...")
         review = self.reviewer.run(pdf_path=pdf_path)
         print(review)
         print("✅ Review complete.")
         return review
+
+    def review_and_rewrite(self, pdf_path: str) -> Dict[str, Any]:
+        """Performs ethical review, rewrite, and final meta-review on a paper."""
+        print("🧐 Performing ethical review, rewrite, and final meta-review process...")
+        report = self.review_rewriter.run(pdf_path=pdf_path)
+        print("✅ Ethical review and rewrite process complete.")
+        return report

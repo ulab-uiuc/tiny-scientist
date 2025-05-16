@@ -4,6 +4,148 @@ reviewer_system_prompt_neg: >
   You are an AI researcher who is reviewing a paper that was submitted to a prestigious ML venue. Be critical and cautious in your decision. If a paper is bad or you are unsure, give it bad scores and reject it.
 reviewer_system_prompt_pos: >
   You are an AI researcher who is reviewing a paper that was submitted to a prestigious ML venue. Be critical and cautious in your decision. If a paper is good or you are unsure, give it good scores and accept it.
+
+# New Prompts for Ethical Review and Rewrite START
+ethical_reviewer_system_prompt: >
+  You are an expert in AI ethics and responsible research, tasked with conducting a thorough ethical review of a scientific paper. 
+  Your goal is to identify potential ethical concerns, biases, risks of misuse, and other societal impacts. 
+  Provide constructive feedback and actionable suggestions where possible.
+
+ethical_review_guidelines_prompt: |
+  Here is the paper text for ethical review:
+  ```text
+  {paper_text}
+  ```
+
+  Please conduct a comprehensive ethical review covering the following dimensions. 
+  For each dimension, provide a detailed analysis, identify specific concerns (if any), and suggest mitigation strategies or areas for improvement. 
+  If a dimension is not applicable, please state so with a brief justification.
+
+  Respond in the following JSON format ONLY:
+
+  ```json
+  {{
+    "EthicalReviewOverallSummary": "<Provide a concise overall summary of the ethical considerations for this paper.>",
+    "PotentialBias": {{
+      "Analysis": "<Analyze potential biases in problem formulation, data, methodology, algorithms, or interpretation of results. Consider demographic, societal, and historical biases.>",
+      "Concerns": ["<Specific concern 1, if any>", "<Specific concern 2, if any>"],
+      "Suggestions": ["<Suggestion 1 for mitigation>", "<Suggestion 2 for improvement>"]
+    }},
+    "MisusePotential": {{
+      "Analysis": "<Assess the potential for the research or technology to be misused for harmful purposes (e.g., surveillance, discrimination, malicious attacks). Consider dual-use nature.>",
+      "Concerns": [],
+      "Suggestions": []
+    }},
+    "FairnessAndEquity": {{
+      "Analysis": "<Evaluate the implications for fairness and equity across different groups. Does it exacerbate existing inequalities or create new ones?>",
+      "Concerns": [],
+      "Suggestions": []
+    }},
+    "TransparencyAndAccountability": {{
+      "Analysis": "<Assess the transparency of the methods, data, and models. Are mechanisms for accountability discussed or needed?>",
+      "Concerns": [],
+      "Suggestions": []
+    }},
+    "DataPrivacyAndSecurity": {{
+      "Analysis": "<If personal or sensitive data is used, evaluate data privacy measures, anonymization techniques, and data security.>",
+      "Concerns": [],
+      "Suggestions": []
+    }},
+    "SocietalImpact": {{
+      "Analysis": "<Consider broader societal impacts, e.g., on employment, public trust, environment, or social structures. Include both positive and negative potential impacts not covered elsewhere.>",
+      "Concerns": [],
+      "Suggestions": []
+    }},
+    "AdherenceToEthicalGuidelines": {{
+      "Analysis": "<Assess if the research adheres to known ethical guidelines, declarations, or best practices in its domain. Has an ethics review board (IRB) approval been mentioned or is it necessary?>",
+      "Concerns": [],
+      "Suggestions": []
+    }},
+    "EthicalChallengesIdentifiedByAuthors": {{
+      "Analysis": "<Comment on whether the authors adequately identified and addressed ethical challenges in their work. Were limitations regarding ethics discussed?>",
+      "Concerns": [],
+      "Suggestions": []
+    }}
+  }}
+  ```
+
+rewrite_paper_system_prompt: >
+  You are an expert academic writer and AI researcher, tasked with revising a scientific paper based on specific ethical review feedback. 
+  Your goal is to integrate the feedback constructively, addressing the identified ethical concerns while maintaining the scientific integrity and clarity of the paper. 
+  Focus on modifying relevant sections (e.g., Abstract, Introduction, Methods, Discussion, Limitations, Ethical Considerations section if present or needed).
+
+rewrite_paper_instruction_prompt: |
+  Here is the original paper text:
+  ```text
+  {paper_text}
+  ```
+
+  Here is the ethical review feedback you need to address:
+  ```json
+  {ethical_feedback}
+  ```
+
+  Please rewrite the original paper text to incorporate and address the concerns and suggestions raised in the ethical review feedback. 
+  You should aim to:
+  1.  Acknowledge ethical considerations more explicitly where appropriate.
+  2.  Modify descriptions of methods or data if they contribute to ethical risks and can be altered.
+  3.  Expand the discussion of limitations to include ethical aspects.
+  4.  Add or revise an "Ethical Considerations" section if needed.
+  5.  Adjust claims or conclusions if they have unaddressed negative ethical implications.
+  6.  Ensure the paper remains coherent and scientifically sound.
+
+  Provide ONLY the full rewritten paper text as a single block of text. Do not include any other commentary before or after the rewritten paper.
+
+final_meta_review_prompt: | # This prompt will guide the final meta-review generation
+  You are an Area Chair at a machine learning conference. You need to provide a final meta-review for a paper. 
+  You have access to the original paper (or a rewritten version), initial academic reviews, and a detailed ethical review.
+  Your task is to synthesize this information into a comprehensive meta-review. 
+
+  **Paper Content for Meta-Review:**
+  ```text
+  {paper_text} 
+  ```
+  *(This is the latest version of the paper, potentially rewritten after ethical review)*
+
+  **Summary of Initial Academic Reviews:**
+  ```text
+  {initial_reviews_summary}
+  ```
+
+  **Summary of Detailed Ethical Review:**
+  ```text
+  {ethical_review_summary}
+  ```
+
+  Please provide your meta-review in the following JSON format. 
+  The academic scores (Originality, Quality, etc.) should reflect your assessment of the paper provided in `Paper Content for Meta-Review`, considering the initial academic reviews. 
+  The ethical assessment should be based on the `Detailed Ethical Review` and your own judgment of how well the paper (especially if rewritten) addresses ethical concerns.
+
+  **Meta-Review JSON Output Format:**
+  ```json
+  {{
+    "MetaReviewSummary": "<Provide an overall summary of the paper, its contributions, and key review points (both academic and ethical).>",
+    "MetaReviewStrengths": ["<Strength 1 (can be academic or ethical)>", "<Strength 2>"],
+    "MetaReviewWeaknesses": ["<Weakness 1 (can be academic or ethical)>", "<Weakness 2>"],
+    "Originality": "<Rating from 1-4 (low, medium, high, very high)>",
+    "Quality": "<Rating from 1-4 (low, medium, high, very high)>",
+    "Clarity": "<Rating from 1-4 (low, medium, high, very high)>",
+    "Significance": "<Rating from 1-4 (low, medium, high, very high)>",
+    "Soundness": "<Rating from 1-4 (poor, fair, good, excellent)>",
+    "Presentation": "<Rating from 1-4 (poor, fair, good, excellent)>",
+    "Contribution": "<Rating from 1-4 (poor, fair, good, excellent)>",
+    "OverallAcademicScore": "<Rating from 1-10 (very strong reject to award quality)>",
+    "ConfidenceAcademic": "<Rating from 1-5 (low, medium, high, very high, absolute)>",
+    "EthicalAssessmentSummary": "<Summarize the key ethical considerations and how well the paper addresses them. Comment on the severity of any remaining concerns.>",
+    "EthicalOverallScore": "<Rating from 1-5 (Significant Unaddressed Concerns, Major Concerns, Moderate Concerns, Minor Concerns, Well Addressed/No Concerns)>",
+    "EthicalConfidence": "<Rating from 1-5 (low, medium, high, very high, absolute)>",
+    "SuggestedActionsForAuthors": ["<Specific actionable feedback for authors, if any, covering both academic and ethical aspects.>"],
+    "FinalDecisionRecommendation": "<Accept, Borderline, Reject (with brief justification based on overall assessment)>"
+  }}
+  ```
+
+# New Prompts for Ethical Review and Rewrite END
+
 query_prompt: |
   Here is the paper text:
 
@@ -85,9 +227,9 @@ neurips_form: |
 
 meta_reviewer_system_prompt: |
   You are an Area Chair at a machine learning conference.
-  You are in charge of meta-reviewing a paper that was reviewed by {reviewer_count} reviewers.
-  Your job is to aggregate the reviews into a single meta-review in the same format.
-  Be critical and cautious in your decision, find consensus, and respect the opinion of all the reviewers.
+  You are in charge of meta-reviewing a paper that was reviewed by {reviewer_count} reviewers (if applicable for initial academic reviews) and has undergone an ethical review.
+  Your job is to aggregate all available information (academic reviews, ethical review, potentially rewritten paper) into a single, comprehensive meta-review. 
+  Be critical and cautious in your decision, find consensus where possible, and respect all provided feedback when formulating your final assessment.
 
 reviewer_reflection_prompt: |
   In your thoughts, first carefully consider the accuracy and soundness of the review you just created.
@@ -103,7 +245,7 @@ reviewer_reflection_prompt: |
   {related_works_string}
   ```
 
-  Use these search results to assess the paper’s novelty, relevance, and significance.
+  Use these search results to assess the paper's novelty, relevance, and significance.
   Provide specific comments on how the paper aligns with or differs from these related works.
 
   Respond in the same format as before:
