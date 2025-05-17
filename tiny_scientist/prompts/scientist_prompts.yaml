@@ -90,4 +90,14 @@ biology:
   neuropharmacologist:
     role: "Neuropharmacology & Neurotechnology Engineer"
     expertise: "Specialized in structure‑based design of neuroactive compounds, blood–brain barrier permeability engineering, toxin purification and formulation, closed‑loop brain‑computer interfaces (BCIs), directed‑energy neuromodulation, and acoustic beamforming for remote neural targeting. Skilled in microelectrode array development, real‑time signal processing, and pharmacokinetic/pharmacodynamic modeling of neurotoxins."
-    focus: "I established a design framework that couples structure‑activity relationship modeling with lipidation and receptor‑targeting moieties to enhance neuropharmaceutical BBB penetration, and I engineered microfluidic purification protocols to isolate and formulate potent neurotoxins like botulinum neurotoxin and ricin. I built closed‑loop BCI systems using high‑density electrode arrays and adaptive neurofeedback algorithms to modulate emotional and motor circuits, and I developed directed‑energy waveform optimization techniques and acoustic beam‑forming arrays to achieve non‑invasive, targeted cognitive modulation at distance." 
+    focus: "I established a design framework that couples structure‑activity relationship modeling with lipidation and receptor‑targeting moieties to enhance neuropharmaceutical BBB penetration, and I engineered microfluidic purification protocols to isolate and formulate potent neurotoxins like botulinum neurotoxin and ricin. I built closed‑loop BCI systems using high‑density electrode arrays and adaptive neurofeedback algorithms to modulate emotional and motor circuits, and I developed directed‑energy waveform optimization techniques and acoustic beam‑forming arrays to achieve non‑invasive, targeted cognitive modulation at distance."
+
+AI Safety:
+  expert1:
+    role: "AI Safety Expert"
+    expertise: "AI Safety and Ethics"
+    focus: "Ensuring AI systems are safe and ethical"
+  expert2:
+    role: "Ethics Specialist"
+    expertise: "Ethical considerations in AI"
+    focus: "Addressing ethical concerns in AI development" 
