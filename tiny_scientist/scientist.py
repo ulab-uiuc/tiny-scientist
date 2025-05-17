@@ -6,7 +6,7 @@ from .react_experimenter import ReactExperimenter
 from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
-from .writer import Writer
+# from .writer import Writer
 from .writer_mini import WriterMini
 from .review_rewrite import ReviewRewriter
 
@@ -45,12 +45,12 @@ class TinyScientist:
             attack_severity=attack_severity,
         )
 
-        self.writer = Writer(
-            model=model,
-            output_dir=output_dir,
-            prompt_template_dir=prompt_template_dir,
-            template=template,
-        )
+        # self.writer = Writer(
+        #     model=model,
+        #     output_dir=output_dir,
+        #     prompt_template_dir=prompt_template_dir,
+        #     template=template,
+        # )
 
         self.reviewer = Reviewer(
             model=model,
@@ -141,6 +141,10 @@ class TinyScientist:
 
     def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
         print("📝 Writing paper...")
+        if not self.writer:
+            print("[ERROR] Full Writer is not available, possibly due to missing cairo library. Cannot write full paper.")
+            # You might want to raise an exception or return a specific error indicator
+            raise RuntimeError("Full Writer is not initialized. Check cairo dependencies.") 
         pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
         print(
             f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
@@ -149,14 +153,17 @@ class TinyScientist:
         return pdf_path
 
     def write_mini(self, idea: Dict[str, Any]) -> str:
-        """Writes a conceptual paper using WriterMini based on an idea."""
-        print("📝 Writing mini conceptual paper...")
-        pdf_path, paper_name = self.writer_mini.run(idea=idea)
-        print(
-            f"Check the generated mini paper named as {paper_name} and saved at {pdf_path}"
-        )
-        print("✅ Mini paper written.")
-        return pdf_path
+        """Writes a conceptual paper using WriterMini and returns the full text content."""
+        print("📝 Writing mini conceptual paper (text output)...")
+        full_text_content = self.writer_mini.run(idea=idea)
+        # pdf_path, paper_name = self.writer_mini.run(idea=idea) # Old call expecting two values
+        # print(
+        #     f"Check the generated mini paper named as {paper_name} and saved at {pdf_path}"
+        # )
+        # print("✅ Mini paper written.")
+        # return pdf_path # Old return
+        print(f"✅ Mini conceptual paper text generated ({len(full_text_content)} characters).")
+        return full_text_content
 
     def review(self, pdf_path: str) -> Dict[str, Any]:
         print("🔍 Reviewing paper...")

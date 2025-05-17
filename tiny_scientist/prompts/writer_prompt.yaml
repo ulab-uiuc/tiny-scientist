@@ -196,10 +196,6 @@ section_prompt:
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
-    - Written Method Section:
-    ```text
-    {method_section}
-    ```
 
     Please remember that Introduction section is a enriched version of the abstract, should be much longer and detail than abstract.
     ```
@@ -269,11 +265,7 @@ section_prompt:
     {section_tips}
 
     Base your discussion on the following data:
-    **Experimental results:**
-    {experiment_results}
 
-    **Baseline results** (may be empty if not available):
-    {baseline_results}
 
     Do not restate raw metrics. Instead, reflect on their implications, relative performance, and what they say about the method's effectiveness.
 
