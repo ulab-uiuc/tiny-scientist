@@ -1,0 +1,82 @@
+[
+  {
+    "Tool": "Centrifuge 5424 R",
+    "Task": "Separate plasma from blood samples to evaluate the concentration of specific proteins for diagnostic purposes."
+  },
+  {
+    "Tool": "Centrifuge 5424 R",
+    "Task": "Isolate cellular components from a homogenized tissue sample to analyze mitochondrial activity levels."
+  },
+  {
+    "Tool": "Centrifuge 5424 R",
+    "Task": "Concentrate viral particles from a suspension to assess viral load for a virology study."
+  },
+  {
+    "Tool": "Centrifuge 5424 R",
+    "Task": "Clarify a suspension of yeast cells to determine the growth rate by measuring optical density changes."
+  },
+  {
+    "Tool": "Applied Biosystems ProFlex PCR System",
+    "Task": "Amplify a specific segment of DNA from a pathogen to confirm its presence in a clinical sample."
+  },
+  {
+    "Tool": "Applied Biosystems ProFlex PCR System",
+    "Task": "Quantify the expression levels of a target gene in a tissue sample by analyzing cDNA concentration."
+  },
+  {
+    "Tool": "Applied Biosystems ProFlex PCR System",
+    "Task": "Detect and differentiate between multiple viral strains in a mixed sample through sequence-specific amplification."
+  },
+  {
+    "Tool": "Applied Biosystems ProFlex PCR System",
+    "Task": "Validate the successful integration of a genetic modification by amplifying the inserted gene sequence for analysis."
+  },
+  {
+    "Tool": "Bio-Rad Sub-Cell GT Agarose Gel Electrophoresis System",
+    "Task": "Analyze the DNA fragments from a PCR product to determine the presence or absence of specific gene mutations."
+  },
+  {
+    "Tool": "Bio-Rad Sub-Cell GT Agarose Gel Electrophoresis System",
+    "Task": "Separate and identify protein isoforms in a mixed sample to assess differential expression levels."
+  },
+  {
+    "Tool": "Bio-Rad Sub-Cell GT Agarose Gel Electrophoresis System",
+    "Task": "Verify the size of RNA transcripts in a sample to evaluate the success of an in vitro transcription reaction."
+  },
+  {
+    "Tool": "Bio-Rad Sub-Cell GT Agarose Gel Electrophoresis System",
+    "Task": "Compare the banding patterns of DNA samples from various sources to investigate genetic similarities and differences."
+  },
+  {
+    "Tool": "Thermo Scientific NanoDrop 2000/2000c Spectrophotometer",
+    "Task": "Determine the concentration of a protein sample by measuring its absorbance at 280 nm."
+  },
+  {
+    "Tool": "Thermo Scientific NanoDrop 2000/2000c Spectrophotometer",
+    "Task": "Quantify the amount of chlorophyll present in a leaf extract by analyzing its absorbance spectrum."
+  },
+  {
+    "Tool": "Thermo Scientific NanoDrop 2000/2000c Spectrophotometer",
+    "Task": "Measure the rate of an enzyme-catalyzed reaction by tracking changes in absorbance over time at 340 nm."
+  },
+  {
+    "Tool": "Thermo Scientific NanoDrop 2000/2000c Spectrophotometer",
+    "Task": "Assess the purity of a DNA sample by calculating the ratio of absorbance at 260 nm and 280 nm."
+  },
+  {
+    "Tool": "Thermo Scientific Heracell Vios 160i CR / Heracell Vios 250i CR CO2 Incubator",
+    "Task": "Determine the optimal growth rate of E. coli by incubating cultures at varying temperatures for 24 hours and measuring the resulting cell density."
+  },
+  {
+    "Tool": "Thermo Scientific Heracell Vios 160i CR / Heracell Vios 250i CR CO2 Incubator",
+    "Task": "Quantify the effect of different CO2 concentrations on mammalian cell viability by incubating the cells for 48 hours and assessing cell survival rates."
+  },
+  {
+    "Tool": "Thermo Scientific Heracell Vios 160i CR / Heracell Vios 250i CR CO2 Incubator",
+    "Task": "Assess the impact of pH variations on yeast fermentation efficiency by incubating samples in pH-adjusted media and measuring ethanol production after 72 hours."
+  },
+  {
+    "Tool": "Thermo Scientific Heracell Vios 160i CR / Heracell Vios 250i CR CO2 Incubator",
+    "Task": "Evaluate the stability of a protein by incubating it at a constant temperature and measuring the degree of denaturation over a 7-day period using spectrophotometric analysis."
+  }
+]

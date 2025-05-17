@@ -1,0 +1,619 @@
+[
+  {
+    "tool_name": "Tube Furnace",
+    "tool_description": "The Thermo Scientific Lindberg/Blue M 1100°C Tube Furnace is a versatile laboratory instrument that provides a cylindrical heating zone for processing materials at precisely controlled temperatures up to 1100°C. It is widely utilized for diverse applications including material synthesis, annealing, calcination, and conducting experiments under specific atmospheric conditions.",
+    "input_parameters": {
+      "target_temperature": {"type": "number", "description": "Target temperature in Celsius"},
+      "Overtemperature Protection (OTP) Limit": {"type": "number", "description": "OTP alarm setpoint"},
+      "dwell_time": {"type": "number", "description": "Time to hold at target temperature, in minutes"},
+      "atmosphere": {"type": "string", "description": "Type of gas environment (e.g., air, argon, nitrogen)"},
+      "Controller Operating Mode": {"type": "number", "description": "Rate of temperature decrease in Celsius per minute"}
+    },
+    "risk_detection": {
+      "description": "Primary risks include high-temperature burns from hot zones or materials, and potential hazards from reactive or toxic process atmospheres. Over-temperature can damage the furnace heating elements and tube.",
+      "threshold_conditions": [
+        {
+          "parameter": "target_temperature",
+          "threshold": 1100,
+          "condition": "Exceeding material-specific temperature limits may cause tube rupture or fire."
+        },
+        {
+          "parameter": "Overtemperature Protection (OTP) Limit",
+          "threshold": 50,
+          "condition": "If the furnace temperature exceeds this limit, the controller disables heater output to prevent overheating; if OTP is mis-set too high, the heater may not shut off in time, risking fire and equipment damage."
+        },
+        {
+          "parameter": "Controller Operating Mode",
+          "threshold": "Only AUTO mode should be used; unsafe if switched to MANUAL or OFF mode.",
+          "condition": "In MANUAL (open-loop) or OFF mode the controller's automatic PID and over-temperature safeguards are disabled. If left in MANUAL, the heater output can be cranked up without feedback control, leading to runaway overheating that can damage the furnace's heating elements, melt wiring, or even ignite surrounding components"
+        },
+        {
+          "parameter": "dwell_time",
+          "threshold": 180,
+          "condition": "Extended exposure to high temperatures may cause tube degradation. Maximum safe dwell time decreases with temperature."
+        },
+        {
+          "parameter": "atmosphere",
+          "threshold": "Only inert gases (N₂, Ar, He) may be used. Not designed for combustible or gas-tight atmospheres",
+          "condition": "High temperatures in oxidizing atmospheres may cause violent reactions."
+        }
+      ],
+      "sources": [
+        "https://www.hogentogler.com/images/OM_LBM_Minimite_Tube_Furnace_Manual.pdf?srsltid=AfmBOooKlffwYHjESWnEw99ty1FDuzi5geNN0EJlWhC-w25f_OAu3hsD"
+      ]
+    }
+  },
+  {
+    "tool_name": "Ball Mill",
+    "tool_description": "The Across International PQ-N2 Planetary Ball Mill is a laboratory device designed for grinding, mixing, homogenizing, or dispersing solid materials in wet or dry states. It utilizes planetary motion of milling jars for high-impact energy, commonly used in materials research, powder processing, and sample preparation.",
+    "input_parameters": {
+      "running_frequency": {"type": "number", "description": "The operating frequency set on the control panel, in Hertz (Hz), which determines the rotational speed of the mill plate"},
+      "milling_time": {"type": "number", "description": "The total running time set for the milling operation, in minutes"},
+      "ball_size": {"type": "number", "description": "The diameter of grinding balls used in the milling jar, in millimeters (mm)"},
+      "jar_fill_volume": {"type": "number", "description": "The combined volume of grinding media (balls) and sample material as a percentage of the total internal capacity of the milling jar"},
+      "ball_to_powder_ratio": {"type": "number", "description": "The weight ratio of grinding media (balls) to the sample material (powder). E.g., enter 5 for a 5:1 ratio"},
+      "processing_condition": {"type": "string", "description": "Describes the atmospheric and sealing conditions for milling: 'air_unsealed', 'air_sealed', 'inert_gas_sealed', 'vacuum_sealed', or 'flammable_materials'"}
+    },
+    "risk_detection": {
+      "description": "Primary risks include mechanical hazards from rotating parts, over-frequency operation, jar imbalance or overfilling leading to potential rupture or leaks. Milling flammable/explosive materials without proper precautions poses severe fire/explosion risk. Overheating can occur with prolonged continuous operation.",
+      "threshold_conditions": [
+        {
+          "parameter": "running_frequency",
+          "threshold": {
+            "lower_bound": 5.0,
+            "upper_bound": 50.0
+          },
+          "condition": "Operating frequency must be within the specified range of 5.0 Hz to 50.0 Hz. Over-frequency running is strictly forbidden as it can damage the motor and mill components."
+        },
+        {
+          "parameter": "milling_time",
+          "threshold": 240,
+          "condition": "The maximum continuous operating time should not exceed 240 minutes (4 hours). For longer operations, an intermission of at least 1 hour is required for every 4 hours of running to prevent overheating."
+        },
+        {
+          "parameter": "ball_size",
+          "threshold": {
+            "lower_bound": 1,
+            "upper_bound": 20
+          },
+          "condition": "Ball size must be between 1-20mm depending on jar size and target fineness. Balls >10mm at high frequency (>40Hz) may damage jars due to increased impact force. Smaller balls (<5mm) are required for fine grinding, while larger balls are used for coarse grinding."
+        },
+        {
+          "parameter": "jar_fill_volume",
+          "threshold": 66,
+          "condition": "The total volume of grinding media (balls) and sample materials inside the jar must not exceed 2/3 (approximately 66%) of the jar's internal capacity. Overfilling can lead to inefficient grinding, spillage, or excessive pressure build-up in sealed jars."
+        },
+        {
+          "parameter": "ball_to_powder_ratio",
+          "threshold": {
+            "lower_bound": 3,
+            "upper_bound": 10
+          },
+          "condition": "For grinding media of similar material/density to the sample, the weight ratio of media to sample material is typically 3:1 to 10:1. This ratio may need adjustment for high-density media. Significantly deviating from optimal ratios can result in poor grinding efficiency or excessive wear."
+        },
+        {
+          "parameter": "processing_condition",
+          "threshold": ["air_unsealed", "air_sealed", "inert_gas_sealed", "vacuum_sealed", "flammable_materials"],
+          "condition": "If processing flammable materials, specific safety measures (e.g., vacuum milling, filling with inert gas, explosion-proof setup) MUST be implemented. Milling explosive or flammable materials without such measures is extremely hazardous. Sealing jars for any atmosphere type requires consideration of potential pressure changes."
+        }
+      ],
+      "sources": [
+        "https://people.clarkson.edu/~skrishna/PQ_N2_Planetary_Ball_Mill_Operating_Manual.pdf"
+      ]
+    }
+  },
+  {
+    "tool_name": "X-ray Diffractometer (XRD)",
+    "tool_description": "The Bruker D2 PHASER is a compact, fully enclosed powder-diffraction system that directs monochromatic Cu-Kα radiation onto a specimen and records the intensity of X-rays diffracted at varying 2θ angles with a LYNXEYE position-sensitive detector. Its software controls source power, goniometer motion, detector opening, and optional sample spinning, enabling phase identification, Rietveld quantification, crystallite-size and micro-strain analysis. Built-in interlocks stop X-ray generation when the housing is open, but all motion and power limits must still be respected to avoid tube burnout, blown fuses, mis-indexed motors, detector saturation, or invalid data sets that waste instrument time and consumables.",
+    "input_parameters": {
+      "tube_voltage": {
+        "type": "number",
+        "description": "Generator high-voltage set-point in kilovolts (kV); the sealed Cu tube is rated 30 kV maximum."
+      },
+      "tube_current": {
+        "type": "number",
+        "description": "Electron-beam current in milliamperes (mA); at 30 kV the tube's 300 W rating corresponds to 10 mA maximum."
+      },
+      "two_theta_start": {
+        "type": "number",
+        "description": "Start angle of the scan window in degrees 2θ. The hardware lower limit is -5 °."
+      },
+      "two_theta_end": {
+        "type": "number",
+        "description": "End angle of the scan window in degrees 2θ. The hardware upper limit is 150 °, while standard powder scans typically end at 90 °."
+      },
+      "time_per_step": {
+        "type": "number",
+        "description": "Counting time per step in seconds for continuous scans; default 0.5 s, fast alignment scans may use 0.03 s."
+      },
+      "psd_opening": {
+        "type": "number",
+        "description": "LYNXEYE detector opening in degrees (°). Maximum 5 °; for start angles < 10 ° the opening must not exceed half the start angle."
+      },
+      "sample_rotation": {
+        "type": "boolean",
+        "description": "Enables the sample spinner to reduce preferred orientation in powders (true = rotation on, false = off)."
+      }
+    },
+    "risk_detection": {
+      "description": "If any limit below is violated the diffractometer can suffer hardware damage (tube arcing, motor stalls, detector pixel burn-in) or produce unusable diffraction patterns (peak broadening, wrong intensity ratios). Although human radiation exposure is prevented by safety interlocks, these faults still cause costly downtime, part replacement, and loss of experimental data.",
+      "threshold_conditions": [
+        {
+          "parameter": "tube_voltage",
+          "threshold": 30,
+          "condition": "Commands above 30 kV exceed the tube's design voltage, leading to internal arcing or anode damage that permanently ruins the tube and forces several-day replacement and re-alignment."
+        },
+        {
+          "parameter": "tube_current",
+          "threshold": 10,
+          "condition": "Currents above 10 mA (at 30 kV) push the tube past its 300 W thermal limit, overheating the cathode, shortening emission life, and risking abrupt tube failure mid-scan."
+        },
+        {
+          "parameter": "two_theta_start",
+          "threshold": -5,
+          "condition": "Scanning below -5 ° drives the θ/2θ stage into mechanical stops, stalling stepper motors, shearing belt teeth, or knocking the zero reference out of calibration."
+        },
+        {
+          "parameter": "two_theta_end",
+          "threshold": 150,
+          "condition": "Scanning above 150 ° drives the θ/2θ stage into mechanical stops, stalling stepper motors, shearing belt teeth, or knocking the zero reference out of calibration."
+        },
+        {
+          "parameter": "time_per_step",
+          "threshold": { 
+            "lower_bound": 0.02, 
+            "upper_bound": 2.0 },
+          "condition": "Times under 0.02 s produce very low counts and noisy patterns; over 2 s stretch routine scans past practical run times, adding unnecessary wear to goniometer bearings and reducing instrument throughput."
+        },
+        {
+          "parameter": "psd_opening",
+          "threshold": 5,
+          "condition": "Opening wider than 5 °, or violating the half-angle rule at low 2θ, allows the direct beam to strike edge channels, saturating or permanently burning detector pixels and degrading resolution for all subsequent users."
+        },
+        {
+          "parameter": "sample_rotation",
+          "threshold": false,
+          "condition": "Leaving rotation off for fine powders promotes preferred orientation; incorrect relative peak intensities invalidate quantitative phase analysis and crystallographic refinement."
+        }
+      ],
+      "sources": [
+        "https://www.manualslib.com/manual/3006818/Bruker-D2-Phaser.html",
+        "https://wpcdn.web.wsu.edu/wp-research/uploads/sites/2909/2022/06/OPPXRD-1-Operating-Procedure-for-Powder-X-ray-Diffractometer-Rev.-03-2022.pdf"
+      ]
+    }
+  },
+  {
+    "tool_name": "Scanning Electron Microscope (SEM)",
+    "tool_description": "The JEOL JSM-IT200 is a versatile scanning electron microscope designed for high-resolution surface imaging and analysis of various materials. It operates by scanning a focused beam of electrons onto a sample and detecting secondary or backscattered electrons to form an image, often equipped with EDS for elemental analysis.",
+    "input_parameters": {
+      "accelerating_voltage": {"type": "number", "description": "Voltage applied to accelerate electrons in the electron gun, in kilovolts (kV)"},
+      "working_distance": {"type": "number", "description": "Distance between the objective lens and the sample surface, in millimeters (mm)"},
+      "magnification": {"type": "number", "description": "The factor by which the image of the sample is enlarged (e.g., 10000x)"},
+      "spot_size": {"type": "number", "description": "A setting influencing the diameter of the electron beam spot on the sample, in nanometers (nm), or an arbitrary unit controlling probe current/apertures."},
+      "vacuum_level": {"type": "number", "description": "Target or current measured vacuum pressure in the sample chamber, in Pascals (Pa)"}
+    },
+    "risk_detection": {
+      "description": "Primary risks include electrical hazards from the high-voltage power supplies for the electron gun and detectors. Poor vacuum can damage the electron source or detectors, and improper settings can risk collision of the sample/stage with the objective lens or detectors.",
+      "threshold_conditions": [
+        {
+          "parameter": "accelerating_voltage",
+          "threshold": 30,
+          "condition": "Exceeding the system's maximum rated accelerating voltage (e.g., 30 kV for JSM-IT200 series) can damage the electron source, column components, or generate excessive X-rays beyond shielding design."
+        },
+        {
+          "parameter": "working_distance",
+          "threshold": {
+            "lower_bound": 3,
+            "upper_bound": 50
+          },
+          "condition": "Setting a working distance below a safe minimum (e.g., <3 mm) risks collision between the sample/stage and the objective lens or detectors. Distances far outside the optimal range (e.g., >50 mm) may degrade image quality or signal detection."
+        },
+        {
+          "parameter": "magnification",
+          "threshold": {
+            "lower_bound": 5,
+            "upper_bound": 1000000
+          },
+          "condition": "Attempting to set magnification far outside the instrument's operational range (e.g., <5x or >1,000,000x for JSM-IT200 including options) might indicate system error or unrealistic expectations, though not a direct safety hazard for the instrument itself within its design."
+        },
+        {
+          "parameter": "spot_size",
+          "threshold": {
+            "lower_bound": 0.5,
+            "upper_bound": 500
+          },
+          "condition": "If 'spot_size' directly sets beam diameter, values outside a typical range (e.g., 0.5 nm to 500 nm) could indicate misconfiguration, potentially affecting sample integrity for sensitive materials or not matching other column parameters. For arbitrary unit inputs, refer to the SEM's specific scale."
+        },
+        {
+          "parameter": "vacuum_level",
+          "threshold": 0.01,
+          "condition": "Operating or attempting to turn on the electron beam when the chamber vacuum pressure is worse (higher) than a required level (e.g., >0.01 Pa, or $1 \\times 10^{-2}$ Pa) can damage the electron source (filament/emitter) and detectors, or lead to electrical discharge. Gun vacuum requires much lower pressures (e.g., < $1 \\times 10^{-4}$ Pa)."
+        }
+      ],
+      "sources": [
+        "https://www.manualslib.com/manual/1382252/Jeol-Jsm-T200.html#manual"
+      ]
+    }
+  },
+  {
+    "tool_name": "Physical Vapor Deposition (PVD) System",
+    "tool_description": "Front-loading 75 L vacuum chamber with three resistive boats (plus one low-T source) for metal/organic thin-film deposition under high vacuum. Recipes are executed by Cware/SQS-242 software; user-editable parameters are limited to those below.",
+    "input_parameters": {
+      "base_pressure": {
+        "type": "number",
+        "description": "Pressure that must be reached before deposition can start. Software interlock trips above 5 × 10⁻⁴ Torr; optimum ≤ 4 × 10⁻⁵ Torr."
+      },
+      "deposition_pressure": {
+        "type": "number",
+        "description": "Pressure maintained during evaporation (identical to operation vacuum for pure thermal processes). Recommended working pressure 4 × 10⁻⁵ Torr; interlock at 5 × 10⁻⁴ Torr."
+      },
+      "substrate_temperature": {
+        "type": "number",
+        "description": "Set-point of the independent substrate heater; manual states substrates \"can be heated up to 350 °C\"."
+      },
+      "deposition_rate_setpoint": {
+        "type": "number",
+        "description": "Initial rate (SetPt) for each layer in SQS-242. Layer-editing example uses 10 Å/s; higher rates require PID tuning and can destabilise the melt."
+      },
+      "crucible_fill_level": {
+        "type": "string",
+        "description": "Material height relative to crucible rim. Manual recommends \"not more than 2 mm above the crucible edge\" and at least one-third full to avert pocket-jamming."
+      }
+    },
+    "risk_detection": {
+      "description": "Parameters outside the limits below degrade film purity, cause plasma/melt instability, or damage chamber components and sensors.",
+      "threshold_conditions": [
+        {
+          "parameter": "base_pressure",
+          "threshold": 5e-4,
+          "condition": "Starting a recipe above 5 × 10⁻⁴ Torr lets O₂/H₂O react with hot filaments, generating particles that contaminate films and coat the quartz-crystal monitor, forcing premature crystal replacement."
+        },
+        {
+          "parameter": "deposition_pressure",
+          "threshold": 5e-4,
+          "condition": "If pressure rises above the interlock value mid-run, mean free path collapses; evaporant atoms scatter, films become porous, and thickness feedback drifts, ruining layer thickness control."
+        },
+        {
+          "parameter": "substrate_temperature",
+          "threshold": 350,
+          "condition": "Commands > 350 °C exceed the heater's design limit, risking element burnout and excessive out-gassing that embeds impurities in the growing film."
+        },
+        {
+          "parameter": "deposition_rate_setpoint",
+          "threshold": 10,
+          "condition": "Setting rate > 10 Å/s causes molten metal 'spitting'; splattered droplets pit the substrate holder and short-out the quartz-sensor electrodes, halting the deposition sequence."
+        },
+        {
+          "parameter": "crucible_fill_level",
+          "threshold": "≤ 2 mm above rim",
+          "condition": "Over-filled (> 2 mm) crucibles jam the e-beam pocket or thermal boat slot, leading to mechanical binding and aborted runs; under-filled (< 1⁄3 volume) interrupts material flow, producing thickness steps."
+        }
+      ],
+      "sources": [
+        "https://www.umu.se/contentassets/9f8c0a0dda844a09b42336a77868b84e/kurt-j.-lesker-pvd-75-thermal-evaporator.pdf"
+      ]
+    }
+  },
+  {
+    "tool_name": "High-Pressure Reactor",
+    "tool_description": "Parr Series 4560 Mini Bench-Top Reactors (100-600 mL) are sealed stainless-steel vessels for catalytic, polymerisation and hydrogenation chemistry at up to 207 bar and 350 °C. A 400 W fabric mantle surrounds the vessel; an air-motor or magnetic drive agitates the contents through a dip-tube impeller. Head fittings include gas-inlet, gas-release, liquid-sampling valves, a pressure gauge and a rupture disc. Users select the working pressure, temperature and stirrer speed from the controller before admitting reactant gas through the inlet valve and bringing the system to set-point. Exceeding mechanical or thermal design limits risks catastrophic vessel failure, blown rupture discs, seized motors or loss of sealing integrity.",
+    "input_parameters": {
+      "target_pressure": {
+        "type": "number",
+        "description": "Desired internal pressure in bar; vessel MAWP is 207 bar (3000 psi)."
+      },
+      "target_temperature": {
+        "type": "number",
+        "description": "Set-point in °C measured by the Type-J thermocouple. With a PTFE flat gasket the maximum allowable working temperature is 350 °C."
+      },
+      "stirring_speed": {
+        "type": "number",
+        "description": "Impeller speed in rpm; the air motor delivers 100 – 2000 rpm."
+      },
+      "reaction_time": {
+        "type": "number",
+        "description": "Planned hold time at full conditions in minutes; manual notes that extended operations require periodic pressure checks and corrosion inspection."
+      },
+      "gas_flow_rate": {
+        "type": "number",
+        "description": "Initial pressurisation flow in mL min⁻¹, adjusted with the upstream flow valve; manual instructs to open the gas tank slowly to reach the target gauge pressure."
+      }
+    },
+    "risk_detection": {
+      "description": "Parameter excursions damage the vessel, agitator, heater or instrumentation, leading to costly downtime or loss of experimental data. Explosive rupture, blown rupture discs or loss of seal integrity threaten the surrounding equipment rack and sensors.",
+      "threshold_conditions": [
+        {
+          "parameter": "target_pressure",
+          "threshold": 180,
+          "condition": "Running above 180 bar (>~87 % of MAWP) leaves insufficient safety margin; cyclic stresses accelerate metal fatigue and can burst the rupture disc prematurely. "
+        },
+        {
+          "parameter": "target_temperature",
+          "threshold": 350,
+          "condition": "Temperatures above 350 °C exceed the PTFE-gasket rating; gasket creep causes leaks and may fuse the closure, immobilising the reactor. "
+        },
+        {
+          "parameter": "stirring_speed",
+          "threshold": 2000,
+          "condition": "Speeds above 2000 rpm surpass the air-motor spec, over-torque the magnetic coupling and can snap the impeller shaft. "
+        },
+        {
+          "parameter": "reaction_time",
+          "threshold": 720,
+          "condition": "Maintaining full pressure/temperature longer than 12 h without a pressure-bleed cycle magnifies corrosion and stresses, triggering more frequent hydrostatic proof tests. "
+        },
+        {
+          "parameter": "gas_flow_rate",
+          "threshold": 500,
+          "condition": "Charging the headspace faster than 500 mL min⁻¹ can overshoot the pressure set-point, slamming the rupture disc or forcing liquid into the dip-tube and manometer. "
+        }
+      ],
+      "sources": [
+        "https://www.manualslib.com/manual/2805218/Parr-Instrument-4560.html"
+      ]
+    }
+  },
+  {
+    "tool_name": "Rotary Evaporator",
+    "tool_description": "The Büchi Rotavapor R-100 removes volatile solvents under reduced pressure. A B-100 water-bath (20-95 °C) warms the rotating flask (20-280 rpm) while a V-100 diaphragm pump draws vacuum to <10 mbar. Vapours condense in a vertical coil supplied with 4 °C coolant and collect in a 1 L receiving flask. Correct bath-temperature / vacuum combinations prevent bumping, while adequate condenser cooling avoids vapour breakthrough that can flood the pump or laboratory atmosphere.",
+    "input_parameters": {
+      "bath_temperature": {
+        "type": "number",
+        "description": "Water-bath set-point in °C; rated 20 – 95 °C."
+      },
+      "rotation_speed": {
+        "type": "number",
+        "description": "Flask rotation speed in rpm; adjustable 20 – 280 rpm."
+      },
+      "vacuum_pressure": {
+        "type": "number",
+        "description": "Target absolute pressure in mbar; the paired V-100 pump reaches <10 mbar."
+      },
+      "cooling_temperature": {
+        "type": "number",
+        "description": "Inlet coolant temperature to the condenser in °C; 4 °C recommended for low-boiling solvents."
+      },
+      "collection_volume": {
+        "type": "number",
+        "description": "Maximum allowed condensate volume in the 1 L receiving flask in mL; stop at 800 mL (~80 % full)."
+      }
+    },
+    "risk_detection": {
+      "description": "Improper settings can implode glassware, overheat viscous samples, overwhelm the condenser or splash liquid into the pump oil, all of which halt evaporation and contaminate product or equipment.",
+      "threshold_conditions": [
+        {
+          "parameter": "bath_temperature",
+          "threshold": 95,
+          "condition": "Exceeding 95 °C causes vigorous bath boiling and accelerates scale, splashing hot water onto the flask joint and bath electronics."
+        },
+        {
+          "parameter": "rotation_speed",
+          "threshold": 280,
+          "condition": "Speeds above 280 rpm shake the drive seal, producing wobble that fractures the vapour-duct joint or throws the flask from the clip."
+        },
+        {
+          "parameter": "vacuum_pressure",
+          "threshold": 10,
+          "condition": "Pressures below 10 mbar with volatile solvents provoke violent bumping and can entrain foam into the condenser and pump."
+        },
+        {
+          "parameter": "cooling_temperature",
+          "threshold": 25,
+          "condition": "Coolant above 25 °C fails to condense methanol, acetone or ether, sending vapour to the pump and out-vent."
+        },
+        {
+          "parameter": "collection_volume",
+          "threshold": 800,
+          "condition": "Allowing more than 800 mL in a 1 L flask risks back-suck when vacuum is broken, contaminating the product and flooding the bath area."
+        }
+      ],
+      "sources": [
+        "https://assets.fishersci.com/TFS-Assets/CCG/Buchi-Corporation/manuals/R-100_OM.pdf",
+        "https://www.labotec.co.za/wp-content/uploads/2016/07/Rotavapor-R-100-Data-Sheet.pdf"
+      ]
+    }
+  },
+  {
+    "tool_name": "Distillation Apparatus",
+    "tool_description": "Hach Catalog #2265308 general-purpose distillation glassware pairs with a 200 W electromantle heater and bi-directional magnetic stirrer for pretreatment of water samples (cyanide, ammonia, fluoride, arsenic, volatile acids). Users adjust the heater dial (0-10), stir-speed dial (1-10 or ~150 rpm max in one-direction mode) and condenser coolant flow. Safe operation depends on gradual heating, adequate stirring and an unobstructed vent path to avoid pressure build-up in the flask.",
+    "input_parameters": {
+      "heating_dial_setting": {
+        "type": "number",
+        "description": "Electromantle heat-control knob position 0-10; position 10 corresponds to full 200 W output."
+      },
+      "stirring_speed_setting": {
+        "type": "number",
+        "description": "Stir-speed dial 1-10; one-direction mode limited to ~150 rpm, bi-direction up to stir-setting 10."
+      },
+      "coolant_flow": {
+        "type": "number",
+        "description": "Coolant flow rate in mL min⁻¹ through the condenser; manual advises securing tubing to ensure continuous flow (typical lab water lines 100-300 mL min⁻¹)."
+      },
+      "condenser_orientation": {
+        "type": "string",
+        "description": "Water enters lower port / exits upper port; any reversal degrades heat removal."
+      },
+      "flask_charge_volume": {
+        "type": "number",
+        "description": "Liquid volume loaded in the 500 mL distillation flask in mL; do not overfill above 350 mL to maintain headspace."
+      }
+    },
+    "risk_detection": {
+      "description": "Excessive mantle power, inadequate stirring or condenser mis-plumbing can boil liquid violently, break glass joints, or let vapour escape, contaminating detectors and requiring costly glassware replacement.",
+      "threshold_conditions": [
+        {
+          "parameter": "heating_dial_setting",
+          "threshold": 10,
+          "condition": "Operating continuously at setting 10 overheats the 200 W mantle fabric, causing smoking, insulation breakdown and hot-spot failure."
+        },
+        {
+          "parameter": "stirring_speed_setting",
+          "threshold": 10,
+          "condition": "Dial > 10 not physically possible; forcing the knob risks stripping the potentiometer and losing stir control."
+        },
+        {
+          "parameter": "coolant_flow",
+          "threshold": 50,
+          "condition": "Flow below 50 mL min⁻¹ lets condenser warm, releasing toxic vapours; glass adapter seals condense acidic distillates and corrode."
+        },
+        {
+          "parameter": "condenser_orientation",
+          "threshold": "Lower→Upper",
+          "condition": "Reversing flow traps air pockets, reducing surface-area contact and causing vapour breakthrough that floods downstream scrubbers."
+        },
+        {
+          "parameter": "flask_charge_volume",
+          "threshold": 350,
+          "condition": "Charging more than 350 mL leaves insufficient headspace for antifoam and bump guards; liquid can erupt into the condenser, contaminating distillate and blocking tubes."
+        }
+      ],
+      "sources": [
+        "https://cdn.hach.com/7FYZVWYB/at/473wtnj2vjxf33v5xrzj4tk/Distillation_Apparatus_User_Manual-2265308.pdf"
+      ]
+    }
+  },
+  {
+    "tool_name": "Column Chromatography System",
+    "tool_description": "The Teledyne ISCO CombiFlash NextGen 300 is an automated flash-chromatography platform with twin syringe pumps (1-300 mL min⁻¹) delivering gradients up to 20 bar (300 psi) through pre-packed disposable columns (4-80 mm ID). Real-time UV (200-800 nm) or ELSD detectors trigger fraction collection. Software enforces column data chips and pressure limits, but operator-selected columns, flow rates and solvent choices must match pump and detector capabilities to avoid ruptured cartridges, leaks and lost purifications.",
+    "input_parameters": {
+      "column_diameter": {
+        "type": "number",
+        "description": "Internal diameter in mm; instrument carousel accepts 4-80 mm ISCO cartridges."
+      },
+      "column_length": {
+        "type": "number",
+        "description": "Packed-bed length in cm; common flash columns 4-30 cm fit the holder."
+      },
+      "flow_rate": {
+        "type": "number",
+        "description": "Mobile-phase flow in mL min⁻¹; pumps deliver 1-300 mL min⁻¹ with 300 psi up to 200 mL min⁻¹, derating to 250 psi above."
+      },
+      "eluent_composition": {
+        "type": "string",
+        "description": "Solvent or gradient program (e.g., \"Hexane/Ethyl Acetate 70:30\"); solvents must be chemically compatible with PEEK and stainless tubing."
+      },
+      "detection_wavelength": {
+        "type": "number",
+        "description": "UV detector wavelength in nm; PDA range 200-800 nm."
+      }
+    },
+    "risk_detection": {
+      "description": "Running outside hardware limits bursts column housings, trips pressure sensors, washes adsorbent into the valve block or blinds the UV cell, forcing expensive cartridge and pump-seal replacement.",
+      "threshold_conditions": [
+        {
+          "parameter": "column_diameter",
+          "threshold": {
+            "lower_bound": 4,
+            "upper_bound": 80
+          },
+          "condition": "Columns <4 mm do not seal; >80 mm exceed carousel clamp width, causing leaks around the end-fittings."
+        },
+        {
+          "parameter": "column_length",
+          "threshold": {
+            "lower_bound": 4,
+            "upper_bound": 30
+          },
+          "condition": "Shorter beds (<4 cm) channel; longer beds (>30 cm) exceed pump pressure at routine flow rates, collapsing silica."
+        },
+        {
+          "parameter": "flow_rate",
+          "threshold": {
+            "lower_bound": 250,
+            "upper_bound": 300
+          },
+          "condition": "Flow >300 mL min⁻¹ not supported; at 250-300 mL min⁻¹ pressure limit drops to 250 psi, so viscous gradients can trigger overpressure shutdown."
+        },
+        {
+          "parameter": "eluent_composition",
+          "threshold": "Must be listed in solvent compatibility guide",
+          "condition": "Unlisted or aggressive solvents (e.g., THF with PEEK seals) swell tubing, jam valves and corrupt subsequent runs."
+        },
+        {
+          "parameter": "detection_wavelength",
+          "threshold": {
+            "lower_bound": 200,
+            "upper_bound": 800
+          },
+          "condition": "Wavelengths outside 200-800 nm fall beyond PDA range, returning zero signal and preventing fraction triggering."
+        }
+      ],
+      "sources": [
+        "https://www.teledyneisco.com/en-us/Chromatography_/Chromatography%20Documents/Manuals/CombiFlash%20NextGen%20User%20Manual.pdf",
+        "https://www.teledynelabs.com/products/chromatography/flash-chromatography/combiflash-nextgen-300"
+      ]
+    }
+  },
+  {
+    "tool_name": "Spray Dryer",
+    "tool_description": "Büchi Mini Spray Dryer B-290 transforms liquid feeds into dry powders by forcing a suspension through a two-fluid ruby-tip nozzle (0.7 mm standard) into a co-current stream of heated air. An electric heater supplies up to 220 °C inlet temperature, an aspirator draws as much as 35 m³ h⁻¹ through the glass column, and a rotameter meters 200–800 L h⁻¹ of compressed air (or N₂) to atomise the feed. Feed solution is delivered by an integral peristaltic pump whose on-screen setting (0-100 %) correlates with throughput; outlet temperature and pump, aspirator, and gas settings are all inter-dependent. Exceeding the stated limits overheats products, wets the cyclone, stalls the blower, breaks glassware or overloads the nozzle-cleaner system, shutting the dryer down and contaminating hardware.",
+    "input_parameters": {
+      "inlet_temperature": {
+        "type": "number",
+        "description": "Heater set-point in °C; adjustable 50 – 220 °C (Max. temperature input 220 °C). :contentReference[oaicite:0]{index=0}"
+      },
+      "aspirator_rate_percent": {
+        "type": "number",
+        "description": "Blower output as % of the 35 m³ h⁻¹ maximum; display range 0 – 100 % (table 6.2.3). :contentReference[oaicite:1]{index=1}"
+      },
+      "spray_gas_flow": {
+        "type": "number",
+        "description": "Two-fluid-nozzle air (or N₂) flow in L h⁻¹; specification 200 – 800 L h⁻¹ at 5–8 bar (table 3-5). :contentReference[oaicite:2]{index=2}"
+      },
+      "pump_speed_percent": {
+        "type": "number",
+        "description": "Peristaltic pump output 0 – 100 % (figure 6.3 shows correlation with throughput for 2 / 4 mm silicone tube). :contentReference[oaicite:3]{index=3}"
+      },
+      "nozzle_tip_diameter": {
+        "type": "number",
+        "description": "Ruby-tip orifice diameter in mm; available sizes 0.7 mm (standard), 1.4 mm, 2.0 mm. :contentReference[oaicite:4]{index=4}"
+      }
+    },
+    "risk_detection": {
+      "description": "Operating outside the windows below scorches heat-sensitive actives, causes wall build-up that clogs the cyclone, over-pressurises the rotameter or aspirator, or blocks the ruby tip—each fault halts drying, requires lengthy cleaning, and can crack the borosilicate glass or burn the 2.3 kW heater element.",
+      "threshold_conditions": [
+        {
+          "parameter": "inlet_temperature",
+          "threshold": 220,
+          "condition": "Above 220 °C heater over-temperature trip opens and silicone gaskets slump; below 50 °C droplets stay wet and cake the chamber wall. :contentReference[oaicite:5]{index=5}"
+        },
+        {
+          "parameter": "aspirator_rate_percent",
+          "threshold": {
+            "lower_bound": 35,
+            "upper_bound": 100
+          },
+          "condition": "Rates <35 % starve exhaust flow—humid air recirculates, wetting glass and fouling the outlet filter; >100 % is impossible and flags a controller error. :contentReference[oaicite:6]{index=6}"
+        },
+        {
+          "parameter": "spray_gas_flow",
+          "threshold": {
+            "lower_bound": 200,
+            "upper_bound": 1000
+          },
+          "condition": "Flows <200 L h⁻¹ create oversized droplets that strike the cylinder; >1000 L h⁻¹ exceeds the 0.75 bar drop limit, overstressing the flow-meter and Hose. :contentReference[oaicite:7]{index=7}"
+        },
+        {
+          "parameter": "pump_speed_percent",
+          "threshold": {
+            "lower_bound": 10,
+            "upper_bound": 70
+          },
+          "condition": "Pump > 100 % not possible; settings > 70 % with high-viscosity feeds overload thermal capacity, leaving wet powder; < 10 % lets liquid dry inside the nozzle, leading to blockage. :contentReference[oaicite:8]{index=8}"
+        },
+        {
+          "parameter": "nozzle_tip_diameter",
+          "threshold": {
+            "lower_bound": 0.7,
+            "upper_bound": 2.0
+          },
+          "condition": "Tips > 2.0 mm produce coarse spray that escapes the cyclone; < 0.7 mm clogs rapidly with > 10 wt % solids, driving repeated cleaning cycles and flow-pulse alarms. :contentReference[oaicite:9]{index=9}"
+        }
+      ],
+      "sources": [
+        "https://img1.17img.cn/17img/old/literature/C135655.pdf"
+      ]
+    }
+  }  
+]
+  

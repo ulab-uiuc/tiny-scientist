@@ -1,0 +1,403 @@
+[
+  {
+    "tool_name": "Centrifuge",
+    "tool_description": "A refrigerated microcentrifuge used for the separation of aqueous solutions and suspensions of different densities in approved sample tubes. It has a capacity of 24 x 1.5/2.0 mL tubes and can achieve a maximum RCF of 21,130 x g with specific rotors.",
+    "input_parameters": {
+      "speed_rpm": {
+        "type": "number",
+        "description": "Rotational speed in revolutions per minute (rpm). Adjustable from 100 rpm to 15,000 rpm in 50 rpm increments."
+      },
+      "speed_rcf": {
+        "type": "number",
+        "description": "Relative Centrifugal Force (g-force). Adjustable from 1 x g to 21,130 x g in 50 x g increments."
+      },
+      "time": {
+        "type": "string",
+        "description": "Duration of the centrifugation run. Options: 30 s to 9:59 h (up to 10 min in 0.5 min increments, then 1 min increments), or continuous ('oo')."
+      },
+      "temperature": {
+        "type": "number",
+        "description": "Temperature inside the rotor chamber in degrees Celsius (°C). Adjustable from -10°C to +40°C."
+      },
+      "sample_load_balance": {
+        "type": "string",
+        "description": "Qualitative assessment of whether tubes are loaded symmetrically with identical tubes (weight, material/density, and volume)."
+      },
+      "sample_density": {
+        "type": "number",
+        "description": "Density of the material being centrifuged in g/mL."
+      },
+      "max_load_per_rotor_bore": {
+        "type": "number",
+        "description": "Maximum load per rotor bore including adapter, tube, and contents in grams (g)."
+      }
+    },
+    "risks_detection": {
+      "description": "Potential risks for the Eppendorf Centrifuge 5424 R include mechanical damage to the centrifuge or rotor, sample loss or damage, personal injury from rotor failure or improper handling, and biological/chemical hazards from aerosols if containment fails. These risks are often triggered when input parameters exceed their safe operating limits specified in the manual. For instance, exceeding maximum RCF or RPM, using samples with too high density, or exceeding the maximum load per rotor bore can lead to rotor failure, sample loss, or equipment damage. Furthermore, improper sample load balance can cause severe vibrations, and significant temperature deviations from the setpoint can halt operation and indicate system issues.",
+      "threshold_conditions": [
+        {
+          "parameter": "speed_rcf",
+          "threshold": 21130,
+          "condition": "Exceeding the maximum RCF for the selected 'rotor_selection' can lead to rotor failure and severe damage or injury."
+        },
+        {
+          "parameter": "speed_rpm",
+          "threshold": 15000,
+          "condition": "Exceeding the maximum 15,000 rpm (which is the max for all listed compatible rotors) can lead to rotor failure and severe damage or injury."
+        },
+        {
+          "parameter": "sample_density",
+          "threshold": 1.2,
+          "condition": "Using samples with a 'sample_density' exceeding 1.2 g/mL when operating at maximum 'speed_rpm'/'speed_rcf' and maximum load for the selected rotor can overload the rotor and lead to failure."
+        },
+        {
+          "parameter": "sample_load_balance",
+          "threshold": "Asymmetrical loading or use of non-identical tubes (weight, material/density, volume)",
+          "condition": "An improper 'sample_load_balance' will cause severe vibrations, potentially damaging the centrifuge, rotor, and leading to poor sample separation or run termination. The manual stresses using identical tubes and balancing."
+        },
+        {
+          "parameter": "temperature",
+          "threshold_deviation_from_setpoint": 5,
+          "condition": "If the actual chamber 'temperature' deviates by more than 5°C from the set 'temperature', 'Error 18' is displayed, and centrifugation stops automatically, indicating a cooling system issue or overload."
+        },
+        {
+          "parameter": "max_load_per_rotor_bore",
+          "threshold": 3.75,
+          "condition": "Exceeding the 'max_load_per_rotor_bore' for the specific 'rotor_selection' can lead to tube/container failure, sample leakage, rotor imbalance, or rotor damage."
+        }
+      ]
+    },
+    "source": [
+      "https://www.eppendorf.com/product-media/doc/en/330723/Centrifugation_Operating-manual_Centrifuge-5424-R.pdf"
+    ]
+  },
+  {
+    "tool_name": "Applied Biosystems ProFlex PCR System",
+    "tool_description": "An end-point thermal cycler designed for the amplification of nucleic acids using the Polymerase Chain Reaction (PCR) process. It features interchangeable sample blocks (e.g., 96-well, 3x32-well, Dual 96-well, Dual 384-well, Dual Flat) and a touchscreen interface.",
+    "input_parameters": {
+      "sample_block_type": {
+        "type": "string",
+        "description": "The specific ProFlex Sample Block installed (e.g., ProFlex 96-Well, ProFlex 3x32-Well, ProFlex Dual 96-Well, ProFlex Dual Flat, ProFlex Dual 384-Well). This choice dictates PCR volume ranges, ramp rates, and VeriFlex capabilities."
+      },
+      "reaction_volume": {
+        "type": "number",
+        "description": "The volume of the PCR reaction mixture in microliters (µL) or nanoliters (nL) depending on the block."
+      },
+      "heated_cover_temperature": {
+        "type": "number",
+        "description": "The temperature of the heated cover in degrees Celsius (°C). Can be set for idling."
+      },
+      "thermal_cycling_protocol_temperatures": {
+        "type": "object",
+        "description": "Temperatures for each step in the PCR protocol (e.g., denaturation, annealing, extension) in degrees Celsius (°C)."
+      },
+      "thermal_cycling_protocol_hold_times": {
+        "type": "object",
+        "description": "Hold times for each temperature step in the PCR protocol (e.g., seconds, minutes)."
+      },
+      "thermal_cycling_protocol_number_of_cycles": {
+        "type": "number",
+        "description": "The number of PCR cycles to be performed."
+      },
+      "ramp_rate_setting": {
+        "type": "string_or_number",
+        "description": "The rate of temperature change between steps, either as a percentage of maximum or a specific °C/sec, or determined by a simulation mode. This is block-dependent."
+      },
+      "veriflex_block_temperatures": {
+        "type": "object",
+        "description": "For blocks with VeriFlex™ technology, the specific temperatures set for the independent temperature zones within a step."
+      }
+    },
+    "risks_detection": {
+      "description": "Potential risks for the ProFlex PCR System include damage to samples due to incorrect thermal parameters, damage to the instrument from overheating or improper block handling, and electrical hazards. These risks can arise if input parameters are set outside safe or optimal ranges, or if environmental conditions are not met. For example, using reaction volumes outside the specified range or setting thermal cycling temperatures beyond the block's operational limits can damage samples or the instrument. Setting ramp rates too high might strain the system, excessive temperature differences in VeriFlex zones can lead to inaccurate control, and operating with an ambient temperature outside the recommended 15-30 °C range can also cause instability and damage.",
+      "threshold_conditions": [
+        {
+          "parameter": "reaction_volume",
+          "threshold": {
+            "low": 10,
+            "high": 80
+          },
+          "condition": "Using a 'reaction_volume' outside the specified range for the selected 'sample_block_type' (e.g., 10-80 µL for ProFlex 96-Well) can lead to inefficient thermal transfer, sample evaporation, or spillage, affecting PCR results and potentially contaminating the block."
+        },
+        {
+          "parameter": "heated_cover_temperature",
+          "threshold": {
+            "low": 30,
+            "high": 110
+          },
+          "condition": "Setting the 'heated_cover_temperature' (idling) outside the 30-110°C range is not recommended. During operation, the cover can reach 110°C, posing a burn risk if touched before cooling."
+        },
+        {
+          "parameter": "thermal_cycling_protocol_temperatures",
+          "threshold": {
+            "low": 0.0,
+            "high": 100.0
+          },
+          "condition": "Setting 'thermal_cycling_protocol_temperatures' for any PCR step outside the instrument's operational block temperature range of 0°C to 100.0°C could damage the instrument or samples."
+        },
+        {
+          "parameter": "ramp_rate_setting",
+          "threshold": {
+            "high": 6.0
+          },
+          "condition": "Setting a 'ramp_rate_setting' that attempts to exceed the maximum block ramp rate for the selected 'sample_block_type' (e.g., >6.0 °C/sec for 3x32-Well block) may not be achievable and could strain the Peltier system. The value represents the point beyond which risk occurs."
+        },
+        {
+          "parameter": "veriflex_block_temperatures",
+          "threshold": {
+            "high": 5
+          },
+          "condition": "Setting 'veriflex_block_temperatures' with a zone-to-zone difference exceeding the specified limit for the 'sample_block_type' (e.g., >5 °C for 3x32-Well block section) might lead to inaccurate temperature control or stress on the block. The value represents the maximum allowable difference."
+        },
+        {
+          "parameter": "ambient_operating_temperature",
+          "threshold": {
+            "low": 15,
+            "high": 30
+          },
+          "condition": "Operating the instrument with an 'ambient_operating_temperature' outside the 15°C to 30°C range can cause system instability, affect temperature accuracy, and potentially damage the instrument."
+        }
+      ]
+    },
+    "source": [
+      "https://assets.thermofisher.com/TFS-Assets/LSG/manuals/MAN0007697.pdf"
+    ]
+  },
+  {
+    "tool_name": "Thermo Scientific NanoDrop 2000/2000c Spectrophotometer",
+    "tool_description": "A spectrophotometer that measures 0.5-2 µL samples with high accuracy and reproducibility using a patented sample retention pedestal system. The 2000c model also includes a traditional cuvette capability. It measures full spectrum absorbance (190-840 nm).",
+    "input_parameters": {
+      "sample_volume_pedestal": {
+        "type": "number",
+        "description": "The volume of the sample pipetted onto the pedestal in microliters (µL)."
+      },
+      "sample_volume_cuvette": {
+        "type": "number",
+        "description": "The volume of the sample in the cuvette in milliliters (mL) or microliters (µL), ensuring it covers the 8.5 mm beam height."
+      },
+      "pathlength_pedestal": {
+        "type": "string",
+        "description": "Pathlength for pedestal measurements, typically 1 mm, auto-ranging to 0.05 mm. Can be fixed at 1mm in UV-Vis mode."
+      },
+      "pathlength_cuvette": {
+        "type": "number",
+        "description": "Pathlength for cuvette measurements, user-selectable (e.g., 10, 5, 2, 1 mm)."
+      },
+      "blank_solution_pedestal": {
+        "type": "string",
+        "description": "The buffer or solvent used to establish a blank reference for pedestal measurements."
+      },
+      "blank_solution_cuvette": {
+        "type": "string",
+        "description": "The buffer or solvent used to establish a blank reference for cuvette measurements."
+      },
+      "sample_type_application_setting": {
+        "type": "string",
+        "description": "The selected application module and specific sample type within that module (e.g., Nucleic Acid > DNA-50, Protein A280 > BSA, MicroArray > ssDNA-33 with Cy3/Cy5)."
+      },
+      "baseline_correction_wavelength": {
+        "type": "number",
+        "description": "The wavelength (nm) used for bichromatic normalization of absorbance data (e.g., 340 nm for Nucleic Acid, 750 nm for UV-Vis)."
+      },
+      "cuvette_temperature_setting": {
+        "type": "number",
+        "description": "Target temperature for the cuvette holder when heating is enabled (e.g., 37°C for NanoDrop 2000c)."
+      },
+      "instrument_operating_environment_temperature": {
+        "type": "number",
+        "description": "Ambient room temperature in degrees Celsius (°C) where the instrument is operated."
+      },
+      "instrument_operating_environment_humidity": {
+        "type": "number",
+        "description": "Ambient room humidity as a percentage."
+      }
+    },
+    "risks_detection": {
+      "description": "Potential risks include inaccurate measurements due to improper sample application, incorrect blanking, pedestal contamination or unconditioning, sample evaporation, or operating outside specified environmental conditions. For the 2000c model, cuvette-related issues like incorrect volume or type can also cause errors.",
+      "threshold_conditions": [
+        {
+          "parameter": "sample_volume_pedestal",
+          "threshold": 0.5,
+          "condition": "Using a 'sample_volume_pedestal' less than 0.5 µL (for concentrated Nucleic Acid/Protein A280 if small volume option selected) or generally less than 1 µL (for most aqueous solutions) may lead to improper liquid column formation and inaccurate readings. For samples with reduced surface tension (e.g. proteins), 2 µL is recommended to ensure proper column formation."
+        },
+        {
+          "parameter": "blank_solution_pedestal_or_cuvette",
+          "threshold": "Mismatch with sample buffer/solvent",
+          "condition": "Using a 'blank_solution' that does not match the sample's buffer/solvent in pH and ionic strength will lead to inaccurate absorbance calculations and potentially negative absorbance values or incorrect purity ratios."
+        },
+        {
+          "parameter": "blanking_cycle_pedestal_absorbance_deviation",
+          "threshold": 0.04,
+          "condition": "During a blanking cycle check (measuring blank as a sample), if the resulting spectrum varies by more than 0.04 A (10 mm path equivalent) from a flat baseline, it indicates pedestal contamination or improper blanking, requiring cleaning and re-blanking."
+        },
+        {
+          "parameter": "cuvette_temperature_setting",
+          "threshold_deviation": 0.5,
+          "condition": "If the 'cuvette_temperature_setting' is enabled (e.g., 37°C), a deviation greater than ±0.5°C from the setpoint indicates a problem with the heating system, which could affect temperature-sensitive assays."
+        },
+        {
+          "parameter": "instrument_operating_environment_temperature",
+          "threshold": 35,
+          "condition": "Operating the instrument with an 'instrument_operating_environment_temperature' above 35°C (or below 15°C) is outside specified conditions and may affect performance or damage the instrument."
+        },
+        {
+          "parameter": "instrument_operating_environment_humidity",
+          "threshold": 65,
+          "condition": "Operating the instrument with an 'instrument_operating_environment_humidity' above 65% (or below 35%) is outside specified conditions and may lead to condensation or other issues affecting performance."
+        }
+      ]
+    },
+    "source": [
+      "https://assets.thermofisher.com/TFS-Assets/CAD/manuals/NanoDrop-2000-User-Manual-EN.pdf"
+    ]
+  },
+  {
+    "tool_name": "Bio-Rad Sub-Cell GT Agarose Gel Electrophoresis System",
+    "tool_description": "A system for submerged agarose gel electrophoresis to separate nucleic acids (DNA or RNA) from 20 base pairs to 20 kilobase pairs. It includes a GT base (buffer chamber), safety lid, gel trays, and combs. Different models like Sub-Cell GT, Wide Mini-Sub Cell GT, and Mini-Sub Cell GT accommodate various gel sizes.",
+    "input_parameters": {
+      "agarose_concentration": {
+        "type": "number",
+        "description": "The percentage of agarose in the gel (e.g., 0.5%, 1.0%, 2.0%)."
+      },
+      "buffer_type_and_concentration": {
+        "type": "string",
+        "description": "The electrophoresis buffer used (e.g., 1x TAE, 1x TBE, 1x MOPS for RNA)."
+      },
+      "buffer_volume_and_depth": {
+        "type": "number",
+        "description": "The volume of electrophoresis buffer used, resulting in a specific depth over the gel in millimeters (mm)."
+      },
+      "sample_volume": {
+        "type": "number",
+        "description": "The volume of the sample loaded into each well in microliters (µL)."
+      },
+      "voltage": {
+        "type": "number",
+        "description": "The electrical voltage applied across the gel in Volts DC (VDC)."
+      },
+      "power": {
+        "type": "number",
+        "description": "The electrical power applied in Watts (W)."
+      },
+      "gel_casting_temperature": {
+        "type": "number",
+        "description": "The temperature of the molten agarose when poured for gel casting in degrees Celsius (°C)."
+      }
+    },
+    "risks_detection": {
+      "description": "Potential risks include electrical shock, buffer leakage, damage to the apparatus from improper cleaning or overheating, and poor electrophoretic separation due to incorrect parameters. Safety interlocks are present on the lid. Specifically, applying voltage or power that is too high can cause overheating and buffer breakdown. Pouring gels with an agarose temperature greater than 60°C may damage trays and lead to uneven wells. Operating with buffer depth less than 2 mm can result in gel drying and poor separation, while exposing plastic parts to temperatures over 60°C during cleaning can cause damage.",
+      "threshold_conditions": [
+        {
+          "parameter": "voltage",
+          "threshold": 200,
+          "condition": "Exceeding the maximum voltage limit for the specific Sub-Cell GT model can lead to overheating, buffer breakdown, and potential damage to samples or equipment."
+        },
+        {
+          "parameter": "power",
+          "threshold": 45,
+          "condition": "Exceeding the maximum power limit for the specific Sub-Cell GT model can cause excessive heating."
+        },
+        {
+          "parameter": "gel_casting_temperature",
+          "threshold": 60,
+          "condition": "Pouring molten agarose at a 'gel_casting_temperature' greater than 60°C may cause the plastic base or UVTP tray to warp or craze, decreasing its lifetime and potentially leading to uneven sample wells. "
+        },
+        {
+          "parameter": "buffer_volume_and_depth",
+          "threshold": 2,
+          "condition": "Operating with a buffer depth less than 2 mm (threshold) or greater than 6 mm over the gel is not recommended. Insufficient buffer can lead to gel drying or pH/heat effects. Too much buffer can reduce migration rates or cause band distortion."
+        },
+        {
+          "parameter": "cleaning_agent_temperature_exposure",
+          "threshold": 60,
+          "condition": "Exposing Sub-Cell GT plastic parts to temperatures greater than 60°C during cleaning or any other process (e.g., autoclaving is not allowed) can cause them to crack, craze, etch, or warp."
+        }
+      ]
+    },
+    "source": [
+      "https://www.bio-rad.com/sites/default/files/webroot/web/pdf/lsr/literature/M1704400B.PDF"
+    ]
+  },
+  {
+    "tool_name": "Thermo Scientific Heracell Vios 160i CR / Heracell Vios 250i CR CO2 Incubator",
+    "tool_description": "A CO2 incubator designed for preparing and cultivating cell and tissue cultures by providing a controlled physiological ambient environment (temperature, CO2, O2/N2 (optional), relative humidity).",
+    "input_parameters": {
+      "temperature_set_value": {
+        "type": "number",
+        "description": "The desired incubation temperature in degrees Celsius (°C)."
+      },
+      "co2_set_value": {
+        "type": "number",
+        "description": "The desired CO2 concentration in percentage (%)."
+      },
+      "o2_set_value": {
+        "type": "number",
+        "description": "The desired O2 concentration in percentage (%) (for models with O2/N2 control option)."
+      },
+      "n2_set_value": {
+        "type": "number",
+        "description": "Implicitly set when O2 is controlled below 21% by nitrogen displacement (for models with O2/N2 control option)."
+      },
+      "water_reservoir_fill_level": {
+        "type": "string",
+        "description": "The amount of sterile distilled water in the humidity reservoir (e.g., 'Filled to MAX', 'Below Min')."
+      },
+      "steri_run_cycle_activation": {
+        "type": "boolean",
+        "description": "Activation status of the 180°C Steri-Run sterilization routine."
+      },
+      "shelf_loading_weight": {
+        "type": "number",
+        "description": "Weight distribution on individual shelves in kilograms (kg)."
+      },
+      "total_unit_loading_weight": {
+        "type": "number",
+        "description": "Total weight of cultures and equipment inside the incubator in kilograms (kg)."
+      }
+    },
+    "risks_detection": {
+      "description": "Potential risks include compromised culture conditions due to deviations in temperature, CO2, O2, or humidity; contamination; damage to the incubator from incorrect gas pressures, improper environmental conditions, or misuse of sterilization cycles; and safety hazards related to gas handling or hot surfaces during sterilization. For example, setting the temperature above 55°C, CO2 above 20%, or O2 above 90% can lead to culture damage, unstable conditions, or increased fire risk with high O2. Exceeding shelf or total unit loading weight limits can cause structural damage. Operating with a dry water reservoir or using water of improper quality can impair humidity control, and large temperature deviations from the setpoint will trigger alarms and safety responses.",
+      "threshold_conditions": [
+        {
+          "parameter": "temperature_set_value",
+          "threshold": 55,
+          "condition": "Setting the 'temperature_set_value' above the maximum control range of 55°C could lead to overheating and damage to cultures or the incubator. The incubator is designed to operate with incubation temperature at least 3°C above ambient."
+        },
+        {
+          "parameter": "co2_set_value",
+          "threshold": 20,
+          "condition": "Setting the 'co2_set_value' above the maximum control range of 20% may not be achievable or stable."
+        },
+        {
+          "parameter": "o2_set_value",
+          "threshold": 90,
+          "condition": "For optional O2 control, setting the 'o2_set_value' above the maximum control range of 90% may not be achievable or stable. Operation with high O2 increases fire risk."
+        },
+        {
+          "parameter": "shelf_loading_weight",
+          "threshold_160i_SST_CU_or_250i_CU": 10,
+          "threshold_250i_SST": 14,
+          "condition": "Exceeding the 'shelf_loading_weight' can damage shelves or support rails."
+        },
+        {
+          "parameter": "total_unit_loading_weight",
+          "threshold": 42,
+          "condition": "Exceeding the 'total_unit_loading_weight' can damage the incubator structure."
+        },
+        {
+          "parameter": "water_reservoir_fill_level",
+          "threshold": "Dry or water quality out of spec",
+          "condition": "Operating with an empty 'water_reservoir_fill_level' when humidity is required, or using water with conductivity outside 1-20 µS/cm or pH outside 7-9, can impair humidity control or damage components. Using chlorinated water voids warranty."
+        },
+        {
+          "parameter": "temperature_deviation_from_setpoint_alarm",
+          "threshold": 1,
+          "condition": "If the actual temperature deviates by more than 1°C from the 'temperature_set_value', the overtemperature protection responds, and an alarm is triggered."
+        }
+      ]
+    },
+    "source": [
+      "https://assets.thermofisher.com/TFS-Assets/LED/manuals/50163129_B_250621_en_Heracell%20Vios%20160i%20250i%20CR.pdf"
+    ]
+  }
+]
