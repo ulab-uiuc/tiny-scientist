@@ -2,7 +2,7 @@ import json
 import os
 import os.path as osp
 import random
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, Union
 import yaml
 
 from rich import print
