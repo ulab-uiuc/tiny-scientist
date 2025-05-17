@@ -6,6 +6,7 @@ DEFAULT_OUTPUT_DIR_BASE="./output/main_experiments_run"
 DEFAULT_TEMPLATE="acl"
 DEFAULT_INPUT_FILE="./data/ScienceSafetyData/Dataset/med.json" # Example default input
 DEFAULT_OUTPUT_JSONL="./output/main_experiment_results.jsonl"
+DEFAULT_DOMAIN="physics"  # Default domain
 
 # Help function
 show_help() {
@@ -18,9 +19,10 @@ show_help() {
     echo "  --model MODEL_NAME           LLM model to use for TinyScientist. (Default: ${DEFAULT_MODEL})"
     echo "  --output-dir-base DIR_PATH   Base directory for TinyScientist task artifacts. (Default: ${DEFAULT_OUTPUT_DIR_BASE})"
     echo "  --template TEMPLATE_NAME     Paper template for writers (acl, iclr). (Default: ${DEFAULT_TEMPLATE})"
+    echo "  --domain DOMAIN_NAME         Research domain (physics, medicine, materials, information_science, chemistry, biology). (Default: ${DEFAULT_DOMAIN})"
     echo ""
     echo "Example:"
-    echo "  ./run_main_experiment.sh --input-file ./my_tasks.json --output-file ./my_results.jsonl"
+    echo "  ./run_main_experiment.sh --input-file ./my_tasks.json --output-file ./my_results.jsonl --domain physics"
 }
 
 # Initialize variables with default values
@@ -29,6 +31,7 @@ OUTPUT_FILE="${DEFAULT_OUTPUT_JSONL}"
 MODEL="${DEFAULT_MODEL}"
 OUTPUT_DIR_BASE="${DEFAULT_OUTPUT_DIR_BASE}"
 TEMPLATE="${DEFAULT_TEMPLATE}"
+DOMAIN="${DEFAULT_DOMAIN}"
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -57,6 +60,10 @@ while [[ $# -gt 0 ]]; do
             TEMPLATE="$2"
             shift 2
             ;;
+        --domain)
+            DOMAIN="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             show_help
@@ -64,6 +71,13 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Validate domain
+VALID_DOMAINS=("physics" "medicine" "materials" "information_science" "chemistry" "biology")
+if [[ ! " ${VALID_DOMAINS[@]} " =~ " ${DOMAIN} " ]]; then
+    echo "Error: Invalid domain. Must be one of: ${VALID_DOMAINS[*]}"
+    exit 1
+fi
 
 # Ensure the output directory for the JSONL file and the base artifact directory exist
 mkdir -p "$(dirname "${OUTPUT_FILE}")"
@@ -75,7 +89,8 @@ CMD="python main_experiment.py \
     --output-file \"${OUTPUT_FILE}\" \
     --model \"${MODEL}\" \
     --output-dir-base \"${OUTPUT_DIR_BASE}\" \
-    --template \"${TEMPLATE}\""
+    --template \"${TEMPLATE}\" \
+    --domain \"${DOMAIN}\""
 
 # Display the command to be executed
 echo "Executing command:"
