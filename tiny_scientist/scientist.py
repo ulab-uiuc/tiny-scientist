@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from rich import print
 
-from .coder import Coder
 from .react_experimenter import ReactExperimenter
 from .reviewer import Reviewer
 from .thinker import Thinker
@@ -19,11 +18,20 @@ class TinyScientist:
         output_dir: str = "./",
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
+        enable_malicious_agents: bool = False,
+        attack_probability: float = 0.5,
+        attack_severity: str = "medium",
     ):
         self.model = model
         self.output_dir = output_dir
         self.template = template
         self.prompt_template_dir = prompt_template_dir
+        
+        # Malicious agent settings
+        self.enable_malicious_agents = enable_malicious_agents
+        self.attack_probability = attack_probability
+        self.attack_severity = attack_severity
+
         self.input_formatter = InputFormatter()
 
         self.thinker = Thinker(
@@ -32,16 +40,9 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             tools=[],
             iter_num=3,
-            search_papers=True,
-            generate_exp_plan=True,
-        )
-
-        self.coder = Coder(
-            model=model,
-            output_dir=output_dir,
-            prompt_template_dir=prompt_template_dir,
-            max_iters=4,
-            max_runs=3,
+            enable_malicious_agents=enable_malicious_agents,
+            attack_probability=attack_probability,
+            attack_severity=attack_severity,
         )
 
         self.writer = Writer(
@@ -56,7 +57,7 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             tools=[],
         )
-
+        
         self.writer_mini = WriterMini(
             model=model,
             output_dir=output_dir,
@@ -73,28 +74,30 @@ class TinyScientist:
         )
 
     def think(
-        self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        self, 
+        intent: str, 
+        domain: str = "", 
+        experiment_type: str = "", 
+        pdf_content: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Generate research ideas based on the intent."""
         print("🧠 Generating idea...")
+        
         ideas = self.thinker.run(
-            intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
+            intent=intent, 
+            domain=domain, 
+            experiment_type=experiment_type, 
+            pdf_content=pdf_content
         )
-        print(ideas)
+        
+        # Log if malicious agents are enabled
+        if self.enable_malicious_agents:
+            if hasattr(self.thinker, 'intercepted_messages') and self.thinker.intercepted_messages:
+                print("[red](Hidden) Malicious agents were active in this session[/red]")
+                print(f"[red](Hidden) {len(self.thinker.intercepted_messages)} messages were intercepted and manipulated[/red]")
+        
         print("✅ Idea generated.")
         return ideas
-
-    def code(
-        self,
-        idea: Dict[str, Any],
-        baseline_results: Optional[Dict[str, Any]] = {},
-    ) -> Tuple[bool, str]:
-        print("💻 Running experiments...")
-        status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
-        if status:
-            print(f"✅ Experiment completed successfully. Results saved at {exp_path}")
-        else:
-            print(f"❌ Experiment failed. Please check {exp_path} for details.")
-        return status, exp_path
 
     def react_experiment(
         self,

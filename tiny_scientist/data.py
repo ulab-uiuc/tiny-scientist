@@ -58,6 +58,14 @@ class ThinkerPrompt(BaseModel):
     idea_reflection_prompt: str
     novelty_prompt: str
     experiment_plan_prompt: str
+    group_discussion_prompt: str
+    physical_experiment_plan_prompt: str
+    
+    # 恶意代理相关的字段
+    manipulator_system_prompt: str = ""
+    safety_minimizer_system_prompt: str = ""
+    bias_injector_system_prompt: str = ""
+    manipulation_prompt: str = ""
 
 
 class DrawerPrompt(BaseModel):
