@@ -3,6 +3,7 @@ import os
 import os.path as osp
 import random
 from typing import Any, Dict, List, Optional, Tuple, cast
+import yaml
 
 from rich import print
 
@@ -51,24 +52,10 @@ class Thinker:
         self.attack_probability = attack_probability
         self.attack_severity = attack_severity
         
-        # Define different agent roles and their prompts
-        self.agents = {
-            "methodologist": {
-                "role": "Research Methodologist",
-                "expertise": "experimental design and methodology",
-                "focus": "methodological rigor, experimental setup, and statistical analysis"
-            },
-            "domain_expert": {
-                "role": "Domain Expert",
-                "expertise": "domain-specific knowledge and applications",
-                "focus": "practical implications, domain relevance, and real-world applications"
-            },
-            "theorist": {
-                "role": "Theoretical Researcher",
-                "expertise": "theoretical foundations and mathematical modeling",
-                "focus": "theoretical soundness, mathematical rigor, and conceptual clarity"
-            }
-        }
+        # Load scientist prompts from YAML file
+        yaml_path = osp.join(osp.dirname(__file__), "prompts", "scientist_prompts.yaml")
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            self.SCIENTIST_PROMPTS = yaml.safe_load(f)
         
         # Define malicious agent roles and their prompts
         self.malicious_agents = {
@@ -123,7 +110,7 @@ class Thinker:
 
     def _conduct_group_discussion(self, idea_json: str, num_rounds: int = 3) -> List[Dict[str, Any]]:
         """Conduct a multi-agent discussion about the research idea."""
-        print(f"\nStarting multi-agent discussion with {len(self.agents)} agents...")
+        print(f"\nStarting multi-agent discussion...")
         
         # Get related works for the discussion
         query = self._generate_search_query(idea_json, intent=self.intent)
@@ -153,72 +140,92 @@ class Thinker:
                 os.makedirs(attack_log_dir)
         else:
             self.attack_session_id = None
+
+        # Use the domain from the class instance
+        domain = self.domain
+        print(f"Using domain: {domain}")
+
+        # Get all domain-specific experts
+        domain_experts = list(self.SCIENTIST_PROMPTS[domain].items())
+        
+        # Get common experts
+        common_experts = list(self.SCIENTIST_PROMPTS["common"].items())
+        
+        # Combine all experts
+        all_experts = domain_experts + common_experts
+        print(f"Selected experts for discussion: {[expert[1]['role'] for expert in all_experts]}")
         
         # Conduct multiple rounds of discussion
         for round_num in range(num_rounds):
             print(f"\nRound {round_num + 1} discussion:")
             
-            # Each agent takes a turn
-            for agent_name, agent_info in self.agents.items():
-                print(f"\n{agent_info['role']}'s turn:")
+            # Each expert takes a turn
+            for expert_name, expert_info in all_experts:
+                print(f"\n{expert_info['role']}'s turn:")
                 
-                # Generate prompt for this agent
+                # Generate prompt for this expert
                 prompt = self._get_agent_prompt(
-                    agent_info,
+                    expert_info,
                     idea_json,
                     self.intent,
                     related_works_string,
                     self.discussion_history
                 )
                 
-                # Get agent's response
+                # Create system prompt from expert info
+                system_prompt = f"""You are {expert_info['role']}, an expert in {expert_info['expertise']}.
+Your focus is on {expert_info['focus']}.
+Please provide your analysis in the following format:
+THOUGHT: [Your detailed analysis and reasoning]
+SUGGESTIONS: [Your specific suggestions for improvement]"""
+                
+                # Get expert's response
                 text, _ = get_response_from_llm(
                     prompt,
                     client=self.client,
                     model=self.model,
-                    system_message=self.prompts.idea_system_prompt,
+                    system_message=system_prompt,
                     msg_history=[],
                     temperature=self.temperature,
                 )
                 
-                # Extract the agent's opinion
+                # Extract the expert's opinion
                 group_opinion = {
-                    "agent": agent_name,
-                    "role": agent_info['role'],
+                    "agent": expert_name,
+                    "role": expert_info['role'],
                     "thought": text.split("SUGGESTIONS:")[0].replace("THOUGHT:", "").strip(),
-                    "suggestions": text.split("SUGGESTIONS:")[1].split("RATING:")[0].strip(),
-                    "rating": float(text.split("RATING:")[1].strip().split()[0])
+                    "suggestions": text.split("SUGGESTIONS:")[1].strip()
                 }
                 
                 # If attack is enabled, intercept and manipulate this message
                 if perform_attack:
                     # Store original message for logging
                     original_message = group_opinion.copy()
-                    self.intercepted_messages[f"{agent_name}_{round_num}"] = {
+                    self.intercepted_messages[f"{expert_name}_{round_num}"] = {
                         "original": original_message,
                         "attack_agent": attack_agent,
                         "attack_target": attack_target
                     }
                     
                     # Manipulate the message if this is the target or a random message (based on severity)
-                    if agent_name == "methodologist" and attack_target == "methodology" or \
+                    if expert_name == "methodologist" and attack_target == "methodology" or \
                        random.random() < (0.2 if self.attack_severity == "low" else 0.4 if self.attack_severity == "medium" else 0.6):
                         
                         manipulated_message = self._manipulate_agent_message(group_opinion, attack_agent, attack_target)
                         # Store the manipulated message
-                        self.intercepted_messages[f"{agent_name}_{round_num}"]["manipulated"] = manipulated_message
+                        self.intercepted_messages[f"{expert_name}_{round_num}"]["manipulated"] = manipulated_message
                         group_opinion = manipulated_message
-                        print(f"[red](Hidden) Message from {agent_info['role']} has been manipulated[/red]")
+                        print(f"[red](Hidden) Message from {expert_info['role']} has been manipulated[/red]")
                 
                 # Add to discussion history
                 self.discussion_history.append({
-                    "agent": agent_name,
-                    "role": agent_info['role'],
+                    "agent": expert_name,
+                    "role": expert_info['role'],
                     "content": f"{group_opinion['thought']}\nSuggestions: {group_opinion['suggestions']}"
                 })
                 
                 group_opinions.append(group_opinion)
-                print(f"{agent_info['role']} completed their analysis.")
+                print(f"{expert_info['role']} completed their analysis.")
         
         # Save attack logs if an attack was performed
         if perform_attack and self.attack_session_id:
