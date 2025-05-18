@@ -2,43 +2,52 @@ import os
 import json
 from tiny_scientist import TinyScientist
 from datetime import datetime
-from test_writer_mini import run_test_writer_mini # Import the function from the first test script
+from test_writer_mini import run_test_writer_mini # Correctly imports the text-generating function
 
-def run_test_review_rewrite(input_pdf_path: str):
+def run_test_review_rewrite(input_text_content: str): # Parameter changed to input_text_content
     print("\n--- Test: ReviewRewriter ---")
-    if not input_pdf_path or not os.path.exists(input_pdf_path):
-        print(f"[ERROR] Input PDF path is invalid or file does not exist: {input_pdf_path}")
-        print("Please ensure test_writer_mini.py runs successfully first or provide a valid PDF path.")
+    if not input_text_content: # Check if the text content is valid (e.g., not empty)
+        print(f"[ERROR] Input text content is empty or invalid.")
+        print("Please ensure test_writer_mini.py runs successfully first or provide valid text content.")
         return
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # It's good practice for ReviewRewriter to have its own output directory for its artifacts
-    # separate from where the input PDF might be located.
     test_output_dir = f"./output/test_review_rewrite_{timestamp}"
     os.makedirs(test_output_dir, exist_ok=True)
 
     # Initialize TinyScientist
-    # The output_dir for TinyScientist here will be used by ReviewRewriter for its logs/temp files if any.
     scientist = TinyScientist(
-        model="gpt-4o", # Or your preferred model
+        model="gpt-4o", 
         output_dir=test_output_dir, 
-        template="acl" # Template might be used by parts of ReviewRewriter (e.g., if it formats output)
+        template="acl" 
     )
 
-    print(f"[INFO] Using input PDF: {input_pdf_path}")
+    print(f"[INFO] Using input text content (length: {len(input_text_content)} chars).")
     print(f"[INFO] Output artifacts from ReviewRewriter will be in: {test_output_dir}")
 
     try:
-        report = scientist.review_and_rewrite(pdf_path=input_pdf_path)
+        report = scientist.review_and_rewrite(paper_text=input_text_content) # Pass the text content directly
         print("[SUCCESS] ReviewRewriter test completed.")
         print("Full Report:")
-        print(json.dumps(report, indent=2)) # Pretty print the JSON report
+        # The report dictionary should contain the rewritten text, e.g., report["rewritten_paper_content"]
+        print(json.dumps(report, indent=2)) 
         
-        # Save the report to a file for inspection
         report_file_path = os.path.join(test_output_dir, "review_rewrite_report.json")
-        with open(report_file_path, 'w') as f:
+        with open(report_file_path, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2)
         print(f"[INFO] Full report also saved to: {report_file_path}")
+        
+        # Additionally, explicitly print the rewritten paper content if available
+        rewritten_text = report.get("rewritten_paper_content", "")
+        if rewritten_text:
+            print("\n--- Rewritten Paper Text ---")
+            print(rewritten_text)
+            rewritten_file_path = os.path.join(test_output_dir, "rewritten_paper.txt")
+            with open(rewritten_file_path, 'w', encoding='utf-8') as f:
+                f.write(rewritten_text)
+            print(f"[INFO] Rewritten paper text also saved to: {rewritten_file_path}")
+        else:
+            print("[INFO] No rewritten paper content found in the report.")
 
     except Exception as e:
         print(f"[ERROR] ReviewRewriter test failed: {e}")
@@ -46,12 +55,9 @@ def run_test_review_rewrite(input_pdf_path: str):
         traceback.print_exc()
 
 if __name__ == "__main__":
-    # First, run the WriterMini test to generate a PDF
-    # This assumes run_test_writer_mini() from the other script will create its own output dir for the PDF
-    generated_pdf_path = run_test_writer_mini()
+    generated_text_content = run_test_writer_mini() # This now returns a string
     
-    if generated_pdf_path:
-        # Then, run the ReviewRewrite test using the generated PDF
-        run_test_review_rewrite(generated_pdf_path)
+    if generated_text_content:
+        run_test_review_rewrite(generated_text_content) # Pass the string content
     else:
-        print("[FAIL] Could not run ReviewRewriter test because WriterMini test failed to produce a PDF.") 
+        print("[FAIL] Could not run ReviewRewriter test because WriterMini test failed to produce text content.") 

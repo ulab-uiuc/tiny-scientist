@@ -156,12 +156,6 @@ class TinyScientist:
         """Writes a conceptual paper using WriterMini and returns the full text content."""
         print("📝 Writing mini conceptual paper (text output)...")
         full_text_content = self.writer_mini.run(idea=idea)
-        # pdf_path, paper_name = self.writer_mini.run(idea=idea) # Old call expecting two values
-        # print(
-        #     f"Check the generated mini paper named as {paper_name} and saved at {pdf_path}"
-        # )
-        # print("✅ Mini paper written.")
-        # return pdf_path # Old return
         print(f"✅ Mini conceptual paper text generated ({len(full_text_content)} characters).")
         return full_text_content
 
@@ -172,9 +166,9 @@ class TinyScientist:
         print("✅ Review complete.")
         return review
 
-    def review_and_rewrite(self, pdf_path: str) -> Dict[str, Any]:
-        """Performs ethical review, rewrite, and final meta-review on a paper."""
-        print("🧐 Performing ethical review, rewrite, and final meta-review process...")
-        report = self.review_rewriter.run(pdf_path=pdf_path)
+    def review_and_rewrite(self, paper_text: str) -> Dict[str, Any]:
+        """Performs ethical review, rewrite, and final meta-review on a paper's text content."""
+        print("🧐 Performing ethical review, rewrite, and final meta-review process on text content...")
+        report = self.review_rewriter.run(original_paper_text=paper_text)
         print("✅ Ethical review and rewrite process complete.")
         return report

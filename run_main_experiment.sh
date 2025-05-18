@@ -6,7 +6,8 @@ DEFAULT_OUTPUT_DIR_BASE="./output/main_experiments_run"
 DEFAULT_TEMPLATE="acl"
 DEFAULT_INPUT_FILE="./data/ScienceSafetyData/Dataset/med.json" # Example default input
 DEFAULT_OUTPUT_JSONL="./output/main_experiment_results.jsonl"
-DEFAULT_DOMAIN="physics"  # Default domain
+#VALID_DOMAINS=("physics" "medicine" "materials" "information_science" "chemistry" "biology")
+DEFAULT_DOMAIN="medicine"  # Default domain
 
 # Help function
 show_help() {

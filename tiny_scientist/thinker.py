@@ -236,12 +236,44 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
                 )
                 
                 # Extract the expert's opinion
-                group_opinion = {
-                    "agent": expert_name,
-                    "role": expert_info['role'],
-                    "thought": text.split("SUGGESTIONS:")[0].replace("THOUGHT:", "").strip(),
-                    "suggestions": text.split("SUGGESTIONS:")[1].strip()
-                }
+                try:
+                    # First safely extract thought content
+                    thought_content = ""
+                    if "THOUGHT:" in text:
+                        thought_parts = text.split("THOUGHT:")
+                        thought_content = thought_parts[1].split("SUGGESTIONS:")[0].strip() if "SUGGESTIONS:" in thought_parts[1] else thought_parts[1].strip()
+                    else:
+                        # If THOUGHT: is missing, use everything before SUGGESTIONS: or the whole text
+                        thought_content = text.split("SUGGESTIONS:")[0].strip() if "SUGGESTIONS:" in text else text.strip()
+                    
+                    # Then safely extract suggestions content
+                    suggestions_content = ""
+                    if "SUGGESTIONS:" in text:
+                        suggestions_parts = text.split("SUGGESTIONS:")
+                        if len(suggestions_parts) > 1:
+                            suggestions_content = suggestions_parts[1].strip()
+                        else:
+                            # Should not happen if "SUGGESTIONS:" is in text, but just in case
+                            suggestions_content = "No specific suggestions provided."
+                    else:
+                        # SUGGESTIONS: marker not found
+                        suggestions_content = "No specific suggestions provided."
+                    
+                    group_opinion = {
+                        "agent": expert_name,
+                        "role": expert_info['role'],
+                        "thought": thought_content,
+                        "suggestions": suggestions_content
+                    }
+                except Exception as e:
+                    # Fallback in case of any parsing error
+                    print(f"Error parsing expert response: {e}. Using default values.")
+                    group_opinion = {
+                        "agent": expert_name,
+                        "role": expert_info['role'],
+                        "thought": "Error parsing response",
+                        "suggestions": "Error parsing response"
+                    }
                 
                 # Skip manipulation for defense agent
                 if expert_name == "defense_agent":

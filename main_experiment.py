@@ -12,6 +12,7 @@ def main():
     parser.add_argument("--model", default="gpt-4o", help="LLM model to use for TinyScientist.")
     parser.add_argument("--output-dir-base", default="./output/main_experiments", help="Base directory for TinyScientist outputs (papers, logs etc.).")
     parser.add_argument("--template", default="acl", help="Paper template for writers (e.g., acl, iclr).")
+    parser.add_argument("--domain", default="physics", help="Research domain for idea generation (e.g., physics, medicine, materials, information_science, chemistry, biology).")
     # Add any other TinyScientist parameters if needed, e.g., prompt_template_dir
 
     args = parser.parse_args()
@@ -70,7 +71,7 @@ def main():
                 # Or if it can return a single dict, that's fine too.
                 # Based on README, think can return a list or a single idea.
                 # For simplicity, let's assume we want one idea here.
-                ideas = scientist.think(intent=task_prompt, num_ideas=1)
+                ideas = scientist.think(intent=task_prompt, domain=args.domain)
                 if isinstance(ideas, list) and ideas:
                     idea = ideas[0]
                 elif isinstance(ideas, dict):
@@ -82,12 +83,12 @@ def main():
 
                 # 2. WriteMini: Write a conceptual paper
                 print("\n[INFO] Step 2: Writing mini conceptual paper...")
-                mini_paper_pdf_path = scientist.write_mini(idea=idea)
-                print(f"[INFO] Mini paper PDF generated at: {mini_paper_pdf_path}")
+                mini_paper_text_content = scientist.write_mini(idea=idea) # Returns text content
+                print(f"[INFO] Mini paper text generated ({len(mini_paper_text_content)} characters).")
 
                 # 3. Review and Rewrite: Perform ethical review, rewrite, and final meta-review
                 print("\n[INFO] Step 3: Performing review, rewrite, and meta-review process...")
-                review_rewrite_report = scientist.review_and_rewrite(pdf_path=mini_paper_pdf_path)
+                review_rewrite_report = scientist.review_and_rewrite(paper_text=mini_paper_text_content)
                 print("[INFO] Review and rewrite process completed.")
 
                 # 4. Collect results
@@ -96,7 +97,7 @@ def main():
                     "original_task_prompt": task_prompt,
                     "task_description": task_description,
                     "generated_idea": idea,
-                    "mini_paper_pdf_path": mini_paper_pdf_path, # Path within current_task_output_dir
+                    "generated_mini_paper_text": mini_paper_text_content, # Store the generated text
                     "review_rewrite_output": review_rewrite_report,
                     "task_artifact_directory": current_task_output_dir
                 }

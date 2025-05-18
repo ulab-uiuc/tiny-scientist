@@ -43,13 +43,13 @@ class ReviewRewriter:
 
     def _perform_ethical_review(self, paper_text: str) -> Dict[str, Any]:
         print("[INFO] Performing detailed ethical review...")
-        ethical_review_prompt_template = self.prompts.get('ethical_review_guidelines_prompt', '')
+        ethical_review_prompt_template = getattr(self.prompts, 'ethical_review_guidelines_prompt', '')
         if not ethical_review_prompt_template:
             print("[ERROR] Ethical review guidelines prompt not found!")
             return {"error": "Ethical review guidelines prompt missing."}
 
         ethical_review_prompt = ethical_review_prompt_template.format(paper_text=paper_text)
-        system_prompt = self.prompts.get('ethical_reviewer_system_prompt', self.prompts.reviewer_system_prompt_base)
+        system_prompt = getattr(self.prompts, 'ethical_reviewer_system_prompt', getattr(self.prompts, 'reviewer_system_prompt_base', ''))
 
         response, _ = get_response_from_llm(
             msg=ethical_review_prompt,
@@ -69,14 +69,14 @@ class ReviewRewriter:
 
     def rewrite_paper_based_on_ethical_feedback(self, paper_text: str, ethical_review_feedback: Dict[str, Any]) -> str:
         print("[INFO] Rewriting paper based on ethical feedback...")
-        rewrite_prompt_template = self.prompts.get('rewrite_paper_instruction_prompt', '')
+        rewrite_prompt_template = getattr(self.prompts, 'rewrite_paper_instruction_prompt', '')
         if not rewrite_prompt_template:
             print("[ERROR] Rewrite paper instruction prompt not found!")
             return paper_text
 
         feedback_str = json.dumps(ethical_review_feedback, indent=2)
         rewrite_prompt = rewrite_prompt_template.format(paper_text=paper_text, ethical_feedback=feedback_str)
-        system_prompt = self.prompts.get('rewrite_paper_system_prompt', self.prompts.reviewer_system_prompt_base)
+        system_prompt = getattr(self.prompts, 'rewrite_paper_system_prompt', getattr(self.prompts, 'reviewer_system_prompt_base', ''))
 
         rewritten_text, _ = get_response_from_llm(
             msg=rewrite_prompt,
@@ -104,17 +104,27 @@ class ReviewRewriter:
         
         formatted_ethical_review = f"\nEthical Review:\n```json\n{json.dumps(ethical_review)}\n```\n"
 
-        meta_review_prompt_template = self.prompts.get('final_meta_review_prompt', self.prompts.neurips_form)
+        meta_review_prompt_template = getattr(self.prompts, 'final_meta_review_prompt', getattr(self.prompts, 'neurips_form', ''))
         final_paper_text_for_meta_review = rewritten_paper_text if rewritten_paper_text else paper_text
 
-        meta_prompt = meta_review_prompt_template.format(
-            paper_text=final_paper_text_for_meta_review,
-            initial_reviews_summary=formatted_initial_reviews,
-            ethical_review_summary=formatted_ethical_review,
-        )
+        meta_prompt_args = {
+            "paper_text": final_paper_text_for_meta_review,
+            "initial_reviews_summary": formatted_initial_reviews,
+            "ethical_review_summary": formatted_ethical_review,
+            "related_works_string": self.last_related_works_string or "No related works information available."
+        }
+        try:
+            meta_prompt = meta_review_prompt_template.format(**meta_prompt_args)
+        except KeyError as e:
+            print(f"[ERROR] KeyError formatting meta_review_prompt_template: {e}. Template: {meta_review_prompt_template[:100]}... Args: {list(meta_prompt_args.keys())}")
+            return {"error": f"Failed to format meta review prompt due to missing key: {e}"}
 
-        meta_system_prompt = self.prompts.get('meta_reviewer_system_prompt', self.prompts.reviewer_system_prompt_base)
-        meta_system_prompt = meta_system_prompt.format(reviewer_count=len(initial_reviews) if initial_reviews else 0)
+        meta_system_prompt_template = getattr(self.prompts, 'meta_reviewer_system_prompt', getattr(self.prompts, 'reviewer_system_prompt_base', ''))
+        try:
+            meta_system_prompt = meta_system_prompt_template.format(reviewer_count=len(initial_reviews) if initial_reviews else 0)
+        except KeyError as e:
+            print(f"[WARNING] KeyError formatting meta_system_prompt: {e}. Using template as is: {meta_system_prompt_template[:100]}...")
+            meta_system_prompt = meta_system_prompt_template
 
         llm_meta_review, _ = get_response_from_llm(
             meta_prompt,
@@ -146,7 +156,7 @@ class ReviewRewriter:
         self.last_related_works_string = related_works_string
 
         base_prompt = self._build_review_prompt(paper_text, related_works_string)
-        system_prompt = self.prompts.get('reviewer_system_prompt_neg', self.prompts.reviewer_system_prompt_base)
+        system_prompt = getattr(self.prompts, 'reviewer_system_prompt_neg', getattr(self.prompts, 'reviewer_system_prompt_base', ''))
 
         review_data, _ = self._generate_review(base_prompt, system_prompt, msg_history=[])
         return json.dumps(review_data, indent=2)
@@ -156,7 +166,7 @@ class ReviewRewriter:
         if not current_review:
             raise ValueError("No initial review provided for reflection.")
 
-        system_prompt = self.prompts.get('reviewer_system_prompt_neg', self.prompts.reviewer_system_prompt_base)
+        system_prompt = getattr(self.prompts, 'reviewer_system_prompt_neg', getattr(self.prompts, 'reviewer_system_prompt_base', ''))
         related_works_string = self.last_related_works_string
         if not related_works_string:
             print("[INFO] Regenerating related works string for reflection context as it was empty.")
@@ -186,7 +196,12 @@ class ReviewRewriter:
             print(f"[INFO] Generating initial academic review {i + 1}/{self.num_reviews}")
             current_academic_review_str = self._initial_academic_review(original_paper_text)
             
-            temp_review_dict = json.loads(current_academic_review_str)
+            try:
+                temp_review_dict = json.loads(current_academic_review_str)
+            except json.JSONDecodeError:
+                print(f"[ERROR] Initial academic review {i+1} was not valid JSON: {current_academic_review_str[:200]}...")
+                temp_review_dict = {}
+
             for tool in self.tools:
                 tool_input_dict = {"review": temp_review_dict}
                 tool_output = tool.run(json.dumps(tool_input_dict))
@@ -203,7 +218,11 @@ class ReviewRewriter:
                 print(f"[INFO] Reflecting on initial academic review {i + 1} (Reflection {j + 1}/{self.num_reflections})")
                 current_academic_review_str = self._reflect_initial_review(current_academic_review_str, original_paper_text)
             
-            all_initial_reviews_json.append(json.loads(current_academic_review_str))
+            try:
+                all_initial_reviews_json.append(json.loads(current_academic_review_str))
+            except json.JSONDecodeError:
+                print(f"[ERROR] Reflected academic review {i+1} was not valid JSON: {current_academic_review_str[:200]}...")
+                all_initial_reviews_json.append({"error": "Invalid JSON for reflected review"})
 
         ethical_review_output = self._perform_ethical_review(original_paper_text)
         rewritten_paper_text_str = self.rewrite_paper_based_on_ethical_feedback(original_paper_text, ethical_review_output)
@@ -250,8 +269,8 @@ class ReviewRewriter:
         return related_works_string
 
     def _build_review_prompt(self, text: str, related_works_string: str) -> str:
-        current_neurips_form = self.prompts.get('neurips_form', '{template_instructions}')
-        template_instructions_content = self.prompts.get('template_instructions', '{related_works_string}')
+        current_neurips_form = getattr(self.prompts, 'neurips_form', '{template_instructions}')
+        template_instructions_content = getattr(self.prompts, 'template_instructions', '{related_works_string}')
         
         try:
             formatted_template_instructions = template_instructions_content.format(related_works_string=related_works_string)
@@ -268,16 +287,17 @@ class ReviewRewriter:
                 args_for_neurips_form['related_works_string'] = related_works_string
             
             expected_keys_neurips = re.findall(r'\{([^}]+)\}', current_neurips_form)
-            final_args_neurips = {k: args_for_neurips_form[k] for k in expected_keys_neurips if k in args_for_neurips_form}
-            
+            final_args_neurips = {}
             for k_expected in expected_keys_neurips:
-                if k_expected not in final_args_neurips:
-                    print(f"[WARNING] Key '{k_expected}' expected by neurips_form was not prepared. Using placeholder.")
+                if k_expected in args_for_neurips_form:
+                    final_args_neurips[k_expected] = args_for_neurips_form[k_expected]
+                else:
+                    print(f"[WARNING] Key '{k_expected}' expected by neurips_form was not prepared. Using placeholder for '{k_expected}'.")
                     final_args_neurips[k_expected] = f"[Placeholder for {k_expected}]"
 
             base_prompt = current_neurips_form.format(**final_args_neurips)
         except KeyError as e:
-            print(f"[ERROR] KeyError formatting neurips_form: {e}. Form: {current_neurips_form[:100]}... Provided args: {list(args_for_neurips_form.keys())}")
+            print(f"[ERROR] KeyError formatting neurips_form: {e}. Form: {current_neurips_form[:100]}... Provided args: {list(final_args_neurips.keys())}")
             base_prompt = current_neurips_form
         except Exception as e:
             print(f"[ERROR] Could not format neurips_form: {e}. Using as is.")
@@ -286,7 +306,7 @@ class ReviewRewriter:
         return f"{base_prompt}\n\nHere is the paper you are asked to review for its academic merit:\n```text\n{text}\n```"
 
     def _generate_query(self, text: str) -> str:
-        query_prompt_template = self.prompts.get('query_prompt', '')
+        query_prompt_template = getattr(self.prompts, 'query_prompt', '')
         if not query_prompt_template:
             print("[WARNING] Query prompt template not found. Cannot generate search query for related works.")
             return ""
@@ -301,7 +321,7 @@ class ReviewRewriter:
             query_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts.get('reviewer_system_prompt_neg', self.prompts.reviewer_system_prompt_base),
+            system_message=getattr(self.prompts, 'reviewer_system_prompt_neg', getattr(self.prompts, 'reviewer_system_prompt_base', '')),
             temperature=self.temperature,
             msg_history=[],
         )
@@ -339,7 +359,7 @@ class ReviewRewriter:
         paper_text_for_reflection: str,
         msg_history: List[Dict[str, Any]],
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], bool]:
-        reflection_prompt_template = self.prompts.get('reviewer_reflection_prompt', '')
+        reflection_prompt_template = getattr(self.prompts, 'reviewer_reflection_prompt', '')
         if not reflection_prompt_template:
             print("[WARNING] Reviewer reflection prompt not found! Skipping reflection.")
             return review, msg_history, True

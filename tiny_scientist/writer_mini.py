@@ -207,24 +207,29 @@ class WriterMini: # Renamed class
         
         # Filter args to only those present in the template to avoid KeyErrors
         # This is a safer approach than providing all possible keys
-        actual_args_for_format = {}
-        # Find all placeholder keys in the prompt string
-        expected_keys = re.findall(r'\\{([^}]+)\\}', section_prompt_template_str)
-        
-        for key in expected_keys:
-            if key in format_args:
-                actual_args_for_format[key] = format_args[key]
-            else:
-                # Provide a default or skip if a key in template is not in format_args
-                # This indicates a mismatch that should ideally be fixed in prompts or arg preparation
-                print(f"[WARNING] Prompt for section '{section}' expects key '{key}' which was not provided. Using empty string.")
-                actual_args_for_format[key] = "" 
+        # actual_args_for_format = {} # Old logic removed
+        # # Find all placeholder keys in the prompt string
+        # expected_keys = re.findall(r'\{([^}]+)\}', section_prompt_template_str)
+        # 
+        # for key in expected_keys:
+        #     if key in format_args:
+        #         actual_args_for_format[key] = format_args[key]
+        #     else:
+        #         # Provide a default or skip if a key in template is not in format_args
+        #         # This indicates a mismatch that should ideally be fixed in prompts or arg preparation
+        #         print(f"[WARNING] Prompt for section '{section}' expects key '{key}' which was not provided. Using empty string.")
+        #         actual_args_for_format[key] = "" 
         
         try:
-            section_prompt = section_prompt_template_str.format(**actual_args_for_format)
+            # Pass the prepared format_args directly.
+            # If the prompt template string (section_prompt_template_str) contains a placeholder
+            # (e.g., "{some_key}") that is NOT a key in format_args, .format() will raise a KeyError.
+            # This is the desired behavior as it correctly identifies missing data or incorrect prompt templates.
+            section_prompt = section_prompt_template_str.format(**format_args)
         except KeyError as e:
-            print(f"[ERROR] Still a KeyError formatting prompt for section '{section}': {e}. Args: {actual_args_for_format.keys()}")
-            self.generated_sections[section] = f"Content for {section} could not be generated due to prompt formatting error."
+            # print(f"[ERROR] Still a KeyError formatting prompt for section '{section}': {e}. Args: {actual_args_for_format.keys()}")
+            print(f"[ERROR] KeyError formatting prompt for section '{section}': {e}. Provided args: {list(format_args.keys())}. Check if prompt template needs '{e}' or if it should be in format_args.")
+            self.generated_sections[section] = f"Content for {section} could not be generated due to prompt formatting error: Missing key {e}."
             return
 
         try:
