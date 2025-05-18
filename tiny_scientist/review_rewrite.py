@@ -34,6 +34,12 @@ class ReviewRewriter:
         self.last_related_works_string = ""
 
         self.prompts = self.config.prompt_template.reviewer_prompt
+        # DEBUG: Print available attributes in self.prompts
+        print(f"[DEBUG] ReviewRewriter.__init__: Attributes in self.prompts: {dir(self.prompts)}")
+        # DEBUG: Check for specific problematic prompts
+        print(f"[DEBUG] Has ethical_review_guidelines_prompt: {hasattr(self.prompts, 'ethical_review_guidelines_prompt')}")
+        print(f"[DEBUG] Has rewrite_paper_instruction_prompt: {hasattr(self.prompts, 'rewrite_paper_instruction_prompt')}")
+
         if hasattr(self.prompts, 'neurips_form') and hasattr(self.prompts, 'template_instructions'):
             self.prompts.neurips_form = self.prompts.neurips_form.format(
                 template_instructions=self.prompts.template_instructions
@@ -43,6 +49,11 @@ class ReviewRewriter:
 
     def _perform_ethical_review(self, paper_text: str) -> Dict[str, Any]:
         print("[INFO] Performing detailed ethical review...")
+        # DEBUG: Check self.prompts again before access
+        print(f"[DEBUG] ReviewRewriter._perform_ethical_review: Attributes in self.prompts: {dir(self.prompts)}")
+        print(f"[DEBUG] Type of self.prompts: {type(self.prompts)}")
+        print(f"[DEBUG] Value of self.prompts.ethical_review_guidelines_prompt (first 50 chars if exists): {str(getattr(self.prompts, 'ethical_review_guidelines_prompt', 'NOT FOUND'))[:50]}")
+
         ethical_review_prompt_template = getattr(self.prompts, 'ethical_review_guidelines_prompt', '')
         if not ethical_review_prompt_template:
             print("[ERROR] Ethical review guidelines prompt not found!")
@@ -69,6 +80,10 @@ class ReviewRewriter:
 
     def rewrite_paper_based_on_ethical_feedback(self, paper_text: str, ethical_review_feedback: Dict[str, Any]) -> str:
         print("[INFO] Rewriting paper based on ethical feedback...")
+        # DEBUG: Check self.prompts before access for rewrite prompt
+        print(f"[DEBUG] ReviewRewriter.rewrite_paper_based_on_ethical_feedback: Attributes in self.prompts: {dir(self.prompts)}")
+        print(f"[DEBUG] Value of self.prompts.rewrite_paper_instruction_prompt (first 50 chars if exists): {str(getattr(self.prompts, 'rewrite_paper_instruction_prompt', 'NOT FOUND'))[:50]}")
+
         rewrite_prompt_template = getattr(self.prompts, 'rewrite_paper_instruction_prompt', '')
         if not rewrite_prompt_template:
             print("[ERROR] Rewrite paper instruction prompt not found!")

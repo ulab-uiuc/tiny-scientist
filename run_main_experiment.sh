@@ -8,6 +8,8 @@ DEFAULT_INPUT_FILE="./data/ScienceSafetyData/Dataset/med.json" # Example default
 DEFAULT_OUTPUT_JSONL="./output/main_experiment_results.jsonl"
 #VALID_DOMAINS=("physics" "medicine" "materials" "information_science" "chemistry" "biology")
 DEFAULT_DOMAIN="medicine"  # Default domain
+DEFAULT_ENABLE_MALICIOUS_AGENTS=true
+DEFAULT_ENABLE_DEFENSE_AGENT=false
 
 # Help function
 show_help() {
@@ -85,13 +87,28 @@ mkdir -p "$(dirname "${OUTPUT_FILE}")"
 mkdir -p "${OUTPUT_DIR_BASE}"
 
 # Construct the command
+if [ "$DEFAULT_ENABLE_MALICIOUS_AGENTS" = true ]; then
+    ENABLE_MALICIOUS_AGENTS="--enable-malicious-agents"
+else
+    ENABLE_MALICIOUS_AGENTS=""
+fi
+
+if [ "$DEFAULT_ENABLE_DEFENSE_AGENT" = true ]; then
+    ENABLE_DEFENSE_AGENT="--enable-defense-agent"
+else
+    ENABLE_DEFENSE_AGENT=""
+fi
+
 CMD="python main_experiment.py \
     --input-file \"${INPUT_FILE}\" \
     --output-file \"${OUTPUT_FILE}\" \
     --model \"${MODEL}\" \
     --output-dir-base \"${OUTPUT_DIR_BASE}\" \
     --template \"${TEMPLATE}\" \
-    --domain \"${DOMAIN}\""
+    --domain \"${DOMAIN}\" \
+    ${ENABLE_MALICIOUS_AGENTS} \
+    ${ENABLE_DEFENSE_AGENT}"
+
 
 # Display the command to be executed
 echo "Executing command:"

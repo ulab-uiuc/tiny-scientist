@@ -57,6 +57,17 @@ class WriterMini: # Renamed class
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
 
+        # Add a high-level debug log for the received idea
+        print(f"[DEBUG] WriterMini.run: Received idea with keys: {list(idea.keys())}")
+        print(f"[DEBUG] WriterMini.run: Idea content (first 500 chars): {json.dumps(idea, indent=2)[:500]}...")
+
+        # Check for absolutely critical keys at the start of run, though Thinker should handle this
+        critical_keys_for_writer = ["Title", "Problem"] # Example minimal set for writer to even start
+        for key in critical_keys_for_writer:
+            if key not in idea:
+                print(f"[ERROR] WriterMini.run: Critical key '{key}' missing in idea. This should have been handled by Thinker. Using placeholder.")
+                idea[key] = f"Placeholder for missing critical key: {key}"
+
         # Write the abstract based on the provided idea
         self._write_abstract(idea)
 
@@ -138,33 +149,56 @@ class WriterMini: # Renamed class
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
         # This method generates the abstract for the paper.
-        title = idea.get("Title", "Research Paper")
+        print("[INFO] WriterMini._write_abstract: Generating abstract.")
+        # Safely get all required values from the idea dict, providing defaults
+        title = idea.get("Title", "Default Title: Research Paper")
+        problem = idea.get("Problem", "Problem not specified in idea.")
+        importance = idea.get("Importance", "Importance not specified.")
+        difficulty = idea.get("Difficulty", "Difficulty not specified.")
+        novelty_comparison = idea.get("NoveltyComparison", "Novelty comparison not specified.")
+        
+        # Handle the 'Experiment' field, ensuring it's a dict and has a 'Description'
+        experiment_data = idea.get("Experiment")
+        if isinstance(experiment_data, dict):
+            experiment_description = experiment_data.get("Description", "Conceptual experiment description not specified.")
+        elif isinstance(experiment_data, str): # If it's a string, use it directly but log a warning
+            experiment_description = experiment_data
+            print(f"[WARNING] WriterMini._write_abstract: 'Experiment' field in idea is a string, expected a dict. Using string content: {experiment_data[:100]}...")
+        else:
+            experiment_description = "Conceptual experiment not specified or invalid format."
+            print(f"[WARNING] WriterMini._write_abstract: 'Experiment' field in idea is missing or has an unexpected type. Value: {experiment_data}")
 
-        # Format the prompt for generating the abstract
-        # Assuming prompts are updated or LLM can infer plain text output
-        abstract_prompt = self.prompts.abstract_prompt.format(
-            abstract_tips=self.prompts.section_tips["Abstract"],
-            title=title,
-            problem=idea["Problem"],
-            importance=idea["Importance"],
-            difficulty=idea["Difficulty"],
-            novelty=idea["NoveltyComparison"],
-            experiment=idea["Experiment"], # 'Experiment' here refers to the proposed conceptual experiment from the idea
-        )
+        # Assume 'abstract_tips' comes from self.prompts.section_tips, not directly from 'idea' for this prompt
+        abstract_tips_content = self.prompts.section_tips.get("Abstract", "Provide a concise summary of the research.")
 
-        # Get the abstract content from the LLM
+        try:
+            abstract_prompt = self.prompts.abstract_prompt.format(
+                abstract_tips=abstract_tips_content,
+                title=title,
+                problem=problem,
+                importance=importance,
+                difficulty=difficulty,
+                novelty=novelty_comparison,
+                experiment=experiment_description
+            )
+        except KeyError as e:
+            print(f"[ERROR] WriterMini._write_abstract: KeyError formatting abstract_prompt: {e}. This indicates a mismatch between prompt template and provided keys.")
+            print(f"[DEBUG] Available prompt keys in abstract_prompt template vs. provided arguments.")
+            # Fallback to a very basic prompt if formatting fails catastrophically
+            abstract_prompt = f"Write an abstract for a paper titled '{title}' about '{problem}'."
+            self.generated_sections["Abstract"] = "Error generating abstract due to prompt formatting issues."
+            self.generated_sections["Title"] = title
+            return
+
         abstract_content, _ = get_response_from_llm(
             msg=abstract_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts.write_system_prompt, # This system prompt might need to change for plain text
+            system_message=self.prompts.write_system_prompt,
         )
-
-        # Store the generated abstract
-        self.generated_sections["Abstract"] = abstract_content
-        if title: # Also store title if explicitly generated or part of idea
-            self.generated_sections["Title"] = self.generated_sections.get("Title", title)
-
+        self.generated_sections["Abstract"] = abstract_content or "Abstract could not be generated."
+        self.generated_sections["Title"] = title # Ensure title is stored
+        print("[INFO] WriterMini._write_abstract: Abstract generation complete.")
 
     def _write_section(
         self,
@@ -173,9 +207,14 @@ class WriterMini: # Renamed class
     ) -> None:
         # This method generates content for a specific section of the paper.
         title = idea.get("Title", "Research Paper")
-        experiment_description = idea.get("Experiment", "A novel conceptual approach.")
+        # Safely get experiment description
+        experiment_data = idea.get("Experiment")
+        if isinstance(experiment_data, dict):
+            experiment_description = experiment_data.get("Description", "A novel conceptual approach.")
+        else:
+            experiment_description = "Experiment details not available in the correct format."
+        
         print(f"Writing section: {section}...")
-
         section_prompt_template_str = self.prompts.section_prompt.get(section)
         if not section_prompt_template_str:
             print(f"[ERROR] Prompt template for section '{section}' not found. Skipping.")
@@ -185,11 +224,14 @@ class WriterMini: # Renamed class
         format_args = {
             "section_tips": self.prompts.section_tips.get(section, "General writing tips."),
             "title": title,
-            "problem": idea.get("Problem", ""),
-            "importance": idea.get("Importance", ""),
-            "difficulty": idea.get("Difficulty", ""),
-            "novelty": idea.get("NoveltyComparison", ""),
+            "problem": idea.get("Problem", "Problem not specified."),
+            "importance": idea.get("Importance", "Importance not specified."),
+            "difficulty": idea.get("Difficulty", "Difficulty not specified."),
+            "novelty": idea.get("NoveltyComparison", "Novelty comparison not specified."),
             "experiment": experiment_description,
+            # Ensure other keys potentially used by section prompts are also safely accessed
+            "abstract": self.generated_sections.get("Abstract", "Abstract not yet generated."),
+            "related_work_summary": self.generated_sections.get("Related_Work", "Related work not yet generated.")[:1500],
         }
 
         if section == "Introduction":
@@ -228,7 +270,7 @@ class WriterMini: # Renamed class
             section_prompt = section_prompt_template_str.format(**format_args)
         except KeyError as e:
             # print(f"[ERROR] Still a KeyError formatting prompt for section '{section}': {e}. Args: {actual_args_for_format.keys()}")
-            print(f"[ERROR] KeyError formatting prompt for section '{section}': {e}. Provided args: {list(format_args.keys())}. Check if prompt template needs '{e}' or if it should be in format_args.")
+            print(f"[ERROR] WriterMini._write_section: KeyError formatting prompt for section '{section}': {e}. Args: {list(format_args.keys())}")
             self.generated_sections[section] = f"Content for {section} could not be generated due to prompt formatting error: Missing key {e}."
             return
 
@@ -240,7 +282,7 @@ class WriterMini: # Renamed class
                 system_message=self.prompts.write_system_prompt, # This system prompt might need adjustment for text output
             )
         except Exception as e:
-            print(f"[ERROR] Failed to generate content for section {section}: {e}")
+            print(f"[ERROR] WriterMini._write_section: Failed to generate content for section {section}: {e}")
             section_content = f"An error occurred while generating content for {section}."
 
         self.generated_sections[section] = section_content
@@ -249,6 +291,7 @@ class WriterMini: # Renamed class
         self, idea: Dict[str, Any], num_cite_rounds: int, total_num_papers: int
     ) -> List[str]:
         idea_title = idea.get("Title", "Research Paper")
+        problem_desc = idea.get("Problem", "No specific problem described.") # Safe get
         num_papers_per_round = (
             total_num_papers // num_cite_rounds
             if num_cite_rounds > 0
@@ -259,7 +302,7 @@ class WriterMini: # Renamed class
         for round_num in range(num_cite_rounds):
             prompt = self.prompts.citation_related_work_prompt.format(
                 idea_title=idea_title,
-                problem=idea["Problem"],
+                problem=problem_desc, # Use safe variable
                 num_papers=num_papers_per_round,
                 round_num=round_num + 1,
                 collected_papers=collected_papers,

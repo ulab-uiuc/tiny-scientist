@@ -4,6 +4,7 @@ import os.path as osp
 import random
 from typing import Any, Dict, List, Optional, Tuple, cast, Union
 import yaml
+import traceback # Import traceback for robust error handling
 
 from rich import print
 
@@ -123,6 +124,11 @@ class Thinker:
             }))
             
         self.all_experts = all_experts
+
+        self.WRITER_MINI_REQUIRED_KEYS = [
+            "Title", "Problem", "Approach", "Expected Results", 
+            "Importance", "Difficulty", "NoveltyComparison", "Experiment"
+        ]
 
     def _get_agent_prompt(self, agent_info: Dict[str, str], idea_json: str, intent: str, related_works: str, history: List[Dict[str, str]]) -> str:
         """Generate a prompt for a specific agent role."""
@@ -464,34 +470,68 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         print(f"[green](Hidden) Defense logs saved to {log_file}[/green]")
 
     def think(
-        self, 
-        intent: str, 
-        domain: str = "", 
-        experiment_type: str = "", 
+        self,
+        intent: str,
+        domain: str = "",
+        experiment_type: str = "",
         pdf_content: Optional[str] = None,
         num_rounds: int = 3
-    ) -> str:
+    ) -> str: # Returns JSON string
         self.intent = intent
         self.domain = domain
         self.experiment_type = experiment_type
-        print(f"Generating research idea based on: {intent}")
-        if domain:
-            print(f"Domain: {domain}")
-        if experiment_type:
-            print(f"Experiment type: {experiment_type}")
+        
+        print(f"[INFO] thinker.think: Starting for intent: '{intent[:100]}...'")
+        if domain: print(f"[INFO] Domain: {domain}")
+        if experiment_type: print(f"[INFO] Experiment type: {experiment_type}")
 
-        pdf_content = self._load_pdf_content(pdf_content)
-        query = self._generate_search_query(intent)
-        related_works_string = self._get_related_works(query)
-        idea = self._generate_idea(intent, related_works_string, pdf_content)
+        # Initialize with an empty JSON object string, so _ensure_final_idea_structure has a string to work with
+        current_idea_json_str = "{}" 
         
-        # Conduct multi-agent discussion
-        group_opinions = self._conduct_group_discussion(idea, num_rounds)
+        try:
+            pdf_content = self._load_pdf_content(pdf_content)
+            query = self._generate_search_query(intent)
+            related_works_string = self._get_related_works(query)
+            
+            # _generate_idea is expected to return a JSON string, possibly of an empty dict if extraction fails
+            current_idea_json_str = self._generate_idea(intent, related_works_string, pdf_content)
+            print(f"[DEBUG] thinker.think: Initial idea from _generate_idea: {current_idea_json_str[:500]}...")
+            
+            # Pass the JSON string to discussion and refinement stages
+            group_opinions = self._conduct_group_discussion(current_idea_json_str, num_rounds) # Assuming this takes JSON string
+            current_idea_json_str = self._refine_idea_with_group_opinions(current_idea_json_str, group_opinions) # Assuming this takes and returns JSON string
+            print(f"[DEBUG] thinker.think: Idea after refinement: {current_idea_json_str[:500]}...")
+
+        except Exception as e:
+            print(f"[ERROR] thinker.think: Exception during main think process: {e}. Full traceback:")
+            traceback.print_exc()
+            # 'current_idea_json_str' will retain its value from before the exception (e.g., initial idea, or "{}" if error was very early)
+            # The final _ensure_final_idea_structure call will attempt to salvage or create a default.
+            print(f"[INFO] thinker.think: Continuing to final structure validation after error. Current idea string: {current_idea_json_str[:200]}...")
         
-        # Combine group opinions and refine the idea
-        refined_idea = self._refine_idea_with_group_opinions(idea, group_opinions)
+        # Final safeguard: ensure the returned idea has the necessary structure.
+        # This will parse current_idea_json_str, fix it if needed, and return a new JSON string.
+        final_structured_idea_json_str = self._ensure_final_idea_structure(current_idea_json_str, intent)
         
-        return refined_idea
+        # Optionally, generate experiment plan if flag is set
+        if self.generate_exp_plan: # Check the instance variable
+            print("[INFO] thinker.think: Generating experiment plan as generate_exp_plan is True.")
+            # _generate_experiment_plan should take a JSON string and return a JSON string of the idea with the plan
+            final_structured_idea_json_str = self._generate_experiment_plan(final_structured_idea_json_str) 
+            print(f"[DEBUG] thinker.think: Idea after attempting to add experiment plan: {final_structured_idea_json_str[:500]}...")
+            # Re-ensure structure after adding experiment plan, as _generate_experiment_plan might alter it
+            final_structured_idea_json_str = self._ensure_final_idea_structure(final_structured_idea_json_str, intent)
+
+
+        print(f"[INFO] thinker.think: Process complete. Returning final idea JSON string.")
+        # For debugging, let's see the keys of the final dictionary before returning
+        try:
+            final_dict_to_log = json.loads(final_structured_idea_json_str)
+            print(f"[DEBUG] thinker.think: Final idea keys before return: {list(final_dict_to_log.keys())}")
+        except:
+            pass # Avoid error in logging if it's somehow still not valid JSON
+        
+        return final_structured_idea_json_str
 
     def _refine_idea_with_group_opinions(self, idea_json: str, group_opinions: List[Dict[str, Any]]) -> str:
         """Refine the idea based on group discussions."""
@@ -931,111 +971,88 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         query_data = extract_json_between_markers(response)
         return str(query_data.get("Query", "")) if query_data else ""
 
-    def _determine_experiment_type(self, idea_dict: Dict[str, Any]) -> str:
-        """Determine if the experiment should be physical or computational based on the domain."""
-        # If experiment_type is explicitly provided, use it
+    def _determine_experiment_type(self, idea_dict: Optional[Dict[str, Any]]) -> str: # Added Optional for safety
+        if not isinstance(idea_dict, dict): # Guard against None or non-dict
+            idea_dict = {}
+
         if self.experiment_type:
             return self.experiment_type
             
-        # If domain is explicitly provided, use it to determine experiment type
-        if self.domain:
-            # Physical experiment domains
-            physical_domains = [
-                "Biology", "Physics", "Chemistry", "Material Science", "Medical Science"
-            ]
-            
-            # Computational experiment domains
-            computational_domains = [
-                "Information Science"
-            ]
-            
-            if self.domain in physical_domains:
-                return 'physical'
-            elif self.domain in computational_domains:
-                return 'computational'
+        current_domain_for_think = self.domain
+        if current_domain_for_think:
+            physical_domains = ["Biology", "Physics", "Chemistry", "Material Science", "Medical Science", "Medicine"]
+            computational_domains = ["Information Science"]
+            normalized_domain = current_domain_for_think.replace("_", " ").title()
+            if normalized_domain in physical_domains: return 'physical'
+            if normalized_domain in computational_domains: return 'computational'
         
-        # Fallback to keyword detection if domain is not provided
-        # Keywords that suggest physical experiments
-        physical_keywords = {
+        text_to_check = ' '.join([
+            str(idea_dict.get('Title', '')), # Use str() for safety
+            str(idea_dict.get('Problem', '')),
+            str(idea_dict.get('Approach', ''))
+        ]).lower()
+        
+        physical_keywords_map = {
             'chemistry': ['chemical', 'reaction', 'compound', 'molecule', 'synthesis', 'catalyst'],
             'physics': ['particle', 'force', 'energy', 'wave', 'field', 'measurement'],
             'biology': ['cell', 'organism', 'tissue', 'gene', 'protein', 'enzyme'],
-            'materials': ['material', 'fabrication', 'synthesis', 'characterization']
+            'materials': ['material', 'fabrication', 'synthesis', 'characterization'],
+            'medicine': ['clinical', 'patient', 'therapy', 'drug', 'trial']
         }
-        
-        # Keywords that suggest computational experiments
-        computational_keywords = {
-            'computer_science': ['algorithm', 'program', 'software', 'computation', 'code'],
-            'information_science': ['data', 'information', 'analysis', 'processing'],
-            'mathematics': ['mathematical', 'equation', 'model', 'simulation']
+        computational_keywords_map = {
+            'computer_science': ['algorithm', 'program', 'software', 'computation', 'code', 'simulation'],
+            'information_science': ['data', 'information', 'analysis', 'processing', 'network'],
+            'mathematics': ['mathematical', 'equation', 'model']
         }
-        
-        # Combine all text fields to check for keywords
-        text_to_check = ' '.join([
-            idea_dict.get('Title', ''),
-            idea_dict.get('Problem', ''),
-            idea_dict.get('Approach', '')
-        ]).lower()
-        
-        # Check for physical experiment keywords
-        for domain, keywords in physical_keywords.items():
-            if any(keyword in text_to_check for keyword in keywords):
-                return 'physical'
+        for _, keywords in physical_keywords_map.items():
+            if any(keyword in text_to_check for keyword in keywords): return 'physical'
+        for _, keywords in computational_keywords_map.items():
+            if any(keyword in text_to_check for keyword in keywords): return 'computational'
                 
-        # Check for computational experiment keywords
-        for domain, keywords in computational_keywords.items():
-            if any(keyword in text_to_check for keyword in keywords):
-                return 'computational'
-                
-        # Default to computational if no clear indicators
+        print("[INFO] thinker._determine_experiment_type: Defaulting to 'computational'.")
         return 'computational'
 
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _generate_experiment_plan(self, idea_json: str) -> str:
+    @api_calling_error_exponential_backoff(retries=3, base_wait_time=2) # Added retry
+    def _generate_experiment_plan(self, idea_json_str: str) -> str:
+        print(f"[DEBUG] thinker._generate_experiment_plan: Received idea string: {idea_json_str[:200]}...")
         try:
-            idea_dict = json.loads(idea_json)
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON input")
-            return idea_json
+            idea_dict = json.loads(idea_json_str)
+            if not isinstance(idea_dict, dict):
+                 raise json.JSONDecodeError("Parsed JSON is not a dictionary", idea_json_str, 0)
+        except json.JSONDecodeError as e:
+            print(f"[ERROR] thinker._generate_experiment_plan: Invalid JSON for idea: {e}. Cannot generate plan.")
+            # Return the original idea string, the _ensure_final_idea_structure in think() will handle Experiment field.
+            return idea_json_str 
 
-        print("Generating experimental plan for the idea...")
-        
-        # Determine experiment type
+        print("[INFO] thinker._generate_experiment_plan: Generating experimental plan...")
         experiment_type = self._determine_experiment_type(idea_dict)
-        print(f"Detected experiment type: {experiment_type}")
+        print(f"[DEBUG] thinker._generate_experiment_plan: Determined experiment type: {experiment_type}")
         
-        # Choose appropriate prompt based on experiment type
-        if experiment_type == 'physical':
-            prompt = self.prompts.physical_experiment_plan_prompt.format(
-                idea=idea_json, 
-                intent=self.intent
-            )
-        else:
-            prompt = self.prompts.experiment_plan_prompt.format(
-                idea=idea_json, 
-                intent=self.intent
-            )
+        prompt_template_name = 'physical_experiment_plan_prompt' if experiment_type == 'physical' else 'experiment_plan_prompt'
+        current_prompt_template = getattr(self.prompts, prompt_template_name)
+        
+        prompt = current_prompt_template.format(idea=idea_json_str, intent=self.intent)
 
         text, _ = get_response_from_llm(
-            prompt,
-            client=self.client,
-            model=self.model,
-            system_message=self.prompts.idea_system_prompt,
-            msg_history=[],
-            temperature=self.temperature,
+            prompt, client=self.client, model=self.model,
+            system_message=self.prompts.idea_system_prompt, # This should guide for JSON output of the plan
+            msg_history=[], temperature=self.temperature
         )
 
-        experiment_plan = extract_json_between_markers(text)
-        if not experiment_plan:
-            print("Failed to generate experimental plan.")
-            return idea_json
-
-        # Add experiment type to the plan
-        experiment_plan['Type'] = experiment_type
-        idea_dict["Experiment"] = experiment_plan
-        print("Experimental plan generated successfully.")
-
-        return json.dumps(idea_dict, indent=2)
+        experiment_plan_dict = extract_json_between_markers(text)
+        
+        if not isinstance(experiment_plan_dict, dict):
+            print(f"[WARNING] thinker._generate_experiment_plan: Failed to extract valid JSON dict for plan. LLM response: {text[:300]}...")
+            experiment_plan_dict = {"Description": "Experimental plan generation failed or returned non-dict.", "Error": "Extraction failed."}
+        
+        experiment_plan_dict.setdefault('Type', experiment_type) # Ensure Type is in the plan
+        
+        # Update the original idea_dict with the new/updated Experiment section
+        idea_dict["Experiment"] = experiment_plan_dict 
+        
+        updated_idea_json_str = json.dumps(idea_dict, indent=2)
+        print(f"[DEBUG] thinker._generate_experiment_plan: Idea with experiment plan: {updated_idea_json_str[:500]}...")
+        return updated_idea_json_str
 
     def _save_ideas(self, ideas: List[str]) -> None:
         output_path = osp.join(self.output_dir, "ideas.json")
@@ -1082,18 +1099,22 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         intent: str,
         related_works_string: str,
         pdf_content: Optional[str] = None,
-    ) -> str:
+    ) -> str: # Returns JSON string
+        print(f"[DEBUG] thinker._generate_idea: Generating initial idea for intent: '{intent[:100]}...'")
         pdf_section = (
             f"Based on the content of the following paper:\n\n{pdf_content}\n\n"
             if pdf_content
             else ""
         )
-
-        text, _ = get_response_from_llm(
+        
+        # The system prompt should strongly guide the LLM to produce JSON with all WRITER_MINI_REQUIRED_KEYS
+        # System prompt content is loaded from YAML, ensure it's well-defined there.
+        
+        llm_response_text, _ = get_response_from_llm(
             self.prompts.idea_first_prompt.format(
                 intent=intent,
                 related_works_string=related_works_string,
-                num_reflections=1,
+                num_reflections=1, 
                 pdf_section=pdf_section,
             ),
             client=self.client,
@@ -1103,15 +1124,18 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
             temperature=self.temperature,
         )
 
-        idea = extract_json_between_markers(text)
-        if isinstance(idea, list) and idea:
-            idea = idea[0]
+        idea_dict = extract_json_between_markers(llm_response_text)
+        
+        if isinstance(idea_dict, list): # Handle if LLM returns a list
+            idea_dict = next((item for item in idea_dict if isinstance(item, dict)), None)
 
-        if not idea:
-            print("Failed to generate a valid idea")
-            return json.dumps({})
-
-        return json.dumps(idea, indent=2)
+        if not isinstance(idea_dict, dict):
+            print(f"[ERROR] thinker._generate_idea: Failed to extract valid JSON dict. LLM response snippet: {llm_response_text[:500]}...")
+            # Return an empty dict string; 'think' method will handle final structure.
+            return json.dumps({}) 
+        
+        print(f"[DEBUG] thinker._generate_idea: Successfully extracted initial idea dict. Keys: {list(idea_dict.keys())}")
+        return json.dumps(idea_dict, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _check_novelty(self, idea_json: str, max_iterations: int = 10) -> str:
@@ -1207,3 +1231,67 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
             json.dump(attack_summary, f, indent=2)
             
         print(f"[red](Hidden) Attack logs saved to {log_file}[/red]")
+
+    def _ensure_final_idea_structure(self, idea_json_str: str, intent_for_defaults: str) -> str:
+        """
+        Parses the idea JSON string and ensures the resulting dictionary 
+        contains all required keys for WriterMini, filling with defaults if necessary.
+        Returns a JSON string of the validated/completed idea.
+        """
+        print(f"[DEBUG] thinker._ensure_final_idea_structure: Validating final idea string: {idea_json_str[:200]}...")
+        idea_dict = None
+        try:
+            idea_dict = json.loads(idea_json_str)
+            if not isinstance(idea_dict, dict):
+                print(f"[ERROR] thinker._ensure_final_idea_structure: Parsed idea is not a dict. Content: {str(idea_dict)[:200]}")
+                idea_dict = {} # Force to empty dict if not a dict
+        except json.JSONDecodeError:
+            print(f"[ERROR] thinker._ensure_final_idea_structure: Failed to parse idea JSON string. Content: {idea_json_str[:200]}")
+            idea_dict = {} # Force to empty dict if JSON is invalid
+
+        # At this point, idea_dict is guaranteed to be a dictionary (possibly empty)
+        
+        for key in self.WRITER_MINI_REQUIRED_KEYS:
+            # Check if key is missing, or if it's present but None or an empty string
+            if key not in idea_dict or idea_dict.get(key) is None or (isinstance(idea_dict.get(key), str) and not str(idea_dict.get(key)).strip()):
+                default_value = f"Default value for {key} based on intent: '{intent_for_defaults[:30]}...'"
+                # Define more specific defaults
+                if key == "Title":
+                    default_value = idea_dict.get("Name") or f"Research on {intent_for_defaults[:50]}"
+                elif key == "Problem":
+                    default_value = f"The primary challenge is related to {intent_for_defaults[:50]}."
+                elif key == "Approach":
+                    default_value = f"A standard scientific approach will be used to investigate {intent_for_defaults[:30]}."
+                elif key == "Expected Results":
+                    default_value = f"Results are expected to shed light on {intent_for_defaults[:30]}."
+                elif key == "Importance":
+                    default_value = f"The importance of this research on {intent_for_defaults[:30]} lies in its potential contributions."
+                elif key == "Difficulty":
+                    default_value = f"The main difficulty in researching {intent_for_defaults[:30]} involves technical and theoretical challenges."
+                elif key == "NoveltyComparison":
+                    default_value = f"This work on {intent_for_defaults[:30]} aims to be novel by addressing gaps in existing studies."
+                elif key == "Experiment":
+                    default_value = {
+                        "Description": f"A conceptual experiment will be designed to test the hypotheses regarding {intent_for_defaults[:30]}.",
+                        "Type": self._determine_experiment_type(idea_dict) # Pass current idea_dict for context
+                    }
+                
+                idea_dict[key] = default_value
+                print(f"[WARNING] thinker._ensure_final_idea_structure: Key '{key}' was missing/empty. Added default: '{str(default_value)[:100]}...'")
+        
+        # Specific check for 'Experiment' sub-structure
+        if isinstance(idea_dict.get("Experiment"), dict):
+            if "Description" not in idea_dict["Experiment"] or not idea_dict["Experiment"]["Description"]:
+                idea_dict["Experiment"]["Description"] = f"Default experiment description for {intent_for_defaults[:30]}."
+            if "Type" not in idea_dict["Experiment"] or not idea_dict["Experiment"]["Type"]:
+                idea_dict["Experiment"]["Type"] = self._determine_experiment_type(idea_dict)
+        else: # If 'Experiment' is not a dict (e.g. missing, or wrong type from earlier default)
+            print(f"[WARNING] thinker._ensure_final_idea_structure: 'Experiment' field not a valid dict. Resetting. Content: {idea_dict.get('Experiment')}")
+            idea_dict["Experiment"] = {
+                "Description": f"Default conceptual experiment for {intent_for_defaults[:30]}.",
+                "Type": self._determine_experiment_type(idea_dict)
+            }
+            
+        validated_json_str = json.dumps(idea_dict, indent=2)
+        print(f"[DEBUG] thinker._ensure_final_idea_structure: Final validated idea keys: {list(idea_dict.keys())}")
+        return validated_json_str

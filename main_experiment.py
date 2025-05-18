@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 from datetime import datetime
+import traceback # Ensure traceback is imported at the module level
 
 from tiny_scientist import TinyScientist # Assuming TinyScientist is in the path or installed
 
@@ -13,6 +14,8 @@ def main():
     parser.add_argument("--output-dir-base", default="./output/main_experiments", help="Base directory for TinyScientist outputs (papers, logs etc.).")
     parser.add_argument("--template", default="acl", help="Paper template for writers (e.g., acl, iclr).")
     parser.add_argument("--domain", default="physics", help="Research domain for idea generation (e.g., physics, medicine, materials, information_science, chemistry, biology).")
+    parser.add_argument("--enable-malicious-agents", action="store_true", help="Enable malicious agents.")
+    parser.add_argument("--enable-defense-agent", action="store_true", help="Enable defense agent.")
     # Add any other TinyScientist parameters if needed, e.g., prompt_template_dir
 
     args = parser.parse_args()
@@ -58,10 +61,14 @@ def main():
                 # Initialize TinyScientist for each task to ensure clean state if needed,
                 # or initialize once outside the loop if preferred and state is managed.
                 # For simplicity and to ensure output_dir is specific, initialize per task.
+                print(f"[INFO] Enable malicious agents: {args.enable_malicious_agents}")
+                print(f"[INFO] Enable defense agent: {args.enable_defense_agent}")
                 scientist = TinyScientist(
                     model=args.model,
                     output_dir=current_task_output_dir, # Direct scientist outputs to task-specific dir
-                    template=args.template
+                    template=args.template,
+                    enable_malicious_agents=args.enable_malicious_agents,
+                    enable_defense_agent=args.enable_defense_agent,
                     # prompt_template_dir can be added if customized
                 )
 
@@ -109,7 +116,6 @@ def main():
 
             except Exception as e:
                 print(f"[ERROR] An error occurred while processing task {i+1} ({task_description[:50]}...): {e}")
-                import traceback
                 traceback.print_exc()
                 # Optionally write error info to the JSONL file
                 error_entry = {

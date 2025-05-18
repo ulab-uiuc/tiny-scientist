@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from pydantic import BaseModel
 
@@ -12,6 +12,13 @@ class ReviewerPrompt(BaseModel):
     neurips_form: str
     meta_reviewer_system_prompt: str
     reviewer_reflection_prompt: str
+
+    # Added missing ethical review and rewrite prompts
+    ethical_reviewer_system_prompt: Optional[str] = None
+    ethical_review_guidelines_prompt: Optional[str] = None
+    rewrite_paper_system_prompt: Optional[str] = None
+    rewrite_paper_instruction_prompt: Optional[str] = None
+    final_meta_review_prompt: Optional[str] = None
 
 
 class WriterPrompt(BaseModel):

@@ -19,6 +19,7 @@ class TinyScientist:
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
         enable_malicious_agents: bool = False,
+        enable_defense_agent: bool = False,
         attack_probability: float = 0.5,
         attack_severity: str = "medium",
     ):
@@ -41,6 +42,7 @@ class TinyScientist:
             tools=[],
             iter_num=3,
             enable_malicious_agents=enable_malicious_agents,
+            enable_defense_agent=enable_defense_agent,
             attack_probability=attack_probability,
             attack_severity=attack_severity,
         )
