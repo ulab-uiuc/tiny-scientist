@@ -192,14 +192,9 @@ class Thinker:
             for expert_name, expert_info in self.all_experts:
                 print(f"\n{expert_info['role']} ('{expert_name}') is thinking...")
                 prompt = self._get_agent_prompt(expert_info, idea_json, self.intent, related_works_string, self.discussion_history)
-                system_prompt = f"""You are {expert_info['role']}, an expert in {expert_info['expertise']}.
-Your focus is on {expert_info['focus']}.
-Please provide your analysis in the following format:
-THOUGHT: [Your detailed analysis and reasoning]
-SUGGESTIONS: [Your specific suggestions for improvement]"""
                 
                 text, _ = get_response_from_llm(
-                    prompt, client=self.client, model=self.model, system_message=system_prompt,
+                    prompt, client=self.client, model=self.model,
                     msg_history=[], temperature=self.temperature,
                 )
                 
