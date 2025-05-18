@@ -129,9 +129,10 @@ def get_batch_responses_from_llm(
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
     elif any(model.startswith(prefix) for prefix in [
-        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/",
+        "NousResearch/", "Snowflake/", "allenai/", "google/", "microsoft/"
     ]):
-        # Together AI models
+        # Together AI models (and other models using OpenAI compatible API structure via TogetherAI or similar)
         content = []
         new_msg_history = []
         
@@ -326,9 +327,10 @@ def get_response_from_llm(
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     elif any(model.startswith(prefix) for prefix in [
-        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/",
+        "NousResearch/", "Snowflake/", "allenai/", "google/", "microsoft/"
     ]):
-        # Together AI models
+        # Together AI models (and other models using OpenAI compatible API structure via TogetherAI or similar)
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -638,7 +640,8 @@ def create_client(
         return client, "meta-llama/llama-3.1-405b-instruct"
     
     elif any(model.startswith(prefix) for prefix in [
-        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"
+        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/",
+        "NousResearch/", "Snowflake/", "allenai/", "google/", "microsoft/"
     ]):
         # Together AI client
         try:

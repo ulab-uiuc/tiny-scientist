@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Default values for general settings
-DEFAULT_MODEL="gpt-4.1"
+DEFAULT_MODEL="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"
 DEFAULT_OUTPUT_DIR_BASE="./output/main_experiments_run"
 DEFAULT_TEMPLATE="acl"
 DEFAULT_PARALLEL_NUM=4 # Default number of parallel processes
@@ -9,10 +9,10 @@ DEFAULT_PARALLEL_NUM=4 # Default number of parallel processes
 
 # --- Configuration for batch processing ---
 BASE_DATA_DIR="./data/ScienceSafetyData/Dataset"
-INPUT_FILES_BASENAMES=("bio.json" "chem.json" "is.json" "phy.json" "med.json" "material.json")
-CORRESPONDING_DOMAINS=("biology" "chemistry" "information_science" "physics" "medicine" "materials")
+INPUT_FILES_BASENAMES=("bio.json")
+CORRESPONDING_DOMAINS=("biology")
 # Suffixes for output files, can be same as domain or more specific
-OUTPUT_NAME_SUFFIXES=("bio" "chem" "is" "phy" "med" "materials") 
+OUTPUT_NAME_SUFFIXES=("bio") 
 #VALID_DOMAINS=("physics" "medicine" "materials" "information_science" "chemistry" "biology")
 # --- End of Configuration for batch processing ---
 
