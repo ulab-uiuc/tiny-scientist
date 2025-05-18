@@ -28,6 +28,9 @@ AVAILABLE_LLMS = [
     "gpt-4o-mini-2024-07-18",
     "gpt-4o-2024-05-13",
     "gpt-4o-2024-08-06",
+    "gpt-3.5-turbo",
+    "gpt-4o",
+    "gpt-4.1"
     "o1-preview-2024-09-12",
     "o1-mini-2024-09-12",
     "o1-2024-12-17",
@@ -231,6 +234,8 @@ def get_response_from_llm(
         "gpt-4o-mini-2024-07-18",
         "gpt-4o-2024-08-06",
         "gpt-4o",
+        "gpt-3.5-turbo",
+        "gpt-4.1",
     ]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
