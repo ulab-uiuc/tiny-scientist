@@ -322,7 +322,10 @@ def get_response_from_llm(
         )
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif model.startswith("ollama/"):
+    elif any(
+        model.startswith(prefix)
+        for prefix in ["ollama/", "lm_studio/"]
+    ):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model.split('/')[1],
@@ -655,6 +658,11 @@ def create_client(
     elif model.startswith('ollama'):
         base_url = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
         client = openai.OpenAI(api_key='ollama', base_url=f"{base_url}/v1")
+        return client, model
+
+    elif model.startswith('lm_studio'):
+        base_url = os.environ.get("LM_STUDIO_API_BASE", "http://localhost:1234/v1")
+        client = openai.OpenAI(api_key='lm_studio', base_url=base_url)
         return client, model
 
     elif any(

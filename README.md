@@ -75,6 +75,14 @@ export OLLAMA_API_BASE=http://192.168.23.11:11434
 
 You can then specify ollama models like so: `ollama/llama3.2:latest` for example.
 
+For LM Studio it is similar:
+
+```bash
+export LM_STUDIO_API_BASE=http://localhost:1234/v1
+```
+
+And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
+
 Now you can use Tiny-Scientist in Python with only a few lines of code:
 
 ```python
