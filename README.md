@@ -67,6 +67,14 @@ export OPENAI_API_KEY=your-key-here
 # or use DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
 ```
 
+If you want to use local ollama models, set the API base:
+
+```bash
+export OLLAMA_API_BASE=http://192.168.23.11:11434
+```
+
+You can then specify ollama models like so: `ollama/llama3.2:latest` for example.
+
 Now you can use Tiny-Scientist in Python with only a few lines of code:
 
 ```python

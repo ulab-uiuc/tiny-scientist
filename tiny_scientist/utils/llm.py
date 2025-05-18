@@ -322,6 +322,21 @@ def get_response_from_llm(
         )
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif model.startswith("ollama/"):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.split('/')[1],
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     elif any(
         model.startswith(prefix)
         for prefix in ["meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"]
@@ -636,6 +651,11 @@ def create_client(
             )
         client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
         return client, "meta-llama/llama-3.1-405b-instruct"
+
+    elif model.startswith('ollama'):
+        base_url = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
+        client = openai.OpenAI(api_key='ollama', base_url=f"{base_url}/v1")
+        return client, model
 
     elif any(
         model.startswith(prefix)
