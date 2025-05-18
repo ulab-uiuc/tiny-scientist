@@ -88,7 +88,7 @@ def process_task_and_write(task_data_tuple, common_args, overall_output_dir_base
     return entry_to_write.get("status", "unknown") if entry_to_write else "no_entry_created"
 
 def main():
-    parser = argparse.ArgumentParser(description="Run TinyScientist experiment with parallel processing.")
+    parser = argparse.ArgumentParser(description="Run TinyScientist experiment with parallel processing and resume capability.")
     parser.add_argument("--input-file", required=True, help="Path to the input JSON file containing tasks.")
     parser.add_argument("--output-file", required=True, help="Path to the output JSONL file to save results.")
     parser.add_argument("--model", default="gpt-4o", help="LLM model to use.")
@@ -101,75 +101,103 @@ def main():
 
     args = parser.parse_args()
 
-    # Critical: For append mode with multiple processes, ensure the output file is created (or truncated) once at the beginning.
-    # Otherwise, each process appending might be to a non-existent file if it's the first, or to old content.
-    with open(args.output_file, 'w', encoding='utf-8') as f:
-        pass # Create/Truncate the file
-    print(f"[INFO] Output file {args.output_file} created/truncated for appending.")
-
+    # Ensure output directory for the JSONL file exists, but DO NOT truncate the file here.
+    # The file will be appended to by workers.
+    os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
+    # Base directory for individual task artifacts
     os.makedirs(args.output_dir_base, exist_ok=True)
+
+    processed_prompts_set = set()
+    if os.path.exists(args.output_file):
+        print(f"[INFO] Output file {args.output_file} exists. Reading previously processed prompts...")
+        try:
+            with open(args.output_file, 'r', encoding='utf-8') as f_read:
+                for line_number, line in enumerate(f_read):
+                    try:
+                        # Basic check for non-empty line before parsing
+                        if line.strip(): 
+                            data = json.loads(line)
+                            if "original_task_prompt" in data:
+                                processed_prompts_set.add(data["original_task_prompt"])
+                        else:
+                            print(f"[WARNING] Skipped empty line {line_number + 1} in existing output file.")
+                    except json.JSONDecodeError:
+                        print(f"[WARNING] Could not parse line {line_number + 1} in {args.output_file} as JSON. Skipping this line for resume check.")
+            print(f"[INFO] Found {len(processed_prompts_set)} unique prompts in existing output file.")
+        except Exception as e:
+            print(f"[ERROR] Failed to read or parse existing output file {args.output_file}: {e}. Will process all tasks.")
+            processed_prompts_set.clear() # Ensure it's empty if reading failed
+    else:
+        print(f"[INFO] Output file {args.output_file} does not exist. Will process all tasks.")
 
     try:
         with open(args.input_file, 'r') as f:
-            tasks = json.load(f)
-        if not isinstance(tasks, list):
+            all_tasks_from_input = json.load(f)
+        if not isinstance(all_tasks_from_input, list):
             print(f"[ERROR] Input file {args.input_file} should be a JSON list of tasks.")
             return
     except FileNotFoundError:
         print(f"[ERROR] Input file not found: {args.input_file}")
         return
     except json.JSONDecodeError:
-        print(f"[ERROR] Could not decode JSON: {args.input_file}")
+        print(f"[ERROR] Could not decode JSON from input file: {args.input_file}")
         return
 
-    print(f"[INFO] Loaded {len(tasks)} tasks from {args.input_file}")
+    # Filter tasks: only process those not already in processed_prompts_set
+    tasks_to_process = []
+    for task_data in all_tasks_from_input:
+        if task_data.get("Prompt") not in processed_prompts_set:
+            tasks_to_process.append(task_data)
+        else:
+            print(f"[INFO] Skipping task with prompt (already processed): {task_data.get('Prompt')[:70]}...")
+            
+    print(f"[INFO] Loaded {len(all_tasks_from_input)} total tasks from {args.input_file}.")
+    print(f"[INFO] Skipping {len(all_tasks_from_input) - len(tasks_to_process)} tasks already processed.")
+    print(f"[INFO] {len(tasks_to_process)} tasks remaining to process.")
+
+    if not tasks_to_process:
+        print("[INFO] No new tasks to process.")
+        print(f"\n[INFO] All tasks (including previously completed) processed. Output at {args.output_file}")
+        return
+
+    # Enumerate only the tasks that need processing, but keep their original index from all_tasks_from_input for consistency in output
+    # This requires finding the original index for each task_to_process.
+    # For simplicity in process_task_and_write, we pass the original index `i` from the full enumerated list.
+    # So, we build tasks_with_original_indices for the pool/loop.
+    
+    tasks_for_processing_with_original_indices = []
+    for original_idx, task_data_from_full_list in enumerate(all_tasks_from_input):
+        if task_data_from_full_list.get("Prompt") not in processed_prompts_set:
+            tasks_for_processing_with_original_indices.append((original_idx, task_data_from_full_list))
+    
+    num_tasks_to_run = len(tasks_for_processing_with_original_indices)
+    print(f"[INFO] Actual number of tasks to run in this session: {num_tasks_to_run}")
+
     print(f"[INFO] Running with parallelism: {args.parallel_num}")
     print(f"[INFO] Malicious agents: {'Enabled' if args.enable_malicious_agents else 'Disabled'}")
     print(f"[INFO] Defense agent: {'Enabled' if args.enable_defense_agent else 'Disabled'}")
 
-    tasks_with_indices = list(enumerate(tasks))
-    num_tasks = len(tasks_with_indices)
-
-    if num_tasks == 0:
-        print("[INFO] No tasks to process.")
-        print(f"\n[INFO] All tasks processed (0 tasks).")
-        return
-
-    if args.parallel_num > 1:
-        manager = Manager() # Manager is needed for Lock if not using default Lock
-        file_lock = manager.Lock() # Create a lock to synchronize file access
-        
+    if args.parallel_num > 1 and num_tasks_to_run > 0:
+        manager = Manager()
+        file_lock = manager.Lock()
         worker_func = partial(process_task_and_write, common_args=args, overall_output_dir_base=args.output_dir_base, file_lock=file_lock)
-        
-        print(f"[INFO] Starting parallel processing of {num_tasks} tasks with {args.parallel_num} workers...")
+        print(f"[INFO] Starting parallel processing of {num_tasks_to_run} tasks with {args.parallel_num} workers...")
         with Pool(processes=args.parallel_num) as pool:
-            # pool.map will collect all return values, though we don't strictly need them now
-            # as writing happens in the worker. We could use apply_async if we don't care about return values.
-            # However, map is fine and will also propagate exceptions if any worker fails catastrophically.
-            results_statuses = pool.map(worker_func, tasks_with_indices)
-        
+            pool.map(worker_func, tasks_for_processing_with_original_indices)
         print("[INFO] Parallel processing finished.")
-        # You can optionally inspect results_statuses here to count successes/failures if needed
-        # success_count = sum(1 for status in results_statuses if status == "success")
-        # print(f"[INFO] {success_count}/{num_tasks} tasks reported success.")
-
-    else: # Sequential processing
-        print("[INFO] Starting sequential processing...")
-        # For sequential, no actual lock is needed, but we can pass a dummy lock-like object or None
-        # For simplicity, we will just call the worker directly. It will open/close file each time.
-        # The file was already truncated at the start of main().
-        # Create a dummy lock object for sequential execution that does nothing.
+    elif num_tasks_to_run > 0: # Sequential processing for remaining tasks
+        print("[INFO] Starting sequential processing for remaining tasks...")
         class DummyLock:
             def acquire(self): pass
             def release(self): pass
-        
         dummy_lock = DummyLock()
-        
-        for task_tuple in tasks_with_indices:
+        for task_tuple in tasks_for_processing_with_original_indices:
             process_task_and_write(task_tuple, common_args=args, overall_output_dir_base=args.output_dir_base, file_lock=dummy_lock)
         print("[INFO] Sequential processing finished.")
+    else:
+        print("[INFO] No tasks were scheduled to run in this session (either all done or input was empty after filtering).")
 
-    print(f"\n[INFO] All tasks processed. Results saved to {args.output_file}")
+    print(f"\n[INFO] Task processing session complete. Results (if any new) appended to {args.output_file}")
 
 if __name__ == "__main__":
     main() 
