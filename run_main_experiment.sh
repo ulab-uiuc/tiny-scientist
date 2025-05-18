@@ -4,6 +4,7 @@
 DEFAULT_MODEL="gpt-3.5-turbo"
 DEFAULT_OUTPUT_DIR_BASE="./output/main_experiments_run"
 DEFAULT_TEMPLATE="acl"
+DEFAULT_PARALLEL_NUM=4 # Default number of parallel processes
 # DEFAULT_ENABLE_MALICIOUS_AGENTS and DEFAULT_ENABLE_DEFENSE_AGENT will be handled by flags
 
 # --- Configuration for batch processing ---
@@ -32,17 +33,19 @@ show_help() {
     echo "  --model MODEL_NAME           LLM model to use. (Default: ${DEFAULT_MODEL})"
     echo "  --output-dir-base DIR_PATH   Base directory for task artifacts. (Default: ${DEFAULT_OUTPUT_DIR_BASE})"
     echo "  --template TEMPLATE_NAME     Paper template. (Default: ${DEFAULT_TEMPLATE})"
+    echo "  --parallel-num INT           Number of parallel processes for tasks within each dataset. (Default: ${DEFAULT_PARALLEL_NUM})"
     echo "  --enable-malicious-agents    Pass this flag to enable malicious agents for all runs."
     echo "  --enable-defense-agent       Pass this flag to enable the defense agent for all runs."
     echo ""
     echo "Example (uses internal batch configuration):"
-    echo "  ./run_main_experiment.sh --model gpt-4o --enable-defense-agent"
+    echo "  ./run_main_experiment.sh --model gpt-4o --parallel-num 4 --enable-defense-agent"
 }
 
 # Initialize variables with default values for script-level options
 MODEL="${DEFAULT_MODEL}"
 OUTPUT_DIR_BASE="${DEFAULT_OUTPUT_DIR_BASE}"
 TEMPLATE="${DEFAULT_TEMPLATE}"
+PARALLEL_NUM="${DEFAULT_PARALLEL_NUM}"
 
 # Initialize boolean flags from global settings
 MALICIOUS_ARG=""
@@ -72,6 +75,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --template)
             TEMPLATE="$2"
+            shift 2
+            ;;
+        --parallel-num)
+            PARALLEL_NUM="$2"
             shift 2
             ;;
         --enable-malicious-agents)
@@ -137,6 +144,7 @@ for i in "${!INPUT_FILES_BASENAMES[@]}"; do
         --output-dir-base \"${OUTPUT_DIR_BASE}/${CURRENT_OUTPUT_SUFFIX}_run\" \
         --template \"${TEMPLATE}\" \
         --domain \"${CURRENT_DOMAIN}\" \
+        --parallel-num ${PARALLEL_NUM} \
         ${MALICIOUS_ARG} \
         ${DEFENSE_ARG}"
 

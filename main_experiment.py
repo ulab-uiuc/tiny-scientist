@@ -2,145 +2,174 @@ import argparse
 import json
 import os
 from datetime import datetime
-import traceback # Ensure traceback is imported at the module level
+import traceback
+from multiprocessing import Pool, Manager, Lock # Added Lock
+from functools import partial
+# import time # No longer needed for writer sleep
 
-from tiny_scientist import TinyScientist # Assuming TinyScientist is in the path or installed
+from tiny_scientist import TinyScientist
+
+# Worker function to process a single task and write its result
+def process_task_and_write(task_data_tuple, common_args, overall_output_dir_base, file_lock):
+    i, task_data = task_data_tuple
+    task_prompt = task_data.get("Prompt")
+    task_description = task_data.get("Task Description", "N/A")
+    
+    entry_to_write = None # This will hold the dict to be written to file
+
+    if not task_prompt:
+        print(f"[WARNING] Task {i+1} (original index) is missing 'Prompt' field. Skipping.")
+        entry_to_write = {"task_index": i + 1, "error": "Missing Prompt field", "status": "skipped"}
+    else:
+        print(f"\n[INFO] Worker {os.getpid()}: Processing Task {i+1} (original index): {task_description[:100]}...")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        current_task_output_dir = os.path.join(overall_output_dir_base, f"task_{i+1}_{timestamp}")
+        try:
+            os.makedirs(current_task_output_dir, exist_ok=True)
+        except Exception as e:
+            print(f"[ERROR] Worker {os.getpid()}: Failed to create task output dir {current_task_output_dir}: {e}")
+            entry_to_write = {
+                "task_index": i + 1, "original_task_prompt": task_prompt, "task_description": task_description,
+                "error": f"Failed to create task output directory: {e}", "status": "failed_setup"
+            }
+
+        if not entry_to_write: # Proceed only if setup was successful
+            # print(f"[INFO] Worker {os.getpid()}: Artifacts for Task {i+1} in: {current_task_output_dir}")
+            try:
+                scientist = TinyScientist(
+                    model=common_args.model,
+                    output_dir=current_task_output_dir,
+                    template=common_args.template,
+                    enable_malicious_agents=common_args.enable_malicious_agents,
+                    enable_defense_agent=common_args.enable_defense_agent,
+                )
+                idea, discussion_history = scientist.think(intent=task_prompt, domain=common_args.domain)
+                
+                if not idea:
+                    error_detail = "Idea generation returned empty or invalid idea object"
+                    print(f"[ERROR] Worker {os.getpid()}: Task {i+1} - {error_detail}.")
+                    entry_to_write = {
+                        "task_index": i + 1, "original_task_prompt": task_prompt, "task_description": task_description,
+                        "error": error_detail, "status": "failed_think"
+                    }
+                else:
+                    mini_paper_text_content = scientist.write_mini(idea=idea)
+                    review_rewrite_report = scientist.review_and_rewrite(paper_text=mini_paper_text_content)
+                    
+                    entry_to_write = {
+                        "task_index": i + 1, "original_task_prompt": task_prompt, "task_description": task_description,
+                        "generated_idea": idea, "discussion_history": discussion_history,
+                        "generated_mini_paper_text": mini_paper_text_content,
+                        "review_rewrite_output": review_rewrite_report,
+                        "task_artifact_directory": current_task_output_dir, "status": "success"
+                    }
+                    print(f"[SUCCESS] Worker {os.getpid()}: Task {i+1} completed.")
+
+            except Exception as e:
+                print(f"[ERROR] Worker {os.getpid()}: Unhandled exception processing task {i+1}: {e}")
+                entry_to_write = {
+                    "task_index": i + 1, "original_task_prompt": task_prompt, "task_description": task_description,
+                    "error": str(e), "traceback": traceback.format_exc(), "status": "failed_processing"
+                }
+
+    # Write the result to the shared output file using a lock
+    if entry_to_write is not None:
+        try:
+            file_lock.acquire()
+            # print(f"[DEBUG] Worker {os.getpid()}: Acquired lock for task {entry_to_write.get('task_index')}")
+            with open(common_args.output_file, 'a', encoding='utf-8') as outfile:
+                outfile.write(json.dumps(entry_to_write) + "\n")
+                outfile.flush()
+            # print(f"[DEBUG] Worker {os.getpid()}: Released lock for task {entry_to_write.get('task_index')}")
+        except Exception as e:
+            print(f"[ERROR] Worker {os.getpid()}: Failed to write result for task {entry_to_write.get('task_index')} to file: {e}")
+        finally:
+            file_lock.release() # Ensure lock is always released
+    return entry_to_write.get("status", "unknown") if entry_to_write else "no_entry_created"
 
 def main():
-    parser = argparse.ArgumentParser(description="Run a full TinyScientist experiment: Think -> WriteMini -> ReviewRewrite.")
-    parser.add_argument("--input-file", required=True, help="Path to the input JSON file containing tasks (e.g., med.json).")
+    parser = argparse.ArgumentParser(description="Run TinyScientist experiment with parallel processing.")
+    parser.add_argument("--input-file", required=True, help="Path to the input JSON file containing tasks.")
     parser.add_argument("--output-file", required=True, help="Path to the output JSONL file to save results.")
-    parser.add_argument("--model", default="gpt-4o", help="LLM model to use for TinyScientist.")
-    parser.add_argument("--output-dir-base", default="./output/main_experiments", help="Base directory for TinyScientist outputs (papers, logs etc.).")
-    parser.add_argument("--template", default="acl", help="Paper template for writers (e.g., acl, iclr).")
-    parser.add_argument("--domain", default="physics", help="Research domain for idea generation (e.g., physics, medicine, materials, information_science, chemistry, biology).")
+    parser.add_argument("--model", default="gpt-4o", help="LLM model to use.")
+    parser.add_argument("--output-dir-base", default="./output/main_experiments", help="Base directory for task artifacts.")
+    parser.add_argument("--template", default="acl", help="Paper template.")
+    parser.add_argument("--domain", default="physics", help="Research domain.")
     parser.add_argument("--enable-malicious-agents", action="store_true", help="Enable malicious agents.")
     parser.add_argument("--enable-defense-agent", action="store_true", help="Enable defense agent.")
-    # Add any other TinyScientist parameters if needed, e.g., prompt_template_dir
+    parser.add_argument("--parallel-num", type=int, default=1, help="Number of parallel processes (default: 1 for sequential).")
 
     args = parser.parse_args()
 
-    # Ensure output directory for the JSONL file exists
-    os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
+    # Critical: For append mode with multiple processes, ensure the output file is created (or truncated) once at the beginning.
+    # Otherwise, each process appending might be to a non-existent file if it's the first, or to old content.
+    with open(args.output_file, 'w', encoding='utf-8') as f:
+        pass # Create/Truncate the file
+    print(f"[INFO] Output file {args.output_file} created/truncated for appending.")
 
-    # Load tasks from input JSON file
+    os.makedirs(args.output_dir_base, exist_ok=True)
+
     try:
         with open(args.input_file, 'r') as f:
             tasks = json.load(f)
         if not isinstance(tasks, list):
-            print(f"[ERROR] Input file {args.input_file} should contain a JSON list of tasks.")
+            print(f"[ERROR] Input file {args.input_file} should be a JSON list of tasks.")
             return
     except FileNotFoundError:
         print(f"[ERROR] Input file not found: {args.input_file}")
         return
     except json.JSONDecodeError:
-        print(f"[ERROR] Could not decode JSON from input file: {args.input_file}")
+        print(f"[ERROR] Could not decode JSON: {args.input_file}")
         return
 
     print(f"[INFO] Loaded {len(tasks)} tasks from {args.input_file}")
+    print(f"[INFO] Running with parallelism: {args.parallel_num}")
+    print(f"[INFO] Malicious agents: {'Enabled' if args.enable_malicious_agents else 'Disabled'}")
+    print(f"[INFO] Defense agent: {'Enabled' if args.enable_defense_agent else 'Disabled'}")
 
-    # Open the output JSONL file in append mode
-    with open(args.output_file, 'a') as outfile:
-        for i, task_data in enumerate(tasks):
-            task_prompt = task_data.get("Prompt")
-            task_description = task_data.get("Task Description", "N/A") # Optional: for logging
+    tasks_with_indices = list(enumerate(tasks))
+    num_tasks = len(tasks_with_indices)
 
-            if not task_prompt:
-                print(f"[WARNING] Task {i+1} is missing 'Prompt' field. Skipping.")
-                continue
+    if num_tasks == 0:
+        print("[INFO] No tasks to process.")
+        print(f"\n[INFO] All tasks processed (0 tasks).")
+        return
 
-            print(f"\n[INFO] Processing Task {i+1}/{len(tasks)}: {task_description[:100]}...")
+    if args.parallel_num > 1:
+        manager = Manager() # Manager is needed for Lock if not using default Lock
+        file_lock = manager.Lock() # Create a lock to synchronize file access
+        
+        worker_func = partial(process_task_and_write, common_args=args, overall_output_dir_base=args.output_dir_base, file_lock=file_lock)
+        
+        print(f"[INFO] Starting parallel processing of {num_tasks} tasks with {args.parallel_num} workers...")
+        with Pool(processes=args.parallel_num) as pool:
+            # pool.map will collect all return values, though we don't strictly need them now
+            # as writing happens in the worker. We could use apply_async if we don't care about return values.
+            # However, map is fine and will also propagate exceptions if any worker fails catastrophically.
+            results_statuses = pool.map(worker_func, tasks_with_indices)
+        
+        print("[INFO] Parallel processing finished.")
+        # You can optionally inspect results_statuses here to count successes/failures if needed
+        # success_count = sum(1 for status in results_statuses if status == "success")
+        # print(f"[INFO] {success_count}/{num_tasks} tasks reported success.")
 
-            # Create a unique output directory for this specific task's artifacts
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            current_task_output_dir = os.path.join(args.output_dir_base, f"task_{i+1}_{timestamp}")
-            os.makedirs(current_task_output_dir, exist_ok=True)
-            print(f"[INFO] Artifacts for this task will be saved in: {current_task_output_dir}")
+    else: # Sequential processing
+        print("[INFO] Starting sequential processing...")
+        # For sequential, no actual lock is needed, but we can pass a dummy lock-like object or None
+        # For simplicity, we will just call the worker directly. It will open/close file each time.
+        # The file was already truncated at the start of main().
+        # Create a dummy lock object for sequential execution that does nothing.
+        class DummyLock:
+            def acquire(self): pass
+            def release(self): pass
+        
+        dummy_lock = DummyLock()
+        
+        for task_tuple in tasks_with_indices:
+            process_task_and_write(task_tuple, common_args=args, overall_output_dir_base=args.output_dir_base, file_lock=dummy_lock)
+        print("[INFO] Sequential processing finished.")
 
-            try:
-                # Initialize TinyScientist for each task to ensure clean state if needed,
-                # or initialize once outside the loop if preferred and state is managed.
-                # For simplicity and to ensure output_dir is specific, initialize per task.
-                print(f"[INFO] Enable malicious agents: {args.enable_malicious_agents}")
-                print(f"[INFO] Enable defense agent: {args.enable_defense_agent}")
-                scientist = TinyScientist(
-                    model=args.model,
-                    output_dir=current_task_output_dir, # Direct scientist outputs to task-specific dir
-                    template=args.template,
-                    enable_malicious_agents=args.enable_malicious_agents,
-                    enable_defense_agent=args.enable_defense_agent,
-                    # prompt_template_dir can be added if customized
-                )
-
-                # 1. Think: Generate an idea
-                print("[INFO] Step 1: Thinking...")
-                # scientist.think now returns a tuple: (idea_dict, discussion_history)
-                idea, discussion_history = scientist.think(intent=task_prompt, domain=args.domain)
-                
-                # The 'idea' returned from scientist.think is already a dictionary.
-                # No need for the isinstance checks that were here before if scientist.think guarantees a dict.
-                if not idea: # Should ideally not happen if scientist.think is robust
-                    print(f"[ERROR] Could not generate a valid idea dictionary for task {i+1}. Skipping.")
-                    # Log error to JSONL
-                    error_entry = {
-                        "task_index": i + 1,
-                        "original_task_prompt": task_prompt,
-                        "task_description": task_description,
-                        "error": "Idea generation returned empty or invalid idea object from scientist.think",
-                        "traceback": traceback.format_exc() if 'traceback' in locals() else "No traceback available at this point"
-                    }
-                    outfile.write(json.dumps(error_entry) + "\n")
-                    outfile.flush()
-                    continue
-                
-                print(f"[INFO] Idea generated: {idea.get('Title', 'N/A')}")
-                if discussion_history:
-                    print(f"[INFO] Discussion history captured with {len(discussion_history)} entries.")
-                else:
-                    print("[INFO] No discussion history captured.")
-
-                # 2. WriteMini: Write a conceptual paper
-                print("\n[INFO] Step 2: Writing mini conceptual paper...")
-                mini_paper_text_content = scientist.write_mini(idea=idea) # Returns text content
-                print(f"[INFO] Mini paper text generated ({len(mini_paper_text_content)} characters).")
-
-                # 3. Review and Rewrite: Perform ethical review, rewrite, and final meta-review
-                print("\n[INFO] Step 3: Performing review, rewrite, and meta-review process...")
-                review_rewrite_report = scientist.review_and_rewrite(paper_text=mini_paper_text_content)
-                print("[INFO] Review and rewrite process completed.")
-
-                # 4. Collect results
-                result_entry = {
-                    "task_index": i + 1,
-                    "original_task_prompt": task_prompt,
-                    "task_description": task_description,
-                    "generated_idea": idea,
-                    "discussion_history": discussion_history, # Add discussion history to the results
-                    "generated_mini_paper_text": mini_paper_text_content, # Store the generated text
-                    "review_rewrite_output": review_rewrite_report,
-                    "task_artifact_directory": current_task_output_dir
-                }
-
-                # 5. Write to JSONL file
-                outfile.write(json.dumps(result_entry) + "\n")
-                outfile.flush() # Ensure it's written immediately
-                print(f"[INFO] Results for task {i+1} saved to {args.output_file}")
-
-            except Exception as e:
-                print(f"[ERROR] An error occurred while processing task {i+1} ({task_description[:50]}...): {e}")
-                traceback.print_exc()
-                # Optionally write error info to the JSONL file
-                error_entry = {
-                    "task_index": i + 1,
-                    "original_task_prompt": task_prompt,
-                    "task_description": task_description,
-                    "error": str(e),
-                    "traceback": traceback.format_exc()
-                }
-                outfile.write(json.dumps(error_entry) + "\n")
-                outfile.flush()
-
-    print(f"\n[INFO] All tasks processed. Output saved to {args.output_file}")
+    print(f"\n[INFO] All tasks processed. Results saved to {args.output_file}")
 
 if __name__ == "__main__":
     main() 
