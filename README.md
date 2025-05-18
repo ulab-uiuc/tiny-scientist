@@ -89,6 +89,15 @@ export LM_STUDIO_API_KEY=dummy-api-key
 
 And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
 
+For other openAI compatible backend providers, set the following variables:
+
+```bash
+export OPENAI_API_BASE=<endpoint>
+export OPENAI_API_KEY=<key>
+```
+
+and specify your model like so: `openai/qwen3-30b-a3b`
+
 Now you can use Tiny-Scientist in Python with only a few lines of code:
 
 ```python

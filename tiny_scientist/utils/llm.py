@@ -324,7 +324,7 @@ def get_response_from_llm(
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     elif any(
         model.startswith(prefix)
-        for prefix in ["ollama/", "lm_studio/"]
+        for prefix in ["ollama/", "lm_studio/", "openai/"]
     ):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -663,6 +663,16 @@ def create_client(
     elif model.startswith('lm_studio'):
         base_url = os.environ.get("LM_STUDIO_API_BASE", "http://localhost:1234/v1")
         client = openai.OpenAI(api_key='lm_studio', base_url=base_url)
+        return client, model
+
+    elif model.startswith('openai'):
+        api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
+        if not api_key:
+            raise ValueError(
+                f"Missing API key to use {model}. Set OPENAI_API_KEY or llm_api_key in config.toml."
+            )
+        base_url = os.environ.get("OPENAI_API_BASE", "http://localhost/v1")
+        client = openai.OpenAI(api_key=api_key, base_url=base_url)
         return client, model
 
     elif any(
