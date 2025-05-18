@@ -67,6 +67,37 @@ export OPENAI_API_KEY=your-key-here
 # or use DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
 ```
 
+If you want to use local ollama models, set the API base:
+
+```bash
+export OLLAMA_API_BASE=http://192.168.23.11:11434
+```
+
+You can then specify ollama models like so: `ollama/llama3.2:latest` for example.
+
+For LM Studio it is similar:
+
+```bash
+export LM_STUDIO_API_BASE=http://localhost:1234/v1
+```
+
+but you do need to specify an API key, even if it's a dummy value:
+
+```bash
+export LM_STUDIO_API_KEY=dummy-api-key
+```
+
+And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
+
+For other openAI compatible backend providers, set the following variables:
+
+```bash
+export OPENAI_API_BASE=http://192.168.9.14/v1
+export OPENAI_API_KEY=your-key-here
+```
+
+and specify your model like so: `openai/qwen3-30b-a3b`
+
 Now you can use Tiny-Scientist in Python with only a few lines of code:
 
 ```python
