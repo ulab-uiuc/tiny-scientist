@@ -92,8 +92,8 @@ And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
 For other openAI compatible backend providers, set the following variables:
 
 ```bash
-export OPENAI_API_BASE=<endpoint>
-export OPENAI_API_KEY=<key>
+export OPENAI_API_BASE=http://192.168.9.14/v1
+export OPENAI_API_KEY=your-key-here
 ```
 
 and specify your model like so: `openai/qwen3-30b-a3b`
