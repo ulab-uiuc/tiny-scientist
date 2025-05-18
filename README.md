@@ -81,6 +81,12 @@ For LM Studio it is similar:
 export LM_STUDIO_API_BASE=http://localhost:1234/v1
 ```
 
+but you do need to specify an API key, even if it's a dummy value:
+
+```bash
+export LM_STUDIO_API_KEY=dummy-api-key
+```
+
 And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
 
 Now you can use Tiny-Scientist in Python with only a few lines of code:
