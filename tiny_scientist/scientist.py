@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
+import json
 
 from rich import print
 
@@ -81,25 +82,47 @@ class TinyScientist:
         domain: str = "", 
         experiment_type: str = "", 
         pdf_content: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Generate research ideas based on the intent."""
-        print("🧠 Generating idea...")
+    ) -> Tuple[Dict[str, Any], Optional[List[Dict[str, Any]]]]:
+        """Generate research ideas and discussion details based on the intent."""
+        print("🧠 Generating idea and capturing discussion...")
         
-        ideas = self.thinker.run(
+        # thinker.run now returns a tuple: (idea(s), discussion_history)
+        # Assuming num_ideas in thinker.run defaults to 1 or is handled appropriately for this context
+        idea_or_ideas_list, discussion_history = self.thinker.run(
             intent=intent, 
             domain=domain, 
             experiment_type=experiment_type, 
-            pdf_content=pdf_content
+            pdf_content=pdf_content,
+            num_ideas=1 # Explicitly set num_ideas=1 as main_experiment expects a single idea object
         )
         
-        # Log if malicious agents are enabled
+        # Ensure we are working with a single idea dictionary for main_experiment flow
+        final_idea_dict: Dict[str, Any]
+        if isinstance(idea_or_ideas_list, list):
+            if idea_or_ideas_list:
+                final_idea_dict = idea_or_ideas_list[0] # Take the first idea if a list is returned
+                if len(idea_or_ideas_list) > 1:
+                    print(f"[WARNING] TinyScientist.think: thinker.run returned multiple ideas, using only the first one.")
+            else:
+                print("[ERROR] TinyScientist.think: thinker.run returned an empty list of ideas. Creating a placeholder.")
+                # Create a placeholder or error dictionary if no ideas were generated
+                # This relies on Thinker.think's _ensure_final_idea_structure to have done its job for the string passed to json.loads
+                # However, if thinker.run itself returns an empty list, we handle it here.
+                final_idea_dict = json.loads(self.thinker._ensure_final_idea_structure("{}", intent))
+        elif isinstance(idea_or_ideas_list, dict):
+            final_idea_dict = idea_or_ideas_list
+        else:
+            print(f"[ERROR] TinyScientist.think: thinker.run returned an unexpected type for ideas: {type(idea_or_ideas_list)}. Creating placeholder.")
+            final_idea_dict = json.loads(self.thinker._ensure_final_idea_structure("{}", intent))
+
+        # Log if malicious agents are enabled (this logging can remain as is)
         if self.enable_malicious_agents:
             if hasattr(self.thinker, 'intercepted_messages') and self.thinker.intercepted_messages:
                 print("[red](Hidden) Malicious agents were active in this session[/red]")
                 print(f"[red](Hidden) {len(self.thinker.intercepted_messages)} messages were intercepted and manipulated[/red]")
         
-        print("✅ Idea generated.")
-        return ideas
+        print("✅ Idea and discussion details generated.")
+        return final_idea_dict, discussion_history
 
     def react_experiment(
         self,

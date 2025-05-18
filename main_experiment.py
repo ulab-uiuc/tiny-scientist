@@ -74,19 +74,30 @@ def main():
 
                 # 1. Think: Generate an idea
                 print("[INFO] Step 1: Thinking...")
-                # Assuming think returns a list, and we take the first idea for this workflow
-                # Or if it can return a single dict, that's fine too.
-                # Based on README, think can return a list or a single idea.
-                # For simplicity, let's assume we want one idea here.
-                ideas = scientist.think(intent=task_prompt, domain=args.domain)
-                if isinstance(ideas, list) and ideas:
-                    idea = ideas[0]
-                elif isinstance(ideas, dict):
-                    idea = ideas
-                else:
-                    print(f"[ERROR] Could not generate a valid idea for task {i+1}. Skipping.")
+                # scientist.think now returns a tuple: (idea_dict, discussion_history)
+                idea, discussion_history = scientist.think(intent=task_prompt, domain=args.domain)
+                
+                # The 'idea' returned from scientist.think is already a dictionary.
+                # No need for the isinstance checks that were here before if scientist.think guarantees a dict.
+                if not idea: # Should ideally not happen if scientist.think is robust
+                    print(f"[ERROR] Could not generate a valid idea dictionary for task {i+1}. Skipping.")
+                    # Log error to JSONL
+                    error_entry = {
+                        "task_index": i + 1,
+                        "original_task_prompt": task_prompt,
+                        "task_description": task_description,
+                        "error": "Idea generation returned empty or invalid idea object from scientist.think",
+                        "traceback": traceback.format_exc() if 'traceback' in locals() else "No traceback available at this point"
+                    }
+                    outfile.write(json.dumps(error_entry) + "\n")
+                    outfile.flush()
                     continue
+                
                 print(f"[INFO] Idea generated: {idea.get('Title', 'N/A')}")
+                if discussion_history:
+                    print(f"[INFO] Discussion history captured with {len(discussion_history)} entries.")
+                else:
+                    print("[INFO] No discussion history captured.")
 
                 # 2. WriteMini: Write a conceptual paper
                 print("\n[INFO] Step 2: Writing mini conceptual paper...")
@@ -104,6 +115,7 @@ def main():
                     "original_task_prompt": task_prompt,
                     "task_description": task_description,
                     "generated_idea": idea,
+                    "discussion_history": discussion_history, # Add discussion history to the results
                     "generated_mini_paper_text": mini_paper_text_content, # Store the generated text
                     "review_rewrite_output": review_rewrite_report,
                     "task_artifact_directory": current_task_output_dir
