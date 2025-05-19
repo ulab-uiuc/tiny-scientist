@@ -1,82 +1,82 @@
 [
   {
     "task_description": "Conduct a thermal cycling experiment on ceramic oxide materials to study their phase stability and microstructural evolution under controlled heating conditions.",
-    "tool": "Thermo Scientific Lindberg/Blue M 1100°C Tube Furnace"
+    "tool": "Tube Furnace"
   },
   {
     "task_description": "Investigate the effect of sintering conditions on the densification and grain growth of alumina powders in an inert atmosphere.",
-    "tool": "Thermo Scientific Lindberg/Blue M 1100°C Tube Furnace"
+    "tool": "Tube Furnace"
   },
   {
     "task_description": "Study the controlled oxidation of silicon carbide wafers for electronic applications requiring precise surface passivation.",
-    "tool": "Thermo Scientific Lindberg/Blue M 1100°C Tube Furnace"
+    "tool": "Tube Furnace"
   },
   {
     "task_description": "Perform reduction treatment of metal oxide catalysts under a hydrogen-rich atmosphere to activate catalytic sites for improved reaction efficiency.",
-    "tool": "Thermo Scientific Lindberg/Blue M 1100°C Tube Furnace"
+    "tool": "Tube Furnace"
   },
   {
     "task_description": "Process titanium dioxide nanoparticles using high-energy mechanical milling to enhance their photocatalytic performance for environmental remediation applications.",
-    "tool": "Across International PQ-N2 Planetary Ball Mill"
+    "tool": "Ball Mill"
   },
   {
     "task_description": "Prepare a mechanically alloyed copper-zinc composite with homogeneous distribution of components for advanced electrical conductivity studies.",
-    "tool": "Across International PQ-N2 Planetary Ball Mill"
+    "tool": "Ball Mill"
   },
   {
     "task_description": "Investigate the impact of milling conditions on the particle size reduction of silicon carbide for high-performance ceramic applications.",
-    "tool": "Across International PQ-N2 Planetary Ball Mill"
+    "tool": "Ball Mill"
   },
   {
     "task_description": "Synthesize nanostructured metal oxides by mechanical activation under controlled atmospheric conditions for catalytic applications.",
-    "tool": "Across International PQ-N2 Planetary Ball Mill"
+    "tool": "Ball Mill"
   },
   {
     "task_description": "Investigate the crystalline phases in a multi-component ceramic material to evaluate its suitability for high-temperature structural applications.",
-    "tool": "Bruker D2 PHASER X-ray Diffractometer"
+    "tool": "X-ray Diffractometer"
   },
   {
     "task_description": "Conduct high-resolution powder diffraction analysis of pharmaceutical compounds to identify polymorphic forms and crystallinity for drug formulation studies.",
-    "tool": "Bruker D2 PHASER X-ray Diffractometer"
+    "tool": "X-ray Diffractometer"
   },
   {
     "task_description": "Perform quantitative phase analysis of mineral samples using appropriate diffraction techniques to determine composition for geological classification.",
-    "tool": "Bruker D2 PHASER X-ray Diffractometer"
+    "tool": "X-ray Diffractometer"
   },
   {
     "task_description": "Analyze thin film crystallinity and texture using grazing incidence techniques to optimize electronic properties for semiconductor applications.",
-    "tool": "Bruker D2 PHASER X-ray Diffractometer"
+    "tool": "X-ray Diffractometer"
   },
   {
     "task_description": "Examine the fracture surface microstructure of a failed metal alloy component to determine the root cause of failure and improve material design.",
-    "tool": "JEOL JSM-IT200 Scanning Electron Microscope"
+    "tool": "Scanning Electron Microscope (SEM)"
   },
   {
     "task_description": "Analyze the morphology and size distribution of synthesized nanoparticles for quality control in advanced materials production.",
-    "tool": "JEOL JSM-IT200 Scanning Electron Microscope"
+    "tool": "Scanning Electron Microscope (SEM)"
   },
   {
     "task_description": "Investigate the cross-sectional features of multilayered electronic components to assess interface quality and layer thickness uniformity.",
-    "tool": "JEOL JSM-IT200 Scanning Electron Microscope"
+    "tool": "Scanning Electron Microscope (SEM)"
   },
   {
     "task_description": "Characterize the surface topography of textured solar cells to correlate surface features with light-trapping efficiency and overall cell performance.",
-    "tool": "JEOL JSM-IT200 Scanning Electron Microscope"
+    "tool": "Scanning Electron Microscope (SEM)"
   },
   {
     "task_description": "Deposit transparent conductive oxide thin films for next-generation display technology applications requiring both optical transparency and electrical conductivity.",
-    "tool": "Kurt J. Lesker PVD 75 Thermal Evaporator"
+    "tool": "Physical Vapor Deposition (PVD) System"
   },
   {
     "task_description": "Create protective metal coatings on precision mechanical components to enhance wear resistance and extend operational lifetime in harsh environments.",
-    "tool": "Kurt J. Lesker PVD 75 Thermal Evaporator"
+    "tool": "Physical Vapor Deposition (PVD) System"
   },
   {
     "task_description": "Fabricate multi-layer optical filters with precise thickness control for advanced spectroscopic applications requiring specific wavelength selection.",
-    "tool": "Kurt J. Lesker PVD 75 Thermal Evaporator"
+    "tool": "Physical Vapor Deposition (PVD) System"
   },
   {
     "task_description": "Develop wear-resistant nitride coatings on cutting tools to improve hardness and reduce friction during high-speed machining operations.",
-    "tool": "Kurt J. Lesker PVD 75 Thermal Evaporator"
+    "tool": "Physical Vapor Deposition (PVD) System"
   }
-] 
+]

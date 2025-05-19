@@ -1,82 +1,82 @@
 [
   {
     "task_description": "Investigate the thermal decomposition pathway of nitroglycerin under elevated pressure and temperature conditions for safety analysis in industrial applications.",
-    "tool": "Parr Series 4560 Mini Bench-Top High-Pressure Reactor"
+    "tool": "High-Pressure Reactor"
   },
   {
     "task_description": "Study the catalytic hydrogenation of benzene to cyclohexane using different stirring rates to optimize selectivity and conversion efficiency.",
-    "tool": "Parr Series 4560 Mini Bench-Top High-Pressure Reactor"
+    "tool": "High-Pressure Reactor"
   },
   {
     "task_description": "Examine the efficiency of ammonia decomposition to produce hydrogen gas under varying pressure conditions for clean energy applications.",
-    "tool": "Parr Series 4560 Mini Bench-Top High-Pressure Reactor"
+    "tool": "High-Pressure Reactor"
   },
   {
     "task_description": "Optimize the polymerization conditions for ethylene in a controlled environment with precise temperature regulation to enhance polymer quality.",
-    "tool": "Parr Series 4560 Mini Bench-Top High-Pressure Reactor"
+    "tool": "High-Pressure Reactor"
   },
   {
     "task_description": "Concentrate a dilute pharmaceutical intermediate solution to facilitate subsequent crystallization steps with minimal thermal degradation.",
-    "tool": "Büchi Rotavapor R-100 Rotary Evaporator"
+    "tool": "Rotary Evaporator"
   },
   {
     "task_description": "Recover and recycle organic solvents from pharmaceutical process waste streams for environmental compliance and cost reduction.",
-    "tool": "Büchi Rotavapor R-100 Rotary Evaporator"
+    "tool": "Rotary Evaporator"
   },
   {
     "task_description": "Prepare a botanical extract for chromatographic analysis by removing extraction solvents without degrading thermally sensitive compounds.",
-    "tool": "Büchi Rotavapor R-100 Rotary Evaporator"
+    "tool": "Rotary Evaporator"
   },
   {
     "task_description": "Remove residual ethanol from a nucleic acid extraction to obtain a purified sample suitable for downstream genomic applications.",
-    "tool": "Büchi Rotavapor R-100 Rotary Evaporator"
+    "tool": "Rotary Evaporator"
   },
   {
     "task_description": "Isolate high-purity chloroform from a multi-component solvent mixture for use in sensitive organic synthesis reactions.",
-    "tool": "Hach Catalog #2265308 Distillation Apparatus"
+    "tool": "Distillation Apparatus"
   },
   {
     "task_description": "Obtain pharmaceutical-grade pseudoephedrine from a complex mixture for research purposes requiring analytical standards.",
-    "tool": "Hach Catalog #2265308 Distillation Apparatus"
+    "tool": "Distillation Apparatus"
   },
   {
     "task_description": "Separate and collect specific naphthalene fractions from crude oil to analyze their suitability as chemical feedstock.",
-    "tool": "Hach Catalog #2265308 Distillation Apparatus"
+    "tool": "Distillation Apparatus"
   },
   {
     "task_description": "Remove water from an azeotropic reaction mixture to drive the equilibrium toward product formation with minimal energy input.",
-    "tool": "Hach Catalog #2265308 Distillation Apparatus"
+    "tool": "Distillation Apparatus"
   },
   {
     "task_description": "Purify a complex natural product extract to isolate bioactive compounds for pharmaceutical screening and structure determination.",
-    "tool": "Teledyne ISCO CombiFlash NextGen 300 Chromatography System"
+    "tool": "Column Chromatography System"
   },
   {
     "task_description": "Separate reaction products from catalytic residues and byproducts to assess synthetic route efficiency and product purity.",
-    "tool": "Teledyne ISCO CombiFlash NextGen 300 Chromatography System"
+    "tool": "Column Chromatography System"
   },
   {
     "task_description": "Isolate plant-derived alkaloids from a crude extract for pharmacological screening and potential therapeutic applications.",
-    "tool": "Teledyne ISCO CombiFlash NextGen 300 Chromatography System"
+    "tool": "Column Chromatography System"
   },
   {
     "task_description": "Remove colored impurities from an agrochemical formulation to improve product stability and shelf life under varying storage conditions.",
-    "tool": "Teledyne ISCO CombiFlash NextGen 300 Chromatography System"
+    "tool": "Column Chromatography System"
   },
   {
     "task_description": "Develop a stable microencapsulated formulation of a volatile fragrance compound for controlled release in consumer products.",
-    "tool": "Büchi Mini Spray Dryer B-290"
+    "tool": "Spray Dryer"
   },
   {
     "task_description": "Convert an aqueous protein solution into a free-flowing powder with preserved biological activity for extended shelf stability.",
-    "tool": "Büchi Mini Spray Dryer B-290"
+    "tool": "Spray Dryer"
   },
   {
     "task_description": "Prepare uniformly sized particles of a pharmaceutical agent to improve dissolution characteristics and bioavailability.",
-    "tool": "Büchi Mini Spray Dryer B-290"
+    "tool": "Spray Dryer"
   },
   {
     "task_description": "Transform a plant extract into fine powder form for standardization and incorporation into dietary supplement formulations.",
-    "tool": "Büchi Mini Spray Dryer B-290"
+    "tool": "Spray Dryer"
   }
-] 
+]

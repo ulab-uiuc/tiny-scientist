@@ -1,82 +1,82 @@
 [
   {
     "Task": "Investigate the optical breakdown threshold of different materials by directing focused laser pulses onto the surface and measuring the onset of plasma generation.",
-    "tool": "High-power pulsed laser (Nd:YAG, Ti:Sapphire) - Spectra‑Physics Quanta‑Ray Lab‑170"
+    "tool": "High-power pulsed laser"
   },
   {
     "Task": "Perform time-resolved photoluminescence measurements on semiconductor samples to study carrier dynamics, utilizing the laser for excitation and a photodetector for emission capture.",
-    "tool": "High-power pulsed laser (Nd:YAG, Ti:Sapphire) - Spectra‑Physics Quanta‑Ray Lab‑170"
+    "tool": "High-power pulsed laser"
   },
   {
     "Task": "Conduct a laser-induced breakdown spectroscopy (LIBS) analysis to determine the elemental composition of an unknown metallic alloy by focusing laser pulses to create a plasma and analyzing the emitted light spectrum.",
-    "tool": "High-power pulsed laser (Nd:YAG, Ti:Sapphire) - Spectra‑Physics Quanta‑Ray Lab‑170"
+    "tool": "High-power pulsed laser"
   },
   {
     "Task": "Investigate the nonlinear optical properties of a specific crystal by measuring the second harmonic generation efficiency when exposed to controlled laser pulses.",
-    "tool": "High-power pulsed laser (Nd:YAG, Ti:Sapphire) - Spectra‑Physics Quanta‑Ray Lab‑170"
+    "tool": "High-power pulsed laser"
   },
   {
     "Task": "Investigate the electron beam quality by conducting a beam emittance measurement using the DESY FLASH TESLA-type superconducting cryomodule.",
-    "tool": "Linear/Compact Particle Accelerator - DESY FLASH TESLA‑type superconducting cryomodule free‑electron laser accelerator"
+    "tool": "Linear/Compact Particle Accelerator"
   },
   {
     "Task": "Perform a test of the cryogenic cooling system efficiency by monitoring the superconducting state stability under varying operational conditions.",
-    "tool": "Linear/Compact Particle Accelerator - DESY FLASH TESLA‑type superconducting cryomodule free‑electron laser accelerator"
+    "tool": "Linear/Compact Particle Accelerator"
   },
   {
     "Task": "Evaluate the performance of a novel photocathode material by measuring its electron emission efficiency when integrated into the accelerator.",
-    "tool": "Linear/Compact Particle Accelerator - DESY FLASH TESLA‑type superconducting cryomodule free‑electron laser accelerator"
+    "tool": "Linear/Compact Particle Accelerator"
   },
   {
     "Task": "Conduct a wavelength tuning experiment of the free-electron laser output by adjusting the undulator settings and measuring the resulting spectral shifts.",
-    "tool": "Linear/Compact Particle Accelerator - DESY FLASH TESLA‑type superconducting cryomodule free‑electron laser accelerator"
+    "tool": "Linear/Compact Particle Accelerator"
   },
   {
     "Task": "Measure the outgassing rate of a new polymer material under vacuum conditions.",
-    "tool": "Specialized Vacuum System (TMPs, CDGs) - Edwards nEXT300D/T"
+    "tool": "Edwards nEXT300D/T"
   },
   {
     "Task": "Calibrate the vacuum system to optimize pressure levels for a thin-film deposition experiment.",
-    "tool": "Specialized Vacuum System (TMPs, CDGs) - Edwards nEXT300D/T"
+    "tool": "Edwards nEXT300D/T"
   },
   {
     "Task": "Perform a vacuum integrity test on a sealed chamber to ensure it can maintain low pressure for semiconductor manufacturing.",
-    "tool": "Specialized Vacuum System (TMPs, CDGs) - Edwards nEXT300D/T"
+    "tool": "Edwards nEXT300D/T"
   },
   {
     "Task": "Evacuate a test chamber to simulate the vacuum conditions found in space for a material durability study.",
-    "tool": "Specialized Vacuum System (TMPs, CDGs) - Edwards nEXT300D/T"
+    "tool": "Edwards nEXT300D/T"
   },
   {
     "Task": "Perform a gamma-ray spectroscopy analysis of a soil sample to determine the presence and concentration of radioactive isotopes.",
-    "tool": "Radiation detection system (HPGe, Scintillator, μRWell) - The Canberra liquid‑nitrogen‑cooled HPGe spectroscopy system"
+    "tool": "Radiation detection system"
   },
   {
     "Task": "Conduct a radiation survey of a storage facility using a scintillator to measure ambient gamma radiation levels and identify potential hotspots.",
-    "tool": "Radiation detection system (HPGe, Scintillator, μRWell) - The Canberra liquid‑nitrogen‑cooled HPGe spectroscopy system"
+    "tool": "Radiation detection system"
   },
   {
     "Task": "Evaluate the radiation shielding effectiveness of a new material by measuring the attenuation of gamma rays passing through a sample using the HPGe spectroscopy system.",
-    "tool": "Radiation detection system (HPGe, Scintillator, μRWell) - The Canberra liquid‑nitrogen‑cooled HPGe spectroscopy system"
+    "tool": "Radiation detection system"
   },
   {
     "Task": "Monitor and map the radiation levels in a laboratory environment using the μRWell detector to ensure compliance with safety standards.",
-    "tool": "Radiation detection system (HPGe, Scintillator, μRWell) - The Canberra liquid‑nitrogen‑cooled HPGe spectroscopy system"
+    "tool": "Radiation detection system"
   },
   {
     "Task": "Conduct a neutron activation analysis to determine the elemental composition of a rock sample from a geological survey.",
-    "tool": "Neutron emitter (Am-Be, DD/DT source) - Thermo Fisher Scientific MP 320"
+    "tool": "Neutron emitter"
   },
   {
     "Task": "Perform a calibration of neutron detectors by generating a known neutron flux using the neutron emitter.",
-    "tool": "Neutron emitter (Am-Be, DD/DT source) - Thermo Fisher Scientific MP 320"
+    "tool": "Neutron emitter"
   },
   {
     "Task": "Verify the shielding effectiveness of a new neutron radiation shielding material by measuring neutron attenuation.",
-    "tool": "Neutron emitter (Am-Be, DD/DT source) - Thermo Fisher Scientific MP 320"
+    "tool": "Neutron emitter"
   },
   {
     "Task": "Evaluate the integrity of a weld in a metal joint by conducting neutron radiography to identify internal defects.",
-    "tool": "Neutron emitter (Am-Be, DD/DT source) - Thermo Fisher Scientific MP 320"
+    "tool": "Neutron emitter"
   }
 ]
