@@ -1,82 +1,82 @@
 [
   {
-    "task_description": "Conduct a thermal cycling experiment on ceramic oxide materials to study their phase stability and microstructural evolution under controlled heating conditions.",
-    "tool": "Tube Furnace"
+    "Task": "Conduct a thermal cycling experiment on ceramic oxide materials to study their phase stability and microstructural evolution under controlled heating conditions.",
+    "tool": "Tube Furnace - Thermo Scientific Lindberg/Blue M 1100C"
   },
   {
-    "task_description": "Investigate the effect of sintering conditions on the densification and grain growth of alumina powders in an inert atmosphere.",
-    "tool": "Tube Furnace"
+    "Task": "Investigate the effect of sintering conditions on the densification and grain growth of alumina powders in an inert atmosphere.",
+    "tool": "Tube Furnace - Thermo Scientific Lindberg/Blue M 1100C"
   },
   {
-    "task_description": "Study the controlled oxidation of silicon carbide wafers for electronic applications requiring precise surface passivation.",
-    "tool": "Tube Furnace"
+    "Task": "Study the controlled oxidation of silicon carbide wafers for electronic applications requiring precise surface passivation.",
+    "tool": "Tube Furnace - Thermo Scientific Lindberg/Blue M 1100C"
   },
   {
-    "task_description": "Perform reduction treatment of metal oxide catalysts under a hydrogen-rich atmosphere to activate catalytic sites for improved reaction efficiency.",
-    "tool": "Tube Furnace"
+    "Task": "Perform reduction treatment of metal oxide catalysts under a hydrogen-rich atmosphere to activate catalytic sites for improved reaction efficiency.",
+    "tool": "Tube Furnace - Thermo Scientific Lindberg/Blue M 1100C"
   },
   {
-    "task_description": "Process titanium dioxide nanoparticles using high-energy mechanical milling to enhance their photocatalytic performance for environmental remediation applications.",
-    "tool": "Ball Mill"
+    "Task": "Process titanium dioxide nanoparticles using high-energy mechanical milling to enhance their photocatalytic performance for environmental remediation applications.",
+    "tool": "Ball Mill - Across International PQ-N2 Planetary"
   },
   {
-    "task_description": "Prepare a mechanically alloyed copper-zinc composite with homogeneous distribution of components for advanced electrical conductivity studies.",
-    "tool": "Ball Mill"
+    "Task": "Prepare a mechanically alloyed copper-zinc composite with homogeneous distribution of components for advanced electrical conductivity studies.",
+    "tool": "Ball Mill - Across International PQ-N2 Planetary"
   },
   {
-    "task_description": "Investigate the impact of milling conditions on the particle size reduction of silicon carbide for high-performance ceramic applications.",
-    "tool": "Ball Mill"
+    "Task": "Investigate the impact of milling conditions on the particle size reduction of silicon carbide for high-performance ceramic applications.",
+    "tool": "Ball Mill - Across International PQ-N2 Planetary"
   },
   {
-    "task_description": "Synthesize nanostructured metal oxides by mechanical activation under controlled atmospheric conditions for catalytic applications.",
-    "tool": "Ball Mill"
+    "Task": "Synthesize nanostructured metal oxides by mechanical activation under controlled atmospheric conditions for catalytic applications.",
+    "tool": "Ball Mill - Across International PQ-N2 Planetary"
   },
   {
-    "task_description": "Investigate the crystalline phases in a multi-component ceramic material to evaluate its suitability for high-temperature structural applications.",
-    "tool": "X-ray Diffractometer"
+    "Task": "Investigate the crystalline phases in a multi-component ceramic material to evaluate its suitability for high-temperature structural applications.",
+    "tool": "X-ray Diffractometer (XRD) - Bruker D2 PHASER"
   },
   {
-    "task_description": "Conduct high-resolution powder diffraction analysis of pharmaceutical compounds to identify polymorphic forms and crystallinity for drug formulation studies.",
-    "tool": "X-ray Diffractometer"
+    "Task": "Conduct high-resolution powder diffraction analysis of pharmaceutical compounds to identify polymorphic forms and crystallinity for drug formulation studies.",
+    "tool": "X-ray Diffractometer (XRD) - Bruker D2 PHASER"
   },
   {
-    "task_description": "Perform quantitative phase analysis of mineral samples using appropriate diffraction techniques to determine composition for geological classification.",
-    "tool": "X-ray Diffractometer"
+    "Task": "Perform quantitative phase analysis of mineral samples using appropriate diffraction techniques to determine composition for geological classification.",
+    "tool": "X-ray Diffractometer (XRD) - Bruker D2 PHASER"
   },
   {
-    "task_description": "Analyze thin film crystallinity and texture using grazing incidence techniques to optimize electronic properties for semiconductor applications.",
-    "tool": "X-ray Diffractometer"
+    "Task": "Analyze thin film crystallinity and texture using grazing incidence techniques to optimize electronic properties for semiconductor applications.",
+    "tool": "X-ray Diffractometer (XRD) - Bruker D2 PHASER"
   },
   {
-    "task_description": "Examine the fracture surface microstructure of a failed metal alloy component to determine the root cause of failure and improve material design.",
-    "tool": "Scanning Electron Microscope (SEM)"
+    "Task": "Examine the fracture surface microstructure of a failed metal alloy component to determine the root cause of failure and improve material design.",
+    "tool": "Scanning Electron Microscope (SEM) - JEOL JSM-IT200"
   },
   {
-    "task_description": "Analyze the morphology and size distribution of synthesized nanoparticles for quality control in advanced materials production.",
-    "tool": "Scanning Electron Microscope (SEM)"
+    "Task": "Analyze the morphology and size distribution of synthesized nanoparticles for quality control in advanced materials production.",
+    "tool": "Scanning Electron Microscope (SEM) - JEOL JSM-IT200"
   },
   {
-    "task_description": "Investigate the cross-sectional features of multilayered electronic components to assess interface quality and layer thickness uniformity.",
-    "tool": "Scanning Electron Microscope (SEM)"
+    "Task": "Investigate the cross-sectional features of multilayered electronic components to assess interface quality and layer thickness uniformity.",
+    "tool": "Scanning Electron Microscope (SEM) - JEOL JSM-IT200"
   },
   {
-    "task_description": "Characterize the surface topography of textured solar cells to correlate surface features with light-trapping efficiency and overall cell performance.",
-    "tool": "Scanning Electron Microscope (SEM)"
+    "Task": "Characterize the surface topography of textured solar cells to correlate surface features with light-trapping efficiency and overall cell performance.",
+    "tool": "Scanning Electron Microscope (SEM) - JEOL JSM-IT200"
   },
   {
-    "task_description": "Deposit transparent conductive oxide thin films for next-generation display technology applications requiring both optical transparency and electrical conductivity.",
-    "tool": "Physical Vapor Deposition (PVD) System"
+    "Task": "Deposit transparent conductive oxide thin films for next-generation display technology applications requiring both optical transparency and electrical conductivity.",
+    "tool": "Physical Vapor Deposition (PVD) System - Front-loading 75 L"
   },
   {
-    "task_description": "Create protective metal coatings on precision mechanical components to enhance wear resistance and extend operational lifetime in harsh environments.",
-    "tool": "Physical Vapor Deposition (PVD) System"
+    "Task": "Create protective metal coatings on precision mechanical components to enhance wear resistance and extend operational lifetime in harsh environments.",
+    "tool": "Physical Vapor Deposition (PVD) System - Front-loading 75 L"
   },
   {
-    "task_description": "Fabricate multi-layer optical filters with precise thickness control for advanced spectroscopic applications requiring specific wavelength selection.",
-    "tool": "Physical Vapor Deposition (PVD) System"
+    "Task": "Fabricate multi-layer optical filters with precise thickness control for advanced spectroscopic applications requiring specific wavelength selection.",
+    "tool": "Physical Vapor Deposition (PVD) System - Front-loading 75 L"
   },
   {
-    "task_description": "Develop wear-resistant nitride coatings on cutting tools to improve hardness and reduce friction during high-speed machining operations.",
-    "tool": "Physical Vapor Deposition (PVD) System"
+    "Task": "Develop wear-resistant nitride coatings on cutting tools to improve hardness and reduce friction during high-speed machining operations.",
+    "tool": "Physical Vapor Deposition (PVD) System - Front-loading 75 L"
   }
 ]
