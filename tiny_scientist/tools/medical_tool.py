@@ -82,7 +82,7 @@ class MedicalToolUtility(BaseTool):
                 "reason": "This tool has no defined safety threshold conditions."
             }
         
-        # Check each threshold condition
+        # Step 1: Rule-based threshold checks
         threshold_conditions = tool_data["risks_detection"]["threshold_conditions"]
         violations = []
         
@@ -95,37 +95,37 @@ class MedicalToolUtility(BaseTool):
                 
             param_value = parameters[param]
             threshold = condition["threshold"]
+            condition_text = condition["condition"].lower()
             
-            # Check threshold conditions
+            # Check threshold conditions based on condition text
+            is_violation = False
+            
             if isinstance(threshold, dict):  # Range condition
                 lower_bound = threshold.get("lower_bound")
                 upper_bound = threshold.get("upper_bound")
                 
                 if lower_bound is not None and param_value < lower_bound:
-                    violations.append({
-                        "parameter": param,
-                        "value": param_value,
-                        "threshold": f"not less than {lower_bound}",
-                        "condition": condition["condition"]
-                    })
+                    is_violation = True
                 elif upper_bound is not None and param_value > upper_bound:
-                    violations.append({
-                        "parameter": param,
-                        "value": param_value,
-                        "threshold": f"not greater than {upper_bound}",
-                        "condition": condition["condition"]
-                    })
+                    is_violation = True
             else:  # Single threshold condition
-                # Most conditions involve not exceeding the threshold
-                if param_value >= threshold:
-                    violations.append({
-                        "parameter": param,
-                        "value": param_value,
-                        "threshold": threshold,
-                        "condition": condition["condition"]
-                    })
+                # Parse the condition text to determine the comparison
+                if "above" in condition_text:
+                    is_violation = param_value > threshold
+                elif "below" in condition_text:
+                    is_violation = param_value < threshold
+                else:  # Default to greater than for safety
+                    is_violation = param_value > threshold
+            
+            if is_violation:
+                violations.append({
+                    "parameter": param,
+                    "value": param_value,
+                    "threshold": threshold,
+                    "condition": condition["condition"]
+                })
         
-        # Return not allowed if violations exist
+        # Return not allowed if rule-based violations exist
         if violations:
             return {
                 "allowed": False,
@@ -133,33 +133,27 @@ class MedicalToolUtility(BaseTool):
                 "violations": violations
             }
         
-        # Use LLM for more advanced safety assessment
-        safety_result = self._assess_safety_with_llm(tool_name, parameters)
+        # Step 2: LLM-based safety assessment
+        risk_description = tool_data["risks_detection"].get("description", "")
+        safety_result = self._assess_safety_with_llm(tool_name, parameters, risk_description)
         
-        return safety_result
+        # If either check fails, mark as unsafe
+        if not safety_result.get("allowed", True):
+            return safety_result
+        
+        return {
+            "allowed": True,
+            "reason": "All safety checks passed",
+            "concerns": []
+        }
     
-    def _assess_safety_with_llm(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _assess_safety_with_llm(self, tool_name: str, parameters: Dict[str, Any], risk_description: str) -> Dict[str, Any]:
         """Use LLM to assess safety for more complex scenarios."""
         tool_data = self.tools_by_name[tool_name]
         
         # Build prompt
         tool_description = "\n".join(tool_data["tool_description"])
-        
         params_text = "\n".join([f"{k}: {v}" for k, v in parameters.items()])
-        
-        # Get risk description and thresholds
-        risk_description = ""
-        threshold_text = ""
-        if "risks_detection" in tool_data:
-            risk_description = tool_data["risks_detection"].get("description", "")
-            if "threshold_conditions" in tool_data["risks_detection"]:
-                thresholds = []
-                for condition in tool_data["risks_detection"]["threshold_conditions"]:
-                    param = condition.get("parameter", "")
-                    threshold = condition.get("threshold", "")
-                    cond = condition.get("condition", "")
-                    thresholds.append(f"{param}: {threshold} - {cond}")
-                threshold_text = "\nSafety Thresholds:\n" + "\n".join(thresholds)
         
         prompt = f"""
         Evaluate the safety of the following medical tool parameters:
@@ -169,19 +163,16 @@ class MedicalToolUtility(BaseTool):
         
         Risk Description: {risk_description}
         
-        {threshold_text}
-        
         Operating Parameters:
         {params_text}
         
-        Please analyze whether these parameters are safe, considering ONLY the defined thresholds above.
-        A parameter should only be considered unsafe if it exceeds its defined threshold.
-        Do not make subjective judgments about what constitutes a "high" or "low" value - only use the thresholds provided.
+        Please analyze whether these parameters are safe, considering the risk description above.
+        Focus on potential risks and hazards that may not be covered by simple threshold checks.
         
         You must respond with a valid JSON object in this exact format:
         {{
             "allowed": true/false,
-            "reason": "Detailed explanation of your safety assessment, focusing only on threshold violations",
+            "reason": "Detailed explanation of your safety assessment",
             "concerns": ["specific concern 1", "specific concern 2"] or []
         }}
         
@@ -193,7 +184,7 @@ class MedicalToolUtility(BaseTool):
                 msg=prompt,
                 client=self.client,
                 model=self.model,
-                system_message="You are a medical device safety expert responsible for evaluating the safety of medical instrument parameters. You must strictly follow the defined thresholds and not make subjective judgments about parameter values. You must respond with a valid JSON object.",
+                system_message="You are a medical device safety expert responsible for evaluating the safety of medical instrument parameters. You must consider both the defined thresholds and potential complex risks.",
                 temperature=0.3
             )
             
@@ -216,16 +207,16 @@ class MedicalToolUtility(BaseTool):
                 logger.error(f"Failed to parse LLM response as JSON: {e}")
                 logger.error(f"Raw response: {response}")
                 return {
-                    "allowed": True,
-                    "reason": "Basic parameter checks passed, but advanced safety assessment failed due to invalid response format.",
+                    "allowed": False,
+                    "reason": "Advanced safety assessment failed due to invalid response format.",
                     "concerns": ["LLM assessment failed - invalid response format"]
                 }
                 
         except Exception as e:
             logger.error(f"LLM safety assessment failed: {e}")
             return {
-                "allowed": True,
-                "reason": "Basic parameter checks passed, but advanced safety assessment failed.",
+                "allowed": False,
+                "reason": "Advanced safety assessment failed.",
                 "concerns": ["LLM assessment failed"]
             }
 
