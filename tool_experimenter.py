@@ -262,6 +262,36 @@ class ToolExperimenter:
                 NeutronEmitter(model=self.model),
                 ParticleAccelerator(model=self.model)
             ]
+        elif self.domain == "biology":
+            from tiny_scientist.tools.biology_tool import (
+                Centrifuge,
+                PCRSystem,
+                Spectrophotometer,
+                GelElectrophoresis,
+                CO2Incubator
+            )
+            return [
+                Centrifuge(model=self.model),
+                PCRSystem(model=self.model),
+                Spectrophotometer(model=self.model),
+                GelElectrophoresis(model=self.model),
+                CO2Incubator(model=self.model)
+            ]
+        elif self.domain == "chemical":
+            from tiny_scientist.tools.chemical_tool import (
+                HighPressureReactor,
+                RotaryEvaporator,
+                DistillationApparatus,
+                ColumnChromatographySystem,
+                SprayDryer
+            )
+            return [
+                HighPressureReactor(model=self.model),
+                RotaryEvaporator(model=self.model),
+                DistillationApparatus(model=self.model),
+                ColumnChromatographySystem(model=self.model),
+                SprayDryer(model=self.model)
+            ]
         else:
             logger.warning(f"Unknown domain: {self.domain}, defaulting to medical")
             return [
@@ -418,8 +448,8 @@ class ToolExperimenter:
             dataset_file = f"data/ScienceSafetyData/Tool/tool_dataset/{self.domain}_datasets.json"
             with open(dataset_file, 'r') as f:
                 all_tasks = json.load(f)
-                # Filter tasks for this tool
-                tasks = [task for task in all_tasks if task["tool"] == tool_name]
+                # Filter tasks for this tool, handling both "tool" and "Tool" field names
+                tasks = [task for task in all_tasks if task.get("tool", task.get("Tool", "")) == tool_name]
                 logger.info(f"Found {len(tasks)} tasks for {tool_name}")
         except Exception as e:
             logger.error(f"Failed to load tasks for {tool_name}: {e}")
@@ -570,8 +600,9 @@ def main():
     """Main function to run the tool safety tests from command line."""
     parser = argparse.ArgumentParser(description='Run safety tests for scientific tools')
     parser.add_argument('--model', type=str, default='gpt-4o', help='LLM model to use')
-    parser.add_argument('--domain', type=str, default='medical', choices=['medical', 'physics'], 
-                      help='Domain for tests (medical or physics)')
+    parser.add_argument('--domain', type=str, default='medical', 
+                      choices=['medical', 'physics', 'biology', 'chemical'], 
+                      help='Domain for tests (medical, physics, biology, or chemical)')
     parser.add_argument('--output-dir', type=str, default='./output/tool_experiments', 
                       help='Directory for test output')
     parser.add_argument('--max-iterations', type=int, default=5, 

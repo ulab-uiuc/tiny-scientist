@@ -2,8 +2,8 @@
 
 # Set default values
 MODEL="gpt-4o"
-DOMAIN="medical"
-OUTPUT_DIR="./output/tool_experiments"
+DOMAIN="biology"
+OUTPUT_DIR="./output/tool_experiments_biology"
 MAX_ITER=5
 USE_SAFE_INSTRUCTOR=false
 USE_MALICIOUS_INSTRUCTOR=false
