@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from rich import print
@@ -205,6 +206,13 @@ class ReviewRewriter:
 
         print(f"[INFO] Starting Review-Rewrite process for provided text (length: {len(original_paper_text)} chars).")
 
+        # Check environment variable to decide on ethical review
+        perform_ethical_review_env = os.environ.get("PERFORM_ETHICAL_REVIEW", "true").lower()
+        should_perform_ethical_review = perform_ethical_review_env == "true"
+
+        print(f"[INFO] PERFORM_ETHICAL_REVIEW environment variable: '{perform_ethical_review_env}'")
+        print(f"[INFO] Should perform ethical review and rewrite: {should_perform_ethical_review}")
+
         all_initial_reviews_json = []
         current_academic_review_str = "{}"
         for i in range(self.num_reviews):
@@ -239,23 +247,37 @@ class ReviewRewriter:
                 print(f"[ERROR] Reflected academic review {i+1} was not valid JSON: {current_academic_review_str[:200]}...")
                 all_initial_reviews_json.append({"error": "Invalid JSON for reflected review"})
 
-        ethical_review_output = self._perform_ethical_review(original_paper_text)
-        rewritten_paper_text_str = self.rewrite_paper_based_on_ethical_feedback(original_paper_text, ethical_review_output)
+        ethical_review_output: Dict[str, Any]
+        rewritten_paper_text_str: str
+
+        if should_perform_ethical_review:
+            ethical_review_output = self._perform_ethical_review(original_paper_text)
+            rewritten_paper_text_str = self.rewrite_paper_based_on_ethical_feedback(original_paper_text, ethical_review_output)
+        else:
+            print("[INFO] Skipping ethical review and paper rewrite based on PERFORM_ETHICAL_REVIEW environment variable.")
+            ethical_review_output = {
+                "status": "Ethical review skipped due to PERFORM_ETHICAL_REVIEW setting.",
+                "EthicalReviewOverallSummary": "Ethical review was not performed for this paper."
+                # Add other keys expected by _write_final_meta_review with default/skipped values if necessary
+            }
+            rewritten_paper_text_str = original_paper_text # Use original paper if rewrite is skipped
 
         final_meta_report = self._write_final_meta_review(
-            paper_text=original_paper_text,
+            paper_text=original_paper_text, # Meta review should ideally see the *original* paper for context if rewrite is skipped
+                                            # Or pass rewritten_paper_text_str, which would be original if skipped.
             initial_reviews=all_initial_reviews_json,
-            ethical_review=ethical_review_output,
-            rewritten_paper_text=rewritten_paper_text_str
+            ethical_review=ethical_review_output, # This will be the skipped status or actual review
+            rewritten_paper_text=rewritten_paper_text_str 
         )
 
         print("[INFO] Review-Rewrite process completed.")
         return {
             "original_paper_text_provided_length": len(original_paper_text),
             "initial_academic_reviews": all_initial_reviews_json,
-            "ethical_review": ethical_review_output,
+            "ethical_review": ethical_review_output, # Will contain actual review or skipped status
             "rewritten_paper_content": rewritten_paper_text_str,
-            "final_meta_review": final_meta_report
+            "final_meta_review": final_meta_report,
+            "ethical_review_performed": should_perform_ethical_review # Add a flag indicating if it was done
         }
 
     def _get_related_works(self, query: str) -> str:
