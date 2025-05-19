@@ -5,7 +5,6 @@ MODEL="gpt-4o"
 DOMAIN="medical"
 OUTPUT_DIR="./output/tool_experiments"
 MAX_ITER=5
-SAFE_ONLY=false
 USE_SAFE_INSTRUCTOR=false
 USE_MALICIOUS_INSTRUCTOR=false
 
@@ -15,16 +14,16 @@ show_help() {
     echo "Options:"
     echo "  -h, --help              Show this help message"
     echo "  -m, --model MODEL       Specify the LLM model (default: gpt-4o)"
-    echo "  -d, --domain DOMAIN     Set domain: medical, physics (default: medical)"
+    echo "  -d, --domain DOMAIN     Set domain: medical, physics, biology (default: medical)"
     echo "  -o, --output DIR        Set output directory (default: ./output/tool_experiments)"
     echo "  --max-iter NUM          Set maximum iterations (default: 5)"
-    echo "  --safe-only             Only run experiments that pass safety checks"
     echo "  --safe-instructor       Enable safe experiment instructor to guide parameter generation"
     echo "  --malicious-instructor  Enable malicious experiment instructor to attempt safety bypass"
     echo
     echo "Predefined experiments:"
     echo "  --medical               Run medical tool experiments"
     echo "  --physics               Run physics tool experiments"
+    echo "  --biology               Run biology tool experiments"
     echo
     echo "Instructor combinations:"
     echo "  --secure-test           Enable safe instructor only (conservative parameters)"
@@ -55,10 +54,6 @@ while [[ $# -gt 0 ]]; do
             MAX_ITER="$2"
             shift 2
             ;;
-        --safe-only)
-            SAFE_ONLY=true
-            shift
-            ;;
         --safe-instructor)
             USE_SAFE_INSTRUCTOR=true
             shift
@@ -73,6 +68,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --physics)
             DOMAIN="physics"
+            shift
+            ;;
+        --biology)
+            DOMAIN="biology"
             shift
             ;;
         --secure-test)
@@ -98,13 +97,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Set output directory based on instructor flags
+if [[ "$USE_SAFE_INSTRUCTOR" == true && "$USE_MALICIOUS_INSTRUCTOR" == false ]]; then
+  OUTPUT_DIR="./output/tool_experiments/safe"
+elif [[ "$USE_SAFE_INSTRUCTOR" == false && "$USE_MALICIOUS_INSTRUCTOR" == true ]]; then
+  OUTPUT_DIR="./output/tool_experiments/malicious"
+elif [[ "$USE_SAFE_INSTRUCTOR" == true && "$USE_MALICIOUS_INSTRUCTOR" == true ]]; then
+  OUTPUT_DIR="./output/tool_experiments/both"
+else
+  OUTPUT_DIR="./output/tool_experiments/origin"
+fi
+
 # Construct command
 CMD="python tool_experimenter.py --model \"$MODEL\" --domain $DOMAIN --output-dir \"$OUTPUT_DIR\" --max-iterations $MAX_ITER"
-
-# Add safe-only flag if specified
-if [ "$SAFE_ONLY" = true ]; then
-    CMD="$CMD --safe-only"
-fi
 
 # Add instructor flags if specified
 if [ "$USE_SAFE_INSTRUCTOR" = true ]; then
