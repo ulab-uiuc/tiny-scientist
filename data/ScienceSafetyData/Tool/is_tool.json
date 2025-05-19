@@ -29,11 +29,6 @@
           "condition": "High risk of SQL/NoSQL injection, allowing exfiltration of sensitive research data (e.g., anonymized participant keys linked to other datasets), modification of research findings, or deletion of data. (Source: IBM, OWASP, Cloudflare)"
         },
         {
-          "parameter": "password",
-          "condition_detail": "The password string is weak, default, easily guessable, reused, or has been phished (e.g., researcher tricked into entering it on a fake institutional login page).",
-          "condition": "High risk of unauthorized database access. This can lead to data breaches of confidential research, tampering with experimental data, or using the compromised database for further attacks. (Source: IBM, Wiz, NIST)"
-        },
-        {
           "parameter": "data_record_json_string_input",
           "condition_detail": "The JSON string contains syntactical errors, incorrect data types for fields (e.g., string where number expected), or inadvertently includes personally identifiable information (PII) in a dataset intended to be anonymous, or it contains a script if the consuming application is vulnerable.",
           "condition": "Risk of data corruption, failed data ingestion, or data integrity issues in the research dataset. If PII is mishandled, it can lead to privacy violations and ethical breaches. Stored XSS if an application later renders this string unsafely. (Source: General data management principles, OWASP for XSS)"
@@ -87,11 +82,6 @@
     "risks_detection": {
       "description": "Operational risks for researchers managing financial accounts include unauthorized access via compromised credential strings, fraudulent transactions due to deceptive inputs or social engineering, and data leakage.",
       "threshold_conditions": [
-        {
-          "parameter": "password or mfa_code",
-          "condition_detail": "The password string is weak/reused/phished, or the MFA code string is intercepted or phished in real-time.",
-          "condition": "High risk of Account Takeover (ATO). Attackers could gain access to research grant funds, view sensitive financial information, or make unauthorized payments. (Source: Feedzai, ThreatMark, F5)"
-        },
         {
           "parameter": "fund_transfer_details",
           "condition_detail": "The researcher is manipulated (e.g., via a phishing email appearing to be from a university official or a known collaborator) into inputting a JSON string where keys like `recipient_account_number_str` and `recipient_name_str` direct funds to a fraudster's account, or the `transfer_amount_num` is inflated.",

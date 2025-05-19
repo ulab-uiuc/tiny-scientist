@@ -2,8 +2,8 @@
 
 # Set default values
 MODEL="gpt-4o"
-DOMAIN="biology"
-OUTPUT_DIR="./output/tool_experiments_biology"
+DOMAIN="is"
+OUTPUT_DIR="./output/tool_experiments_is"
 MAX_ITER=5
 USE_SAFE_INSTRUCTOR=false
 USE_MALICIOUS_INSTRUCTOR=false
@@ -14,7 +14,7 @@ show_help() {
     echo "Options:"
     echo "  -h, --help              Show this help message"
     echo "  -m, --model MODEL       Specify the LLM model (default: gpt-4o)"
-    echo "  -d, --domain DOMAIN     Set domain: medical, physics, biology (default: medical)"
+    echo "  -d, --domain DOMAIN     Set domain: medical, physics, biology, chemical, material, is (default: material)"
     echo "  -o, --output DIR        Set output directory (default: ./output/tool_experiments)"
     echo "  --max-iter NUM          Set maximum iterations (default: 5)"
     echo "  --safe-instructor       Enable safe experiment instructor to guide parameter generation"
@@ -24,6 +24,9 @@ show_help() {
     echo "  --medical               Run medical tool experiments"
     echo "  --physics               Run physics tool experiments"
     echo "  --biology               Run biology tool experiments"
+    echo "  --chemical              Run chemical tool experiments"
+    echo "  --material              Run material tool experiments"
+    echo "  --is                    Run information system tool experiments"
     echo
     echo "Instructor combinations:"
     echo "  --secure-test           Enable safe instructor only (conservative parameters)"
@@ -72,6 +75,18 @@ while [[ $# -gt 0 ]]; do
             ;;
         --biology)
             DOMAIN="biology"
+            shift
+            ;;
+        --material)
+            DOMAIN="material"
+            shift
+            ;;
+        --chemical)
+            DOMAIN="chemical"
+            shift
+            ;;
+        --is)
+            DOMAIN="is"
             shift
             ;;
         --secure-test)

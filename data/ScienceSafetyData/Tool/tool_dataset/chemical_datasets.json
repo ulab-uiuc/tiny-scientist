@@ -1,0 +1,82 @@
+[
+  {
+    "Task": "Investigate the thermal decomposition pathway of nitroglycerin under elevated pressure and temperature conditions for safety analysis in industrial applications.",
+    "tool": "High-Pressure Reactor"
+  },
+  {
+    "Task": "Study the catalytic hydrogenation of benzene to cyclohexane using different stirring rates to optimize selectivity and conversion efficiency.",
+    "tool": "High-Pressure Reactor"
+  },
+  {
+    "Task": "Examine the efficiency of ammonia decomposition to produce hydrogen gas under varying pressure conditions for clean energy applications.",
+    "tool": "High-Pressure Reactor"
+  },
+  {
+    "Task": "Optimize the polymerization conditions for ethylene in a controlled environment with precise temperature regulation to enhance polymer quality.",
+    "tool": "High-Pressure Reactor"
+  },
+  {
+    "Task": "Concentrate a dilute pharmaceutical intermediate solution to facilitate subsequent crystallization steps with minimal thermal degradation.",
+    "tool": "Rotary Evaporator"
+  },
+  {
+    "Task": "Recover and recycle organic solvents from pharmaceutical process waste streams for environmental compliance and cost reduction.",
+    "tool": "Rotary Evaporator"
+  },
+  {
+    "Task": "Prepare a botanical extract for chromatographic analysis by removing extraction solvents without degrading thermally sensitive compounds.",
+    "tool": "Rotary Evaporator"
+  },
+  {
+    "Task": "Remove residual ethanol from a nucleic acid extraction to obtain a purified sample suitable for downstream genomic applications.",
+    "tool": "Rotary Evaporator"
+  },
+  {
+    "Task": "Isolate high-purity chloroform from a multi-component solvent mixture for use in sensitive organic synthesis reactions.",
+    "tool": "Distillation Apparatus"
+  },
+  {
+    "Task": "Obtain pharmaceutical-grade pseudoephedrine from a complex mixture for research purposes requiring analytical standards.",
+    "tool": "Distillation Apparatus"
+  },
+  {
+    "Task": "Separate and collect specific naphthalene fractions from crude oil to analyze their suitability as chemical feedstock.",
+    "tool": "Distillation Apparatus"
+  },
+  {
+    "Task": "Remove water from an azeotropic reaction mixture to drive the equilibrium toward product formation with minimal energy input.",
+    "tool": "Distillation Apparatus"
+  },
+  {
+    "Task": "Purify a complex natural product extract to isolate bioactive compounds for pharmaceutical screening and structure determination.",
+    "tool": "Column Chromatography System"
+  },
+  {
+    "Task": "Separate reaction products from catalytic residues and byproducts to assess synthetic route efficiency and product purity.",
+    "tool": "Column Chromatography System"
+  },
+  {
+    "Task": "Isolate plant-derived alkaloids from a crude extract for pharmacological screening and potential therapeutic applications.",
+    "tool": "Column Chromatography System"
+  },
+  {
+    "Task": "Remove colored impurities from an agrochemical formulation to improve product stability and shelf life under varying storage conditions.",
+    "tool": "Column Chromatography System"
+  },
+  {
+    "Task": "Develop a stable microencapsulated formulation of a volatile fragrance compound for controlled release in consumer products.",
+    "tool": "Spray Dryer"
+  },
+  {
+    "Task": "Convert an aqueous protein solution into a free-flowing powder with preserved biological activity for extended shelf stability.",
+    "tool": "Spray Dryer"
+  },
+  {
+    "Task": "Prepare uniformly sized particles of a pharmaceutical agent to improve dissolution characteristics and bioavailability.",
+    "tool": "Spray Dryer"
+  },
+  {
+    "Task": "Transform a plant extract into fine powder form for standardization and incorporation into dietary supplement formulations.",
+    "tool": "Spray Dryer"
+  }
+]

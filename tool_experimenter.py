@@ -20,6 +20,20 @@ from tiny_scientist.tools.physical_tool import (
     NeutronEmitter,
     ParticleAccelerator
 )
+from tiny_scientist.tools.material_tool import (
+    TubeFurnace,
+    BallMill,
+    XRayDiffractometer,
+    ScanningElectronMicroscope,
+    PhysicalVaporDeposition
+)
+from tiny_scientist.tools.is_tool import (
+    Database,
+    OnlineBanking,
+    SocialMediaPlatforms,
+    EmailServices,
+    RoutersAndIoTDevices
+)
 from tiny_scientist.utils.llm import create_client, get_response_from_llm, extract_json_between_markers
 
 # Configure logging
@@ -248,19 +262,27 @@ class ToolExperimenter:
         """Load tools for the specified domain."""
         if self.domain == "medical":
             return [
-                MicroinjectionSystem(model=self.model),
-                FocusedUltrasoundAblationSystem(model=self.model),
-                PCRThermocycler(model=self.model),
-                AerosolGenerator(model=self.model),
-                XrayIrradiator(model=self.model)
+                MicroinjectionSystem(self.model),
+                FocusedUltrasoundAblationSystem(self.model),
+                PCRThermocycler(self.model),
+                AerosolGenerator(self.model),
+                XrayIrradiator(self.model)
             ]
         elif self.domain == "physics":
             return [
-                HighPowerPulsedLaser(model=self.model),
-                RadiationDetectionSystem(model=self.model),
-                VacuumSystem(model=self.model),
-                NeutronEmitter(model=self.model),
-                ParticleAccelerator(model=self.model)
+                HighPowerPulsedLaser(self.model),
+                RadiationDetectionSystem(self.model),
+                VacuumSystem(self.model),
+                NeutronEmitter(self.model),
+                ParticleAccelerator(self.model)
+            ]
+        elif self.domain == "material":
+            return [
+                TubeFurnace(self.model),
+                BallMill(self.model),
+                XRayDiffractometer(self.model),
+                ScanningElectronMicroscope(self.model),
+                PhysicalVaporDeposition(self.model)
             ]
         elif self.domain == "biology":
             from tiny_scientist.tools.biology_tool import (
@@ -292,14 +314,22 @@ class ToolExperimenter:
                 ColumnChromatographySystem(model=self.model),
                 SprayDryer(model=self.model)
             ]
+        elif self.domain == "is":
+            return [
+                Database(model=self.model),
+                OnlineBanking(model=self.model),
+                SocialMediaPlatforms(model=self.model),
+                EmailServices(model=self.model),
+                RoutersAndIoTDevices(model=self.model)
+            ]
         else:
             logger.warning(f"Unknown domain: {self.domain}, defaulting to medical")
             return [
-                MicroinjectionSystem(model=self.model),
-                FocusedUltrasoundAblationSystem(model=self.model),
-                PCRThermocycler(model=self.model),
-                AerosolGenerator(model=self.model),
-                XrayIrradiator(model=self.model)
+                MicroinjectionSystem(self.model),
+                FocusedUltrasoundAblationSystem(self.model),
+                PCRThermocycler(self.model),
+                AerosolGenerator(self.model),
+                XrayIrradiator(self.model)
             ]
     
     def _load_parameter_definitions(self, tool_name: str) -> Dict[str, Dict[str, Any]]:
@@ -450,6 +480,8 @@ class ToolExperimenter:
                 all_tasks = json.load(f)
                 # Filter tasks for this tool, handling both "tool" and "Tool" field names
                 tasks = [task for task in all_tasks if task.get("tool", task.get("Tool", "")) == tool_name]
+                # Filter tasks for this tool, handling both "tool" and "Tool" field names
+                tasks = [task for task in all_tasks if task.get("tool", task.get("Tool", "")) == tool_name]
                 logger.info(f"Found {len(tasks)} tasks for {tool_name}")
         except Exception as e:
             logger.error(f"Failed to load tasks for {tool_name}: {e}")
@@ -597,20 +629,19 @@ class ToolExperimenter:
 
 
 def main():
-    """Main function to run the tool safety tests from command line."""
-    parser = argparse.ArgumentParser(description='Run safety tests for scientific tools')
-    parser.add_argument('--model', type=str, default='gpt-4o', help='LLM model to use')
-    parser.add_argument('--domain', type=str, default='medical', 
-                      choices=['medical', 'physics', 'biology', 'chemical'], 
-                      help='Domain for tests (medical, physics, biology, or chemical)')
-    parser.add_argument('--output-dir', type=str, default='./output/tool_experiments', 
-                      help='Directory for test output')
-    parser.add_argument('--max-iterations', type=int, default=5, 
-                      help='Maximum number of parameter sets to test per tool')
-    parser.add_argument('--use-safe-instructor', action='store_true',
-                      help='Use the safe experiment instructor to guide parameter generation')
-    parser.add_argument('--use-malicious-instructor', action='store_true',
-                      help='Use the malicious experiment instructor to guide parameter generation')
+    """Main function to run the tool experimenter."""
+    parser = argparse.ArgumentParser(description="Run tool safety experiments")
+    parser.add_argument("--model", type=str, default="gpt-4o", help="LLM model to use")
+    parser.add_argument("--domain", type=str, choices=["medical", "physics", "biology", "material", "chemical", "is"], 
+                      default="medical", help="Domain for experiments")
+    parser.add_argument("--output-dir", type=str, default="./output/tool_experiments",
+                      help="Directory to store experiment results")
+    parser.add_argument("--max-iterations", type=int, default=5,
+                      help="Maximum number of parameter sets to test per tool")
+    parser.add_argument("--use-safe-instructor", action="store_true",
+                      help="Use safe experiment instructor")
+    parser.add_argument("--use-malicious-instructor", action="store_true",
+                      help="Use malicious experiment instructor")
     
     args = parser.parse_args()
     

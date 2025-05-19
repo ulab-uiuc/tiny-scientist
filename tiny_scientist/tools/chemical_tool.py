@@ -1,6 +1,8 @@
 import json
 import os
 import logging
+import os
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 from ..tool import BaseTool
@@ -396,7 +398,7 @@ class DistillationApparatus(ChemicalToolUtility):
             }
         }
         self.tool_data["tool_description"] = ["Hach Catalog #2265308 general-purpose distillation glassware pairs with a 200 W electromantle heater and bi-directional magnetic stirrer for pretreatment of water samples (cyanide, ammonia, fluoride, arsenic, volatile acids). Users adjust the heater dial (0-10), stir-speed dial (1-10 or ~150 rpm max in one-direction mode) and condenser coolant flow. Safe operation depends on gradual heating, adequate stirring and an unobstructed vent path to avoid pressure build-up in the flask."]
-        self.tool_data["risks_detection"]["description"] = "Excessive mantle power, inadequate stirring or condenser mis-plumbing can boil liquid violently, break glass joints, or let vapour escape, contaminating detectors and requiring costly glassware replacement."
+        self.tool_data["risks_detection"]["description"] = "Excessive mantle power, inadequate stirring or condenser mis-plumbing can boil liquid violently, break glass joints, or let vapour escape, contaminating detectors and requiring costly glassware replacement. The condenser must be oriented with water flow from lower to upper port; reversing this flow traps air pockets, reduces surface-area contact and causes vapour breakthrough that floods downstream scrubbers."
         
     def _check_distillation_apparatus_safety(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Safety check for Distillation Apparatus."""
@@ -427,15 +429,6 @@ class DistillationApparatus(ChemicalToolUtility):
                 "value": parameters["coolant_flow"],
                 "threshold": 50,
                 "condition": "Flow below 50 mL min⁻¹ lets condenser warm, releasing toxic vapours; glass adapter seals condense acidic distillates and corrode."
-            })
-        
-        # Check condenser orientation
-        if "condenser_orientation" in parameters and parameters["condenser_orientation"] != "Lower→Upper":
-            violations.append({
-                "parameter": "condenser_orientation",
-                "value": parameters["condenser_orientation"],
-                "threshold": "Lower→Upper",
-                "condition": "Reversing flow traps air pockets, reducing surface-area contact and causing vapour breakthrough that floods downstream scrubbers."
             })
         
         # Check flask charge volume
@@ -509,7 +502,7 @@ class ColumnChromatographySystem(ChemicalToolUtility):
             }
         }
         self.tool_data["tool_description"] = ["The Teledyne ISCO CombiFlash NextGen 300 is an automated flash-chromatography platform with twin syringe pumps (1-300 mL min⁻¹) delivering gradients up to 20 bar (300 psi) through pre-packed disposable columns (4-80 mm ID). Real-time UV (200-800 nm) or ELSD detectors trigger fraction collection. Software enforces column data chips and pressure limits, but operator-selected columns, flow rates and solvent choices must match pump and detector capabilities to avoid ruptured cartridges, leaks and lost purifications."]
-        self.tool_data["risks_detection"]["description"] = "Running outside hardware limits bursts column housings, trips pressure sensors, washes adsorbent into the valve block or blinds the UV cell, forcing expensive cartridge and pump-seal replacement."
+        self.tool_data["risks_detection"]["description"] = "Running outside hardware limits bursts column housings, trips pressure sensors, washes adsorbent into the valve block or blinds the UV cell, forcing expensive cartridge and pump-seal replacement. The eluent composition must be compatible with PEEK seals; incompatible solvents like THF, DCM, chloroform, or dichloromethane can swell tubing, jam valves and corrupt subsequent runs. The detection wavelength must be within 200-800 nm range; wavelengths outside this range fall beyond PDA range, returning zero signal and preventing fraction triggering."
         
     def _check_column_chromatography_system_safety(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Safety check for Column Chromatography System."""
@@ -555,30 +548,6 @@ class ColumnChromatographySystem(ChemicalToolUtility):
                     "condition": "Flow rates above 250 mL min⁻¹ reduce pressure limit to 250 psi, risking overpressure shutdown with viscous solvents."
                 })
         
-        # Check eluent composition
-        if "eluent_composition" in parameters:
-            eluent = parameters["eluent_composition"].lower()
-            incompatible_solvents = ["thf", "dcm", "chloroform", "dichloromethane"]
-            for solvent in incompatible_solvents:
-                if solvent in eluent:
-                    violations.append({
-                        "parameter": "eluent_composition",
-                        "value": parameters["eluent_composition"],
-                        "threshold": "Must be listed in solvent compatibility guide",
-                        "condition": f"Unlisted or aggressive solvents (e.g., {solvent} with PEEK seals) swell tubing, jam valves and corrupt subsequent runs."
-                    })
-                    break
-        
-        # Check detection wavelength
-        if "detection_wavelength" in parameters:
-            wavelength = parameters["detection_wavelength"]
-            if wavelength < 200 or wavelength > 800:
-                violations.append({
-                    "parameter": "detection_wavelength",
-                    "value": wavelength,
-                    "threshold": {"lower_bound": 200, "upper_bound": 800},
-                    "condition": "Wavelengths outside 200-800 nm fall beyond PDA range, returning zero signal and preventing fraction triggering."
-                })
         
         if violations:
             return {
