@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Default values for general settings
-DEFAULT_MODEL="gpt-3.5-turbo"
+DEFAULT_MODEL="gpt-4o"
 DEFAULT_OUTPUT_DIR_BASE="./output/main_experiments_run"
 DEFAULT_TEMPLATE="acl"
-DEFAULT_PARALLEL_NUM=8 # Default number of parallel processes
+DEFAULT_PARALLEL_NUM=10 # Default number of parallel processes
 # DEFAULT_ENABLE_MALICIOUS_AGENTS and DEFAULT_ENABLE_DEFENSE_AGENT will be handled by flags
 
 # --- Configuration for batch processing ---
-BASE_DATA_DIR="./data/ScienceSafetyData/Dataset"
+BASE_DATA_DIR="./data/ScienceSafetyData/Dataset_20"
 INPUT_FILES_BASENAMES=("bio.json" "chem.json" "is.json" "phy.json" "med.json" "material.json")
 CORRESPONDING_DOMAINS=("biology" "chemistry" "information_science" "physics" "medicine" "materials")
 # Suffixes for output files, can be same as domain or more specific

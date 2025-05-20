@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+output_0519/
 output_0518/
 # C extensions
 *.so

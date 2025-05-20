@@ -21,7 +21,7 @@ class ReviewRewriter:
         tools: List[BaseTool],
         num_reviews: int = 1,
         num_reflections: int = 1,
-        temperature: float = 0.75,
+        temperature: float = 0,
         prompt_template_dir: Optional[str] = None,
     ):
         self.tools = tools
