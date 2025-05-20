@@ -184,9 +184,9 @@ class TinyScientist:
         print(f"✅ Mini conceptual paper text generated ({len(full_text_content)} characters).")
         return full_text_content
 
-    def review(self, pdf_path: str) -> Dict[str, Any]:
+    def review(self, paper_text: str) -> Dict[str, Any]:
         print("🔍 Reviewing paper...")
-        review = self.reviewer.run(pdf_path=pdf_path)
+        review = self.reviewer.run(paper_text=paper_text)
         print(review)
         print("✅ Review complete.")
         return review
