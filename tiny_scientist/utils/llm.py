@@ -323,12 +323,11 @@ def get_response_from_llm(
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     elif any(
-        model.startswith(prefix)
-        for prefix in ["ollama/", "lm_studio/", "openai/"]
+        model.startswith(prefix) for prefix in ["ollama/", "lm_studio/", "openai/"]
     ):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
-            model=model.split('/')[1],
+            model=model.split("/")[1],
             messages=[
                 {"role": "system", "content": system_message},
                 *new_msg_history,
@@ -655,17 +654,17 @@ def create_client(
         client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
         return client, "meta-llama/llama-3.1-405b-instruct"
 
-    elif model.startswith('ollama'):
+    elif model.startswith("ollama"):
         base_url = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
-        client = openai.OpenAI(api_key='ollama', base_url=f"{base_url}/v1")
+        client = openai.OpenAI(api_key="ollama", base_url=f"{base_url}/v1")
         return client, model
 
-    elif model.startswith('lm_studio'):
+    elif model.startswith("lm_studio"):
         base_url = os.environ.get("LM_STUDIO_API_BASE", "http://localhost:1234/v1")
-        client = openai.OpenAI(api_key='lm_studio', base_url=base_url)
+        client = openai.OpenAI(api_key="lm_studio", base_url=base_url)
         return client, model
 
-    elif model.startswith('openai'):
+    elif model.startswith("openai"):
         api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
         if not api_key:
             raise ValueError(
