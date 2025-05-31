@@ -129,7 +129,6 @@ class Thinker:
         original_idea: Dict[str, Any],
         modifications: List[Dict[str, Any]],
         behind_idea: Optional[Dict[str, Any]] = None,
-        all_ideas: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Modify an idea based on score adjustments.
@@ -178,24 +177,6 @@ class Thinker:
             print("Failed to extract modified idea")
             return original_idea
 
-        # Apply metadata from original idea
-        modified_idea["id"] = f"node-{len(all_ideas) + 1}" if all_ideas else "node-1"
-        modified_idea["parent_id"] = original_idea.get("id", "unknown")
-        modified_idea["is_modified"] = True
-
-        # Re-rank the modified idea along with all other ideas
-        if all_ideas:
-            ranking_ideas = [
-                idea for idea in all_ideas if idea.get("id") != original_idea.get("id")
-            ]
-            ranking_ideas.append(modified_idea)
-
-            ranked_ideas = self.rank(ranking_ideas, self.intent)
-
-            for idea in ranked_ideas:
-                if idea.get("id") == modified_idea.get("id"):
-                    return idea
-
         return modified_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -228,33 +209,6 @@ class Thinker:
         if not merged_idea:
             print("Failed to extract merged idea")
             return None
-
-        # Add metadata about the merged sources
-        merged_idea["id"] = f"node-{len(all_ideas) + 1}" if all_ideas else "node-1"
-        merged_idea["parent_ids"] = [
-            idea_a.get("id", "unknown"),
-            idea_b.get("id", "unknown"),
-        ]
-        merged_idea["is_merged"] = True
-
-        # Re-rank the merged idea along with all other ideas
-        if all_ideas:
-            # Create a list with all ideas except the ones being merged, plus the new merged idea
-            ranking_ideas = [
-                idea
-                for idea in all_ideas
-                if idea.get("id") != idea_a.get("id")
-                and idea.get("id") != idea_b.get("id")
-            ]
-            ranking_ideas.append(merged_idea)
-
-            # Rank all ideas together
-            ranked_ideas = self.rank(ranking_ideas, self.intent)
-
-            # Find and return the merged idea from the ranked list
-            for idea in ranked_ideas:
-                if idea.get("id") == merged_idea.get("id"):
-                    return idea
 
         # If no other ideas provided or ranking failed, return just the merged idea
         return merged_idea
