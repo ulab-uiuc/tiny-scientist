@@ -1,6 +1,7 @@
 import os
+from typing import Any, Dict, Optional, Union
 
-from flask import Flask, jsonify, request, session
+from flask import Flask, Response, jsonify, request, session
 from flask_cors import CORS
 
 from tiny_scientist.thinker import Thinker
@@ -10,14 +11,17 @@ app.secret_key = "your-secret-key-here"
 CORS(app, supports_credentials=True)
 
 
-thinker = None
+thinker: Optional[Thinker] = None
 
 
 # Initialize the Thinker
 @app.route("/api/configure", methods=["POST"])
-def configure():
+def configure() -> Union[Response, tuple[Response, int]]:
     """Configure model and API key"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     model = data.get("model")
     api_key = data.get("api_key")
 
@@ -58,9 +62,15 @@ def configure():
 
 
 @app.route("/api/generate-initial", methods=["POST"])
-def generate_initial():
+def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     intent = data.get("intent")
     num_ideas = data.get("num_ideas", 3)
 
@@ -71,7 +81,11 @@ def generate_initial():
     response = {
         "ideas": [
             {
-                "title": idea.get("Title", idea.get("Name", "Untitled")),
+                "title": (
+                    idea.get("Title", idea.get("Name", "Untitled"))
+                    if isinstance(idea, dict)
+                    else "Untitled"
+                ),
                 "content": format_idea_content(idea),
             }
             for idea in ideas
@@ -82,9 +96,15 @@ def generate_initial():
 
 
 @app.route("/api/generate-children", methods=["POST"])
-def generate_children():
+def generate_children() -> Union[Response, tuple[Response, int]]:
     """Generate child ideas (generateChildNodes)"""
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     parent_content = data.get("parent_content")
     context = data.get("context", "")
 
@@ -96,7 +116,11 @@ def generate_children():
     response = {
         "ideas": [
             {
-                "title": idea.get("Title", idea.get("Name", "Untitled")),
+                "title": (
+                    idea.get("Title", idea.get("Name", "Untitled"))
+                    if isinstance(idea, dict)
+                    else "Untitled"
+                ),
                 "content": format_idea_content(idea),
             }
             for idea in ideas
@@ -107,9 +131,15 @@ def generate_children():
 
 
 @app.route("/api/modify", methods=["POST"])
-def modify_idea():
+def modify_idea() -> Union[Response, tuple[Response, int]]:
     """Modify an idea (modifyHypothesisBasedOnModifications)"""
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     original_idea = data.get("original_idea")
     modifications = data.get("modifications")
     behind_idea = data.get("behind_idea")
@@ -132,16 +162,26 @@ def modify_idea():
     )
     # Return in the format expected by TreePlot
     response = {
-        "title": modified_idea.get("Title", modified_idea.get("Name", "Untitled")),
+        "title": (
+            modified_idea.get("Title", modified_idea.get("Name", "Untitled"))
+            if modified_idea
+            else "Untitled"
+        ),
         "content": format_idea_content(modified_idea),
     }
     return jsonify(response)
 
 
 @app.route("/api/merge", methods=["POST"])
-def merge_ideas():
+def merge_ideas() -> Union[Response, tuple[Response, int]]:
     """Merge two ideas (mergeHypotheses)"""
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     idea_a = data.get("idea_a")
     idea_b = data.get("idea_b")
     # Convert TreePlot format to Thinker format
@@ -152,7 +192,11 @@ def merge_ideas():
 
     # Return in the format expected by TreePlot
     response = {
-        "title": merged_idea.get("Title", merged_idea.get("Name", "Untitled")),
+        "title": (
+            merged_idea.get("Title", merged_idea.get("Name", "Untitled"))
+            if merged_idea
+            else "Untitled"
+        ),
         "content": format_idea_content(merged_idea),
     }
 
@@ -160,9 +204,15 @@ def merge_ideas():
 
 
 @app.route("/api/evaluate", methods=["POST"])
-def evaluate_ideas():
+def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     """Evaluate ideas (evaluateHypotheses)"""
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     ideas = data.get("ideas")
     intent = data.get("intent")
 
@@ -191,8 +241,11 @@ def evaluate_ideas():
     return jsonify(response)
 
 
-def format_idea_content(idea):
+def format_idea_content(idea: Any) -> str:
     """Format Thinker idea into content for TreePlot - with standardized section headers"""
+    if not isinstance(idea, dict):
+        return "No content available"
+
     # Get content and ensure no trailing ** in any of the content sections
     problem = idea.get("Problem", "").strip().rstrip("*")
     importance = idea.get("Importance", "").strip().rstrip("*")
@@ -209,8 +262,11 @@ def format_idea_content(idea):
     )
 
 
-def convert_to_thinker_format(treeplot_idea):
+def convert_to_thinker_format(treeplot_idea: Any) -> Dict[str, Any]:
     """Convert TreePlot idea format to Thinker format"""
+    if not isinstance(treeplot_idea, dict):
+        return {}
+
     # Extract sections from content if possible
     content = treeplot_idea.get("content", "")
 
@@ -256,7 +312,7 @@ def convert_to_thinker_format(treeplot_idea):
     return thinker_idea
 
 
-def extract_section_content(section):
+def extract_section_content(section: str) -> str:
     """Helper function to extract content after section heading regardless of format"""
     # Check if section contains a colon (indicating a header)
     if ":" in section:
