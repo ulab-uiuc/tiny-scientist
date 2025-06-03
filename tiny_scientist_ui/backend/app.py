@@ -15,7 +15,7 @@ thinker: Optional[Thinker] = None
 
 
 # Initialize the Thinker
-@app.route("/api/configure", methods=["POST"])
+@app.route("/api/configure", methods=["POST"])  # type: ignore[misc]
 def configure() -> Union[Response, tuple[Response, int]]:
     """Configure model and API key"""
     data = request.json
@@ -61,7 +61,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
     return jsonify({"status": "configured", "model": model})
 
 
-@app.route("/api/generate-initial", methods=["POST"])
+@app.route("/api/generate-initial", methods=["POST"])  # type: ignore[misc]
 def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
     if thinker is None:
@@ -95,7 +95,7 @@ def generate_initial() -> Union[Response, tuple[Response, int]]:
     return jsonify(response)
 
 
-@app.route("/api/generate-children", methods=["POST"])
+@app.route("/api/generate-children", methods=["POST"])  # type: ignore[misc]
 def generate_children() -> Union[Response, tuple[Response, int]]:
     """Generate child ideas (generateChildNodes)"""
     if thinker is None:
@@ -130,7 +130,7 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
     return jsonify(response)
 
 
-@app.route("/api/modify", methods=["POST"])
+@app.route("/api/modify", methods=["POST"])  # type: ignore[misc]
 def modify_idea() -> Union[Response, tuple[Response, int]]:
     """Modify an idea (modifyHypothesisBasedOnModifications)"""
     if thinker is None:
@@ -172,7 +172,7 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
     return jsonify(response)
 
 
-@app.route("/api/merge", methods=["POST"])
+@app.route("/api/merge", methods=["POST"])  # type: ignore[misc]
 def merge_ideas() -> Union[Response, tuple[Response, int]]:
     """Merge two ideas (mergeHypotheses)"""
     if thinker is None:
@@ -203,7 +203,7 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
     return jsonify(response)
 
 
-@app.route("/api/evaluate", methods=["POST"])
+@app.route("/api/evaluate", methods=["POST"])  # type: ignore[misc]
 def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     """Evaluate ideas (evaluateHypotheses)"""
     if thinker is None:
