@@ -38,6 +38,11 @@ class Thinker:
         self.prompts = self.config.prompt_template.thinker_prompt
         self.intent = ""
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self.default_criteria_descriptions = """1. Intent Alignment: How well does each idea address the original research intent?
+        2. Scientific Merit: How significant is the potential contribution to the field?
+        3. Novelty: How original is the idea compared to existing work?
+        4. Feasibility: How practical is implementation within reasonable resource constraints?
+        5. Impact: What is the potential impact of this research on the field and broader applications?"""
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
@@ -111,14 +116,25 @@ class Thinker:
             print("No valid ideas generated.")
             return {}
 
+    def show_ranking_criteria(self, custom_criteria: Optional[str] = None) -> str:
+        """Show the ranking criteria descriptions that will be used"""
+        return (
+            custom_criteria if custom_criteria else self.default_criteria_descriptions
+        )
+
     def rank(
-        self, ideas: List[Dict[str, Any]], intent: Optional[str] = None
+        self,
+        ideas: List[Dict[str, Any]],
+        intent: Optional[str] = None,
+        custom_criteria: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Rank multiple research ideas."""
         intent = intent or self.intent
 
         ideas_json = json.dumps(ideas, indent=2)
-        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
+        evaluation_result = self._get_idea_evaluation(
+            ideas_json, intent, custom_criteria
+        )
         ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
 
         return ranked_ideas
@@ -266,11 +282,15 @@ class Thinker:
 
         return current_idea_json
 
-    def _get_idea_evaluation(self, ideas_json: str, intent: str) -> str:
+    def _get_idea_evaluation(
+        self, ideas_json: str, intent: str, custom_criteria: Optional[str] = None
+    ) -> str:
         """Get comparative evaluation from LLM"""
         prompt = self.prompts.idea_evaluation_prompt.format(
             intent=intent, ideas=ideas_json
         )
+        if custom_criteria:
+            prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
 
         text, _ = get_response_from_llm(
             prompt,
