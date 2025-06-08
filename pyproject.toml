@@ -9,7 +9,7 @@ readme = "README.md"
 
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.12"
+python = ">=3.10, <3.12"
 mypy = "^1.8.0"
 beartype = "*"
 pydantic = "^2.8.2"
@@ -23,7 +23,7 @@ pypdf = "^5.3.1"
 anthropic = "*"
 google-generativeai = "*"
 openai = "*"
-aider-chat = "0.56.0"
+aider-chat = "0.83.1"
 toml = "*"
 spacy = "^3.0.0"
 reportlab = "*"
@@ -31,6 +31,8 @@ litellm = "*"
 rich = "*"
 cairosvg = "^2.7.1"
 together = "*"
+flask = "^3.0.0"
+flask-cors = "^4.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

@@ -130,6 +130,13 @@ class Thinker:
             "Importance", "Difficulty", "NoveltyComparison", "Experiment"
         ]
 
+        self.default_criteria_descriptions = """1. Intent Alignment: How well does each idea address the original research intent?
+        2. Scientific Merit: How significant is the potential contribution to the field?
+        3. Novelty: How original is the idea compared to existing work?
+        4. Feasibility: How practical is implementation within reasonable resource constraints?
+        5. Impact: What is the potential impact of this research on the field and broader applications?"""
+
+
     def _get_agent_prompt(self, agent_info: Dict[str, str], idea_json: str, intent: str, related_works: str, history: List[Dict[str, str]]) -> str:
         """Generate a prompt for a specific agent role."""
         history_str = "\n".join([
@@ -569,14 +576,25 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         # Return the idea(s) and the discussion history (e.g., of the first idea)
         return final_ideas_to_return, first_discussion_history
 
+    def show_ranking_criteria(self, custom_criteria: Optional[str] = None) -> str:
+        """Show the ranking criteria descriptions that will be used"""
+        return (
+            custom_criteria if custom_criteria else self.default_criteria_descriptions
+        )
+
     def rank(
-        self, ideas: List[Dict[str, Any]], intent: Optional[str] = None
+        self,
+        ideas: List[Dict[str, Any]],
+        intent: Optional[str] = None,
+        custom_criteria: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Rank multiple research ideas."""
         intent = intent or self.intent
 
         ideas_json = json.dumps(ideas, indent=2)
-        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
+        evaluation_result = self._get_idea_evaluation(
+            ideas_json, intent, custom_criteria
+        )
         ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
 
         return ranked_ideas
@@ -587,7 +605,6 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         original_idea: Dict[str, Any],
         modifications: List[Dict[str, Any]],
         behind_idea: Optional[Dict[str, Any]] = None,
-        all_ideas: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Modify an idea based on score adjustments.
@@ -636,24 +653,6 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
             print("Failed to extract modified idea")
             return original_idea
 
-        # Apply metadata from original idea
-        modified_idea["id"] = f"node-{len(all_ideas) + 1}" if all_ideas else "node-1"
-        modified_idea["parent_id"] = original_idea.get("id", "unknown")
-        modified_idea["is_modified"] = True
-
-        # Re-rank the modified idea along with all other ideas
-        if all_ideas:
-            ranking_ideas = [
-                idea for idea in all_ideas if idea.get("id") != original_idea.get("id")
-            ]
-            ranking_ideas.append(modified_idea)
-
-            ranked_ideas = self.rank(ranking_ideas, self.intent)
-
-            for idea in ranked_ideas:
-                if idea.get("id") == modified_idea.get("id"):
-                    return idea
-
         return modified_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -686,33 +685,6 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         if not merged_idea:
             print("Failed to extract merged idea")
             return None
-
-        # Add metadata about the merged sources
-        merged_idea["id"] = f"node-{len(all_ideas) + 1}" if all_ideas else "node-1"
-        merged_idea["parent_ids"] = [
-            idea_a.get("id", "unknown"),
-            idea_b.get("id", "unknown"),
-        ]
-        merged_idea["is_merged"] = True
-
-        # Re-rank the merged idea along with all other ideas
-        if all_ideas:
-            # Create a list with all ideas except the ones being merged, plus the new merged idea
-            ranking_ideas = [
-                idea
-                for idea in all_ideas
-                if idea.get("id") != idea_a.get("id")
-                and idea.get("id") != idea_b.get("id")
-            ]
-            ranking_ideas.append(merged_idea)
-
-            # Rank all ideas together
-            ranked_ideas = self.rank(ranking_ideas, self.intent)
-
-            # Find and return the merged idea from the ranked list
-            for idea in ranked_ideas:
-                if idea.get("id") == merged_idea.get("id"):
-                    return idea
 
         # If no other ideas provided or ranking failed, return just the merged idea
         return merged_idea
@@ -750,6 +722,8 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         prompt = self.prompts.idea_evaluation_prompt.format(
             intent=intent, ideas=ideas_json
         )
+        if custom_criteria:
+            prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
 
         text, _ = get_response_from_llm(
             prompt,

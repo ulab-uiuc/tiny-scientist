@@ -326,11 +326,28 @@ def get_response_from_llm(
         )
         content = response.text
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
-    elif any(model.startswith(prefix) for prefix in [
-        "meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/",
-        "NousResearch/", "Snowflake/", "allenai/", "google/", "microsoft/"
-    ]):
-        # Together AI models (and other models using OpenAI compatible API structure via TogetherAI or similar)
+    elif any(
+        model.startswith(prefix) for prefix in ["ollama/", "lm_studio/", "openai/"]
+    ):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.split("/")[1],
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif any(
+        model.startswith(prefix)
+        for prefix in ["meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"]
+    ):
+        # Together AI models
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -661,6 +678,26 @@ def create_client(
         client = Together(api_key=api_key)
         client.together = True  # Add this attribute to identify Together client
         
+        return client, model
+
+    elif model.startswith("ollama"):
+        base_url = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
+        client = openai.OpenAI(api_key="ollama", base_url=f"{base_url}/v1")
+        return client, model
+
+    elif model.startswith("lm_studio"):
+        base_url = os.environ.get("LM_STUDIO_API_BASE", "http://localhost:1234/v1")
+        client = openai.OpenAI(api_key="lm_studio", base_url=base_url)
+        return client, model
+
+    elif model.startswith("openai"):
+        api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
+        if not api_key:
+            raise ValueError(
+                f"Missing API key to use {model}. Set OPENAI_API_KEY or llm_api_key in config.toml."
+            )
+        base_url = os.environ.get("OPENAI_API_BASE", "http://localhost/v1")
+        client = openai.OpenAI(api_key=api_key, base_url=base_url)
         return client, model
 
     elif any(
