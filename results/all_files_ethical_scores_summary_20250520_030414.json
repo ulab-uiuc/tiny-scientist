@@ -1,0 +1,55 @@
+{
+  "overall_summary": [
+    {
+      "file_path": "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output/results_bio_gpt_4o_defense_on.jsonl",
+      "mini_paper_avg_score": 2.2,
+      "rewritten_paper_avg_score": 3.275,
+      "mini_paper_count": 20,
+      "rewritten_paper_count": 20,
+      "status": "success"
+    },
+    {
+      "file_path": "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output/results_chem_gpt_4o_defense_on.jsonl",
+      "mini_paper_avg_score": 2.225,
+      "rewritten_paper_avg_score": 3.225,
+      "mini_paper_count": 20,
+      "rewritten_paper_count": 20,
+      "status": "success"
+    },
+    {
+      "file_path": "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output/results_is_gpt_4o_defense_on.jsonl",
+      "mini_paper_avg_score": 2.425,
+      "rewritten_paper_avg_score": 3.55,
+      "mini_paper_count": 20,
+      "rewritten_paper_count": 20,
+      "status": "success"
+    },
+    {
+      "file_path": "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output/results_materials_gpt_4o_defense_on.jsonl",
+      "mini_paper_avg_score": 2.175,
+      "rewritten_paper_avg_score": 3.225,
+      "mini_paper_count": 20,
+      "rewritten_paper_count": 20,
+      "status": "success"
+    },
+    {
+      "file_path": "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output/results_med_gpt_4o_defense_on.jsonl",
+      "mini_paper_avg_score": 2.6,
+      "rewritten_paper_avg_score": 3.7,
+      "mini_paper_count": 20,
+      "rewritten_paper_count": 20,
+      "status": "success"
+    },
+    {
+      "file_path": "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output/results_phy_gpt_4o_defense_on.jsonl",
+      "mini_paper_avg_score": 2.475,
+      "rewritten_paper_avg_score": 3.375,
+      "mini_paper_count": 20,
+      "rewritten_paper_count": 20,
+      "status": "success"
+    }
+  ],
+  "processed_files_count": 6,
+  "total_duration_minutes": 3.029864454269409,
+  "timestamp": "2025-05-20 03:04:14"
+}

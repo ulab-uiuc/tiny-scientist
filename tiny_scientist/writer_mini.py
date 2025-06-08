@@ -172,9 +172,9 @@ class WriterMini: # Renamed class
         abstract_tips_content = self.prompts.section_tips.get("Abstract", "Provide a concise summary of the research.")
 
         try:
-            abstract_prompt = self.prompts.abstract_prompt.format(
+        abstract_prompt = self.prompts.abstract_prompt.format(
                 abstract_tips=abstract_tips_content,
-                title=title,
+            title=title,
                 problem=problem,
                 importance=importance,
                 difficulty=difficulty,

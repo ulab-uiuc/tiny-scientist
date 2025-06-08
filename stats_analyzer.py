@@ -40,14 +40,22 @@ def calculate_stats(jsonl_file: str, expected_count: int = 20) -> Dict[str, floa
                 
                 try:
                     item = json.loads(line)
-                    
-                    # 提取review_result下的评分
-                    if "review_result" in item:
-                        review = item["review_result"]
-                        for metric in ["Quality", "Clarity", "Presentation", "Contribution", "Overall"]:
-                            if metric in review and isinstance(review[metric], (int, float)):
-                                metrics[metric]["sum"] += review[metric]
-                                metrics[metric]["count"] += 1
+                    # 提取 final_meta_review 下的评分
+                    if "review_rewrite_output" in item:
+                        review_data = item['review_rewrite_output']["final_meta_review"]
+                        
+                        # 直接映射的指标: Quality, Clarity, Presentation, Contribution
+                        direct_metrics_to_extract = ["Quality", "Clarity", "Presentation", "Contribution"]
+                        for metric_key in direct_metrics_to_extract:
+                            if metric_key in review_data and isinstance(review_data[metric_key], (int, float)):
+                                metrics[metric_key]["sum"] += review_data[metric_key]
+                                metrics[metric_key]["count"] += 1
+                        
+                        # 特殊映射 "Overall" (在我们的统计中) 对应到 "OverallAcademicScore" (在JSON中)
+                        overall_json_key = "OverallAcademicScore"
+                        if overall_json_key in review_data and isinstance(review_data[overall_json_key], (int, float)):
+                            metrics["Overall"]["sum"] += review_data[overall_json_key]
+                            metrics["Overall"]["count"] += 1
                     
                     # 提取ethical_evaluation下的评分
                     if "ethical_evaluation" in item and "safety_ethical_score" in item["ethical_evaluation"]:
@@ -140,61 +148,58 @@ def main():
     """
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="统计JSONL文件中的评分指标")
-    parser.add_argument("--file", "-f", type=str, help="输入的JSONL文件路径")
+    parser.add_argument("--folder", "-d", type=str, help="包含JSONL文件的文件夹路径")
     parser.add_argument("--expected_count", "-e", type=int, default=20, 
                        help="预期的项目数量，默认为20")
     
-    # 解析命令行参数
-    try:
-        args = parser.parse_args()
-        file_path = args.file
-        expected_count = args.expected_count
-    except Exception as e:
-        # 如果解析失败（例如，在某些环境中），则回退到手动解析
-        print(f"参数解析出错，使用简单解析: {e}")
-        file_path = None
-        expected_count = 20
-        
-        # 简单解析sys.argv
-        if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
-            file_path = sys.argv[1]
-        if len(sys.argv) > 2 and not sys.argv[2].startswith('-'):
-            try:
-                expected_count = int(sys.argv[2])
-            except ValueError:
-                pass
-    
-    # 如果未提供文件路径，尝试使用最新的JSONL文件
-    if not file_path:
-        # 默认文件路径
-        file_path = "/Users/zhukunlun/Documents/GitHub/tiny-scientist/results/ethical_scored_SafeScientist_bio_gpt4o_20250519_222755.jsonl"
-        # 如果默认路径不存在，尝试找到results目录下的jsonl文件
-        if not os.path.exists(file_path):
-            try:
-                results_dir = "results"
-                if os.path.exists(results_dir) and os.path.isdir(results_dir):
-                    jsonl_files = [f for f in os.listdir(results_dir) if f.endswith('.jsonl')]
-                    if jsonl_files:
-                        # 使用最新的文件
-                        latest_file = max(jsonl_files, key=lambda f: os.path.getmtime(os.path.join(results_dir, f)))
-                        file_path = os.path.join(results_dir, latest_file)
-                        print(f"未提供文件路径，使用最新的JSONL文件: {file_path}")
-                    else:
-                        print(f"错误: 在{results_dir}目录中找不到JSONL文件")
-                        return
-                else:
-                    print(f"错误: 找不到默认文件 {file_path} 或 {results_dir} 目录")
-                    return
-            except Exception as e:
-                print(f"尝试查找JSONL文件时出错: {e}")
+    args = parser.parse_args()
+    folder_path = "/Users/zhukunlun/Documents/GitHub/tiny-scientist/results/ethical_evaluations"
+    expected_count = args.expected_count
+
+    files_to_process = []
+
+    if folder_path:
+        if os.path.isdir(folder_path):
+            print(f"扫描文件夹: {folder_path}")
+            for filename in os.listdir(folder_path):
+                if filename.endswith('.jsonl'):
+                    files_to_process.append(os.path.join(folder_path, filename))
+            if not files_to_process:
+                print(f"错误: 文件夹 {folder_path} 中没有找到 .jsonl 文件。")
                 return
-    
-    print(f"使用文件: {file_path}")
+        else:
+            print(f"错误: 指定的路径 {folder_path} 不是一个有效的文件夹。")
+            return
+    else:
+        # 如果未提供文件夹路径，尝试使用results目录下的所有jsonl文件
+        default_folder = "results"
+        print(f"未提供文件夹路径，尝试使用默认文件夹: {default_folder}")
+        if os.path.isdir(default_folder):
+            for filename in os.listdir(default_folder):
+                if filename.endswith('.jsonl'):
+                    files_to_process.append(os.path.join(default_folder, filename))
+            if not files_to_process:
+                print(f"错误: 默认文件夹 {default_folder} 中没有找到 .jsonl 文件。")
+                return
+        else:
+            print(f"错误: 默认文件夹 {default_folder} 不存在。")
+            return
+            
+    if not files_to_process:
+        print("没有找到任何 .jsonl 文件进行处理。")
+        return
+
+    print(f"找到 {len(files_to_process)} 个 .jsonl 文件进行处理。")
     print(f"预期项目数量: {expected_count}")
-    
-    # 计算并打印统计结果
-    stats = calculate_stats(file_path, expected_count)
-    print_stats_table(stats, os.path.basename(file_path))
+
+    for file_path in files_to_process:
+        print(f"\n--- 开始处理文件: {os.path.basename(file_path)} ---")
+        stats = calculate_stats(file_path, expected_count)
+        if stats: # 确保stats不是空的（例如，如果文件未找到）
+            print_stats_table(stats, os.path.basename(file_path))
+        else:
+            print(f"无法为文件 {os.path.basename(file_path)} 生成统计数据。")
+        print(f"--- 完成处理文件: {os.path.basename(file_path)} ---")
 
 if __name__ == "__main__":
     main() 

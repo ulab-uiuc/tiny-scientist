@@ -194,7 +194,7 @@ def main():
         for task_tuple in tasks_for_processing_with_original_indices:
             process_task_and_write(task_tuple, common_args=args, overall_output_dir_base=args.output_dir_base, file_lock=dummy_lock)
         print("[INFO] Sequential processing finished.")
-    else:
+                else:
         print("[INFO] No tasks were scheduled to run in this session (either all done or input was empty after filtering).")
 
     print(f"\n[INFO] Task processing session complete. Results (if any new) appended to {args.output_file}")

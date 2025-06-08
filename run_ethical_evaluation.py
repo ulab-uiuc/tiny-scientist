@@ -127,7 +127,7 @@ def process_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         # 提取论文内容
-        paper_content = item.get("rewritten_paper_content", "")
+        paper_content = item.get("review_rewrite_output", {}).get("rewritten_paper_content", "")
         if not paper_content:
             print(f"警告: 任务 {item.get('task_index', 'unknown')} 没有论文内容")
             item["ethical_evaluation"] = {
@@ -211,24 +211,53 @@ def run_ethical_evaluation_in_parallel(
     print(f"处理完成! 已将 {len(results)} 个结果保存到 {output_file}")
 
 if __name__ == "__main__":
-    # 输入和输出文件路径
-    input_file = "/Users/zhukunlun/Documents/GitHub/tiny-scientist/results/reviewed_bio_Safe_scientist_filtered_gpt4o_20250519_222528.jsonl"
-    output_dir = "results"
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"{output_dir}/ethical_scored_SafeScientist_bio_gpt4o_{timestamp}.jsonl"
-    
-    # 最大并行工作进程数，根据系统性能调整
-    max_workers = 10  # 或者设置为None使用CPU核心数-1
-    
-    print(f"开始伦理评估过程")
-    print(f"输入文件: {input_file}")
-    print(f"输出文件: {output_file}")
-    print(f"最大并行工作进程数: {max_workers}")
+    # --- 在这里直接定义参数 ---
+    input_files_list = [
+        "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output_0518/results_bio_gpt_3_5_turbo_defense_on.jsonl",
+        "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output_0518/results_bio_gpt_4_1_defense_on.jsonl",
+        "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output_0518/results_bio_meta_llama_meta_llama_3_1_70b_instruct_turbo_defense_on.jsonl",
+        "/Users/zhukunlun/Documents/GitHub/tiny-scientist/output_0518/results_bio_qwen_qwen2_5_72b_instruct_turbo_defense_on.jsonl"
+        # 在此添加更多文件路径
+    ]
+    output_directory = "results/ethical_evaluations" # 输出目录
+    max_parallel_workers = 10 # 最大并行工作进程数, 0或负数表示CPU核心数-1
+    # --- 参数定义结束 ---
+
+    if max_parallel_workers <= 0:
+        effective_max_workers = max(1, multiprocessing.cpu_count() - 1)
+    else:
+        effective_max_workers = max_parallel_workers
+
+    print(f"开始伦理评估过程...")
+    print(f"最大并行工作进程数: {effective_max_workers}")
     print(f"使用模型: gpt-4o")
-    
-    start_time = time.time()
-    run_ethical_evaluation_in_parallel(input_file, output_file, max_workers)
-    end_time = time.time()
-    
-    duration_minutes = (end_time - start_time) / 60
-    print(f"伦理评估过程完成! 总共耗时: {duration_minutes:.2f} 分钟") 
+    print(f"输出目录: {output_directory}")
+
+    # 确保输出目录存在
+    os.makedirs(output_directory, exist_ok=True)
+
+    total_start_time = time.time()
+
+    for input_file_path in input_files_list:
+        if not os.path.exists(input_file_path):
+            print(f"警告: 输入文件 {input_file_path} 不存在，将被跳过。")
+            continue
+
+        print(f"\n正在处理文件: {input_file_path}")
+        
+        # 生成输出文件名
+        base_name, ext = os.path.splitext(os.path.basename(input_file_path))
+        output_file_name = f"{base_name}_ethical{ext}"
+        output_file_path = os.path.join(output_directory, output_file_name)
+        
+        print(f"输出将保存到: {output_file_path}")
+        
+        file_start_time = time.time()
+        run_ethical_evaluation_in_parallel(input_file_path, output_file_path, effective_max_workers)
+        file_end_time = time.time()
+        file_duration_minutes = (file_end_time - file_start_time) / 60
+        print(f"文件 {input_file_path} 处理完成，耗时: {file_duration_minutes:.2f} 分钟。")
+
+    total_end_time = time.time()
+    total_duration_minutes = (total_end_time - total_start_time) / 60
+    print(f"\n所有文件处理完毕! 总共耗时: {total_duration_minutes:.2f} 分钟。") 

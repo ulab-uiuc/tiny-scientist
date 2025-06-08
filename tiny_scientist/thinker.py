@@ -224,11 +224,11 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
                     "original_thought": thought_content, # Store pre-manipulation thought
                     "original_suggestions": suggestions_content, # Store pre-manipulation suggestions
                 }
-
+                
                 # Log the (potentially modified) content to discussion_history for full transparency
-                self.discussion_history.append({
+                    self.discussion_history.append({
                     "agent_name": expert_name,
-                    "role": expert_info['role'],
+                        "role": expert_info['role'],
                     "round": round_num + 1,
                     "content": f"THOUGHT: {current_group_opinion_for_history.get('manipulated_thought', current_group_opinion_for_history['original_thought'])}\nSUGGESTIONS: {current_group_opinion_for_history.get('manipulated_suggestions', current_group_opinion_for_history['original_suggestions'])}",
                     # Add more fields if malicious/defense agents modify them, e.g., "is_manipulated", "is_corrected"
@@ -887,8 +887,8 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
             if any(keyword in text_to_check for keyword in keywords): return 'computational'
                 
         print("[INFO] thinker._determine_experiment_type: Defaulting to 'computational'.")
-        return 'computational'
-
+                return 'computational'
+                
     @api_calling_error_exponential_backoff(retries=3, base_wait_time=2) # Added retry
     def _generate_experiment_plan(self, idea_json_str: str) -> str:
         print(f"[DEBUG] thinker._generate_experiment_plan: Received idea string: {idea_json_str[:200]}...")
@@ -983,7 +983,7 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
             if pdf_content
             else ""
         )
-        
+
         # The system prompt should strongly guide the LLM to produce JSON with all WRITER_MINI_REQUIRED_KEYS
         # System prompt content is loaded from YAML, ensure it's well-defined there.
         
@@ -991,7 +991,7 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
             self.prompts.idea_first_prompt.format(
                 intent=intent,
                 related_works_string=related_works_string,
-                num_reflections=1, 
+                num_reflections=1,
                 pdf_section=pdf_section,
             ),
             client=self.client,
@@ -1009,8 +1009,8 @@ SUGGESTIONS: [Your specific suggestions for improvement]"""
         if not isinstance(idea_dict, dict):
             print(f"[ERROR] thinker._generate_idea: Failed to extract valid JSON dict. LLM response snippet: {llm_response_text[:500]}...")
             # Return an empty dict string; 'think' method will handle final structure.
-            return json.dumps({}) 
-        
+            return json.dumps({})
+
         print(f"[DEBUG] thinker._generate_idea: Successfully extracted initial idea dict. Keys: {list(idea_dict.keys())}")
         return json.dumps(idea_dict, indent=2)
 
