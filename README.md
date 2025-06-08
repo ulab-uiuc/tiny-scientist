@@ -141,6 +141,18 @@ llm_api_key = "xxxx"
 
 No need to export environment variables manually—just set this once.
 
+# Developing
+
+#### Develop Demo
+To develop a demo (Both frontend and backend):
+```bash
+python backend/app.py
+```
+```bash
+cd frontend
+npm install
+npm start
+```
 # Q&A
 
 If you face "cairo"-related errors, cario is a system-level dependency, please run `conda install -c conda-forge cairo` or `brew install cairo`.
