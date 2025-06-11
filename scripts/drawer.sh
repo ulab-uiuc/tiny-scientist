@@ -16,8 +16,8 @@ fi
 # Determine if the input is a file or text
 if [[ "$1" == "--input-file" ]]; then
   # Run the DrawerTool script with an input file
-  python3 drawer.py --input-file "$2" --model "$MODEL" --output "$OUTPUT" --temperature "$TEMPERATURE"
+  python3 ../examples/drawer.py --input-file "$2" --model "$MODEL" --output "$OUTPUT" --temperature "$TEMPERATURE"
 else
   # Run the DrawerTool script with text input
-  python3 drawer.py --text "$*" --model "$MODEL" --output "$OUTPUT" --temperature "$TEMPERATURE"
+  python3 ../examples/drawer.py --text "$*" --model "$MODEL" --output "$OUTPUT" --temperature "$TEMPERATURE"
 fi

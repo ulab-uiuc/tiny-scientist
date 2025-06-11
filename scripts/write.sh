@@ -1,1 +1,1 @@
-python write.py --template acl --experiment ../experiments
+python ../examples/write.py --template acl --experiment ../experiments

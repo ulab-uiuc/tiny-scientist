@@ -79,7 +79,7 @@ class Writer:
         self._refine_paper()
         self._add_citations(idea)
 
-        paper_name = idea.get("Title", "Research Paper")
+        paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_")
 
         output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         self.formatter.run(

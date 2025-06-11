@@ -7,4 +7,4 @@ SEARCH_TYPE="repositories"  # Change to "code" for searching code snippets
 OUTPUT="github_results.json"
 
 # Run the CodeSearchTool script
-python3 search_code.py --query "$QUERY" --result-limit $RESULT_LIMIT --search-type "$SEARCH_TYPE" --output "$OUTPUT"
+python3 ../examples/search_code.py --query "$QUERY" --result-limit $RESULT_LIMIT --search-type "$SEARCH_TYPE" --output "$OUTPUT"

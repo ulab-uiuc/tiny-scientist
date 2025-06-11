@@ -196,11 +196,11 @@ class PaperSearchTool(BaseTool):
         engine = config["core"].get("engine", "semanticscholar")
         if engine == "semanticscholar":
             print(
-                f"[semantic scholar API calling] Searching for papers with query: {query}"
+                f"(semantic scholar API calling) Searching for papers with query: {query}"
             )
             return self._search_semanticscholar(query, result_limit)
         elif engine == "openalex":
-            print(f"[openalex API calling] Searching for papers with query: {query}")
+            print(f"(openalex API calling) Searching for papers with query: {query}")
             return self._search_openalex(query, result_limit)
         else:
             raise NotImplementedError(f"{engine=} not supported!")
