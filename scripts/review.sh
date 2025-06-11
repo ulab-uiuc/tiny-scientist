@@ -1,3 +1,3 @@
 #!/bin/zsh
 
-python review.py --model gpt-4o-2024-08-06
+python ../examples/review.py --model gpt-4o-2024-08-06

@@ -28,6 +28,30 @@ class BaseOutputFormatter(abc.ABC):
     ) -> None:
         pass
 
+    def _ensure_pdflatex(self) -> None:
+        if shutil.which("pdflatex") is not None:
+            return
+        system = platform.system()
+        print("[System] pdflatex not found. Attempting to install...")
+
+        try:
+            if system == "Darwin":
+                subprocess.run(["brew", "install", "--cask", "mactex"], check=True)
+                print("[System] Installed MacTeX via Homebrew.")
+            elif system == "Linux":
+                subprocess.run(["sudo", "apt-get", "update"], check=True)
+                subprocess.run(
+                    ["sudo", "apt-get", "install", "-y", "texlive-full"], check=True
+                )
+                print("[System] Installed TeX Live via apt.")
+            else:
+                raise RuntimeError(
+                    "Unsupported system for automatic pdflatex installation."
+                )
+        except Exception as e:
+            print(f"[Error] Automatic pdflatex installation failed: {e}")
+            sys.exit(1)
+
     def strip_latex(self, text: str) -> str:
         text = re.sub(r"%.*", "", text)
         text = re.sub(r"\\[a-zA-Z]+\{.*?\}", "", text)
@@ -231,6 +255,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         body_content = self._assemble_body(content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
+        breakpoint()
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
         main_tex_path = osp.join(dest_template_dir, "acl_latex.tex")
@@ -272,31 +297,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        def _ensure_pdflatex() -> None:
-            if shutil.which("pdflatex") is not None:
-                return
-            system = platform.system()
-            print("[System] pdflatex not found. Attempting to install...")
-
-            try:
-                if system == "Darwin":
-                    subprocess.run(["brew", "install", "--cask", "mactex"], check=True)
-                    print("[System] Installed MacTeX via Homebrew.")
-                elif system == "Linux":
-                    subprocess.run(["sudo", "apt-get", "update"], check=True)
-                    subprocess.run(
-                        ["sudo", "apt-get", "install", "-y", "texlive-full"], check=True
-                    )
-                    print("[System] Installed TeX Live via apt.")
-                else:
-                    raise RuntimeError(
-                        "Unsupported system for automatic pdflatex installation."
-                    )
-            except Exception as e:
-                print(f"[Error] Automatic pdflatex installation failed: {e}")
-                sys.exit(1)
-
-        _ensure_pdflatex()
+        self._ensure_pdflatex()
 
         fname = "acl_latex.tex"
         compile_target = fname
@@ -398,31 +399,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        def _ensure_pdflatex() -> None:
-            if shutil.which("pdflatex") is not None:
-                return
-            system = platform.system()
-            print("[System] pdflatex not found. Attempting to install...")
-
-            try:
-                if system == "Darwin":
-                    subprocess.run(["brew", "install", "--cask", "mactex"], check=True)
-                    print("[System] Installed MacTeX via Homebrew.")
-                elif system == "Linux":
-                    subprocess.run(["sudo", "apt-get", "update"], check=True)
-                    subprocess.run(
-                        ["sudo", "apt-get", "install", "-y", "texlive-full"], check=True
-                    )
-                    print("[System] Installed TeX Live via apt.")
-                else:
-                    raise RuntimeError(
-                        "Unsupported system for automatic pdflatex installation."
-                    )
-            except Exception as e:
-                print(f"[Error] Automatic pdflatex installation failed: {e}")
-                sys.exit(1)
-
-        _ensure_pdflatex()
+        self._ensure_pdflatex()
 
         fname = "iclr2025_conference.tex"
 
