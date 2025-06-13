@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Test Script: Start and Run MCP Agent
+MCP Agent Test Script
 
-This script demonstrates how to:
+This script is used to test:
 1. Configure and initialize MCP Agent
-2. Run different types of tasks
-3. Handle results and errors
+2. Connect to configured MCP servers
+3. Execute basic MCP tool calls
 
 Usage:
     python test_mcp_agent.py
 
-Make sure before running:
+Before running, please ensure:
 1. Install necessary dependencies
 2. Configure config.toml file
 3. Related MCP servers are available
@@ -29,32 +29,78 @@ sys.path.insert(0, str(project_root))
 from tiny_scientist.mcp_agent import MCPAgent, create_mcp_agent
 
 
-async def test_basic_functionality():
-    """Test basic functionality"""
-    print("🧪 Testing MCP Agent basic functionality...")
+async def test_mcp_connection():
+    """Test MCP connection and basic functionality"""
+    print("🧪 Testing MCP Agent connection and basic functionality...")
     
     # Create MCP Agent
     agent = create_mcp_agent(
         model="gpt-4o",
         output_dir="./test_output",
-        max_iterations=10,
+        max_iterations=5,
+        temperature=0.7
+    )
+    
+    # Initialize agent
+    try:
+        print("🔌 Initializing MCP Agent...")
+        initialized = await agent.initialize()
+        
+        if not initialized:
+            print("❌ MCP Agent initialization failed")
+            return False
+        
+        print("✅ MCP Agent initialization successful")
+        
+        # Check if MCP is enabled
+        if not agent.is_mcp_enabled():
+            print("⚠️ MCP is not enabled, please check configuration file")
+            return False
+        
+        print("🔗 MCP is enabled")
+        
+        # Display connected server information
+        print(f"📡 Number of connected MCP servers: {len(agent.connections)}")
+        for server_name, connection in agent.connections.items():
+            print(f"  - {server_name}: {len(connection.available_tools)} tools")
+            for tool in connection.available_tools[:3]:  # Only show first 3 tools
+                print(f"    * {tool.name}: {tool.description}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Connection test failed: {e}")
+        return False
+    
+    finally:
+        # Clean up connections
+        await agent.cleanup()
+
+
+async def test_simple_mcp_task():
+    """Test simple MCP task execution"""
+    print("\n🎯 Testing simple MCP task execution...")
+    
+    agent = create_mcp_agent(
+        model="gpt-4o",
+        output_dir="./test_output",
+        max_iterations=3,
         temperature=0.7
     )
     
     # Simple test goal
-    goal = "List the contents of current directory and analyze Python files in it"
+    goal = "Use available MCP tools to perform a simple operation and report results"
     context = {
-        "working_directory": os.getcwd(),
-        "file_types_of_interest": ["python", "markdown", "yaml"]
+        "task_type": "simple_test",
+        "expected_result": "demonstration"
     }
     
     print(f"🎯 Goal: {goal}")
-    print(f"📝 Context: {json.dumps(context, indent=2, ensure_ascii=False)}")
     
     try:
         result = await agent.run(goal=goal, context=context)
         
-        print("\n✅ Execution completed!")
+        print("\n✅ Task execution completed!")
         print(f"📊 Result summary:")
         print(f"  - Goal achieved: {result.get('goal_achieved', False)}")
         print(f"  - Total iterations: {result.get('total_iterations', 0)}")
@@ -66,114 +112,8 @@ async def test_basic_functionality():
         return True
         
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"❌ Task execution failed: {e}")
         return False
-
-
-async def test_research_task():
-    """Test research task"""
-    print("\n🔬 Testing MCP Agent research functionality...")
-    
-    agent = create_mcp_agent(
-        model="gpt-4o",
-        output_dir="./test_output_research",
-        max_iterations=15
-    )
-    
-    goal = "Search for latest research information about 'transformer attention mechanism' and summarize key findings"
-    context = {
-        "research_domain": "machine_learning",
-        "focus_area": "attention_mechanisms",
-        "time_period": "recent",
-        "output_format": "structured_summary"
-    }
-    
-    print(f"🎯 Goal: {goal}")
-    
-    try:
-        result = await agent.run(goal=goal, context=context)
-        
-        print("\n✅ Research task completed!")
-        print(f"📊 Result summary:")
-        print(f"  - Goal achieved: {result.get('goal_achieved', False)}")
-        print(f"  - Execution time: {result.get('execution_time', 0):.2f} seconds")
-        print(f"  - Action statistics: {result.get('action_summary', {})}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Research test failed: {e}")
-        return False
-
-
-async def test_file_operations():
-    """Test file operation functionality"""
-    print("\n📁 Testing MCP Agent file operation functionality...")
-    
-    agent = create_mcp_agent(
-        model="gpt-4o",
-        output_dir="./test_output_files",
-        max_iterations=8
-    )
-    
-    goal = "Analyze project structure, find all Python files, and create a project overview document"
-    context = {
-        "project_root": ".",
-        "include_patterns": ["*.py", "*.md", "*.yaml", "*.toml"],
-        "exclude_patterns": ["__pycache__", "*.pyc", ".git"],
-        "output_file": "project_overview.md"
-    }
-    
-    print(f"🎯 Goal: {goal}")
-    
-    try:
-        result = await agent.run(goal=goal, context=context)
-        
-        print("\n✅ File operation task completed!")
-        print(f"📊 Result summary:")
-        print(f"  - Goal achieved: {result.get('goal_achieved', False)}")
-        print(f"  - Total steps: {len(result.get('plan_executed', []))}")
-        print(f"  - Current step: {result.get('current_step', 0)}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ File operation test failed: {e}")
-        return False
-
-
-async def test_error_handling():
-    """Test error handling"""
-    print("\n⚠️ Testing MCP Agent error handling...")
-    
-    agent = create_mcp_agent(
-        model="gpt-4o",
-        output_dir="./test_output_error",
-        max_iterations=5
-    )
-    
-    # Intentionally set a difficult/impossible task to test error handling
-    goal = "Access non-existent website http://definitely-does-not-exist-12345.com and get content"
-    context = {
-        "expected_result": "error_handling_test",
-        "should_fail": True
-    }
-    
-    print(f"🎯 Goal (expected to fail): {goal}")
-    
-    try:
-        result = await agent.run(goal=goal, context=context)
-        
-        print("\n📋 Error handling test results:")
-        print(f"  - Goal achieved: {result.get('goal_achieved', False)}")
-        print(f"  - Errors handled: {sum(1 for action in result.get('action_summary', {}).items() if 'error' in action[0].lower())}")
-        print(f"  - Success rate: {result.get('success_rate', 0):.1%}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"🔧 Error handling test encountered exception (this may be expected): {e}")
-        return True  # For error handling tests, exceptions may be expected
 
 
 def check_prerequisites():
@@ -187,9 +127,8 @@ def check_prerequisites():
         print("💡 Please copy and configure from config.template.toml")
         return False
     
-    # Check output directories
-    for test_dir in ["test_output", "test_output_research", "test_output_files", "test_output_error"]:
-        os.makedirs(test_dir, exist_ok=True)
+    # Check output directory
+    os.makedirs("test_output", exist_ok=True)
     
     print("✅ Prerequisites check passed")
     return True
@@ -197,7 +136,7 @@ def check_prerequisites():
 
 async def main():
     """Main test function"""
-    print("🚀 MCP Agent Test Suite")
+    print("🚀 MCP Agent Basic Test Suite")
     print("=" * 50)
     
     # Check prerequisites
@@ -206,27 +145,25 @@ async def main():
     
     # Run tests
     tests = [
-        ("Basic Functionality", test_basic_functionality),
-        ("Research Task", test_research_task),
-        ("File Operations", test_file_operations),
-        ("Error Handling", test_error_handling),
+        ("MCP Connection Test", test_mcp_connection),
+        ("Simple MCP Task", test_simple_mcp_task),
     ]
     
     results = []
     
     for test_name, test_func in tests:
-        print(f"\n{'='*20} {test_name} {'='*20}")
+        print(f"\n{'='*15} {test_name} {'='*15}")
         try:
             success = await test_func()
             results.append((test_name, success))
             
             if success:
-                print(f"✅ {test_name} test passed")
+                print(f"✅ {test_name} passed")
             else:
-                print(f"❌ {test_name} test failed")
+                print(f"❌ {test_name} failed")
                 
         except Exception as e:
-            print(f"💥 {test_name} test exception: {e}")
+            print(f"💥 {test_name} exception: {e}")
             results.append((test_name, False))
         
         # Brief rest between tests

@@ -119,17 +119,36 @@ class StdioMCPConnection(MCPConnection):
                 stderr=asyncio.subprocess.PIPE
             )
             
+            # Wait a moment for the process to start
+            await asyncio.sleep(1)
+            
+            # Check if process is still running
+            if self.process.returncode is not None:
+                stderr_output = await self.process.stderr.read()
+                error_msg = stderr_output.decode() if stderr_output else "Process exited immediately"
+                print(f"[MCP] Server process failed to start: {error_msg}")
+                return False
+            
+            print(f"[MCP] Server process started successfully (PID: {self.process.pid})")
+            
             # Initialize MCP protocol handshake
-            await self._initialize_protocol()
-            
-            self.connected = True
-            self.available_tools = await self.list_tools()
-            
-            print(f"[MCP] Connected to stdio server: {self.server_name}")
-            return True
+            if await self._initialize_protocol():
+                self.connected = True
+                self.available_tools = await self.list_tools()
+                print(f"[MCP] Connected to stdio server: {self.server_name} with {len(self.available_tools)} tools")
+                return True
+            else:
+                print(f"[MCP] Protocol initialization failed for {self.server_name}")
+                return False
             
         except Exception as e:
             print(f"[MCP] Failed to connect to {self.server_name}: {e}")
+            if self.process:
+                try:
+                    self.process.terminate()
+                    await asyncio.wait_for(self.process.wait(), timeout=5.0)
+                except:
+                    pass
             return False
     
     async def disconnect(self) -> None:
@@ -145,43 +164,81 @@ class StdioMCPConnection(MCPConnection):
             self.connected = False
             print(f"[MCP] Disconnected from stdio server: {self.server_name}")
     
-    async def _initialize_protocol(self) -> None:
+    async def _initialize_protocol(self) -> bool:
         """Initialize MCP protocol with handshake"""
-        # Simplified MCP initialization
-        init_request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "clientInfo": {
-                    "name": "TinyScientist",
-                    "version": "1.0.0"
+        try:
+            # Simplified MCP initialization
+            init_request = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {}
+                    },
+                    "clientInfo": {
+                        "name": "TinyScientist",
+                        "version": "1.0.0"
+                    }
                 }
             }
-        }
+            
+            print(f"[MCP] Sending initialization request to {self.server_name}")
+            response = await self._send_request_raw(init_request)
+            
+            if response and "result" in response:
+                print(f"[MCP] Initialization successful for {self.server_name}")
+                return True
+            else:
+                print(f"[MCP] Initialization failed for {self.server_name}: {response}")
+                return False
+                
+        except Exception as e:
+            print(f"[MCP] Protocol initialization error for {self.server_name}: {e}")
+            return False
+    
+    async def _send_request_raw(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Send a JSON-RPC request to the server (raw version without connection check)"""
+        if not self.process:
+            raise RuntimeError(f"No process for server {self.server_name}")
         
-        await self._send_request(init_request)
-        # In real implementation, would wait for and parse response
+        try:
+            request_data = json.dumps(request) + "\n"
+            print(f"[MCP] Sending request: {request_data.strip()}")
+            
+            self.process.stdin.write(request_data.encode())
+            await self.process.stdin.drain()
+            
+            # Read response with timeout
+            try:
+                response_data = await asyncio.wait_for(
+                    self.process.stdout.readline(), 
+                    timeout=10.0
+                )
+                
+                if response_data:
+                    response_str = response_data.decode().strip()
+                    print(f"[MCP] Received response: {response_str}")
+                    return json.loads(response_str)
+                else:
+                    print(f"[MCP] No response received from {self.server_name}")
+                    return {}
+                    
+            except asyncio.TimeoutError:
+                print(f"[MCP] Timeout waiting for response from {self.server_name}")
+                return {}
+                
+        except Exception as e:
+            print(f"[MCP] Error sending request to {self.server_name}: {e}")
+            return {}
     
     async def _send_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Send a JSON-RPC request to the server"""
         if not self.process or not self.connected:
             raise RuntimeError(f"Not connected to server {self.server_name}")
         
-        request_data = json.dumps(request) + "\n"
-        self.process.stdin.write(request_data.encode())
-        await self.process.stdin.drain()
-        
-        # Read response (simplified)
-        response_data = await self.process.stdout.readline()
-        if response_data:
-            return json.loads(response_data.decode())
-        
-        raise RuntimeError("No response from server")
+        return await self._send_request_raw(request)
     
     async def call_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Send a tool call request to the MCP server"""
