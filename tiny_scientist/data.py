@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -66,3 +66,39 @@ class DrawerPrompt(BaseModel):
     few_shot_instructions: str
     error_list: str
     refinement_prompt: str
+
+
+class MCPAgentPrompt(BaseModel):
+    """Prompts for MCP Agent operations"""
+    system_prompt: str
+    planning_prompt: str
+    tool_selection_prompt: str
+    reflection_prompt: str
+    error_handling_prompt: str
+    goal_completion_prompt: str
+
+
+class MCPServerConfig(BaseModel):
+    """Configuration for a single MCP server"""
+    type: str  # "stdio", "sse", "websocket"
+    url: Optional[str] = None  # for sse/websocket connections
+    command: Optional[str] = None  # for stdio connections (base command)
+    args: Optional[List[str]] = None  # command arguments for stdio connections
+    timeout: Optional[int] = 30  # connection timeout in seconds
+    max_retries: Optional[int] = 3  # maximum retry attempts
+    enabled: bool = True  # whether the server is enabled
+
+
+class MCPModuleConfig(BaseModel):
+    """MCP configuration for a specific module"""
+    enabled: bool = False
+    servers: List[str] = []  # list of server names to use
+    capabilities: List[str] = []  # list of required capabilities
+    timeout: Optional[int] = 60  # operation timeout in seconds
+    max_tool_calls: Optional[int] = 10  # maximum tool calls per session
+
+
+class MCPConfig(BaseModel):
+    """Global MCP configuration"""
+    servers: Dict[str, MCPServerConfig] = {}
+    agent: MCPModuleConfig = MCPModuleConfig()

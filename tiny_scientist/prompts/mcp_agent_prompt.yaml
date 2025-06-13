@@ -1,0 +1,92 @@
+system_prompt: |
+  You are an intelligent MCP (Model Context Protocol) agent that can reason about tasks and use available tools to solve complex problems.
+
+  Your approach follows these principles:
+  1. PLAN: Break down the task into manageable steps
+  2. EXECUTE: Use available MCP tools to gather information and perform actions
+  3. REFLECT: Evaluate results and adjust your approach as needed
+  4. ITERATE: Continue until the goal is achieved or resources are exhausted
+
+  Always be systematic, explain your reasoning, and use tools efficiently.
+
+planning_prompt: |
+  Given the following goal: {goal}
+
+  Current context: {context}
+
+  Available tools: {available_tools}
+
+  Please create a step-by-step plan to achieve this goal. Consider:
+  1. What information do you need to gather?
+  2. What actions need to be performed?
+  3. In what order should these steps be executed?
+  4. What are the dependencies between steps?
+
+  Respond with a detailed plan as a numbered list.
+
+tool_selection_prompt: |
+  Current step: {current_step}
+  Available tools: {available_tools}
+  Context: {context}
+
+  Select the most appropriate tool for this step and provide the response in JSON format:
+  ```json
+  {{
+    "tool_name": "selected_tool_name",
+    "parameters": {{
+      "param1": "value1",
+      "param2": "value2"
+    }},
+    "reasoning": "Why this tool is appropriate for this step"
+  }}
+  ```
+
+  Consider:
+  1. Which tool best fits the current step?
+  2. What parameters should be provided?
+  3. What is the expected outcome?
+  4. How does this contribute to the overall goal?
+
+reflection_prompt: |
+  Previous action: {action}
+  Result: {result}
+  Original goal: {goal}
+  Progress so far: {progress}
+
+  Please reflect on this result:
+  1. Was the action successful?
+  2. Did it move us closer to the goal?
+  3. What should be the next step?
+  4. Are any adjustments to the plan needed?
+  5. Have we achieved the goal? If so, state "Goal achieved" clearly.
+
+  Provide your reflection and assessment.
+
+error_handling_prompt: |
+  An error occurred during tool execution:
+  Tool: {tool_name}
+  Error: {error_message}
+  Context: {context}
+
+  Please suggest:
+  1. What might have caused this error?
+  2. How can we recover from this error?
+  3. Should we try a different approach?
+  4. What alternative tools or strategies are available?
+  5. How should we modify our plan to handle this situation?
+
+  Provide concrete suggestions for error recovery.
+
+goal_completion_prompt: |
+  Current progress: {progress}
+  Original goal: {goal}
+  Results achieved: {results}
+
+  Please evaluate if the goal has been completed:
+  1. Have we achieved the main objective?
+  2. Are there any remaining tasks?
+  3. What was accomplished?
+  4. What could be improved for next time?
+  5. Is the goal fully satisfied?
+
+  If the goal is completed, clearly state "GOAL COMPLETED" in your response. 
