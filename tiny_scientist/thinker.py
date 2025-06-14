@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from rich import print
 
+from tiny_scientist.utils.cost_tracker import CostTracker
+
 from .configs import Config
 from .tool import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -25,6 +27,7 @@ class Thinker:
         output_dir: str = "",
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
+        cost_tracker: Optional[CostTracker] = None,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -43,6 +46,7 @@ class Thinker:
         3. Novelty: How original is the idea compared to existing work?
         4. Feasibility: How practical is implementation within reasonable resource constraints?
         5. Impact: What is the potential impact of this research on the field and broader applications?"""
+        self.cost_tracker = cost_tracker or CostTracker()
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
@@ -56,6 +60,7 @@ class Thinker:
             related_works_string = "No Related Works Found"
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
+        self.cost_tracker.report()
         return idea
 
     def rethink(self, idea_json: str, current_round: int = 1) -> str:
@@ -64,6 +69,7 @@ class Thinker:
         )
         related_works_string = self._get_related_works(query)
 
+        self.cost_tracker.report()
         return self._reflect_idea(idea_json, current_round, related_works_string)
 
     def run(
@@ -109,11 +115,14 @@ class Thinker:
                 f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
             )
         if len(all_ideas) > 1:
+            self.cost_tracker.report()
             return all_ideas
         elif len(all_ideas) == 1:
+            self.cost_tracker.report()
             return cast(Dict[str, Any], all_ideas[0])
         else:
             print("No valid ideas generated.")
+            self.cost_tracker.report()
             return {}
 
     def show_ranking_criteria(self, custom_criteria: Optional[str] = None) -> str:
@@ -137,6 +146,7 @@ class Thinker:
         )
         ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
 
+        self.cost_tracker.report()
         return ranked_ideas
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -185,6 +195,8 @@ class Thinker:
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="modify_idea",
         )
 
         # Extract modified idea from response
@@ -193,6 +205,7 @@ class Thinker:
             print("Failed to extract modified idea")
             return original_idea
 
+        self.cost_tracker.report()
         return modified_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -218,6 +231,8 @@ class Thinker:
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="merge_ideas",
         )
 
         # Extract the merged idea from response
@@ -227,6 +242,7 @@ class Thinker:
             return None
 
         # If no other ideas provided or ranking failed, return just the merged idea
+        self.cost_tracker.report()
         return merged_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -245,6 +261,8 @@ class Thinker:
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="generate_experiment_plan",
         )
 
         experiment_plan = extract_json_between_markers(text)
@@ -255,6 +273,7 @@ class Thinker:
         idea_dict["Experiment"] = experiment_plan
         print("Experimental plan generated successfully.")
 
+        self.cost_tracker.report()
         return json.dumps(idea_dict, indent=2)
 
     def _load_pdf_content(self, pdf_path: Optional[str] = None) -> Optional[str]:
@@ -280,6 +299,7 @@ class Thinker:
 
             current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
 
+        self.cost_tracker.report()
         return current_idea_json
 
     def _get_idea_evaluation(
@@ -299,8 +319,11 @@ class Thinker:
             system_message=self.prompts.evaluation_system_prompt,
             msg_history=[],
             temperature=0.3,
+            cost_tracker=self.cost_tracker,
+            task_name="get_idea_evaluation",
         )
 
+        self.cost_tracker.report()
         return text
 
     def _parse_evaluation_result(
@@ -343,6 +366,7 @@ class Thinker:
                     del idea["Score"]
                 ranked_ideas.append(idea)
 
+        self.cost_tracker.report()
         return ranked_ideas
 
     def _get_related_works(self, query: str) -> str:
@@ -361,6 +385,7 @@ class Thinker:
             else:
                 print("❎ No Related Works Found")
 
+        self.cost_tracker.report()
         return self._format_paper_results(related_papers)
 
     def _generate_search_query(
@@ -384,6 +409,8 @@ class Thinker:
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="generate_search_query",
         )
 
         query_data = extract_json_between_markers(response)
@@ -413,6 +440,8 @@ class Thinker:
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="reflect_idea",
         )
 
         new_idea = extract_json_between_markers(text)
@@ -426,6 +455,7 @@ class Thinker:
         if "I am done" in text:
             print(f"Idea refinement converged after {current_round} iterations.")
 
+        self.cost_tracker.report()
         return json.dumps(new_idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -453,6 +483,8 @@ class Thinker:
             system_message=self.prompts.idea_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="generate_idea",
         )
 
         idea = extract_json_between_markers(text)
@@ -463,6 +495,7 @@ class Thinker:
             print("Failed to generate a valid idea")
             return json.dumps({})
 
+        self.cost_tracker.report()
         return json.dumps(idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -497,6 +530,8 @@ class Thinker:
                 model=self.model,
                 system_message=self.prompts.novelty_system_prompt,
                 msg_history=[],
+                cost_tracker=self.cost_tracker,
+                task_name="check_novelty",
             )
 
             if "NOVELTY CHECK: NOVEL" in text:
@@ -519,6 +554,7 @@ class Thinker:
             )
             idea_dict["novel"] = False
 
+        self.cost_tracker.report()
         return json.dumps(idea_dict, indent=2)
 
     @staticmethod

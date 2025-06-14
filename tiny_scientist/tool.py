@@ -9,6 +9,8 @@ import requests
 import toml
 from rich import print
 
+from tiny_scientist.utils.cost_tracker import CostTracker
+
 from .configs import Config
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
@@ -19,6 +21,10 @@ config = toml.load(config_path) if os.path.exists(config_path) else {"core": {}}
 
 
 class BaseTool(abc.ABC):
+    def __init__(self, cost_tracker: Optional[CostTracker] = None) -> None:
+        self.cost_tracker = cost_tracker or CostTracker()
+        self.github_token = config["core"].get("github_token", None)
+
     @abc.abstractmethod
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         pass
@@ -26,7 +32,7 @@ class BaseTool(abc.ABC):
 
 class CodeSearchTool(BaseTool):
     def __init__(self) -> None:
-        self.github_token = config["core"].get("github_token", None)
+        super().__init__()
 
     def run(
         self, query: str, search_type: str = "repositories"
@@ -54,6 +60,7 @@ class CodeSearchTool(BaseTool):
                     "info": f"Stars: {repo['stars']}",
                 }
 
+        self.cost_tracker.report()
         return results
 
     def format_github_repo_query(
@@ -169,6 +176,7 @@ class CodeSearchTool(BaseTool):
 
 class PaperSearchTool(BaseTool):
     def __init__(self) -> None:
+        super().__init__()
         self.s2_api_key = config["core"].get("s2_api_key", None)
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
@@ -185,6 +193,7 @@ class PaperSearchTool(BaseTool):
 
                 results[paper["title"]] = {"title": paper["title"], "bibtex": bibtex}
 
+        self.cost_tracker.report()
         return results
 
     def search_for_papers(
@@ -304,6 +313,7 @@ class DrawerTool(BaseTool):
         prompt_template_dir: Optional[str] = None,
         temperature: float = 0.75,
     ):
+        super().__init__()
         self.client, self.model = create_client(model)
         self.temperature = temperature
 
@@ -331,6 +341,7 @@ class DrawerTool(BaseTool):
                 "summary": diagram.get("summary", ""),
                 "svg": diagram.get("svg", ""),
             }
+        self.cost_tracker.report()
         return results
 
     def draw_diagram(
@@ -386,6 +397,8 @@ class DrawerTool(BaseTool):
             print_debug=False,
             msg_history=msg_history,
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="generate_diagram",
         )
 
         # Extract the diagram from the response

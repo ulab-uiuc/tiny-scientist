@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from rich import print
 
+from tiny_scientist.utils.cost_tracker import CostTracker
+
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -23,6 +25,7 @@ class Reviewer:
         num_reflections: int = 2,
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
+        cost_tracker: Optional[CostTracker] = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -33,6 +36,7 @@ class Reviewer:
         self.searcher = PaperSearchTool()
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
+        self.cost_tracker = cost_tracker or CostTracker()
 
         self.prompts = self.config.prompt_template.reviewer_prompt
         self.prompts.neurips_form = self.prompts.neurips_form.format(
@@ -57,6 +61,7 @@ class Reviewer:
         system_prompt = self.prompts.reviewer_system_prompt_neg
 
         review, _ = self._generate_review(base_prompt, system_prompt, msg_history=[])
+        self.cost_tracker.report()
         return json.dumps(review, indent=2)
 
     def re_review(self, review_json: str) -> str:
@@ -73,6 +78,7 @@ class Reviewer:
             related_works_string=related_works_string,
             msg_history=[],
         )
+        self.cost_tracker.report()
         return json.dumps(new_review, indent=2)
 
     def run(self, pdf_path: str) -> Dict[str, Any]:
@@ -95,6 +101,7 @@ class Reviewer:
 
             all_reviews.append(json.loads(current_review))
 
+        self.cost_tracker.report()
         return self._write_meta_review(all_reviews)
 
     def _get_related_works(self, query: str) -> str:
@@ -112,6 +119,7 @@ class Reviewer:
             related_works_string = "No related works found."
             print("❎No Related Works Found")
 
+        self.cost_tracker.report()
         return related_works_string
 
     def _build_review_prompt(self, text: str, related_works_string: str) -> str:
@@ -129,8 +137,11 @@ class Reviewer:
             system_message=self.prompts.reviewer_system_prompt_neg,
             temperature=self.temperature,
             msg_history=[],
+            cost_tracker=self.cost_tracker,
+            task_name="generate_query",
         )
         query_data = extract_json_between_markers(response)
+        self.cost_tracker.report()
         return str(query_data.get("Query", "")) if query_data else ""
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -151,8 +162,11 @@ class Reviewer:
             print_debug=False,
             msg_history=msg_history,
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="generate_review",
         )
         review = extract_json_between_markers(llm_review)
+        self.cost_tracker.report()
         return review if review is not None else {}, msg_history
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -177,11 +191,14 @@ class Reviewer:
             system_message=reviewer_system_prompt,
             msg_history=msg_history,
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="reflect_review",
         )
 
         new_review = extract_json_between_markers(text)
         is_done = "I am done" in text
 
+        self.cost_tracker.report()
         return new_review or {}, msg_history, is_done
 
     def _write_meta_review(self, reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -205,12 +222,15 @@ class Reviewer:
             system_message=meta_system_prompt,
             msg_history=[],
             temperature=self.temperature,
+            cost_tracker=self.cost_tracker,
+            task_name="write_meta_review",
         )
 
         meta_review = extract_json_between_markers(llm_meta_review)
         if meta_review is None:
             return {}
 
+        self.cost_tracker.report()
         return self._aggregate_scores(meta_review, reviews)
 
     def _aggregate_scores(
@@ -240,6 +260,7 @@ class Reviewer:
             if valid_scores:
                 meta_review[score] = int(round(sum(valid_scores) / len(valid_scores)))
 
+        self.cost_tracker.report()
         return meta_review
 
     @staticmethod

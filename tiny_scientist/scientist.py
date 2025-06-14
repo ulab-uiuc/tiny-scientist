@@ -23,6 +23,8 @@ class TinyScientist:
         self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
 
+        self.cost = 0.0
+
         self.thinker = Thinker(
             model=model,
             output_dir=output_dir,
