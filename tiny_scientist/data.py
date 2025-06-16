@@ -93,7 +93,7 @@ class MCPModuleConfig(BaseModel):
     """MCP configuration for a specific module"""
     enabled: bool = False
     servers: List[str] = []  # list of server names to use
-    capabilities: List[str] = []  # list of required capabilities
+    capabilities: List[str] = Field(default_factory=list)  # list of required capabilities
     timeout: Optional[int] = 60  # operation timeout in seconds
     max_tool_calls: Optional[int] = 10  # maximum tool calls per session
 
