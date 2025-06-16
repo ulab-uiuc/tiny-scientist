@@ -25,3 +25,82 @@ llm_api_key = ""
 
 # paper searching engine
 #engine = "semanticscholar"
+
+#################################### MCP Configuration ####################################
+# =============================================================================
+# MCP Configuration (Model Context Protocol)
+# =============================================================================
+# Configuration for MCP (Model Context Protocol) integration
+# This enables the agent to connect to and use MCP servers for extended capabilities
+
+[mcp]
+
+# MCP Server Definitions
+# Define available MCP servers that can be used by the agent
+[mcp.servers]
+
+# Airbnb server using npx (stdio type with command and args)
+[mcp.servers.airbnb]
+type = "stdio"                                # Connection type: stdio, sse, websocket
+command = "npx"                              # Base command to run
+args = [
+    "-y",
+    "@openbnb/mcp-server-airbnb",
+    "--ignore-robots-txt"
+]  # Command arguments
+timeout = 30                                 # Connection timeout in seconds
+max_retries = 3                             # Maximum retry attempts
+enabled = true                              # Whether this server is enabled
+
+# Example: Everything server using npx (stdio type with command and args)
+# [mcp.servers.everything]
+# type = "stdio"                                # Connection type: stdio, sse, websocket
+# command = "npx"                              # Base command to run
+# args = ["-y", "@modelcontextprotocol/server-everything"]  # Command arguments
+# timeout = 30                                 # Connection timeout in seconds
+# max_retries = 3                             # Maximum retry attempts
+# enabled = true                              # Whether this server is enabled
+
+# Example: Local Python research server (stdio type with single command)
+# [mcp.servers.research_server]
+# type = "stdio"
+# command = "python"
+# args = ["research_mcp_server.py"]
+# timeout = 30
+# max_retries = 3
+# enabled = false                             # Disabled by default - need to implement server
+
+# Example: Web search server (SSE type - Server-Sent Events)
+# [mcp.servers.web_search_server]
+# type = "sse"
+# url = "http://localhost:8000/sse"           # SSE endpoint URL
+# timeout = 30
+# max_retries = 3
+# enabled = false                             # Disabled by default
+
+# Example: File system server (stdio type)
+# [mcp.servers.filesystem_server]
+# type = "stdio"
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"]
+# timeout = 30
+# max_retries = 3
+# enabled = false                             # Disabled by default
+
+# Example: Git server (stdio type)
+# [mcp.servers.git_server]
+# type = "stdio"
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-git", "--repository", "."]
+# timeout = 30
+# max_retries = 3
+# enabled = false                             # Disabled by default
+
+# MCP Agent Configuration
+# Configure which servers and capabilities the MCP agent should use
+[mcp.agent]
+enabled = true                              # Enable MCP for the agent module
+servers = ["airbnb"]                        # List of server names to use
+capabilities = ["search", "file_operations", "web_access"]  # Required capabilities
+timeout = 300                               # Operation timeout in seconds
+max_tool_calls = 20                         # Maximum tool calls per session
