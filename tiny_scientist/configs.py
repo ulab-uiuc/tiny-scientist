@@ -71,10 +71,10 @@ class Config(BaseModel):
                 mcp_data = config_data.get("mcp", {})
                 return MCPConfig(**mcp_data)
             else:
-                print(f"[Config] MCP config file not found: {config_file_path}")
+                logger.warning(f"[Config] MCP config file not found: {config_file_path}")
                 return MCPConfig()
         except Exception as e:
-            print(f"[Config] Failed to load MCP config: {e}")
+            logger.error(f"[Config] Failed to load MCP config: {e}")
             return MCPConfig()
 
     def _load_from_yaml(self, prompt_path: str) -> PromptTemplate:
