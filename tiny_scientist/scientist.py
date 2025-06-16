@@ -5,6 +5,7 @@ from rich import print
 from .coder import Coder
 from .reviewer import Reviewer
 from .thinker import Thinker
+from .utils.cost_tracker import CostTracker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
@@ -16,6 +17,7 @@ class TinyScientist:
         output_dir: str = "./",
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
+        budget: Optional[float] = None,
     ):
         self.model = model
         self.output_dir = output_dir
@@ -25,6 +27,10 @@ class TinyScientist:
 
         self.cost = 0.0
 
+        # Naive budget split
+        modules = ["thinker", "coder", "writer", "reviewer"]
+        per_module_budget = budget / len(modules) if budget else None
+
         self.thinker = Thinker(
             model=model,
             output_dir=output_dir,
@@ -33,6 +39,7 @@ class TinyScientist:
             iter_num=3,
             search_papers=True,
             generate_exp_plan=True,
+            cost_tracker=CostTracker(budget=per_module_budget),
         )
 
         self.coder = Coder(
@@ -41,6 +48,7 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
+            cost_tracker=CostTracker(budget=per_module_budget),
         )
 
         self.writer = Writer(
@@ -48,12 +56,14 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
+            cost_tracker=CostTracker(budget=per_module_budget),
         )
 
         self.reviewer = Reviewer(
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
+            cost_tracker=CostTracker(budget=per_module_budget),
         )
 
     def think(

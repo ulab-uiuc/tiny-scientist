@@ -3,11 +3,16 @@ from typing import Dict, Optional
 from tiny_scientist.utils.pricing import calculate_pricing
 
 
+class BudgetExceededError(Exception):
+    pass
+
+
 class CostTracker:
-    def __init__(self):
+    def __init__(self, budget: Optional[float] = None):
         self.total_cost = 0.0
         self.per_task_cost: Dict[str, float] = {}
         self.current_task: Optional[str] = None
+        self.budget = budget  # in dollars
 
     def start_task(self, task_name: str):
         self.current_task = task_name
@@ -27,6 +32,11 @@ class CostTracker:
         task_name: Optional[str] = None,
     ):
         cost = calculate_pricing(model, input_tokens, output_tokens)
+        if self.budget is not None and self.total_cost + cost > self.budget:
+            raise BudgetExceededError(
+                f"Budget exceeded! Attempted to add ${cost:.4f}, "
+                f"which would bring total to ${self.total_cost + cost:.4f} (budget: ${self.budget:.4f})"
+            )
         self.total_cost += cost
         if task_name is None:
             task_name = self.current_task
