@@ -9,10 +9,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import cairosvg
 from rich import print
 
-from tiny_scientist.utils.cost_tracker import CostTracker
-
 from .configs import Config
 from .tool import BaseTool, DrawerTool, PaperSearchTool
+from .utils.cost_tracker import CostTracker
 from .utils.llm import (
     create_client,
     extract_json_between_markers,

@@ -4,10 +4,9 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from rich import print
 
-from tiny_scientist.utils.cost_tracker import CostTracker
-
 from .configs import Config
 from .tool import PaperSearchTool
+from .utils.cost_tracker import CostTracker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import (
     create_client,

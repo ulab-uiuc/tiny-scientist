@@ -3,10 +3,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from rich import print
 
-from tiny_scientist.utils.cost_tracker import CostTracker
-
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
+from .utils.cost_tracker import CostTracker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.input_formatter import InputFormatter
 from .utils.llm import (

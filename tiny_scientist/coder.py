@@ -11,9 +11,8 @@ from aider.io import InputOutput
 from aider.models import Model
 from rich import print
 
-from tiny_scientist.utils.cost_tracker import CostTracker
-
 from .configs import Config
+from .utils.cost_tracker import CostTracker
 from .utils.llm import create_client, get_response_from_llm
 
 
