@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from tiny_scientist.utils.pricing import calculate_pricing
+from .pricing import calculate_pricing
 
 
 class BudgetExceededError(Exception):
