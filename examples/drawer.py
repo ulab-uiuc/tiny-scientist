@@ -62,12 +62,6 @@ def main() -> int:
         else:
             text = args.text
 
-        # Get example if provided
-        example = None
-        if args.example and os.path.exists(args.example):
-            with open(args.example, "r") as f:
-                example = f.read()
-
         # Get prompt templates directory
         current_dir = os.path.dirname(os.path.realpath(__file__))
         prompt_template_dir = os.path.join(

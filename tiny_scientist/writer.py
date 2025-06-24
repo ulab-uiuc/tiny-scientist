@@ -134,7 +134,11 @@ class Writer:
         for section in ["Method", "Experimental_Setup", "Results"]:
             content = self.generated_sections[section]
             try:
-                diagram_result = self.drawer.run(section_name=section, section_content=content)
+                query = json.dumps({
+                    "section_name": section,
+                    "section_content": content
+                })
+                diagram_result = self.drawer.run(query)
            
                 if diagram_result and "diagram" in diagram_result:
                     diagram = diagram_result["diagram"]
