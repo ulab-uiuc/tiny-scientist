@@ -270,7 +270,6 @@ class ACLOutputFormatter(BaseOutputFormatter):
     ) -> None:
         body_content = self._assemble_body(content)
         body_content = self.clean_body_content(body_content)
-        print(body_content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)

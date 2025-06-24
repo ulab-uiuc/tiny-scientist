@@ -409,10 +409,7 @@ class DrawerTool(BaseTool):
             cost_tracker=self.cost_tracker,
             task_name="generate_diagram",
         )
-    
-        # print(f"[DEBUG] LLM response: {llm_response}")
         diagram = self._extract_diagram(llm_response)
-
         return diagram, msg_history
 
     def _extract_diagram(self, response: str) -> Dict[str, Any]:
@@ -452,6 +449,3 @@ class DrawerTool(BaseTool):
         svg = "\n".join([line for line in svg.splitlines() if line.strip()])
 
         return svg.strip()
-
-
-
