@@ -372,7 +372,7 @@ class DrawerTool(BaseTool):
     ) -> Any:
         # Use default system prompt if none provided
         section_prompt = self._get_section_prompts(section_name, section_content)
-
+     
         diagram, updated_msg_history = self._generate_diagram(
             section_prompt, self.system_prompts, msg_history
         )
@@ -399,18 +399,15 @@ class DrawerTool(BaseTool):
         # Generate diagram
         llm_response, msg_history = get_response_from_llm(
             section_prompt,
-            # model='gpt-4o-2024-08-06',
             model=self.model,
             client=self.client,
             system_message=drawer_system_prompt,
-            print_debug=False,
             msg_history=msg_history,
             temperature=self.temperature,
             cost_tracker=self.cost_tracker,
             task_name="generate_diagram",
         )
     
-        # print(f"[DEBUG] LLM response: {llm_response}")
         diagram = self._extract_diagram(llm_response)
 
         return diagram, msg_history

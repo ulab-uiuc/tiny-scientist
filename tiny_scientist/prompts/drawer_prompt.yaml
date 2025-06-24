@@ -49,7 +49,7 @@ section_prompt:
     - Use meaningful labels and flow arrows to indicate logical transitions.
 
     The diagram must be based **only** on the following Introduction section text:
-    {{ section_text }}
+    {section_text}
 
     Create a conceptual diagram that conveys the motivation, problem, and proposed direction at a glance.
 
@@ -66,7 +66,7 @@ section_prompt:
     - Be implementation-agnostic (e.g., don’t show layers like “Conv2d(3x3)” or numeric tensor shapes).
 
     Use only the following Method section text:
-    {{ section_text }}
+    {section_text}
 
     Create a structured diagram that helps readers understand the method architecture clearly and intuitively.
 
@@ -82,7 +82,7 @@ section_prompt:
     - Make the experiment understandable without full textual context.
 
     Only use the following Experimental_Setup section text:
-    {{ section_text }}
+    {section_text}
 
     Create a diagram that clearly explains how the experiments were conducted from start to finish.
 
@@ -98,7 +98,7 @@ section_prompt:
     - Include performance numbers only if highly relevant.
 
     Here is the corresponding Results section text:
-    {{ section_text }}
+    {section_text}
 
     Create a summary diagram that visually compares key results or tradeoffs between methods.
 
