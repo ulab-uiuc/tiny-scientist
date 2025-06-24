@@ -12,6 +12,7 @@ from rich import print
 
 from .configs import Config
 from .tool import BaseTool, DrawerTool, PaperSearchTool
+from .utils.cost_tracker import CostTracker
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
@@ -32,6 +33,7 @@ class Writer:
         template: str,
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
+        cost_tracker: Optional[CostTracker] = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
@@ -47,6 +49,7 @@ class Writer:
             self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
 
         self.prompts = self.config.prompt_template.writer_prompt
+        self.cost_tracker = cost_tracker or CostTracker()
 
         with resources.files("tiny_scientist.fewshot_sample").joinpath("automated_relational.txt").open("r", encoding="utf-8") as f:
             few_shot_sample_text = f.read()
@@ -99,6 +102,7 @@ class Writer:
             output_pdf_path=output_pdf_path,
             name=self.generated_sections.get("Title", "Research Paper"),
         )
+        self.cost_tracker.report()
         return output_pdf_path, paper_name
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
@@ -119,6 +123,8 @@ class Writer:
             client=self.client,
             model=self.model,
             system_message=self.system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name="Abstract",
         )
 
         self.generated_sections["Abstract"] = abstract_content
@@ -230,6 +236,8 @@ class Writer:
             client=self.client,
             model=self.model,
             system_message=self.system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name=f"{section} section",
         )
 
         self.generated_sections[section] = section_content
@@ -260,6 +268,8 @@ class Writer:
                 client=self.client,
                 model=self.model,
                 system_message=self.prompts.citation_system_prompt,
+                cost_tracker=self.cost_tracker,
+                task_name="Related Work",
             )
 
             try:
@@ -323,6 +333,8 @@ class Writer:
             client=self.client,
             model=self.model,
             system_message=self.prompts.write_system_prompt_related_work,
+            cost_tracker=self.cost_tracker,
+            task_name="Related Work",
         )
 
         for title, meta in paper_source.items():
@@ -361,6 +373,8 @@ class Writer:
             client=self.client,
             model=self.model,
             system_message=self.system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name=f"Refine {section}",
         )
 
         self.generated_sections[section] = refined_section
@@ -378,6 +392,8 @@ class Writer:
             client=self.client,
             model=self.model,
             system_message=self.system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name="Title Refinement",
         )
 
         self.generated_sections["Title"] = refined_title
@@ -408,6 +424,8 @@ class Writer:
                     client=self.client,
                     model=self.model,
                     system_message='',
+                    cost_tracker=self.cost_tracker,
+                    task_name=f"Second Refine {section}",
                 )
 
                 self.generated_sections[section] = refined_section_content
@@ -435,6 +453,8 @@ class Writer:
                         client=self.client,
                         model=self.model,
                         system_message=self.prompts.citation_system_prompt,
+                        cost_tracker=self.cost_tracker,
+                        task_name=f"Add Citation to {section}",
                     )
 
                     try:
@@ -470,6 +490,8 @@ class Writer:
                         client=self.client,
                         model=self.model,
                         system_message=self.prompts.citation_system_prompt,
+                        cost_tracker=self.cost_tracker,
+                        task_name=f"Embed Citation in {section}",
                     )
 
                     print(f"Refined section for {section}: {refined_section}")
