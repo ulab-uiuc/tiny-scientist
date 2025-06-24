@@ -1,43 +1,107 @@
-diagram_system_prompt_base: |
-  You are an expert in creating clear, professional diagrams for academic papers.
-  Your task is to generate an SVG diagram that visually represents the key concepts, methods, or workflows described in the text.
+diagram_system_prompt: |
+  You are a scientific illustrator for top-tier academic papers (e.g., NeurIPS, Nature).
+  Your task is to generate a high-quality SVG diagram in the style of NeurIPS / Nature Energy figures.
 
-  Guidelines:
-  1. Create diagrams that are clean, professional, and suitable for academic publication
-  2. Use standard diagramming conventions and symbols
-  3. Ensure the diagram is self-contained and can be understood without additional context
-  4. Include appropriate labels, arrows, and annotations
-  5. Make the diagram scalable and maintainable
-  6. Focus on clarity and readability over artistic complexity
-  7. Ensure the SVG code is compatible with LaTeX figure environment
-  8. Use LaTeX-compatible fonts and symbols in labels
-  9. Keep the diagram size reasonable for a single-column academic paper
+  Use:
+  - Modular block layout (e.g., shaded regions for subsystems)
+  - Clean color palette with subtle gradients or soft tones
+  - Aligned arrows with consistent style
+  - Descriptive block labels (avoid vague terms like “Output Layer” unless necessary)
+  - Group components logically with bounding boxes or background shading
+  - No clutter, and good spacing between components
 
-  Your response must include:
-  1. A SUMMARY section describing the key elements of the diagram (this will be used as the figure caption)
-  2. A DIAGRAM SVG section containing the actual SVG code (this will be embedded in a LaTeX figure)
-  3. The SVG must be valid, self-contained, and LaTeX-compatible
+  The SVG should be professional and publication-ready.
+    Here's an example of a correct diagram output for a Method section:
 
-template_instructions: |
-  Please create a professional academic diagram based on the provided text.
-  The diagram should:
-  - Clearly illustrate the key concepts and relationships
-  - Use appropriate visual elements (boxes, arrows, etc.)
-  - Include clear labels and annotations
-  - Be scalable and maintainable
-  - Follow academic diagramming conventions
-  - Be compatible with LaTeX figure environment
-  - Use LaTeX-compatible fonts and symbols
+  Respond with a valid JSON object containing:
+  - `summary`: a one-sentence natural language description (no code formatting).
+  - `svg`: a valid, complete `<svg>...</svg>` string.
+  
+  Do **not** wrap the JSON or SVG in triple backticks or Markdown code blocks.
+  {{
+    "summary": "Summary for the information of the diagram",
+    "svg": "<svg width='600' height='400'>...</svg>"
+  }}
 
-  Your response must include:
-  1. A SUMMARY section describing the key elements of the diagram (will be used as figure caption)
-  2. A DIAGRAM SVG section containing the actual SVG code (will be embedded in LaTeX)
+  ---
 
-few_shot_instructions: |
-  Here is an example of how to create a diagram:
-  {example}
+  Below are additional examples of correct outputs:
 
-  Based on this example, please create a diagram for the following text.
+  {method_sample}
+
+  {result_sample}
+
+  ---
+
+  Now, generate a diagram for the following section:
+
+
+section_prompt:
+  Introduction: |
+    You are generating a high-level conceptual figure for the **Introduction** section of a scientific paper.
+
+    **Your diagram must:**
+    - Clearly illustrate the real-world motivation or challenge being addressed.
+    - Highlight the gap or limitation in existing approaches.
+    - Visually introduce the core innovation or proposed solution.
+    - Use intuitive visual structure (e.g., left-to-right or before-vs-after layout).
+    - Avoid technical or implementation-specific details and numeric metrics.
+    - Use meaningful labels and flow arrows to indicate logical transitions.
+
+    The diagram must be based **only** on the following Introduction section text:
+    {{ section_text }}
+
+    Create a conceptual diagram that conveys the motivation, problem, and proposed direction at a glance.
+
+  Method: |
+    You are generating a schematic figure for the **Method** section of a scientific paper.
+
+    **Your diagram must:**
+    - Visualize the **pipeline or architecture** from input to output.
+    - Include clear modules (e.g., Encoder, Decoder, Classifier, Loss), **each enclosed in labeled boxes**.
+    - Show **data flow using directional arrows**.
+    - Use **consistent colors**, rounded corners, and **minimum 12pt Arial font**.
+    - Ensure the layout is either horizontal or vertical and **visually balanced**.
+    - Include **at least 5 labeled components** and avoid clutter.
+    - Be implementation-agnostic (e.g., don’t show layers like “Conv2d(3x3)” or numeric tensor shapes).
+
+    Use only the following Method section text:
+    {{ section_text }}
+
+    Create a structured diagram that helps readers understand the method architecture clearly and intuitively.
+
+
+  Experimental_Setup: |
+    You are generating a schematic figure for the **Experimental Setup** section.
+
+    **Your diagram must:**
+    - Visualize the data pipeline and experimental phases (e.g., preprocessing, training, testing).
+    - Indicate dataset splits and model usage at each stage.
+    - Include any relevant simulation or environment setup.
+    - Use labeled boxes and directional arrows to clarify sequence and relationships.
+    - Make the experiment understandable without full textual context.
+
+    Only use the following Experimental_Setup section text:
+    {{ section_text }}
+
+    Create a diagram that clearly explains how the experiments were conducted from start to finish.
+
+
+  Results: |
+    You are generating a results-focused diagram that visually communicates key findings and comparative insights.
+
+    Your diagram should:
+    - Highlight the main performance trends, comparisons, or ablations.
+    - Use visual structures like grouped bars, axes, or schematic comparison boxes.
+    - Focus on the **main takeaway** from the results.
+    - Avoid overwhelming detail; summarize only key outcomes.
+    - Include performance numbers only if highly relevant.
+
+    Here is the corresponding Results section text:
+    {{ section_text }}
+
+    Create a summary diagram that visually compares key results or tradeoffs between methods.
+
 
 error_list: |
   - Missing or invalid SVG code
@@ -55,23 +119,3 @@ error_list: |
   - Oversized diagrams
   - Poor figure caption content
 
-refinement_prompt: |
-  Please review and refine the diagram you just created.
-  Focus on:
-  - Adding modular structure (e.g., labeled stages for "Input", "Processing", "Output")
-  - Including visual indicators for dynamic processes (e.g., dashed arrows for adaptive flows)
-  - Better layout alignment (use horizontal or vertical symmetry)
-  - Distinguishing components visually (via grouping boxes or layout space)
-  - Fixing SVG issues: alignment, font size, spacing, and arrow direction
-
-  Your output must include both a SUMMARY and a valid SVG diagram.
-  Pay particular attention to fixing any errors such as:
-  {error_list}
-
-  Here is the current diagram:
-  """
-  {diagram_content}
-  """
-
-  Please provide an improved version that addresses any issues while maintaining the core message and structure.
-  Ensure the diagram is properly formatted for LaTeX integration.

@@ -78,6 +78,22 @@ class BaseOutputFormatter(abc.ABC):
             cleaned_lines.append(line)
         return "\n".join(cleaned_lines)
 
+    def clean_body_content(self, body_content: str) -> str:
+    
+        patterns_to_remove = [
+            r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",   # matches \documentclass[...]{...}
+            r"\\begin\{document\}",
+            r"\\end\{document\}",
+            r"\\maketitle",
+            r"\\title\{.*?\}",                             # matches \title{...}
+        ]
+
+        for pattern in patterns_to_remove:
+            body_content = re.sub(pattern, "", body_content, flags=re.DOTALL)
+
+        # Strip extra whitespace and newlines at start/end
+        return body_content.strip()
+
     def _wrap_tables_in_latex(self, content: str) -> str:
         def replacer(match: Match[str]) -> str:
             tabular_block = match.group(1)
@@ -253,9 +269,10 @@ class ACLOutputFormatter(BaseOutputFormatter):
         timeout: int = 30,
     ) -> None:
         body_content = self._assemble_body(content)
+        body_content = self.clean_body_content(body_content)
+        print(body_content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
-        breakpoint()
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
         main_tex_path = osp.join(dest_template_dir, "acl_latex.tex")
