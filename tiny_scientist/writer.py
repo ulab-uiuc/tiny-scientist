@@ -196,9 +196,6 @@ class Writer:
         print(f"Writing section: {section}...")
   
         if section in ["Introduction"]:
-            abstract_content = self.formatter.strip_latex(
-                self.generated_sections.get("Abstract", "")
-            )
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 title=title,
