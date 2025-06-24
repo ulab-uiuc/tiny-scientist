@@ -344,7 +344,7 @@ class DrawerTool(BaseTool):
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
-    def run(self, section_name: str = None, section_content: str = None) -> Dict[str, Dict[str, str]]:
+    def run(self, section_name: str, section_content: str) -> Dict[str, Dict[str, str]]:
         diagram = self.draw_diagram(section_name=section_name, section_content=section_content)
   
         results = {}
@@ -358,8 +358,8 @@ class DrawerTool(BaseTool):
 
     def draw_diagram(
         self,
-        section_name: str = None,
-        section_content: str = None,
+        section_name: str,
+        section_content: str,
         msg_history: Optional[List[Dict[str, Any]]] = None,
         return_msg_history: bool = False,
     ) -> Any:
@@ -372,7 +372,7 @@ class DrawerTool(BaseTool):
 
         return (diagram, updated_msg_history) if return_msg_history else diagram
 
-    def _get_section_prompts(self, section_name: str, section_text: str = None) -> str:
+    def _get_section_prompts(self, section_name: str, section_text: str) -> str:
         section_prompt = self.prompts.section_prompt[section_name].format(
             section_text = section_text
         )
