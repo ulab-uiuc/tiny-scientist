@@ -82,7 +82,7 @@ def main() -> int:
         )
 
         print(f"Generating diagram using {args.model}...")
-        diagram = drawer.draw_diagram(text=text, example=example)
+        diagram = drawer.draw_diagram('Method', text)
 
         if not diagram or not diagram.get("svg"):
             print("Failed to generate diagram.")

@@ -344,9 +344,16 @@ class DrawerTool(BaseTool):
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
-    def run(self, section_name: str, section_content: str) -> Dict[str, Dict[str, str]]:
+    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+        try:
+            query_dict = json.loads(query)
+            section_name = query_dict.get("section_name")
+            section_content = query_dict.get("section_content")
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            raise ValueError("Expected query to be a JSON string with 'section_name' and 'section_content'.")
+
         diagram = self.draw_diagram(section_name=section_name, section_content=section_content)
-  
+
         results = {}
         if diagram:
             results["diagram"] = {
