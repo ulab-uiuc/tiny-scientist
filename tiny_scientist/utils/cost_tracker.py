@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-
+from rich import print
 from .pricing import calculate_pricing
 
 
