@@ -39,13 +39,7 @@ def parse_args() -> argparse.Namespace:
         default=0.75,
         help="Temperature for LLM generation (default: 0.75)",
     )
-    parser.add_argument(
-        "--example",
-        type=str,
-        help="Path to a file containing an example diagram for few-shot learning",
-    )
     return parser.parse_args()
-
 
 def main() -> int:
     args: argparse.Namespace = parse_args()
@@ -62,12 +56,6 @@ def main() -> int:
         else:
             text = args.text
 
-        # Get example if provided
-        example = None
-        if args.example and os.path.exists(args.example):
-            with open(args.example, "r") as f:
-                example = f.read()
-
         # Get prompt templates directory
         current_dir = os.path.dirname(os.path.realpath(__file__))
         prompt_template_dir = os.path.join(
@@ -82,7 +70,13 @@ def main() -> int:
         )
 
         print(f"Generating diagram using {args.model}...")
-        diagram = drawer.draw_diagram(text=text, example=example)
+
+        query = json.dumps({
+            "section_name": "Method",
+            "section_content": text,
+        })
+        result = drawer.run(query)
+        diagram = result.get("diagram", {})
 
         if not diagram or not diagram.get("svg"):
             print("Failed to generate diagram.")
@@ -115,7 +109,6 @@ def main() -> int:
         return 1
 
     return 0
-
 
 if __name__ == "__main__":
     exit(main())

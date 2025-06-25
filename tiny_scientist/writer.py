@@ -4,6 +4,7 @@ import os.path as osp
 import re
 import time
 import traceback
+from importlib import resources
 from typing import Any, Dict, List, Optional, Tuple
 
 import cairosvg
@@ -50,6 +51,15 @@ class Writer:
         self.prompts = self.config.prompt_template.writer_prompt
         self.cost_tracker = cost_tracker or CostTracker()
 
+        with resources.files("tiny_scientist.fewshot_sample").joinpath(
+            "automated_relational.txt"
+        ).open("r", encoding="utf-8") as f:
+            few_shot_sample_text = f.read()
+
+        self.system_prompt = self.prompts.write_system_prompt.format(
+            example_paper_draft=few_shot_sample_text
+        )
+
     def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
         with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
             code = f.read()
@@ -69,10 +79,10 @@ class Writer:
         self._write_abstract(idea)
 
         for section in [
+            "Introduction",
             "Method",
             "Experimental_Setup",
             "Results",
-            "Introduction",
             "Discussion",
             "Conclusion",
         ]:
@@ -80,7 +90,9 @@ class Writer:
 
         self._write_related_work(idea)
         self._refine_paper()
+
         self._add_citations(idea)
+        self._generate_diagram_for_section()
 
         paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_")
 
@@ -90,7 +102,7 @@ class Writer:
             references=self.references,
             output_dir=self.output_dir,
             output_pdf_path=output_pdf_path,
-            name=paper_name,
+            name=self.generated_sections.get("Title", "Research Paper"),
         )
         self.cost_tracker.report()
         return output_pdf_path, paper_name
@@ -112,43 +124,72 @@ class Writer:
             msg=abstract_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts.write_system_prompt,
+            system_message=self.system_prompt,
             cost_tracker=self.cost_tracker,
             task_name="Abstract",
         )
 
         self.generated_sections["Abstract"] = abstract_content
 
-    def _generate_diagram_for_section(
-        self, section: str, content: str
-    ) -> Optional[Dict[str, str]]:
-        """Generate a diagram for a specific section if appropriate."""
-        if section in ["Introduction", "Method", "Experimental_Setup", "Results"]:
+    def _generate_diagram_for_section(self) -> None:
+        print("[blue]Generating diagrams for sections...")
+        for section in ["Method", "Experimental_Setup", "Results"]:
+            content = self.generated_sections[section]
             try:
-                diagram_result = self.drawer.run(content)
+                query = json.dumps(
+                    {"section_name": section, "section_content": content}
+                )
+                diagram_result = self.drawer.run(query)
+
                 if diagram_result and "diagram" in diagram_result:
                     diagram = diagram_result["diagram"]
 
                     pdf_filename = f"diagram_{section.lower()}.pdf"
                     pdf_path = os.path.join(self.output_dir, "latex", pdf_filename)
                     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+                    raw_svg = diagram["svg"]
+
+                    cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
+                    cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
+
                     cairosvg.svg2pdf(
-                        bytestring=diagram["svg"].encode("utf-8"), write_to=pdf_path
+                        bytestring=cleaned_svg.encode("utf-8"), write_to=pdf_path
                     )
 
-                    return {
-                        "summary": diagram["summary"],
-                        "tex": f"""
-        \\begin{{figure}}[h]
-        \\centering
-        \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
-        \\caption{{{diagram['summary']}}}
-        \\end{{figure}}
-        """,
-                    }
+                    # Sanitize caption to avoid LaTeX errors
+                    caption = diagram["summary"].replace("{", "").replace("}", "")
+
+                    figure_latex = f"""
+    \\begin{{figure}}[h]
+    \\centering
+    \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
+    \\caption{{{caption}}}
+    \\label{{fig:{section.lower()}}}
+    \\end{{figure}}
+    """
+                    marker = "```"
+
+                    if self.generated_sections[section].strip().endswith(marker):
+                        parts = content.strip().rsplit(marker, 1)
+                        if len(parts) == 2:
+                            self.generated_sections[section] = (
+                                parts[0].strip()
+                                + "\n"
+                                + figure_latex
+                                + "\n"
+                                + marker
+                                + parts[1]
+                            )
+
+                            print(parts[1])
+
+                    print(f"[yellow]**{self.generated_sections[section]}")
+
             except Exception as e:
                 print(f"[WARNING] Failed to generate diagram for {section}: {e}")
                 traceback.print_exc()
+
         return None
 
     def _write_section(
@@ -162,13 +203,8 @@ class Writer:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
         print(f"Writing section: {section}...")
+
         if section in ["Introduction"]:
-            method_content = self.formatter.strip_latex(
-                self.generated_sections.get("Method", "")
-            )
-            abstract_content = self.formatter.strip_latex(
-                self.generated_sections.get("Abstract", "")
-            )
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 title=title,
@@ -177,8 +213,6 @@ class Writer:
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
-                method_section=method_content,
-                abstract=abstract_content,
             )
         elif section in ["Conclusion"]:
             section_prompt = self.prompts.section_prompt[section].format(
@@ -207,18 +241,11 @@ class Writer:
             msg=section_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts.write_system_prompt,
+            system_message=self.system_prompt,
             cost_tracker=self.cost_tracker,
             task_name=f"{section} section",
         )
 
-        # Generate diagram for appropriate sections
-        diagram = self._generate_diagram_for_section(section, section_content)
-
-        if diagram:
-            # Add diagram to the section content
-            # section_content += f"\n\n\\begin{{figure}}[h]\n\\centering\n{diagram['svg']}\n\\caption{{{diagram['summary']}}}\n\\end{{figure}}\n"
-            section_content += f"\n\n{diagram['tex']}"
         self.generated_sections[section] = section_content
 
     def _get_citations_related_work(
@@ -339,6 +366,7 @@ class Writer:
         refinement_prompt = (
             self.prompts.refinement_prompt.format(
                 section=section,
+                section_tips=self.prompts.section_tips[section],
                 section_content=self.generated_sections[section],
                 error_list=self.prompts.error_list,
             )
@@ -350,7 +378,7 @@ class Writer:
             msg=refinement_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.prompts.write_system_prompt,
+            system_message=self.system_prompt,
             cost_tracker=self.cost_tracker,
             task_name=f"Refine {section}",
         )
@@ -369,7 +397,7 @@ class Writer:
             msg=self.prompts.title_refinement_prompt.format(full_draft=full_draft),
             client=self.client,
             model=self.model,
-            system_message=self.prompts.write_system_prompt,
+            system_message=self.system_prompt,
             cost_tracker=self.cost_tracker,
             task_name="Title Refinement",
         )
@@ -377,7 +405,6 @@ class Writer:
         self.generated_sections["Title"] = refined_title
 
         for section in [
-            "Abstract",
             "Introduction",
             "Background",
             "Method",
@@ -387,11 +414,10 @@ class Writer:
         ]:
             if section in self.generated_sections.keys():
                 print(f"Refining section: {section}...")
-                second_refinement_prompt = (
-                    self.prompts.second_refinement_prompt.format(
+                refinement_prompt = (
+                    self.prompts.refinement_prompt.format(
                         section=section,
-                        tips=self.prompts.section_tips[section],
-                        full_draft=full_draft,
+                        section_tips=self.prompts.section_tips[section],
                         section_content=self.generated_sections[section],
                         error_list=self.prompts.error_list,
                     )
@@ -399,16 +425,16 @@ class Writer:
                     .replace(r"}}", "}")
                 )
 
-                refined_section, _ = get_response_from_llm(
-                    msg=second_refinement_prompt,
+                refined_section_content, _ = get_response_from_llm(
+                    msg=refinement_prompt,
                     client=self.client,
                     model=self.model,
-                    system_message=self.prompts.write_system_prompt,
+                    system_message="",
                     cost_tracker=self.cost_tracker,
                     task_name=f"Second Refine {section}",
                 )
 
-                self.generated_sections[section] = refined_section
+                self.generated_sections[section] = refined_section_content
 
     def _add_citations(self, idea: Dict[str, Any]) -> None:
         idea_title = idea.get("Title", "Research Paper")
