@@ -16,7 +16,7 @@ diagram_system_prompt: |
   Respond with a valid JSON object containing:
   - `summary`: a one-sentence natural language description (no code formatting).
   - `svg`: a valid, complete `<svg>...</svg>` string.
-  
+
   Do **not** wrap the JSON or SVG in triple backticks or Markdown code blocks.
   {{
     "summary": "Summary for the information of the diagram",
@@ -118,4 +118,3 @@ error_list: |
   - Incompatible fonts or symbols
   - Oversized diagrams
   - Poor figure caption content
-

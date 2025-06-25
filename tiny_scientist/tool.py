@@ -331,8 +331,12 @@ class DrawerTool(BaseTool):
                 extracted = [page.get_text().strip() for page in doc]
                 return "\n\n".join(extracted)
 
-        method_sample_raw = extract_pdf_text_from_resource("tiny_scientist.fewshot_sample", "framework.pdf")
-        result_sample_raw = extract_pdf_text_from_resource("tiny_scientist.fewshot_sample", "result.pdf")
+        method_sample_raw = extract_pdf_text_from_resource(
+            "tiny_scientist.fewshot_sample", "framework.pdf"
+        )
+        result_sample_raw = extract_pdf_text_from_resource(
+            "tiny_scientist.fewshot_sample", "result.pdf"
+        )
 
         method_sample = escape_curly_braces(method_sample_raw)
         result_sample = escape_curly_braces(result_sample_raw)
@@ -350,9 +354,13 @@ class DrawerTool(BaseTool):
             section_name = query_dict.get("section_name")
             section_content = query_dict.get("section_content")
         except (json.JSONDecodeError, TypeError, AttributeError):
-            raise ValueError("Expected query to be a JSON string with 'section_name' and 'section_content'.")
+            raise ValueError(
+                "Expected query to be a JSON string with 'section_name' and 'section_content'."
+            )
 
-        diagram = self.draw_diagram(section_name=section_name, section_content=section_content)
+        diagram = self.draw_diagram(
+            section_name=section_name, section_content=section_content
+        )
 
         results = {}
         if diagram:
@@ -372,7 +380,7 @@ class DrawerTool(BaseTool):
     ) -> Any:
         # Use default system prompt if none provided
         section_prompt = self._get_section_prompts(section_name, section_content)
-     
+
         diagram, updated_msg_history = self._generate_diagram(
             section_prompt, self.system_prompts, msg_history
         )
@@ -381,7 +389,7 @@ class DrawerTool(BaseTool):
 
     def _get_section_prompts(self, section_name: str, section_text: str) -> str:
         section_prompt = self.prompts.section_prompt[section_name].format(
-            section_text = section_text
+            section_text=section_text
         )
 
         return section_prompt
@@ -407,7 +415,7 @@ class DrawerTool(BaseTool):
             cost_tracker=self.cost_tracker,
             task_name="generate_diagram",
         )
-    
+
         diagram = self._extract_diagram(llm_response)
         return diagram, msg_history
 
@@ -416,13 +424,16 @@ class DrawerTool(BaseTool):
 
         try:
             parsed = json.loads(response)
-            summary = parsed['summary']
+            summary = parsed["summary"]
             svg = parsed["svg"]
         except json.JSONDecodeError:
-        
             svg_match = re.search(r"<svg.*?</svg>", response, re.DOTALL)
             svg = svg_match.group(0) if svg_match else ""
-            summary = re.sub(r"<svg.*?</svg>", "", response, flags=re.DOTALL).strip().split("\n")[0]
+            summary = (
+                re.sub(r"<svg.*?</svg>", "", response, flags=re.DOTALL)
+                .strip()
+                .split("\n")[0]
+            )
 
         if "<svg" in svg and "</svg>" in svg:
             result["summary"] = summary
@@ -430,7 +441,6 @@ class DrawerTool(BaseTool):
         else:
             print("[ERROR] SVG missing or too short.")
         return result
-
 
     def _clean_svg(self, svg: str) -> str:
         # Strip any outer code block delimiters

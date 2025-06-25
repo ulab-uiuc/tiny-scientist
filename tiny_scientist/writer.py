@@ -51,11 +51,13 @@ class Writer:
         self.prompts = self.config.prompt_template.writer_prompt
         self.cost_tracker = cost_tracker or CostTracker()
 
-        with resources.files("tiny_scientist.fewshot_sample").joinpath("automated_relational.txt").open("r", encoding="utf-8") as f:
+        with resources.files("tiny_scientist.fewshot_sample").joinpath(
+            "automated_relational.txt"
+        ).open("r", encoding="utf-8") as f:
             few_shot_sample_text = f.read()
 
         self.system_prompt = self.prompts.write_system_prompt.format(
-            example_paper_draft = few_shot_sample_text
+            example_paper_draft=few_shot_sample_text
         )
 
     def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
@@ -134,12 +136,11 @@ class Writer:
         for section in ["Method", "Experimental_Setup", "Results"]:
             content = self.generated_sections[section]
             try:
-                query = json.dumps({
-                    "section_name": section,
-                    "section_content": content
-                })
+                query = json.dumps(
+                    {"section_name": section, "section_content": content}
+                )
                 diagram_result = self.drawer.run(query)
-           
+
                 if diagram_result and "diagram" in diagram_result:
                     diagram = diagram_result["diagram"]
 
@@ -153,8 +154,7 @@ class Writer:
                     cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
 
                     cairosvg.svg2pdf(
-                        bytestring=cleaned_svg.encode("utf-8"),
-                        write_to=pdf_path
+                        bytestring=cleaned_svg.encode("utf-8"), write_to=pdf_path
                     )
 
                     # Sanitize caption to avoid LaTeX errors
@@ -169,22 +169,27 @@ class Writer:
     \\end{{figure}}
     """
                     marker = "```"
-                
+
                     if self.generated_sections[section].strip().endswith(marker):
                         parts = content.strip().rsplit(marker, 1)
                         if len(parts) == 2:
                             self.generated_sections[section] = (
-                                parts[0].strip() + "\n" + figure_latex + "\n" + marker + parts[1]
+                                parts[0].strip()
+                                + "\n"
+                                + figure_latex
+                                + "\n"
+                                + marker
+                                + parts[1]
                             )
 
                             print(parts[1])
 
-                    print(f'[yellow]**{self.generated_sections[section]}')
-                    
+                    print(f"[yellow]**{self.generated_sections[section]}")
+
             except Exception as e:
                 print(f"[WARNING] Failed to generate diagram for {section}: {e}")
                 traceback.print_exc()
-        
+
         return None
 
     def _write_section(
@@ -198,7 +203,7 @@ class Writer:
         title = idea.get("Title", "Research Paper")
         experiment = idea.get("Experiment")
         print(f"Writing section: {section}...")
-  
+
         if section in ["Introduction"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
@@ -398,7 +403,7 @@ class Writer:
         )
 
         self.generated_sections["Title"] = refined_title
-        
+
         for section in [
             "Introduction",
             "Background",
@@ -424,7 +429,7 @@ class Writer:
                     msg=refinement_prompt,
                     client=self.client,
                     model=self.model,
-                    system_message='',
+                    system_message="",
                     cost_tracker=self.cost_tracker,
                     task_name=f"Second Refine {section}",
                 )

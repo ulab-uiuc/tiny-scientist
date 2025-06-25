@@ -79,13 +79,12 @@ class BaseOutputFormatter(abc.ABC):
         return "\n".join(cleaned_lines)
 
     def clean_body_content(self, body_content: str) -> str:
-    
         patterns_to_remove = [
-            r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",   # matches \documentclass[...]{...}
+            r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",  # matches \documentclass[...]{...}
             r"\\begin\{document\}",
             r"\\end\{document\}",
             r"\\maketitle",
-            r"\\title\{.*?\}",                             # matches \title{...}
+            r"\\title\{.*?\}",  # matches \title{...}
         ]
 
         for pattern in patterns_to_remove:

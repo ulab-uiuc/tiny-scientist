@@ -10,7 +10,7 @@ write_system_prompt:
 
   The purpose of this draft is to flesh out the content. Citations will be added later during the refinement process.
   Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
-  
+
   Here's an example of a well-written paper draft to guide your writing style, tone, and section lengths
   {example_paper_draft}
 
@@ -32,15 +32,15 @@ section_tips:
   Introduction: |
     - Longer version of the Abstract, i.e. of the entire paper
     - What are we trying to do and why is it relevant?
-    - Why is this hard? 
+    - Why is this hard?
     - How do we solve it (i.e. our contribution!)
     - How do we verify that we solved it (e.g. Experiments and results)
     - New trend: specifically list your contributions as bullet points
     - Extra space? Future work!
 
   Related_Work: |
-    - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem. 
-    - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable. 
+    - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
+    - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
     - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
 
   Method: |
@@ -55,7 +55,7 @@ section_tips:
     - Shows the results of running Method on our problem described in Experimental Setup.
     - Includes statements on hyperparameters and other potential issues of fairness.
     - Only includes results that have actually been run and saved in the logs. Do not hallucinate results that don't exist.
-    - If results exist: compares to baselines and includes statistics and confidence intervals. 
+    - If results exist: compares to baselines and includes statistics and confidence intervals.
     - If results exist: includes ablation studies to show that specific parts of the method are relevant.
     - Discusses limitations of the method.
     - Make sure to include all the results from the experiments, and include all relevant figures.
@@ -200,7 +200,7 @@ section_prompt:
     ```python
     {code}
     ```
-  
+
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
@@ -210,7 +210,7 @@ section_prompt:
 
   Discussion: |
     Please fill in the Discussion section of the writeup. Follow the instructions carefully.
-    
+
     Some tips for writing a strong Discussion section:
     {section_tips}
 
@@ -225,7 +225,7 @@ section_prompt:
 
   Results: |
     Please fill in the Results section of the research paper. Follow the instructions carefully.
-    
+
     Some tips for writing a strong Results section:
     {section_tips}
 
@@ -237,7 +237,7 @@ section_prompt:
 
   Conclusion: |
     Please fill in the Conclusion section of the research paper. Follow the instructions carefully.
-    
+
     Some tips for writing a strong Conclusion section:
     {section_tips}
 
@@ -316,8 +316,8 @@ related_work_prompt: |
 
   {related_work_tips}
 
-  - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem. 
-  - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable. 
+  - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
+  - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
   - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
 
   The motivation for this study is: {experiment}
