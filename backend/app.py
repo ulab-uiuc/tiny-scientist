@@ -1,7 +1,8 @@
 import os
 import sys
+from typing import Any, Dict, Optional
 
-from flask import Flask, jsonify, request, send_file, session
+from flask import Flask, Response, jsonify, request, send_file, session
 from flask_cors import CORS
 
 from tiny_scientist.coder import Coder
@@ -19,12 +20,12 @@ app.secret_key = "your-secret-key-here"
 CORS(app, supports_credentials=True)
 
 
-thinker = None
-coder = None
-writer = None
+thinker: Optional[Thinker] = None
+coder: Optional[Coder] = None
+writer: Optional[Writer] = None
 
 
-def format_name_for_display(name):
+def format_name_for_display(name: Optional[str]) -> str:
     """Formats a name"""
     if not name:
         return "Untitled"
@@ -33,9 +34,11 @@ def format_name_for_display(name):
 
 # Initialize the Thinker
 @app.route("/api/configure", methods=["POST"])
-def configure():
+def configure() -> Response:
     """Configure model and API key"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
     model = data.get("model")
     api_key = data.get("api_key")
 
@@ -100,9 +103,11 @@ def configure():
 
 
 @app.route("/api/set-env", methods=["POST"])
-def set_environment_variable():
+def set_environment_variable() -> Response:
     """Set an environment variable"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
     key = data.get("key")
     value = data.get("value")
 
@@ -118,9 +123,13 @@ def set_environment_variable():
 
 
 @app.route("/api/generate-initial", methods=["POST"])
-def generate_initial():
+def generate_initial() -> Response:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
     intent = data.get("intent")
     num_ideas = data.get("num_ideas", 3)
 
@@ -143,7 +152,7 @@ def generate_initial():
 
 
 @app.route("/api/set-system-prompt", methods=["POST"])
-def set_system_prompt():
+def set_system_prompt() -> Response:
     """Set the system prompt for the Thinker"""
     global thinker
 
@@ -151,6 +160,8 @@ def set_system_prompt():
         return jsonify({"error": "Thinker not configured"}), 400
 
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
     system_prompt = data.get("system_prompt")
 
     # If empty string or None, reset to default
@@ -163,7 +174,7 @@ def set_system_prompt():
 
 
 @app.route("/api/set-criteria", methods=["POST"])
-def set_criteria():
+def set_criteria() -> Response:
     """Set evaluation criteria for a specific dimension"""
     global thinker
 
@@ -171,6 +182,8 @@ def set_criteria():
         return jsonify({"error": "Thinker not configured"}), 400
 
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
     dimension = data.get("dimension")  # 'novelty', 'feasibility', or 'impact'
     criteria = data.get("criteria")
 
@@ -189,11 +202,11 @@ def set_criteria():
 
 
 @app.route("/api/get-prompts", methods=["GET"])
-def get_prompts():
+def get_prompts() -> Response:
     """Get current prompts and criteria"""
     global thinker
 
-    if not thinker:
+    if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
 
     return jsonify(
@@ -215,9 +228,13 @@ def get_prompts():
 
 
 @app.route("/api/generate-children", methods=["POST"])
-def generate_children():
+def generate_children() -> Response:
     """Generate child ideas (generateChildNodes)"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
     parent_content = data.get("parent_content")
     context = data.get("context", "")
 
@@ -241,9 +258,13 @@ def generate_children():
 
 
 @app.route("/api/modify", methods=["POST"])
-def modify_idea():
+def modify_idea() -> Response:
     """Modify an idea (modifyHypothesisBasedOnModifications)"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
     original_idea = data.get("original_idea")
     modifications = data.get("modifications")
     behind_idea = data.get("behind_idea")
@@ -274,9 +295,13 @@ def modify_idea():
 
 
 @app.route("/api/merge", methods=["POST"])
-def merge_ideas():
+def merge_ideas() -> Response:
     """Merge two ideas (mergeHypotheses)"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
     idea_a = data.get("idea_a")
     idea_b = data.get("idea_b")
     # Use original data directly (no conversion needed)
@@ -296,9 +321,13 @@ def merge_ideas():
 
 
 @app.route("/api/evaluate", methods=["POST"])
-def evaluate_ideas():
+def evaluate_ideas() -> Response:
     """Evaluate ideas (evaluateHypotheses)"""
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
     ideas = data.get("ideas")
     intent = data.get("intent")
 
@@ -356,7 +385,7 @@ def evaluate_ideas():
     return jsonify(response)
 
 
-def format_idea_content(idea):
+def format_idea_content(idea: Dict[str, Any]) -> str:
     """Format Thinker idea into content for TreePlot - with standardized section headers"""
     # Get content and ensure no trailing ** in any of the content sections
     description = idea.get("Description", "").strip().rstrip("*")
@@ -375,14 +404,16 @@ def format_idea_content(idea):
 
 
 @app.route("/api/code", methods=["POST"])
-def generate_code():
+def generate_code() -> Response:
     """Generate code synchronously and return when complete"""
     global coder
 
-    if not coder:
+    if coder is None:
         return jsonify({"error": "Coder not configured"}), 400
 
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
     idea_data = data.get("idea")
     baseline_results = data.get("baseline_results", {})
 
@@ -448,18 +479,20 @@ def generate_code():
 
 
 @app.route("/api/write", methods=["POST"])
-def generate_paper():
+def generate_paper() -> Response:
     """Generate a paper from an idea using the Writer class"""
     global writer
 
     print("📝 Paper generation request received")
     print(f"Writer configured: {writer is not None}")
 
-    if not writer:
+    if writer is None:
         print("ERROR: Writer not configured")
         return jsonify({"error": "Writer not configured"}), 400
 
     data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
     print(f"Request data: {data}")
 
     idea_data = data.get("idea")
@@ -552,7 +585,7 @@ def generate_paper():
 
 
 @app.route("/api/files/<path:file_path>", methods=["GET"])
-def serve_experiment_file(file_path):
+def serve_experiment_file(file_path: str) -> Response:
     """Serve generated experiment files"""
     try:
         # Get the backend directory to construct full paths
