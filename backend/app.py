@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from flask import Flask, Response, jsonify, request, send_file, session
 from flask_cors import CORS
@@ -34,7 +34,7 @@ def format_name_for_display(name: Optional[str]) -> str:
 
 # Initialize the Thinker
 @app.route("/api/configure", methods=["POST"])
-def configure() -> Response:
+def configure() -> Union[Response, tuple[Response, int]]:
     """Configure model and API key"""
     data = request.json
     if data is None:
@@ -103,7 +103,7 @@ def configure() -> Response:
 
 
 @app.route("/api/set-env", methods=["POST"])
-def set_environment_variable() -> Response:
+def set_environment_variable() -> Union[Response, tuple[Response, int]]:
     """Set an environment variable"""
     data = request.json
     if data is None:
@@ -123,7 +123,7 @@ def set_environment_variable() -> Response:
 
 
 @app.route("/api/generate-initial", methods=["POST"])
-def generate_initial() -> Response:
+def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
     data = request.json
     if data is None:
@@ -140,8 +140,12 @@ def generate_initial() -> Response:
     response = {
         "ideas": [
             {
-                "title": format_name_for_display(idea.get("Name")),
-                "content": format_idea_content(idea),
+                "title": format_name_for_display(
+                    idea.get("Name") if isinstance(idea, dict) else None
+                ),
+                "content": format_idea_content(idea)
+                if isinstance(idea, dict)
+                else str(idea),
                 "originalData": idea,  # Preserve complete thinker JSON for coder/writer
             }
             for idea in ideas
@@ -152,7 +156,7 @@ def generate_initial() -> Response:
 
 
 @app.route("/api/set-system-prompt", methods=["POST"])
-def set_system_prompt() -> Response:
+def set_system_prompt() -> Union[Response, tuple[Response, int]]:
     """Set the system prompt for the Thinker"""
     global thinker
 
@@ -174,7 +178,7 @@ def set_system_prompt() -> Response:
 
 
 @app.route("/api/set-criteria", methods=["POST"])
-def set_criteria() -> Response:
+def set_criteria() -> Union[Response, tuple[Response, int]]:
     """Set evaluation criteria for a specific dimension"""
     global thinker
 
@@ -202,7 +206,7 @@ def set_criteria() -> Response:
 
 
 @app.route("/api/get-prompts", methods=["GET"])
-def get_prompts() -> Response:
+def get_prompts() -> Union[Response, tuple[Response, int]]:
     """Get current prompts and criteria"""
     global thinker
 
@@ -228,7 +232,7 @@ def get_prompts() -> Response:
 
 
 @app.route("/api/generate-children", methods=["POST"])
-def generate_children() -> Response:
+def generate_children() -> Union[Response, tuple[Response, int]]:
     """Generate child ideas (generateChildNodes)"""
     data = request.json
     if data is None:
@@ -246,8 +250,12 @@ def generate_children() -> Response:
     response = {
         "ideas": [
             {
-                "title": format_name_for_display(idea.get("Name")),
-                "content": format_idea_content(idea),
+                "title": format_name_for_display(
+                    idea.get("Name") if isinstance(idea, dict) else None
+                ),
+                "content": format_idea_content(idea)
+                if isinstance(idea, dict)
+                else str(idea),
                 "originalData": idea,  # Preserve complete thinker JSON for coder/writer
             }
             for idea in ideas
@@ -258,7 +266,7 @@ def generate_children() -> Response:
 
 
 @app.route("/api/modify", methods=["POST"])
-def modify_idea() -> Response:
+def modify_idea() -> Union[Response, tuple[Response, int]]:
     """Modify an idea (modifyHypothesisBasedOnModifications)"""
     data = request.json
     if data is None:
@@ -295,7 +303,7 @@ def modify_idea() -> Response:
 
 
 @app.route("/api/merge", methods=["POST"])
-def merge_ideas() -> Response:
+def merge_ideas() -> Union[Response, tuple[Response, int]]:
     """Merge two ideas (mergeHypotheses)"""
     data = request.json
     if data is None:
@@ -312,8 +320,12 @@ def merge_ideas() -> Response:
 
     # Return in the format expected by TreePlot
     response = {
-        "title": format_name_for_display(merged_idea.get("Name")),
-        "content": format_idea_content(merged_idea),
+        "title": format_name_for_display(
+            merged_idea.get("Name") if isinstance(merged_idea, dict) else None
+        ),
+        "content": format_idea_content(merged_idea)
+        if isinstance(merged_idea, dict)
+        else str(merged_idea),
         "originalData": merged_idea,  # Preserve complete thinker JSON for coder/writer
     }
 
@@ -321,7 +333,7 @@ def merge_ideas() -> Response:
 
 
 @app.route("/api/evaluate", methods=["POST"])
-def evaluate_ideas() -> Response:
+def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     """Evaluate ideas (evaluateHypotheses)"""
     data = request.json
     if data is None:
@@ -385,8 +397,11 @@ def evaluate_ideas() -> Response:
     return jsonify(response)
 
 
-def format_idea_content(idea: Dict[str, Any]) -> str:
+def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
     """Format Thinker idea into content for TreePlot - with standardized section headers"""
+    if isinstance(idea, str):
+        return idea
+
     # Get content and ensure no trailing ** in any of the content sections
     description = idea.get("Description", "").strip().rstrip("*")
     importance = idea.get("Importance", "").strip().rstrip("*")
@@ -404,7 +419,7 @@ def format_idea_content(idea: Dict[str, Any]) -> str:
 
 
 @app.route("/api/code", methods=["POST"])
-def generate_code() -> Response:
+def generate_code() -> Union[Response, tuple[Response, int]]:
     """Generate code synchronously and return when complete"""
     global coder
 
@@ -479,7 +494,7 @@ def generate_code() -> Response:
 
 
 @app.route("/api/write", methods=["POST"])
-def generate_paper() -> Response:
+def generate_paper() -> Union[Response, tuple[Response, int]]:
     """Generate a paper from an idea using the Writer class"""
     global writer
 
@@ -585,7 +600,7 @@ def generate_paper() -> Response:
 
 
 @app.route("/api/files/<path:file_path>", methods=["GET"])
-def serve_experiment_file(file_path: str) -> Response:
+def serve_experiment_file(file_path: str) -> Union[Response, tuple[Response, int]]:
     """Serve generated experiment files"""
     try:
         # Get the backend directory to construct full paths
