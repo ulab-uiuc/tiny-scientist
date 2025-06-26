@@ -5,7 +5,7 @@ import React from 'react';
  * @param {boolean} showTree
  * @param {Function} setShowTree
  */
-const TopNav = ({ currentView, setCurrentView }) => {
+const TopNav = ({ currentView, setCurrentView, showCodeView = false }) => {
   /* ---------- SVG 图标 ---------- */
   const overviewIcon = (
     <svg
@@ -88,6 +88,72 @@ const TopNav = ({ currentView, setCurrentView }) => {
     </svg>
   );
 
+  const codeIcon = (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ marginRight: '8px' }}
+    >
+      <path
+        d="M7 8L3 12L7 16M17 8L21 12L17 16M14 4L10 20"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  const paperIcon = (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ marginRight: '8px' }}
+    >
+      <path
+        d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 2V8H20"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16 13H8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16 17H8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 9H9H8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
   /* ---------- 样式 ---------- */
   const tabStyle = {
     display: 'flex',
@@ -114,10 +180,10 @@ const TopNav = ({ currentView, setCurrentView }) => {
         padding: '10px 20px',
       }}
     >
-      {/* Overview */}
+      {/* Home View */}
       <div
-        style={{ ...tabStyle, ...getActiveStyle('overview'), marginRight: 6 }}
-        onClick={() => setCurrentView('overview')}
+        style={{ ...tabStyle, ...getActiveStyle('home_view'), marginRight: 6 }}
+        onClick={() => setCurrentView('home_view')}
       >
         {overviewIcon}
         Home View
@@ -133,11 +199,31 @@ const TopNav = ({ currentView, setCurrentView }) => {
 
       {/* Evaluation View */}
       <div
-        style={{ ...tabStyle, ...getActiveStyle('evaluation') }}
+        style={{ ...tabStyle, ...getActiveStyle('evaluation'), marginRight: 6 }}
         onClick={() => setCurrentView('evaluation')}
       >
         {evaluationIcon}
         Evaluation View
+      </div>
+
+      {/* Code View - only show if code has been generated */}
+      {showCodeView && (
+        <div
+          style={{ ...tabStyle, ...getActiveStyle('code_view'), marginRight: 6 }}
+          onClick={() => setCurrentView('code_view')}
+        >
+          {codeIcon}
+          Code View
+        </div>
+      )}
+
+      {/* Paper View */}
+      <div
+        style={{ ...tabStyle, ...getActiveStyle('paper_view') }}
+        onClick={() => setCurrentView('paper_view')}
+      >
+        {paperIcon}
+        Paper View
       </div>
     </div>
   );

@@ -60,32 +60,53 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
-        with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
-            code = f.read()
+    def run(
+        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
+    ) -> Tuple[str, str]:
+        # Check if this is an experimental or non-experimental paper
+        is_experimental = idea.get("is_experimental", True)
 
-        with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
-            experiment_result = f.read()
+        code, experiment_result, baseline_result = "", "", ""
 
-        if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
-            with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
-                baseline_result = f.read()
-        else:
-            baseline_result = ""
+        if is_experimental and experiment_dir:
+            # Load experiment files for experimental papers
+            with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
+                code = f.read()
+
+            with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
+                experiment_result = f.read()
+
+            if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
+                with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
+                    baseline_result = f.read()
+        elif is_experimental and not experiment_dir:
+            raise ValueError("Experimental papers require an experiment_dir")
 
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
 
         self._write_abstract(idea)
 
-        for section in [
-            "Introduction",
-            "Method",
-            "Experimental_Setup",
-            "Results",
-            "Discussion",
-            "Conclusion",
-        ]:
+        # Different section structures for experimental vs non-experimental papers
+        if is_experimental:
+            sections = [
+                "Introduction",
+                "Method",
+                "Experimental_Setup",
+                "Results",
+                "Discussion",
+                "Conclusion",
+            ]
+        else:
+            sections = [
+                "Introduction",
+                "Method",
+                "Analysis",
+                "Discussion",
+                "Conclusion",
+            ]
+
+        for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
 
         self._write_related_work(idea)
@@ -233,6 +254,19 @@ class Writer:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
+                baseline_results=baseline_result,
+                experiment_results=experiment_result,
+            )
+        elif section == "Analysis":
+            # For non-experimental papers, use the research plan content
+            research_plan = idea.get("ResearchPlan", experiment)
+            section_prompt = self.prompts.section_prompt.get(
+                section, self.prompts.section_prompt.get("Results", "")
+            ).format(
+                section_tips=self.prompts.section_tips.get(
+                    section, self.prompts.section_tips.get("Results", "")
+                ),
+                experiment=research_plan,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
             )

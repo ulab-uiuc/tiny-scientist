@@ -6,12 +6,11 @@ idea_system_prompt: >
   You want to generate creative and impactful research ideas that can be feasibly investigated with the code provided.
   Be critical and realistic in your assessments.
 evaluation_system_prompt: >
-  You are an expert AI research reviewer who evaluates scientific ideas with rigor and fairness.
-  Your role is to comparatively evaluate multiple research ideas and rank them based on their
-  scientific merit, feasibility, novelty, and alignment with the original research intent.
+  You are an expert research reviewer who evaluates scientific ideas with rigor and fairness.
+  Your role is to comparatively evaluate multiple research ideas and rank them based on their feasibility, novelty, impact, and alignment with the original research intent.
   Be thoughtful, objective, and provide clear justifications for your rankings.
 idea_evaluation_prompt: |
-  You are tasked with evaluating and ranking multiple research ideas generated for the following research intent:
+  You are tasked with evaluating and scoring multiple research ideas generated for the following research intent:
 
   RESEARCH INTENT:
   ```
@@ -22,27 +21,28 @@ idea_evaluation_prompt: |
   ```
   {ideas}
   ```
-  Please evaluate these ideas comparatively, considering:
+  Please evaluate these ideas comparatively across three key dimensions:
 
-  1. Intent Alignment: How well does each idea address the original research intent?
-  2. Scientific Merit: How significant is the potential contribution to the field?
-  3. Novelty: How original is the idea compared to existing work?
-  4. Feasibility: How practical is implementation within reasonable resource constraints?
-  5. Impact: What is the potential impact of this research on the field and broader applications?
+  **NOVELTY DIMENSION**
+  {novelty_criteria}
+
+  **FEASIBILITY DIMENSION**
+  {feasibility_criteria}
+
+  **IMPACT DIMENSION**
+  {impact_criteria}
 
   CRITICAL REQUIREMENTS:
-  1. Assign each idea a comparative "Rank" (where 1 is the best idea, 2 is the second best, etc., up to the total number of ideas)
+  1. For EACH idea, you MUST provide three separate rating fields that MUST follow this format:
+    - "FeasibilityScore": A number from 0 to 100, where 100 is most feasible
+    - "NoveltyScore": A number from 0 to 100, where 100 is most novel
+    - "ImpactScore": A number from 0 to 100, where 100 is highest impact
 
-  2. For EACH idea, you MUST provide three separate rating fields that MUST follow this format:
-     - "FeasibilityRanking": A number from 1 to the total number of ideas, where 1 is most feasible
-     - "NoveltyRanking": A number from 1 to the total number of ideas, where 1 is most novel
-     - "ImpactRanking": A number from 1 to the total number of ideas, where 1 is highest impact
-
-  3. For EACH idea, also provide a brief reasoning for each ranking:
-     - "NoveltyReason": Brief explanation (1-2 sentences) of why this idea received its novelty ranking
-     - "FeasibilityReason": Brief explanation (1-2 sentences) of why this idea received its feasibility ranking
-     - "ImpactReason": Brief explanation (1-2 sentences) of why this idea received its impact ranking
-  These three rankings must be completely separate and independent from each other. For example, the idea ranked #1 in impact might be ranked #3 in feasibility.
+  2. For EACH idea, also provide a brief reasoning for each score:
+    - "NoveltyReason": Brief explanation (1-2 sentences) of why this idea received its novelty score
+    - "FeasibilityReason": Brief explanation (1-2 sentences) of why this idea received its feasibility score
+    - "ImpactReason": Brief explanation (1-2 sentences) of why this idea received its impact score
+  These three scores must be completely separate and independent from each other. For example, the idea with the highest impact score might have a low feasibility score.
 
   Respond in the following format:
 
@@ -56,14 +56,16 @@ idea_evaluation_prompt: |
 
   In <ANALYSIS>, provide a thoughtful comparative analysis discussing the trade-offs between ideas.
   In <JSON>, provide the evaluation results in JSON format with the following structure:
-  "ranked_ideas": A list of ranked idea objects, each containing:
-  - "Name": The original name of the idea as in the input JSON
-  - "FeasibilityRanking": A number from 1 to total ideas, ranking feasibility
-  - "NoveltyRanking": A number from 1 to total ideas, ranking novelty
-  - "ImpactRanking": A number from 1 to total ideas, ranking impact
-  - "NoveltyReason": Explanation of the novelty ranking
-  - "FeasibilityReason": Explanation of the feasibility ranking
-  - "ImpactReason": Explanation of the impact ranking
+  "scored_ideas": A list of scored idea objects, each containing:
+  - "Title": The EXACT original title of the idea as provided in the input JSON - DO NOT MODIFY OR CHANGE THE TITLE IN ANY WAY
+  - "FeasibilityScore": A number from 0 to 100, scoring feasibility
+  - "NoveltyScore": A number from 0 to 100, scoring novelty
+  - "ImpactScore": A number from 0 to 100, scoring impact
+  - "NoveltyReason": Explanation of the novelty score
+  - "FeasibilityReason": Explanation of the feasibility score
+  - "ImpactReason": Explanation of the impact score
+
+  CRITICAL: You MUST preserve the exact original titles from the input. Do not change, modify, or improve the titles in any way.
   Ensure your evaluation is fair, comprehensive, and based solely on the scientific and practical merits of each idea.
 modify_idea_prompt: |
   Given a research idea and a set of requested modifications, generate a modified version of the idea.
@@ -140,7 +142,6 @@ merge_ideas_prompt: |
   - "Importance": Answer to question 2.
   - "Difficulty": Answer to question 3.
   - "NoveltyComparison": Answer to question 4.
-  - "Approach": Answer to question 5.
 
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
@@ -292,11 +293,13 @@ idea_first_prompt: |
   In <JSON>, provide the new idea in JSON format with the following fields:
   - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
   - "Title": A title for the idea, will be used for the report writing.
+  - "Description": A concise, one or two-sentence summary that combines the core problem and the key insight of your proposed approach. This should provide a clear and immediate understanding of the research idea.
   - "Problem": Answer to question 1.
   - "Importance": Answer to question 2.
   - "Difficulty": Answer to question 3.
   - "NoveltyComparison": Answer to question 4.
   - "Approach": Answer to question 5.
+  - "is_experimental": A boolean (true or false). Set to true if the idea requires a computational experiment (like training a model). Set to false if it is a theoretical, qualitative, or historical study.
   - "Interestingness": A rating from 1 to 10 (lowest to highest).
   - "Feasibility": A rating from 1 to 10 (lowest to highest).
   - "Novelty": A rating from 1 to 10 (lowest to highest).
@@ -439,3 +442,39 @@ experiment_plan_prompt: |
   - "Model": Description of model architecture
   - "Dataset": Description of dataset
   - "Metric": Description of evaluation metric
+
+non_experiment_plan_prompt: |
+  Given the following non-experimental research idea:
+
+  ```
+  {idea}
+  ```
+
+  And the ORIGINAL INTENT:
+  ```
+  {intent}
+  ```
+
+  Develop a comprehensive and concise research plan. This plan should be a single, detailed description that outlines the necessary steps to validate the idea's thesis.
+
+  Your plan should address key aspects such as:
+  - The overall research methodology (e.g., historical analysis, case study, theoretical argument).
+  - The primary sources or data that will be collected and analyzed.
+  - The key steps in the research process from data collection to final analysis.
+  - The framework or criteria that will be used to analyze the findings and build the argument.
+
+  IMPORTANT: Your research plan MUST directly support the investigation of the original intent and the generated idea.
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  EXPERIMENT PLAN JSON:
+  ```json
+  <JSON>
+
+  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach and how it will effectively test the thesis of the idea.
+
+  In <JSON>, provide the research plan in JSON format with a SINGLE field:
+  - "Research_Plan": A detailed paragraph describing the complete research plan.

@@ -248,7 +248,16 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+  Analysis: |
+    Please write the main Analysis section of the paper.
+    This section should develop the core argument based on the paper's planned approach.
+    You do not have experimental result logs. Instead, you must generate a coherent analysis that logically follows from the research plan.
 
+    - The core research problem is: **{problem}**
+    - The paper's approach to solving it is: **{approach}**
+    - The detailed plan for this is: **{research_plan}**
+
+    Your task is to write the detailed analytical content that fulfills this plan. This will form the main body of the paper's argument.
 citation_related_work_prompt: |
   Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
 

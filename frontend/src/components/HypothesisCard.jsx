@@ -1,24 +1,85 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 /**
  * 显示单条假设，可在 Before / After 之间切换
  * 问题部分直接显示在标题下方，其余三个部分（Importance/Feasibility/Novelty）可通过标签切换
  */
-const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
-  // 默认选中 Impact 标签
-  const [activeSection, setActiveSection] = useState('Impact');
-  // 对活动内容使用过渡效果
-  const [fadeState, setFadeState] = useState('visible');
+const HypothesisCard = ({
+  node,
+  showAfter,
+  setShowAfter,
+  onEditCriteria,
+  activeSection, // Receive state from parent
+  setActiveSection, // Receive setter from parent
+}) => {
+  const [hoveredTab, setHoveredTab] = useState(null); // This state remains local
 
+
+  // Create a ref to hold an object of refs for each edit button
+  const buttonRefs = useRef({});
+  if (node.type === 'root') {
+    return (
+      <div
+        style={{
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          padding: '16px',
+          marginBottom: 16,
+          backgroundColor: 'transparent',
+        }}
+      >
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>
+          {'Research Intent'}
+        </h2>
+
+        <div style={{
+          fontSize: '0.95rem',
+          lineHeight: 1.6,
+          padding: '10px',
+          backgroundColor: '#f9fafb',
+          borderRadius: '4px',
+          borderLeft: `3px solid #4C84FF`,
+        }}>
+          {node.content}
+        </div>
+      </div>
+    );
+  }
   const hasPrevious = !!node.previousState;
   const content =
     hasPrevious && !showAfter ? node.previousState.content : node.content;
+
+  // Edit icon SVG
+  const editIcon = (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 
   // 解析内容中的各个章节
   const parseContent = (content) => {
     // 定义需要识别的章节标题 (支持多种格式)
     const sections = [
-      { title: "Problem", regex: /\*\*Problem:\*\*|Problem:|Problem\s*\*\*/ },
+      { title: "Description", regex: /\*\*Description:\*\*|Description:|Description\s*\*\*/ },
       { title: "Impact", regex: /\*\*Impact:\*\*|Impact:|Impact\s*\*\*/ },
       { title: "Feasibility", regex: /\*\*Feasibility:\*\*|Feasibility:|Feasibility\s*\*\*/ },
       { title: "Novelty", regex: /\*\*Novelty Comparison:\*\*|Novelty Comparison:|Novelty:|Novelty\s*\*\*/ }
@@ -88,7 +149,7 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
   const sections = parseContent(content);
 
   // 找到问题部分
-  const problemSection = sections.find(section => section.title === 'Problem');
+  const descriptionSection = sections.find(section => section.title === 'Description');
 
   // 过滤出三个主要评分部分
   const scoreSections = sections.filter(section =>
@@ -123,13 +184,7 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
 
   // 处理标签切换
   const handleSectionChange = (newSection) => {
-    if (newSection === activeSection) return;
-
-    // 立即更新标签，使颜色变化立即可见
     setActiveSection(newSection);
-
-    // 设置过渡状态
-    setFadeState('visible');
   };
 
   return (
@@ -145,7 +200,9 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
       {/* Toggle 按钮 */}
       {hasPrevious && (
         <button
-          onClick={() => setShowAfter((prev) => !prev)}
+          onClick={() => {
+            setShowAfter((prev) => !prev);
+          }}
           style={{
             position: 'absolute',
             top: 12,
@@ -169,7 +226,7 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
       </h2>
 
       {/* 问题部分 - 直接显示在标题下方 */}
-      {problemSection && (
+      {descriptionSection && (
         <div style={{
           fontSize: '0.95rem',
           lineHeight: 1.5,
@@ -178,7 +235,7 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
           marginBottom: '15px',
           borderBottom: '1px solid #e5e7eb'
         }}>
-          {problemSection.content}
+          {descriptionSection.content}
         </div>
       )}
 
@@ -192,11 +249,19 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
           const isActive = activeSection === section.title;
           const score = getScore(section.title);
           const color = sectionColors[section.title];
+          const sectionKey = section.title.toLowerCase();
+
+          // Ensure a ref object exists for the current section's button
+          if (!buttonRefs.current[sectionKey]) {
+            buttonRefs.current[sectionKey] = React.createRef();
+          }
 
           return (
             <div
               key={section.title}
               onClick={() => handleSectionChange(section.title)}
+              onMouseEnter={() => setHoveredTab(section.title)}
+              onMouseLeave={() => setHoveredTab(null)}
               style={{
                 padding: '8px 12px',
                 marginRight: '10px',
@@ -222,6 +287,30 @@ const HypothesisCard = ({ node, showAfter, setShowAfter }) => {
                 }}
               />
               {section.title}
+
+              {/* Edit icon */}
+              <button
+                ref={buttonRefs.current[sectionKey]} // Assign the ref to the button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditCriteria(buttonRefs.current[sectionKey], sectionKey);
+                }}
+                style={{
+                  marginLeft: '6px',
+                  padding: '2px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  opacity: 0.6,
+                  color: '#6b7280',
+                }}
+                title={`Edit ${section.title} criteria`}
+              >
+                {editIcon}
+              </button>
+
               {score !== null && (
                 <span style={{
                   marginLeft: '8px',
