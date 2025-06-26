@@ -1,12 +1,12 @@
 import json
-from typing import Dict, List, Tuple, Optional
+import os
 from dataclasses import dataclass
 from enum import Enum
-import openai
-import os
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-# Initialize OpenAI client with API key
+import openai
+
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("OPENAI_API_KEY environment variable is not set")
@@ -22,7 +22,7 @@ class RiskLevel(Enum):
 class DetectionResult:
     risk_level: RiskLevel
     risk_reason: str
-    attack_type: str = None
+    attack_type: Optional[str] = None
 
 def is_rejection_response(response: str) -> bool:
     """Check if the response is a direct rejection"""
@@ -41,7 +41,7 @@ def is_rejection_response(response: str) -> bool:
     return any(phrase in response_lower for phrase in rejection_phrases)
 
 class PromptAttackDetector:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def assess_risk_with_llm(self, prompt: str) -> Tuple[RiskLevel, Optional[str]]:
@@ -67,11 +67,9 @@ class PromptAttackDetector:
             
             result = response.choices[0].message.content
             
-            # Check for rejection response
-            if is_rejection_response(result):
+            if result is None or is_rejection_response(result):
                 return RiskLevel.NULL, None
             
-            # Add error handling for parsing the response
             try:
                 risk_level_str = result.split("RISK_LEVEL:")[1].split("\n")[0].strip()
                 reason = result.split("REASON:")[1].strip()
@@ -195,11 +193,9 @@ REASON: [Detailed explanation of why you classified it as an attack or not]"""
             
             result = response.choices[0].message.content
             
-            # Check for rejection response
-            if is_rejection_response(result):
+            if result is None or is_rejection_response(result):
                 return None, None
             
-            # Add error handling for parsing the response
             try:
                 is_attacked = result.split("IS_ATTACKED:")[1].split("\n")[0].strip().lower() == "true"
                 attack_type = result.split("ATTACK_TYPE:")[1].split("\n")[0].strip()
@@ -213,11 +209,9 @@ REASON: [Detailed explanation of why you classified it as an attack or not]"""
             print(f"Error in attack detection: {str(e)}")
             return None, None
 
-    def analyze_prompt(self, prompt: str) -> Dict:
-        # Get risk assessment from LLM
+    def analyze_prompt(self, prompt: str) -> Dict[str, Any]:
         risk_level, risk_reason = self.assess_risk_with_llm(prompt)
         
-        # Get attack detection using LLM
         is_attacked, attack_type = self.detect_attack_with_llm(prompt)
         
         output = {
@@ -237,11 +231,11 @@ REASON: [Detailed explanation of why you classified it as an attack or not]"""
 class SafetyChecker:
     """Safety checker module for Tiny Scientist"""
     
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-4o") -> None:
         self.model = model
         self.detector = PromptAttackDetector()
     
-    def check_safety(self, intent: str) -> Tuple[bool, Dict]:
+    def check_safety(self, intent: str) -> Tuple[bool, Dict[str, Any]]:
         """
         Check the safety of the input intent
         
