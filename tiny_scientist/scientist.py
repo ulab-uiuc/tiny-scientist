@@ -39,6 +39,7 @@ class TinyScientist:
             iter_num=3,
             search_papers=True,
             generate_exp_plan=True,
+            enable_ethical_defense=False,
             cost_tracker=CostTracker(budget=per_module_budget),
         )
 
