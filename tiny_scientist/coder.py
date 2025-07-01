@@ -73,7 +73,12 @@ class Coder:
 
     def run(
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, Optional[str]]:
+        # Ensure a clean slate for every run
+        print(f"[System] Cleaning experiment directory: {self.output_dir}")
+        if osp.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        os.makedirs(self.output_dir)
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),
@@ -92,7 +97,7 @@ class Coder:
             print(
                 f"[System] No experiments succeeded, but wrote empty result to {save_path}"
             )
-            return False, self.output_dir
+            return False, self.output_dir, "Experiment generation failed"
 
         self._update_notes()
 
@@ -113,7 +118,7 @@ class Coder:
 
         self.cost_tracker.report()
 
-        return True, self.output_dir
+        return True, self.output_dir, None
 
     def _format_experiment_for_prompt(
         self, exp: Dict[str, str]

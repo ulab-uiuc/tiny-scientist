@@ -436,7 +436,7 @@ experiment_plan_prompt: |
   <JSON>
   ```
 
-  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach and how it aligns with the original intent. Consider how this experiment will effectively test the hypotheses generated from the original intent.
+  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach and how it aligns with the original intent. Consider how this experiment will effectively test the ideas generated from the original intent.
 
   In <JSON>, provide the experimental plan in JSON format with the following fields:
   - "Model": Description of model architecture

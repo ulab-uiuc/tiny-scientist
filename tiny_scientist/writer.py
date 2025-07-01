@@ -34,12 +34,13 @@ class Writer:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[CostTracker] = None,
+        s2_api_key: Optional[str] = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool()
+        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)

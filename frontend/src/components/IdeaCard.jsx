@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
  * 显示单条假设，可在 Before / After 之间切换
  * 问题部分直接显示在标题下方，其余三个部分（Importance/Feasibility/Novelty）可通过标签切换
  */
-const HypothesisCard = ({
+const IdeaCard = ({
   node,
   showAfter,
   setShowAfter,
@@ -346,4 +346,4 @@ const HypothesisCard = ({
   );
 };
 
-export default HypothesisCard;
+export default IdeaCard;
