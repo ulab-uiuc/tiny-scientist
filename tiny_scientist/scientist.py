@@ -83,11 +83,15 @@ class TinyScientist:
         baseline_results: Optional[Dict[str, Any]] = {},
     ) -> Tuple[bool, str]:
         print("💻 Running experiments...")
-        status, exp_path = self.coder.run(idea=idea, baseline_results=baseline_results)
+        status, exp_path, error_details = self.coder.run(
+            idea=idea, baseline_results=baseline_results
+        )
         if status:
             print(f"✅ Experiment completed successfully. Results saved at {exp_path}")
         else:
             print(f"❌ Experiment failed. Please check {exp_path} for details.")
+            if error_details:
+                print(f"Error details: {error_details}")
         return status, exp_path
 
     def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
