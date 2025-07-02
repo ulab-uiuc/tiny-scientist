@@ -163,7 +163,7 @@ class CodeSearchTool(BaseTool):
 
     @staticmethod
     def _extract_github_code_info(
-        code_results: List[Dict[str, Any]]
+        code_results: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         return [
             {
@@ -176,11 +176,13 @@ class CodeSearchTool(BaseTool):
 
 
 class PaperSearchTool(BaseTool):
-    def __init__(self) -> None:
+    def __init__(self, s2_api_key: Optional[str] = None) -> None:
         super().__init__()
-        self.s2_api_key = config["core"].get("s2_api_key", None)
-        if not self.s2_api_key:
-            self.s2_api_key = os.environ.get("S2_API_KEY", None)
+        self.s2_api_key = (
+            s2_api_key
+            or os.environ.get("S2_API_KEY")
+            or config["core"].get("s2_api_key")
+        )
 
         # Set default engine if not configured
         self.engine = config["core"].get("engine", "semanticscholar")

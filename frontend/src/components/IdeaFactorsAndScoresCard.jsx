@@ -4,7 +4,7 @@ import FactorBlock from './FactorBlock';
 /**
  * 组合 3 个因子块的卡片
  */
-const HypothesisFactorsAndScoresCard = ({ node, isEvaluating, showAfter }) => {
+const IdeaFactorsAndScoresCard = ({ node, isEvaluating, showAfter }) => {
   const hasPrev = !!node.previousState;
 
   if (isEvaluating) {
@@ -53,4 +53,4 @@ const HypothesisFactorsAndScoresCard = ({ node, isEvaluating, showAfter }) => {
   );
 };
 
-export default HypothesisFactorsAndScoresCard;
+export default IdeaFactorsAndScoresCard;

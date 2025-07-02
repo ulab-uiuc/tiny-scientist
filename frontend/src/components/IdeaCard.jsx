@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
  * 显示单条假设，可在 Before / After 之间切换
  * 问题部分直接显示在标题下方，其余三个部分（Importance/Feasibility/Novelty）可通过标签切换
  */
-const HypothesisCard = ({
+const IdeaCard = ({
   node,
   showAfter,
   setShowAfter,
@@ -13,6 +13,7 @@ const HypothesisCard = ({
   setActiveSection, // Receive setter from parent
 }) => {
   const [hoveredTab, setHoveredTab] = useState(null); // This state remains local
+  const [activeExperimentSection, setActiveExperimentSection] = useState('Model'); // For experiment plan tabs
 
 
   // Create a ref to hold an object of refs for each edit button
@@ -80,6 +81,7 @@ const HypothesisCard = ({
     // 定义需要识别的章节标题 (支持多种格式)
     const sections = [
       { title: "Description", regex: /\*\*Description:\*\*|Description:|Description\s*\*\*/ },
+      { title: "Experiment", regex: /\*\*Experiment:\*\*|Experiment:|Experiment\s*\*\*/ },
       { title: "Impact", regex: /\*\*Impact:\*\*|Impact:|Impact\s*\*\*/ },
       { title: "Feasibility", regex: /\*\*Feasibility:\*\*|Feasibility:|Feasibility\s*\*\*/ },
       { title: "Novelty", regex: /\*\*Novelty Comparison:\*\*|Novelty Comparison:|Novelty:|Novelty\s*\*\*/ }
@@ -151,6 +153,9 @@ const HypothesisCard = ({
   // 找到问题部分
   const descriptionSection = sections.find(section => section.title === 'Description');
 
+  // 找到实验部分
+  const experimentSection = sections.find(section => section.title === 'Experiment');
+
   // 过滤出三个主要评分部分
   const scoreSections = sections.filter(section =>
     ['Impact', 'Feasibility', 'Novelty'].includes(section.title)
@@ -175,11 +180,46 @@ const HypothesisCard = ({
       : node[scoreField];
   };
 
+  // 解析实验数据
+  const parseExperimentData = (node) => {
+    const currentNode = hasPrevious && !showAfter ? node.previousState : node;
+
+    // 检查是否是实验性想法 (default to true to match backend)
+    const isExperimental = currentNode.originalData?.is_experimental !== false;
+
+    if (isExperimental) {
+      // 实验性想法 - 从originalData中获取详细实验信息
+      const experimentData = currentNode.originalData?.Experiment || {};
+
+      return {
+        isExperimental: true,
+        // Extract experiment plan sections: Model, Dataset, Metric
+        sections: {
+          Model: experimentData.Model || 'Model not specified',
+          Dataset: experimentData.Dataset || 'Dataset not specified',
+          Metric: experimentData.Metric || 'Metric not specified'
+        }
+      };
+    } else {
+      // 非实验性想法 - 从解析的实验部分获取计划或显示默认内容
+      const hasExperimentSection = experimentSection && experimentSection.content;
+
+      return {
+        isExperimental: false,
+        plan: hasExperimentSection ? experimentSection.content : 'This idea includes an experiment plan section'
+      };
+    }
+  };
+
   // 各部分的颜色
   const sectionColors = {
     "Impact": "#4040a1",    // Blue
     "Feasibility": "#50394c",   // Purple
     "Novelty": "#618685",       // Green
+    "Experiment": "#d97706",    // Orange
+    "Model": "#8b5cf6",         // Purple
+    "Dataset": "#06b6d4",       // Cyan
+    "Metric": "#10b981",        // Green
   };
 
   // 处理标签切换
@@ -232,12 +272,114 @@ const HypothesisCard = ({
           lineHeight: 1.5,
           color: '#374151',
           padding: '10px 0',
-          marginBottom: '15px',
-          borderBottom: '1px solid #e5e7eb'
+          // marginBottom: '5px',
+          // borderBottom: '1px solid #e5e7eb'
         }}>
           {descriptionSection.content}
         </div>
       )}
+
+      {/* 实验计划部分 */}
+      {(() => {
+        const experimentData = parseExperimentData(node);
+
+        // Always show experiment plan section
+        if (experimentData.isExperimental) {
+          // 实验性想法 - 显示带标签的实验信息
+          return (
+            <div style={{ marginBottom: '15px' }}>
+              {/* <h3 style={{
+                fontSize: '1rem',
+                fontWeight: 600,
+                marginBottom: '10px',
+                color: sectionColors.Experiment
+              }}>
+                Experiment Plan
+              </h3> */}
+
+              {/* 实验标签 - Model, Dataset, Metric */}
+              <div style={{
+                display: 'flex',
+                borderBottom: '1px solid #e5e7eb',
+                marginBottom: '10px',
+                justifyContent: 'space-between'
+              }}>
+                {['Model', 'Dataset', 'Metric'].map((tab) => {
+                  const isActive = activeExperimentSection === tab;
+                  const color = sectionColors[tab];
+
+                  return (
+                    <div
+                      key={tab}
+                      onClick={() => setActiveExperimentSection(tab)}
+                      style={{
+                        padding: '8px 12px',
+                        fontWeight: isActive ? 600 : 400,
+                        color: isActive ? color : '#6b7280',
+                        borderBottom: isActive ? `2px solid ${color}` : 'none',
+                        backgroundColor: isActive ? `${color}10` : 'transparent',
+                        borderRadius: '4px 4px 0 0',
+                        cursor: 'pointer',
+                        transition: 'all 0.1s ease',
+                        flex: 1,
+                        textAlign: 'left'
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: color,
+                          marginRight: 8,
+                          display: isActive ? 'inline-block' : 'none'
+                        }}
+                      />
+                      {tab}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 实验信息内容 - 显示当前选中的标签内容 */}
+              <div style={{
+                fontSize: '0.9rem',
+                lineHeight: 1.5,
+                color: '#374151',
+                padding: '10px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '4px',
+                borderLeft: `3px solid ${sectionColors[activeExperimentSection]}`,
+              }}>
+                {experimentData.sections[activeExperimentSection]}
+              </div>
+            </div>
+          );
+        } else {
+          // 非实验性想法 - 显示简单的实验计划
+          return (
+            <div style={{
+              fontSize: '0.95rem',
+              lineHeight: 1.5,
+              color: '#374151',
+              padding: '10px',
+              marginBottom: '15px',
+              backgroundColor: '#fef3c7',
+              borderRadius: '4px',
+              borderLeft: `3px solid ${sectionColors.Experiment}`,
+            }}>
+              <div style={{
+                fontWeight: 600,
+                marginBottom: '8px',
+                color: sectionColors.Experiment
+              }}>
+                Experiment Plan:
+              </div>
+              {experimentData.plan}
+            </div>
+          );
+        }
+      })()}
 
       {/* 部分选择标签 */}
       <div style={{
@@ -346,4 +488,4 @@ const HypothesisCard = ({
   );
 };
 
-export default HypothesisCard;
+export default IdeaCard;

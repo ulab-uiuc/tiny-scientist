@@ -4,8 +4,8 @@ import * as d3 from 'd3';
 import Editor from '@monaco-editor/react';
 
 import TopNav from './TopNav';
-import HypothesisCard from './HypothesisCard';
-import HypothesisFactorsAndScoresCard from './HypothesisFactorsAndScoresCard';
+import IdeaCard from './IdeaCard';
+import IdeaFactorsAndScoresCard from './IdeaFactorsAndScoresCard';
 
 
 // Helper components defined outside the main component to preserve state
@@ -19,9 +19,9 @@ const ContextAndGenerateCard = ({
   isEvaluating,
   isAnalysisSubmitted,
   setIsAddingCustom,
-  handleAddCustomHypothesis,
-  customHypothesis,
-  setCustomHypothesis,
+  handleAddCustomIdea,
+  customIdea,
+  setCustomIdea,
   setIsEditingSystemPrompt,
   setModalAnchorEl,
   editIcon,
@@ -48,7 +48,7 @@ const ContextAndGenerateCard = ({
       {!isAddingCustom ? (
         <div onClick={(e) => e.stopPropagation()}>
           <label htmlFor="context-input" style={{ marginBottom: '8px', fontSize: '0.875rem', color: '#6b7280', display: 'block' }}>
-            Add context for new hypotheses (optional)
+            Add context for new ideas (optional)
           </label>
           <textarea
             ref={contextInputRef}
@@ -92,7 +92,7 @@ const ContextAndGenerateCard = ({
                   boxSizing: 'border-box',
                 }}
               >
-                Generate New Hypotheses
+                Generate New Ideas
               </button>
 
               <button
@@ -147,7 +147,7 @@ const ContextAndGenerateCard = ({
                 marginRight: '8px',
               }}
             >
-              Add Custom Hypothesis
+              Add Custom Idea
             </button>
 
             <button
@@ -185,19 +185,19 @@ const ContextAndGenerateCard = ({
           ref={customFormRef}
           onSubmit={(e) => {
             e.stopPropagation();
-            handleAddCustomHypothesis(e);
+            handleAddCustomIdea(e);
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <div style={{ marginBottom: '12px' }}>
-            <label htmlFor="custom-hypothesis-title" style={{ display: 'block', marginBottom: '4px', fontSize: '0.875rem', color: '#374151' }}>
+            <label htmlFor="custom-idea-title" style={{ display: 'block', marginBottom: '4px', fontSize: '0.875rem', color: '#374151' }}>
               Title (2-3 words)
             </label>
             <input
-              id="custom-hypothesis-title"
+              id="custom-idea-title"
               type="text"
-              value={customHypothesis.title}
-              onChange={(e) => setCustomHypothesis(prev => ({ ...prev, title: e.target.value }))}
+              value={customIdea.title}
+              onChange={(e) => setCustomIdea(prev => ({ ...prev, title: e.target.value }))}
               onClick={(e) => e.stopPropagation()}
               style={{
                 width: '100%',
@@ -211,13 +211,13 @@ const ContextAndGenerateCard = ({
           </div>
 
           <div style={{ marginBottom: '12px' }}>
-            <label htmlFor="custom-hypothesis-content" style={{ display: 'block', marginBottom: '4px', fontSize: '0.875rem', color: '#374151' }}>
-              Hypothesis Content
+            <label htmlFor="custom-idea-content" style={{ display: 'block', marginBottom: '4px', fontSize: '0.875rem', color: '#374151' }}>
+              Idea Content
             </label>
             <textarea
-              id="custom-hypothesis-content"
-              value={customHypothesis.content}
-              onChange={(e) => setCustomHypothesis(prev => ({ ...prev, content: e.target.value }))}
+              id="custom-idea-content"
+              value={customIdea.content}
+              onChange={(e) => setCustomIdea(prev => ({ ...prev, content: e.target.value }))}
               onClick={(e) => e.stopPropagation()}
               rows={4}
               style={{
@@ -248,14 +248,14 @@ const ContextAndGenerateCard = ({
                 opacity: isGenerating || isEvaluating ? 0.6 : 1,
               }}
             >
-              Add Hypothesis
+              Add Idea
             </button>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsAddingCustom(false);
-                setCustomHypothesis({ title: '', content: '' });
+                setCustomIdea({ title: '', content: '' });
               }}
               style={{
                 padding: '8px 16px',
@@ -293,9 +293,9 @@ const Dashboard = ({
   isGenerating,
   isAnalysisSubmitted,
   setIsAddingCustom,
-  handleAddCustomHypothesis,
-  customHypothesis,
-  setCustomHypothesis,
+  handleAddCustomIdea,
+  customIdea,
+  setCustomIdea,
   setIsEditingSystemPrompt,
   editIcon,
   handleProceedWithSelectedIdea
@@ -336,7 +336,7 @@ const Dashboard = ({
         padding: '16px',
       }}
     >
-      <HypothesisCard
+      <IdeaCard
         node={node}
         showAfter={showAfter}
         setShowAfter={setShowAfter}
@@ -358,9 +358,9 @@ const Dashboard = ({
           isEvaluating={isEvaluating}
           isAnalysisSubmitted={isAnalysisSubmitted}
           setIsAddingCustom={setIsAddingCustom}
-          handleAddCustomHypothesis={handleAddCustomHypothesis}
-          customHypothesis={customHypothesis}
-          setCustomHypothesis={setCustomHypothesis}
+          handleAddCustomIdea={handleAddCustomIdea}
+          customIdea={customIdea}
+          setCustomIdea={setCustomIdea}
           setIsEditingSystemPrompt={setIsEditingSystemPrompt}
           setModalAnchorEl={setModalAnchorEl}
           editIcon={editIcon}
@@ -388,13 +388,13 @@ const TreePlotVisualization = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState(null);
   const svgRef = useRef(null);
-  const [hypothesesList, setHypothesesList] = useState([]);
+  const [ideasList, setIdeasList] = useState([]);
   const [pendingChange, setPendingChange] = useState(null);
   const [pendingMerge, setPendingMerge] = useState(null);
   // *** 新增：用于放大被拖拽覆盖的目标节点 ***
   const [mergeTargetId, setMergeTargetId] = useState(null);
   const [isAddingCustom, setIsAddingCustom] = useState(false);
-  const [customHypothesis, setCustomHypothesis] = useState({ title: '', content: '' });
+  const [customIdea, setCustomIdea] = useState({ title: '', content: '' });
   // *** 新增：用于主界面模型选择和api-key输入
   const [selectedModel, setSelectedModel] = useState('deepseek-chat');
   const [apiKey, setApiKey] = useState('');
@@ -440,6 +440,9 @@ const TreePlotVisualization = () => {
   const [hasGeneratedCode, setHasGeneratedCode] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [s2ApiKey, setS2ApiKey] = useState('');
+  const [reviewResult, setReviewResult] = useState(null);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState('comments'); // 'comments' or 'review'
 
   // Removed tracking hooks
 
@@ -933,16 +936,16 @@ const TreePlotVisualization = () => {
       />
     </svg>
   );
-  // ============== 段落3：评估假设（evaluateHypotheses） ==============
-  const evaluateHypotheses = async (hypotheses) => {
+  // ============== 段落3：评估假设（evaluateIdeas） ==============
+  const evaluateIdeas = async (ideas) => {
 
     setIsEvaluating(true);
-    setOperationStatus('Evaluating hypotheses...');
+    setOperationStatus('Evaluating ideas...');
     setError(null);
 
     try {
       const requestBody = {
-        ideas: hypotheses.map(h => ({
+        ideas: ideas.map(h => ({
           ...(h.originalData || {}),
           id: h.id,  // Always include the frontend node ID
           title: h.title,
@@ -964,25 +967,25 @@ const TreePlotVisualization = () => {
         throw new Error('Failed to evaluate ideas');
       }
 
-      const evaluatedHypotheses = await response.json();
+      const evaluatedIdeas = await response.json();
 
       setNodes((prevNodes) => {
 
         const updatedNodes = prevNodes.map((node) => {
-          const evalHypo = evaluatedHypotheses.find((h) => h.id === node.id);
-          if (evalHypo) {
-            const noveltyScore = evalHypo.noveltyScore;
-            const feasibilityScore = evalHypo.feasibilityScore;
-            const impactScore = evalHypo.impactScore;
+          const evalIdea = evaluatedIdeas.find((h) => h.id === node.id);
+          if (evalIdea) {
+            const noveltyScore = evalIdea.noveltyScore;
+            const feasibilityScore = evalIdea.feasibilityScore;
+            const impactScore = evalIdea.impactScore;
 
             return {
               ...node,
               noveltyScore,
               feasibilityScore,
               impactScore,
-              noveltyReason: evalHypo.noveltyReason || '(No reason provided)',
-              feasibilityReason: evalHypo.feasibilityReason || '(No reason provided)',
-              impactReason: evalHypo.impactReason || '(No reason provided)',
+              noveltyReason: evalIdea.noveltyReason || '(No reason provided)',
+              feasibilityReason: evalIdea.feasibilityReason || '(No reason provided)',
+              impactReason: evalIdea.impactReason || '(No reason provided)',
             };
           }
           return node;
@@ -991,7 +994,7 @@ const TreePlotVisualization = () => {
         return updatedNodes;
       });
     } catch (err) {
-      console.error('Error evaluating hypotheses:', err);
+      console.error('Error evaluating ideas:', err);
       setError(err.message);
     } finally {
       setIsEvaluating(false);
@@ -1011,7 +1014,7 @@ const TreePlotVisualization = () => {
     }
 
     setIsGenerating(true);
-    setOperationStatus('Generating initial hypotheses...');
+    setOperationStatus('Generating initial ideas...');
     setError(null);
 
     try {
@@ -1046,8 +1049,8 @@ const TreePlotVisualization = () => {
         return { id, ...idea };
       });
 
-      const updatedHypothesesList = [...hypothesesList, ...ideasWithId];
-      setHypothesesList(updatedHypothesesList);
+      const updatedIdeasList = [...ideasList, ...ideasWithId];
+      setIdeasList(updatedIdeasList);
 
       // Root node
       const rootNode = {
@@ -1085,11 +1088,11 @@ const TreePlotVisualization = () => {
       setIsAnalysisSubmitted(true);
 
       // 评估
-      await evaluateHypotheses(updatedHypothesesList);
+      await evaluateIdeas(updatedIdeasList);
       setIsGenerating(false);
       setOperationStatus('');
     } catch (err) {
-      console.error('Error generating initial hypotheses:', err);
+      console.error('Error generating initial ideas:', err);
       setError(err.message);
       setIsGenerating(false);
       setOperationStatus('');
@@ -1123,20 +1126,20 @@ const TreePlotVisualization = () => {
       const data = await response.json();
       const ideas = data.ideas;
 
-      const newHypothesesWithId = ideas.map((hyp) => {
+      const newIdeasWithId = ideas.map((hyp) => {
         const id = generateUniqueId();
         return { id, ...hyp };
       });
 
-      const updatedHypothesesList = [...hypothesesList, ...newHypothesesWithId];
-      setHypothesesList(updatedHypothesesList);
+      const updatedIdeasList = [...ideasList, ...newIdeasWithId];
+      setIdeasList(updatedIdeasList);
 
       // 布局
       const childSpacing = 200;
       const totalWidth = (ideas.length - 1) * childSpacing;
       const startX = selectedNode.x - totalWidth / 2;
 
-      const newNodes = newHypothesesWithId.map((hyp, i) => ({
+      const newNodes = newIdeasWithId.map((hyp, i) => ({
         id: hyp.id,
         level: selectedNode.level + 1,
         title: hyp.title.trim(),
@@ -1152,21 +1155,21 @@ const TreePlotVisualization = () => {
       setLinks((prev) => [...prev, ...newLinks]);
 
       // 评估
-      await evaluateHypotheses(updatedHypothesesList);
+      await evaluateIdeas(updatedIdeasList);
 
       setIsGenerating(false);
       setOperationStatus('');
       setUserInput('');
     } catch (err) {
-      console.error('Error generating hypotheses:', err);
+      console.error('Error generating ideas:', err);
       setError(err.message);
       setIsGenerating(false);
       setOperationStatus('');
     }
   };
 
-  // ============== 段落6：根据拖拽修改假设 (modifyHypothesisBasedOnModifications) ==============
-  const modifyHypothesisBasedOnModifications = async (
+  // ============== 段落6：根据拖拽修改假设 (modifyIdeaBasedOnModifications) ==============
+  const modifyIdeaBasedOnModifications = async (
     originalNode,
     ghostNode,
     modifications,
@@ -1176,7 +1179,7 @@ const TreePlotVisualization = () => {
 
     try {
       setIsGenerating(true);
-      setOperationStatus('Modifying hypothesis...');
+      setOperationStatus('Modifying idea...');
       const response = await fetch('/api/modify', {
         method: 'POST',
         headers: {
@@ -1211,20 +1214,20 @@ const TreePlotVisualization = () => {
       ghostNode.isGhost = false;
       ghostNode.originalData = data.originalData; // Preserve original data for coder/writer
 
-      const newHypothesis = {
+      const newIdea = {
         id: ghostNode.id,
         title: ghostNode.title,
         content: data.content,
       };
-      setHypothesesList((prevList) => [...prevList, newHypothesis]);
+      setIdeasList((prevList) => [...prevList, newIdea]);
 
       setNodes((prevNodes) => prevNodes.map((n) => (n.id === ghostNode.id ? ghostNode : n)));
       setIsGenerating(false);
       setIsEvaluating(true);
 
-      await evaluateHypotheses([...hypothesesList, newHypothesis]);
+      await evaluateIdeas([...ideasList, newIdea]);
     } catch (err) {
-      console.error('Error modifying hypothesis:', err);
+      console.error('Error modifying idea:', err);
       setError(err.message);
       setIsGenerating(false);
       setOperationStatus('');
@@ -1235,7 +1238,7 @@ const TreePlotVisualization = () => {
     }
   };
 
-  const mergeHypotheses = async (nodeA, nodeB) => {
+  const mergeIdeas = async (nodeA, nodeB) => {
     /* ------- ① 先打动画标记：后节点放大 ------- */
     setNodes((prev) =>
       prev.map((n) => {
@@ -1251,7 +1254,7 @@ const TreePlotVisualization = () => {
     );
 
     setIsGenerating(true);
-    setOperationStatus('Merging hypotheses...');
+    setOperationStatus('Merging ideas...');
     setError(null);
     try {
       /* ---------- ② 调用 Flask API ---------- */
@@ -1283,7 +1286,7 @@ const TreePlotVisualization = () => {
 
       /* ---------- ③ 生成新节点（深红）并连线 ---------- */
       const newId = generateUniqueId();
-      const newHypothesis = {
+      const newIdea = {
         id: newId,
         title: data.title,
         content: data.content
@@ -1300,7 +1303,7 @@ const TreePlotVisualization = () => {
         originalData: data.originalData, // Preserve original data for coder/writer
       };
 
-      setHypothesesList((p) => [...p, newHypothesis]);
+      setIdeasList((p) => [...p, newIdea]);
       // Animation Step 2: Make nodeA reappear and nodeB normal size again
       setNodes((prev) => [
         ...prev.map((n) => {
@@ -1325,9 +1328,9 @@ const TreePlotVisualization = () => {
       setIsGenerating(false);
       setOperationStatus('');
       setIsEvaluating(true);
-      await evaluateHypotheses([...hypothesesList, newHypothesis]);
+      await evaluateIdeas([...ideasList, newIdea]);
     } catch (err) {
-      console.error('[merge] Error merging hypotheses:', err);
+      console.error('[merge] Error merging ideas:', err);
       setError(err.message);
     } finally {
       setIsGenerating(false);
@@ -1782,7 +1785,7 @@ const TreePlotVisualization = () => {
         .style('fill', '#374151')
         .style('font-size', '1.2rem')
         .text(yAxisMetric.replace('Score', ''));
-      if (!(operationStatus === 'Evaluating hypotheses...' && isEvaluating)) {
+      if (!(operationStatus === 'Evaluating ideas...' && isEvaluating)) {
 
 
         /* 过滤能绘制的节点 */
@@ -2061,35 +2064,35 @@ const TreePlotVisualization = () => {
       );
   }, [selectedNode, hoveredNode, currentView]);
 
-  const handleAddCustomHypothesis = async (e) => {
+  const handleAddCustomIdea = async (e) => {
     e.preventDefault();
-    if (!customHypothesis.title.trim() || !customHypothesis.content.trim()) return;
+    if (!customIdea.title.trim() || !customIdea.content.trim()) return;
 
     setIsGenerating(true);
-    setOperationStatus('Adding custom hypothesis...');
+    setOperationStatus('Adding custom idea...');
     setError(null);
 
     try {
       const newId = generateUniqueId();
-      const newHypothesis = {
+      const newIdea = {
         id: newId,
-        ...customHypothesis,
+        ...customIdea,
       };
 
       // 添加到假设列表
-      const updatedHypothesesList = [...hypothesesList, newHypothesis];
-      setHypothesesList(updatedHypothesesList);
+      const updatedIdeasList = [...ideasList, newIdea];
+      setIdeasList(updatedIdeasList);
 
       // 创建新节点
       const newNode = {
         id: newId,
         level: selectedNode ? selectedNode.level + 1 : 1,
-        title: customHypothesis.title.trim(),
-        content: customHypothesis.content.trim(),
+        title: customIdea.title.trim(),
+        content: customIdea.content.trim(),
         type: 'complex',
         x: selectedNode ? selectedNode.x + Math.random() * 20 - 10 : 0,
         y: selectedNode ? selectedNode.y + 150 + Math.random() * 20 - 10 : 150,
-        originalData: newHypothesis, // Preserve original data for coder/writer
+        originalData: newIdea, // Preserve original data for coder/writer
       };
 
       // 添加节点和连接
@@ -2099,13 +2102,13 @@ const TreePlotVisualization = () => {
       }
 
       // 评估新假设
-      await evaluateHypotheses(updatedHypothesesList);
+      await evaluateIdeas(updatedIdeasList);
 
       // 重置表单
-      setCustomHypothesis({ title: '', content: '' });
+      setCustomIdea({ title: '', content: '' });
       setIsAddingCustom(false);
     } catch (err) {
-      console.error('Error adding custom hypothesis:', err);
+      console.error('Error adding custom idea:', err);
       setError(err.message);
     } finally {
       setIsGenerating(false);
@@ -2116,76 +2119,40 @@ const TreePlotVisualization = () => {
   // Load generated files from public directory
   const loadGeneratedFiles = async (experimentDir) => {
     try {
-      console.log("Loading generated files from:", experimentDir);
+      const fileUrls = {
+        'experiment.py': `/api/files/${experimentDir}/experiment.py`,
+        'notes.txt': `/api/files/${experimentDir}/notes.txt`,
+        'experiment_results.txt': `/api/files/${experimentDir}/experiment_results.txt`,
+      };
 
-      // Clean up the experiment directory path to ensure it's relative to public
-      let cleanDir = experimentDir;
-      if (cleanDir.startsWith('../public/')) {
-        cleanDir = cleanDir.replace('../public/', '');
-      } else if (cleanDir.startsWith('./')) {
-        cleanDir = cleanDir.replace('./', '');
+      const loadedFiles = {};
+      for (const [fileName, url] of Object.entries(fileUrls)) {
+        try {
+          console.log(`Attempting to fetch: ${fileName} from ${url}`);
+          const response = await fetch(url);
+          console.log(`Response for ${fileName}:`, response.status, response.statusText);
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.content) {
+              loadedFiles[fileName] = data.content;
+              console.log(`Loaded ${fileName} successfully.`);
+            }
+          } else {
+            console.log(`Could not load ${fileName}, but this might be expected (e.g., no notes).`);
+          }
+        } catch (err) {
+          console.error(`Error fetching ${fileName}:`, err);
+        }
       }
 
-      console.log("Cleaned directory path:", cleanDir);
+      // Update state all at once
+      setExperimentFiles(prev => ({ ...prev, ...loadedFiles }));
 
-      // Load main experiment file via API
-      try {
-        const fileUrl = `/api/files/${cleanDir}/experiment.py`;
-        console.log("Attempting to fetch:", fileUrl);
-        const codeResponse = await fetch(fileUrl);
-        console.log("Response status:", codeResponse.status, codeResponse.statusText);
-
-        if (codeResponse.ok) {
-          const responseData = await codeResponse.json();
-          if (responseData.content) {
-            setCodeContent(responseData.content);
-            setExperimentFiles(prev => ({
-              ...prev,
-              'experiment.py': responseData.content
-            }));
-            // Set experiment.py as the active tab
-            setActiveCodeTab('experiment.py');
-            console.log("Loaded experiment.py successfully and set as active tab");
-          }
-        } else {
-          console.log("Failed to load experiment.py:", codeResponse.status, codeResponse.statusText);
-        }
-      } catch (err) {
-        console.log("Could not load experiment.py:", err);
-      }
-
-      // Load notes file via API
-      try {
-        const notesResponse = await fetch(`/api/files/${cleanDir}/notes.txt`);
-        if (notesResponse.ok) {
-          const notesData = await notesResponse.json();
-          if (notesData.content) {
-            setExperimentFiles(prev => ({
-              ...prev,
-              'notes.txt': notesData.content
-            }));
-            console.log("Loaded notes.txt successfully");
-          }
-        }
-      } catch (err) {
-        console.log("Could not load notes.txt:", err);
-      }
-
-      // Load any results files via API
-      try {
-        const resultsResponse = await fetch(`/api/files/${cleanDir}/experiment_results.txt`);
-        if (resultsResponse.ok) {
-          const resultsData = await resultsResponse.json();
-          if (resultsData.content) {
-            setExperimentFiles(prev => ({
-              ...prev,
-              'experiment_results.txt': resultsData.content
-            }));
-            console.log("Loaded experiment_results.txt successfully");
-          }
-        }
-      } catch (err) {
-        console.log("Could not load experiment_results.txt:", err);
+      // Set the code content for the editor if experiment.py was loaded
+      if (loadedFiles['experiment.py']) {
+        setCodeContent(loadedFiles['experiment.py']);
+        setActiveCodeTab('experiment.py');
       }
 
     } catch (err) {
@@ -2220,6 +2187,129 @@ const TreePlotVisualization = () => {
     }
   };
 
+  // Handler for Retry Code Generation button
+  const handleRetryCodeGeneration = async (node) => {
+    if (!node || !node.originalData) {
+      console.log("ERROR: Missing node or originalData for retry");
+      return;
+    }
+
+    console.log("Retrying code generation for idea:", node.originalData.Title);
+    setIsGeneratingCode(true);
+    setOperationStatus('Retrying code generation...');
+    setCodeResult(null);
+    setExperimentFiles({});
+
+    try {
+      const codeResponse = await fetch('/api/code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          idea: node.originalData
+        })
+      });
+
+      if (!codeResponse.ok) {
+        const errorText = await codeResponse.text();
+        throw new Error(`Failed to generate code: ${codeResponse.status} ${errorText}`);
+      }
+
+      const codeData = await codeResponse.json();
+      console.log("Retry code generation completed:", codeData);
+      setCodeResult(codeData);
+
+      if (!codeData.success) {
+        throw new Error(codeData.error || 'Code generation failed');
+      }
+
+      // Load generated files
+      setOperationStatus('Loading generated files...');
+      await loadGeneratedFiles(codeData.experiment_dir);
+      setOperationStatus('Code generation retry completed successfully!');
+
+    } catch (error) {
+      console.error("Retry code generation failed:", error);
+      setOperationStatus('Retry code generation failed: ' + error.message);
+      setCodeResult({
+        success: false,
+        error: error.message,
+        error_details: error.message
+      });
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  // Handler for Generate Paper button
+  const handleGeneratePaper = async (node, experimentDir) => {
+    if (!node || !node.originalData) {
+      console.log("ERROR: Missing node or originalData for paper generation");
+      return;
+    }
+
+    if (!experimentDir) {
+      console.log("ERROR: Missing experiment directory for paper generation");
+      return;
+    }
+
+    console.log("Generating paper for idea:", node.originalData.Title);
+    setIsGeneratingPaper(true);
+    setOperationStatus('Generating paper...');
+
+    try {
+      // Get S2 API key from localStorage or prompt user
+      let s2ApiKey = localStorage.getItem('s2_api_key');
+      if (!s2ApiKey) {
+        s2ApiKey = prompt('Please enter your Semantic Scholar API Key:');
+        if (!s2ApiKey) {
+          throw new Error('Semantic Scholar API key is required for paper generation');
+        }
+        localStorage.setItem('s2_api_key', s2ApiKey);
+      }
+
+      const paperResponse = await fetch('/api/write', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          idea: node.originalData,
+          experiment_dir: experimentDir,
+          s2_api_key: s2ApiKey
+        })
+      });
+
+      if (!paperResponse.ok) {
+        const errorText = await paperResponse.text();
+        throw new Error(`Failed to generate paper: ${paperResponse.status} ${errorText}`);
+      }
+
+      const paperData = await paperResponse.json();
+      console.log("Paper generation completed:", paperData);
+
+      if (!paperData.success) {
+        throw new Error(paperData.error || 'Paper generation failed');
+      }
+
+      setOperationStatus('Paper generated successfully!');
+
+      // Optionally switch to a papers view or show download link
+      if (paperData.pdf_path) {
+        alert(`Paper generated successfully! You can download it from: ${paperData.pdf_path}`);
+      }
+
+    } catch (error) {
+      console.error("Paper generation failed:", error);
+      setOperationStatus('Paper generation failed: ' + error.message);
+    } finally {
+      setIsGeneratingPaper(false);
+    }
+  };
+
   // Handler for Proceed button - with confirmation dialog
   const handleProceedWithSelectedIdea = () => {
     console.log("=== PROCEED BUTTON CLICKED ===");
@@ -2228,7 +2318,7 @@ const TreePlotVisualization = () => {
 
     if (!selectedNode || !selectedNode.originalData) {
       console.log("ERROR: Missing selectedNode or originalData");
-      setProceedError('Please select a hypothesis to proceed');
+      setProceedError('Please select an idea to proceed');
       return;
     }
 
@@ -2241,52 +2331,54 @@ const TreePlotVisualization = () => {
     console.log("=== PROCEED CONFIRMED ===");
     console.log("selectedNode.originalData:", selectedNode?.originalData);
 
-    // Validate Semantic Scholar API key
-    if (!s2ApiKey.trim()) {
-      setProceedError('Semantic Scholar API key is required');
+    if (!selectedNode?.originalData) {
+      console.log("ERROR: No originalData available");
+      setProceedError('No idea selected');
+      setShowProceedConfirm(true); // Show dialog again to display error
+      return;
+    }
+
+    // Check if the idea is experimental to determine S2 API key requirement
+    const isExperimental = selectedNode.originalData.is_experimental === true;
+
+    // Validate Semantic Scholar API key only for non-experimental ideas
+    if (!isExperimental && !s2ApiKey.trim()) {
+      setProceedError('Semantic Scholar API key is required for non-experimental ideas');
       return;
     }
 
     setShowProceedConfirm(false);
     setProceedError(null);
 
-    if (!selectedNode?.originalData) {
-      console.log("ERROR: No originalData available");
-      setProceedError('No hypothesis selected');
-      setShowProceedConfirm(true); // Show dialog again to display error
-      return;
-    }
+    // // Set the Semantic Scholar API key as environment variable
+    // try {
+    //   console.log("Setting Semantic Scholar API key...");
+    //   const apiKeyResponse = await fetch('/api/set-env', {
+    //     method: 'POST',
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //     },
+    //     credentials: 'include',
+    //     body: JSON.stringify({
+    //       key: 'S2_API_KEY',
+    //       value: s2ApiKey.trim()
+    //     }),
+    //   });
 
-    // Set the Semantic Scholar API key as environment variable
-    try {
-      console.log("Setting Semantic Scholar API key...");
-      const apiKeyResponse = await fetch('/api/set-env', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          key: 'S2_API_KEY',
-          value: s2ApiKey.trim()
-        }),
-      });
+    //   if (!apiKeyResponse.ok) {
+    //     throw new Error('Failed to set Semantic Scholar API key');
+    //   }
 
-      if (!apiKeyResponse.ok) {
-        throw new Error('Failed to set Semantic Scholar API key');
-      }
-
-      console.log("Semantic Scholar API key set successfully");
-    } catch (error) {
-      console.error("Error setting Semantic Scholar API key:", error);
-      setProceedError('Failed to set Semantic Scholar API key: ' + error.message);
-      setShowProceedConfirm(true); // Show dialog again to display error
-      return;
-    }
+    //   console.log("Semantic Scholar API key set successfully");
+    // } catch (error) {
+    //   console.error("Error setting Semantic Scholar API key:", error);
+    //   setProceedError('Failed to set Semantic Scholar API key: ' + error.message);
+    //   setShowProceedConfirm(true); // Show dialog again to display error
+    //   return;
+    // }
 
     // Check if the idea is experimental (AI-related) or not
     const idea = selectedNode.originalData;
-    const isExperimental = idea.is_experimental === true;
 
     console.log(`Idea is experimental: ${isExperimental}`);
     console.log(`Idea details:`, {
@@ -2340,106 +2432,72 @@ const TreePlotVisualization = () => {
         let codeData = null;
         let timeoutOccurred = false;
 
-      try {
-        // Try with a manual timeout using Promise.race
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
+        try {
+          // Try with a manual timeout using Promise.race
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
-        const codeResponse = await fetch('/api/code', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            idea: selectedNode.originalData
-          }),
-          signal: controller.signal
-        });
+          const codeResponse = await fetch('/api/code', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              idea: selectedNode.originalData
+            }),
+            signal: controller.signal
+          });
 
-        clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-        if (!codeResponse.ok) {
-          const errorText = await codeResponse.text();
-          throw new Error(`Failed to generate code: ${codeResponse.status} ${errorText}`);
-        }
+          if (!codeResponse.ok) {
+            const errorText = await codeResponse.text();
+            throw new Error(`Failed to generate code: ${codeResponse.status} ${errorText}`);
+          }
 
-        codeData = await codeResponse.json();
-        console.log("Code generation completed:", codeData);
+          codeData = await codeResponse.json();
+          console.log("Code generation completed:", codeData);
+          setCodeResult(codeData);
 
-        if (!codeData.success) {
-          throw new Error(codeData.error || 'Code generation failed');
-        }
-      } catch (error) {
-        if (error.name === 'AbortError' || error.name === 'TimeoutError' ||
+          if (!codeData.success) {
+            throw new Error(codeData.error || 'Code generation failed');
+          }
+        } catch (error) {
+          if (error.name === 'AbortError' || error.name === 'TimeoutError' ||
             error.message.includes('ECONNRESET') || error.message.includes('socket hang up') ||
             error.message.includes('Proxy error') || error.message.includes('network')) {
-          console.log("Request failed due to connection issue, but backend may still be processing. Checking for generated files...");
-          console.log("Error details:", error.message);
-          timeoutOccurred = true;
-          setOperationStatus('Connection lost, checking if code generation completed...');
+            console.log("Request failed due to connection issue, checking for completed files...");
+            console.log("Error details:", error.message);
+            setOperationStatus('Connection lost, checking if code generation completed...');
 
-          // Immediate check for existing files (backend might have already completed)
-          try {
-            const immediateCheck = await fetch('/api/files/generated/experiments/experiment.py');
-            if (immediateCheck.ok) {
-              const fileData = await immediateCheck.json();
-              if (fileData.content && fileData.content.length > 1000) {
-                console.log("Files already exist! Code generation was completed.");
-                codeData = {
-                  success: true,
-                  experiment_dir: "generated/experiments",
-                  status: true,
-                  message: "Code generation completed (files found immediately)"
-                };
-                timeoutOccurred = false; // Skip polling
+            // Single check for existing files (backend may have completed despite connection issue)
+            const expectedFileUrl = '/api/files/experiments/experiment.py';
+            try {
+              const fileCheck = await fetch(expectedFileUrl);
+              if (fileCheck.ok) {
+                const fileData = await fileCheck.json();
+                if (fileData.content && fileData.content.length > 50) {
+                  console.log("Generated files found! Code generation was completed.");
+                  codeData = {
+                    success: true,
+                    experiment_dir: "experiments",
+                    status: true,
+                    message: "Code generation completed (files found after connection issue)"
+                  };
+                } else {
+                  throw new Error('Code generation failed - connection lost and no files generated');
+                }
+              } else {
+                throw new Error('Code generation failed - connection lost and no files generated');
               }
+            } catch (fileError) {
+              throw new Error('Code generation failed - connection lost and no files generated');
             }
-          } catch (immediateError) {
-            console.log("Immediate file check failed, will start polling:", immediateError.message);
+          } else {
+            throw error;
           }
-        } else {
-          throw error;
         }
-      }
-
-      // If timeout occurred, poll for files
-      if (timeoutOccurred) {
-        let attempts = 0;
-        const maxAttempts = 30; // Check for 15 minutes (30s intervals)
-
-        while (attempts < maxAttempts) {
-          attempts++;
-          setOperationStatus(`Code generation in progress, checking for completion (${attempts}/${maxAttempts})...`);
-
-          try {
-            // Check if experiment.py file exists and has content
-            const fileResponse = await fetch('/api/files/generated/experiments/experiment.py');
-            if (fileResponse.ok) {
-              const fileData = await fileResponse.json();
-              if (fileData.content && fileData.content.length > 1000) { // Check if file has substantial content
-                console.log("Generated files found! Code generation completed successfully.");
-                codeData = {
-                  success: true,
-                  experiment_dir: "generated/experiments",
-                  status: true,
-                  message: "Code generation completed (detected after connection timeout)"
-                };
-                break;
-              }
-            }
-          } catch (e) {
-            console.log(`File check attempt ${attempts} failed:`, e.message);
-          }
-
-          // Wait 30 seconds before next attempt
-          await new Promise(resolve => setTimeout(resolve, 30000));
-        }
-
-        if (!codeData) {
-          throw new Error('Code generation timed out and no files were generated');
-        }
-      }
 
         // Store results
         setCodeResult(codeData);
@@ -2457,96 +2515,16 @@ const TreePlotVisualization = () => {
         console.log("Switched to Code View to display generated files");
         setOperationStatus('Code generation completed successfully!');
 
-        // Step 2: Generate paper for experimental idea
+        // Code generation completed successfully
         setIsGeneratingCode(false);
-        setIsGeneratingPaper(true);
-        setOperationStatus('Preparing paper generation...');
-
-      // Check configuration again before paper generation
-      const paperConfigCheck = await fetch('/api/get-prompts', {
-        credentials: 'include'
-      });
-
-      if (!paperConfigCheck.ok) {
-        console.log("Backend not configured for paper generation, reconfiguring...");
-        const reconfigResponse = await fetch('/api/configure', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            model: selectedModel,
-            api_key: apiKey,
-          }),
-        });
-
-        if (!reconfigResponse.ok) {
-          throw new Error('Failed to reconfigure backend for paper generation');
-        }
-      }
-
-      setOperationStatus('Generating paper...');
-      const paperResponse = await fetch('/api/write', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          idea: selectedNode.originalData,
-          experiment_dir: finalExperimentDir
-        }),
-      });
-
-      if (!paperResponse.ok) {
-        throw new Error('Failed to generate paper');
-      }
-
-      const paperData = await paperResponse.json();
-      console.log("Paper generation completed:", paperData);
-      console.log("PDF path for frontend:", paperData.pdf_path);
-      setPaperResult(paperData);
-
-      if (!paperData.success) {
-        throw new Error(paperData.error || 'Paper generation failed');
-      }
-
-        // Switch to paper view to show results for experimental idea
-        setCurrentView('paper_view');
-        setOperationStatus('Code and paper generated successfully!');
+        setOperationStatus('Code generation completed successfully! You can now generate a paper if needed.');
 
       } else {
-        // For non-experimental (non-AI-related) ideas: Generate paper directly
+        // For non-experimental (non-AI-related) ideas: Generate paper directly since S2 key is already provided
         console.log("Processing non-experimental idea - generating paper directly...");
         setIsGeneratingPaper(true);
         setOperationStatus('Generating paper...');
 
-        // Check configuration again before paper generation
-        const paperConfigCheck = await fetch('/api/get-prompts', {
-          credentials: 'include'
-        });
-
-        if (!paperConfigCheck.ok) {
-          console.log("Backend not configured for paper generation, reconfiguring...");
-          const reconfigResponse = await fetch('/api/configure', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              model: selectedModel,
-              api_key: apiKey,
-            }),
-          });
-
-          if (!reconfigResponse.ok) {
-            throw new Error('Failed to reconfigure backend for paper generation');
-          }
-        }
-
-        // Generate paper directly without code generation
         const paperResponse = await fetch('/api/write', {
           method: 'POST',
           headers: {
@@ -2555,7 +2533,8 @@ const TreePlotVisualization = () => {
           credentials: 'include',
           body: JSON.stringify({
             idea: selectedNode.originalData,
-            experiment_dir: null // No experiment directory for non-experimental papers
+            experiment_dir: null, // No experiment directory for non-experimental papers
+            s2_api_key: s2ApiKey.trim(),
           }),
         });
 
@@ -2565,7 +2544,6 @@ const TreePlotVisualization = () => {
 
         const paperData = await paperResponse.json();
         console.log("Paper generation completed:", paperData);
-        console.log("PDF path for frontend:", paperData.pdf_path);
         setPaperResult(paperData);
 
         if (!paperData.success) {
@@ -2583,6 +2561,13 @@ const TreePlotVisualization = () => {
       console.error('Error message:', err.message);
       console.error('Error stack:', err.stack);
       setProceedError(err.message);
+
+      // Show Code View even when coder fails so user can see error and retry
+      if (isExperimental) {
+        console.log("Switching to Code View to show error details");
+        setCurrentView('code_view');
+        setHasGeneratedCode(true); // Enable Code View tab
+      }
     } finally {
       setIsGeneratingCode(false);
       setIsGeneratingPaper(false);
@@ -2617,6 +2602,46 @@ const TreePlotVisualization = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const reviewPaper = async (pdfPath) => {
+    if (!pdfPath) {
+      console.error('No PDF path provided for review');
+      return;
+    }
+
+    setIsReviewing(true);
+    setReviewResult(null);
+
+    try {
+      console.log('Starting paper review for:', pdfPath);
+
+      const response = await fetch('http://localhost:8080/api/review', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pdf_path: pdfPath
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Review failed');
+      }
+
+      const data = await response.json();
+      console.log('Review completed:', data);
+      setReviewResult(data.review);
+      setRightPanelTab('review'); // Switch to review tab to show results
+
+    } catch (err) {
+      console.error('Error reviewing paper:', err);
+      setReviewResult({ error: err.message });
+    } finally {
+      setIsReviewing(false);
+    }
   };
 
   // Enhanced code editing functions
@@ -2694,6 +2719,48 @@ const TreePlotVisualization = () => {
               {/* Enhanced Toolbar */}
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
 
+                {/* Retry Code Generation Button */}
+                <button
+                  onClick={() => handleRetryCodeGeneration(selectedNode)}
+                  disabled={!selectedNode || isGeneratingCode}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: !selectedNode || isGeneratingCode ? '#9CA3AF' : '#F59E0B',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: !selectedNode || isGeneratingCode ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  🔄 Retry Code Generation
+                </button>
+
+                {/* Generate Paper Button */}
+                <button
+                  onClick={() => handleGeneratePaper(selectedNode, codeResult?.experiment_dir)}
+                  disabled={!selectedNode || !codeResult || !codeResult.success || isGeneratingPaper}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: (!selectedNode || !codeResult || !codeResult.success || isGeneratingPaper) ? '#9CA3AF' : '#10B981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: (!selectedNode || !codeResult || !codeResult.success || isGeneratingPaper) ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  📄 Generate Paper
+                </button>
+
                 {/* Download All Button */}
                 <button
                   onClick={downloadExperimentFiles}
@@ -2717,7 +2784,36 @@ const TreePlotVisualization = () => {
 
               </div>
             </div>
-
+            {codeResult && !codeResult.success && codeResult.error_details && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '20px',
+                color: '#b91c1c',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>❌</span>
+                  <strong style={{ fontSize: '1rem', color: '#991b1b' }}>Code Generation Failed</strong>
+                </div>
+                <p style={{ margin: '0 0 8px 0', color: '#374151' }}>The system failed to generate a runnable script. The final error message was:</p>
+                <pre style={{
+                  backgroundColor: '#1f2937',
+                  color: '#f3f4f6',
+                  padding: '12px',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  fontFamily: 'monospace',
+                  maxHeight: '200px', // Prevents huge error messages from taking over the screen
+                  overflowY: 'auto', // Add a scrollbar if the error is long
+                }}>
+                  {codeResult.error_details}
+                </pre>
+              </div>
+            )}
             {isGeneratingCode && (
               <div style={{
                 padding: '20px',
@@ -3082,9 +3178,28 @@ const TreePlotVisualization = () => {
                     borderBottom: '1px solid #e5e7eb',
                     fontSize: '0.875rem',
                     color: '#64748b',
-                    fontWeight: 500
+                    fontWeight: 500,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                   }}>
-                    📄 Research Paper
+                    <span>📄 Research Paper</span>
+                    <button
+                      onClick={() => reviewPaper(paperResult.pdf_path)}
+                      disabled={isReviewing}
+                      style={{
+                        backgroundColor: isReviewing ? '#9ca3af' : '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '6px 12px',
+                        fontSize: '0.75rem',
+                        cursor: isReviewing ? 'not-allowed' : 'pointer',
+                        fontWeight: 500
+                      }}
+                    >
+                      {isReviewing ? '🔄 Reviewing...' : '📝 Review Paper'}
+                    </button>
                   </div>
                   <iframe
                     src={`http://localhost:8080${paperResult.pdf_path}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
@@ -3105,7 +3220,7 @@ const TreePlotVisualization = () => {
                   />
                 </div>
 
-                {/* Comments Panel */}
+                {/* Comments/Review Panel */}
                 <div style={{
                   width: '400px',
                   backgroundColor: 'white',
@@ -3115,99 +3230,312 @@ const TreePlotVisualization = () => {
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
+                  {/* Tab Header */}
                   <div style={{
                     backgroundColor: '#f8fafc',
-                    padding: '12px 16px',
                     borderBottom: '1px solid #e5e7eb',
-                    fontSize: '0.875rem',
-                    color: '#64748b',
-                    fontWeight: 500
+                    display: 'flex'
                   }}>
-                    💬 Comments ({pdfComments.length})
-                  </div>
-
-                  {/* Add Comment */}
-                  <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb' }}>
-                    <textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Add a comment about the paper..."
-                      style={{
-                        width: '100%',
-                        height: '80px',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem',
-                        resize: 'vertical',
-                        fontFamily: 'inherit'
-                      }}
-                    />
                     <button
-                      onClick={() => addComment()}
-                      disabled={!newComment.trim()}
+                      onClick={() => setRightPanelTab('comments')}
                       style={{
-                        marginTop: '8px',
-                        padding: '6px 12px',
-                        backgroundColor: newComment.trim() ? '#4C84FF' : '#9CA3AF',
-                        color: 'white',
+                        flex: 1,
+                        padding: '12px 16px',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
                         border: 'none',
-                        borderRadius: '4px',
-                        cursor: newComment.trim() ? 'pointer' : 'not-allowed',
-                        fontSize: '0.8rem',
-                        fontWeight: 500
+                        backgroundColor: rightPanelTab === 'comments' ? 'white' : 'transparent',
+                        color: rightPanelTab === 'comments' ? '#1f2937' : '#64748b',
+                        cursor: 'pointer',
+                        borderBottom: rightPanelTab === 'comments' ? '2px solid #3b82f6' : 'none'
                       }}
                     >
-                      Add Comment
+                      💬 Comments ({pdfComments.length})
+                    </button>
+                    <button
+                      onClick={() => setRightPanelTab('review')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        border: 'none',
+                        backgroundColor: rightPanelTab === 'review' ? 'white' : 'transparent',
+                        color: rightPanelTab === 'review' ? '#1f2937' : '#64748b',
+                        cursor: 'pointer',
+                        borderBottom: rightPanelTab === 'review' ? '2px solid #3b82f6' : 'none'
+                      }}
+                    >
+                      📝 Review {reviewResult ? '✅' : ''}
                     </button>
                   </div>
 
-                  {/* Comments List */}
-                  <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
-                    {pdfComments.length === 0 ? (
-                      <div style={{
-                        textAlign: 'center',
-                        padding: '40px 20px',
-                        color: '#6b7280',
-                        fontSize: '0.875rem'
-                      }}>
-                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>💭</div>
-                        No comments yet. Add your thoughts about the paper!
+                  {/* Tab Content */}
+                  {rightPanelTab === 'comments' ? (
+                    <>
+                      {/* Add Comment */}
+                      <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb' }}>
+                        <textarea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Add a comment about the paper..."
+                          style={{
+                            width: '100%',
+                            height: '80px',
+                            padding: '8px 12px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem',
+                            resize: 'vertical',
+                            fontFamily: 'inherit'
+                          }}
+                        />
+                        <button
+                          onClick={() => addComment()}
+                          disabled={!newComment.trim()}
+                          style={{
+                            marginTop: '8px',
+                            padding: '6px 12px',
+                            backgroundColor: newComment.trim() ? '#4C84FF' : '#9CA3AF',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: newComment.trim() ? 'pointer' : 'not-allowed',
+                            fontSize: '0.8rem',
+                            fontWeight: 500
+                          }}
+                        >
+                          Add Comment
+                        </button>
                       </div>
-                    ) : (
-                      pdfComments.map((comment) => (
-                        <div key={comment.id} style={{
-                          backgroundColor: '#f9fafb',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '6px',
-                          padding: '12px',
-                          marginBottom: '8px'
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                              <strong>{comment.author}</strong> • {comment.timestamp}
+
+                      {/* Comments List */}
+                      <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
+                        {pdfComments.length === 0 ? (
+                          <div style={{
+                            textAlign: 'center',
+                            padding: '40px 20px',
+                            color: '#6b7280',
+                            fontSize: '0.875rem'
+                          }}>
+                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>💭</div>
+                            No comments yet. Add your thoughts about the paper!
+                          </div>
+                        ) : (
+                          pdfComments.map((comment) => (
+                            <div key={comment.id} style={{
+                              backgroundColor: '#f9fafb',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              padding: '12px',
+                              marginBottom: '8px'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                  <strong>{comment.author}</strong> • {comment.timestamp}
+                                </div>
+                                <button
+                                  onClick={() => deleteComment(comment.id)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#dc2626',
+                                    cursor: 'pointer',
+                                    fontSize: '0.75rem',
+                                    padding: '2px'
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div style={{ fontSize: '0.875rem', color: '#374151', lineHeight: '1.4' }}>
+                                {comment.text}
+                              </div>
                             </div>
-                            <button
-                              onClick={() => deleteComment(comment.id)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#dc2626',
-                                cursor: 'pointer',
-                                fontSize: '0.75rem',
-                                padding: '2px'
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <div style={{ fontSize: '0.875rem', color: '#374151', lineHeight: '1.4' }}>
-                            {comment.text}
-                          </div>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    /* Review Tab Content */
+                    <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+                      {isReviewing ? (
+                        <div style={{
+                          textAlign: 'center',
+                          padding: '40px 20px',
+                          color: '#6b7280',
+                          fontSize: '0.875rem'
+                        }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '16px' }}>🔄</div>
+                          <div style={{ fontWeight: 500, marginBottom: '8px' }}>Reviewing Paper...</div>
+                          <div>This may take a few moments. The AI reviewer is analyzing the paper's content, novelty, and quality.</div>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      ) : reviewResult ? (
+                        reviewResult.error ? (
+                          <div style={{
+                            backgroundColor: '#fef2f2',
+                            border: '1px solid #fecaca',
+                            borderRadius: '6px',
+                            padding: '12px',
+                            color: '#dc2626',
+                            fontSize: '0.875rem'
+                          }}>
+                            <strong>Review Error:</strong> {reviewResult.error}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.875rem', lineHeight: '1.5' }}>
+                            {/* Review Summary */}
+                            {reviewResult.Summary && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '8px', color: '#1f2937' }}>Summary</h4>
+                                <p style={{ color: '#374151' }}>{reviewResult.Summary}</p>
+                              </div>
+                            )}
+
+                            {/* Overall Score */}
+                            {reviewResult.Overall && (
+                              <div style={{ marginBottom: '16px', backgroundColor: '#f3f4f6', padding: '12px', borderRadius: '6px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 600 }}>Overall Score:</span>
+                                  <span style={{
+                                    backgroundColor: reviewResult.Overall >= 6 ? '#10b981' : reviewResult.Overall >= 4 ? '#f59e0b' : '#ef4444',
+                                    color: 'white',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontWeight: 600
+                                  }}>
+                                    {reviewResult.Overall}/10
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Decision */}
+                            {reviewResult.Decision && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 600 }}>Decision:</span>
+                                  <span style={{
+                                    backgroundColor: reviewResult.Decision === 'Accept' ? '#10b981' : '#ef4444',
+                                    color: 'white',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontWeight: 600
+                                  }}>
+                                    {reviewResult.Decision}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Scores Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+                              {['Originality', 'Quality', 'Clarity', 'Significance', 'Soundness', 'Presentation', 'Contribution', 'Confidence'].map(metric => (
+                                reviewResult[metric] && (
+                                  <div key={metric} style={{ backgroundColor: '#f9fafb', padding: '8px', borderRadius: '4px', fontSize: '0.75rem' }}>
+                                    <div style={{ fontWeight: 600, color: '#374151' }}>{metric}</div>
+                                    <div style={{ color: '#6b7280' }}>{reviewResult[metric]}/4</div>
+                                  </div>
+                                )
+                              ))}
+                            </div>
+
+                            {/* Strengths */}
+                            {reviewResult.Strengths && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#10b981' }}>Strengths</h4>
+                                {Array.isArray(reviewResult.Strengths) ? (
+                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
+                                    {reviewResult.Strengths.map((strength, index) => (
+                                      <li key={index} style={{ marginBottom: '4px' }}>{strength}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p style={{ color: '#374151' }}>{reviewResult.Strengths}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Weaknesses */}
+                            {reviewResult.Weaknesses && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#ef4444' }}>Weaknesses</h4>
+                                {Array.isArray(reviewResult.Weaknesses) ? (
+                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
+                                    {reviewResult.Weaknesses.map((weakness, index) => (
+                                      <li key={index} style={{ marginBottom: '4px' }}>{weakness}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p style={{ color: '#374151' }}>{reviewResult.Weaknesses}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Questions */}
+                            {reviewResult.Questions && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#3b82f6' }}>Questions</h4>
+                                {Array.isArray(reviewResult.Questions) ? (
+                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
+                                    {reviewResult.Questions.map((question, index) => (
+                                      <li key={index} style={{ marginBottom: '4px' }}>{question}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p style={{ color: '#374151' }}>{reviewResult.Questions}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Limitations */}
+                            {reviewResult.Limitations && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#f59e0b' }}>Limitations</h4>
+                                {Array.isArray(reviewResult.Limitations) ? (
+                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
+                                    {reviewResult.Limitations.map((limitation, index) => (
+                                      <li key={index} style={{ marginBottom: '4px' }}>{limitation}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p style={{ color: '#374151' }}>{reviewResult.Limitations}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Ethical Concerns */}
+                            {reviewResult['Ethical Concerns'] !== undefined && (
+                              <div style={{ marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 600 }}>Ethical Concerns:</span>
+                                  <span style={{
+                                    backgroundColor: reviewResult['Ethical Concerns'] ? '#ef4444' : '#10b981',
+                                    color: 'white',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem'
+                                  }}>
+                                    {reviewResult['Ethical Concerns'] ? 'Yes' : 'No'}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        <div style={{
+                          textAlign: 'center',
+                          padding: '40px 20px',
+                          color: '#6b7280',
+                          fontSize: '0.875rem'
+                        }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📝</div>
+                          No review yet. Click the "Review Paper" button above to get an AI-generated peer review of this paper.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3360,9 +3688,9 @@ const TreePlotVisualization = () => {
                 isGenerating={isGenerating}
                 isAnalysisSubmitted={isAnalysisSubmitted}
                 setIsAddingCustom={setIsAddingCustom}
-                handleAddCustomHypothesis={handleAddCustomHypothesis}
-                customHypothesis={customHypothesis}
-                setCustomHypothesis={setCustomHypothesis}
+                handleAddCustomIdea={handleAddCustomIdea}
+                customIdea={customIdea}
+                setCustomIdea={setCustomIdea}
                 setIsEditingSystemPrompt={setIsEditingSystemPrompt}
                 editIcon={editIcon}
                 handleProceedWithSelectedIdea={handleProceedWithSelectedIdea}
@@ -3386,7 +3714,7 @@ const TreePlotVisualization = () => {
           }}
         >
           <div style={{ display: 'flex', gap: '8px' }}>
-            {/* Generate New Hypothesis */}
+            {/* Generate New Idea */}
             <button
               style={{
                 padding: '4px 8px',
@@ -3397,7 +3725,7 @@ const TreePlotVisualization = () => {
                 cursor: 'pointer',
               }}
               onClick={() => {
-                modifyHypothesisBasedOnModifications(
+                modifyIdeaBasedOnModifications(
                   pendingChange.originalNode,
                   pendingChange.ghostNode,
                   pendingChange.modifications,
@@ -3406,7 +3734,7 @@ const TreePlotVisualization = () => {
                 setPendingChange(null);
               }}
             >
-              New Hypothesis
+              New Idea
             </button>
             {/* Modify Original */}
             <button
@@ -3480,7 +3808,7 @@ const TreePlotVisualization = () => {
           }}
         >
           <div style={{ marginBottom: '6px', fontSize: '0.8rem', color: '#374151' }}>
-            Merge these two hypotheses?
+            Merge these two ideas?
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -3493,7 +3821,7 @@ const TreePlotVisualization = () => {
                 cursor: 'pointer',
               }}
               onClick={() => {
-                mergeHypotheses(pendingMerge.nodeA, pendingMerge.nodeB);
+                mergeIdeas(pendingMerge.nodeA, pendingMerge.nodeB);
                 setPendingMerge(null);
               }}
             >
@@ -3629,7 +3957,7 @@ const TreePlotVisualization = () => {
               Generate Code and Paper
             </div>
             <div style={{ marginBottom: '16px', fontSize: '0.875rem', color: '#6B7280', lineHeight: '1.5' }}>
-              This will generate experimental code and write a research paper for the selected hypothesis.
+              This will generate experimental code and write a research paper for the selected idea.
               This process may take several minutes to complete.
             </div>
 
@@ -3642,13 +3970,15 @@ const TreePlotVisualization = () => {
                 color: '#374151',
                 fontWeight: 500
               }}>
-                Semantic Scholar API Key *
+                Semantic Scholar API Key {!selectedNode?.originalData?.is_experimental ? '*' : '(Optional for now)'}
               </label>
               <input
                 type="password"
                 value={s2ApiKey}
                 onChange={(e) => setS2ApiKey(e.target.value)}
-                placeholder="Enter your Semantic Scholar API key"
+                placeholder={selectedNode?.originalData?.is_experimental ?
+                  "Enter your Semantic Scholar API key (can be provided later for paper generation)" :
+                  "Enter your Semantic Scholar API key"}
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -3661,7 +3991,10 @@ const TreePlotVisualization = () => {
                 }}
               />
               <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#6B7280' }}>
-                Required for paper generation. Get your API key from{' '}
+                {selectedNode?.originalData?.is_experimental ?
+                  'For experimental ideas: Required only when generating paper. You can provide it later.' :
+                  'Required for paper generation.'
+                } Get your API key from{' '}
                 <a
                   href="https://www.semanticscholar.org/product/api"
                   target="_blank"
@@ -3707,16 +4040,16 @@ const TreePlotVisualization = () => {
               <button
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: (!s2ApiKey.trim() || isGeneratingCode || isGeneratingPaper) ? '#9CA3AF' : '#4C84FF',
+                  backgroundColor: ((!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper) ? '#9CA3AF' : '#4C84FF',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: (!s2ApiKey.trim() || isGeneratingCode || isGeneratingPaper) ? 'not-allowed' : 'pointer',
+                  cursor: ((!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper) ? 'not-allowed' : 'pointer',
                   fontSize: '0.875rem',
                   fontWeight: 500,
                 }}
                 onClick={handleConfirmProceed}
-                disabled={!s2ApiKey.trim() || isGeneratingCode || isGeneratingPaper}
+                disabled={(!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper}
               >
                 {isGeneratingCode || isGeneratingPaper ? 'Processing...' : 'Yes, Proceed'}
               </button>

@@ -5,15 +5,13 @@ from typing import Any, Dict, Optional, Union
 from flask import Flask, Response, jsonify, request, send_file, session
 from flask_cors import CORS
 
-from tiny_scientist.coder import Coder
-from tiny_scientist.thinker import Thinker
-from tiny_scientist.writer import Writer
-
-# Ensure we import from local tiny_scientist package, not installed one
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-
+from tiny_scientist.coder import Coder  # noqa: E402
+from tiny_scientist.reviewer import Reviewer  # noqa: E402
+from tiny_scientist.thinker import Thinker  # noqa: E402
+from tiny_scientist.writer import Writer  # noqa: E402
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here"
@@ -23,6 +21,7 @@ CORS(app, supports_credentials=True)
 thinker: Optional[Thinker] = None
 coder: Optional[Coder] = None
 writer: Optional[Writer] = None
+reviewer: Optional[Reviewer] = None
 
 
 def format_name_for_display(name: Optional[str]) -> str:
@@ -65,18 +64,17 @@ def configure() -> Union[Response, tuple[Response, int]]:
     session["configured"] = True
 
     # Initialize all components with same parameters as TinyScientist
-    global thinker, coder, writer
+    global thinker, coder, writer, reviewer
 
     # Use absolute paths outside React's file watching but still accessible
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    experiments_dir = os.path.join(current_dir, "generated", "experiments")
-    papers_dir = os.path.join(current_dir, "generated", "papers")
+    experiments_dir = os.path.join(project_root, "generated", "experiments")
+    papers_dir = os.path.join(project_root, "generated", "papers")
 
     # Ensure directories exist
     os.makedirs(experiments_dir, exist_ok=True)
     os.makedirs(papers_dir, exist_ok=True)
 
-    print(f"Backend directory: {current_dir}")
+    print(f"Backend directory: {os.path.dirname(os.path.abspath(__file__))}")
     print(f"Experiments directory: {os.path.abspath(experiments_dir)}")
     print(f"Papers directory: {os.path.abspath(papers_dir)}")
 
@@ -99,27 +97,14 @@ def configure() -> Union[Response, tuple[Response, int]]:
         output_dir=papers_dir,
         template="acl",
     )
-    return jsonify({"status": "configured", "model": model})
-
-
-@app.route("/api/set-env", methods=["POST"])
-def set_environment_variable() -> Union[Response, tuple[Response, int]]:
-    """Set an environment variable"""
-    data = request.json
-    if data is None:
-        return jsonify({"error": "No JSON data provided"}), 400
-    key = data.get("key")
-    value = data.get("value")
-
-    if not key or not value:
-        return jsonify({"error": "Both key and value are required"}), 400
-
-    # Set the environment variable
-    os.environ[key] = value
-
-    return jsonify(
-        {"status": "success", "message": f"Environment variable {key} set successfully"}
+    reviewer = Reviewer(
+        model=model,
+        tools=[],
+        num_reviews=1,
+        num_reflections=1,
+        temperature=0.75,
     )
+    return jsonify({"status": "configured", "model": model})
 
 
 @app.route("/api/generate-initial", methods=["POST"])
@@ -143,9 +128,9 @@ def generate_initial() -> Union[Response, tuple[Response, int]]:
                 "title": format_name_for_display(
                     idea.get("Name") if isinstance(idea, dict) else None
                 ),
-                "content": format_idea_content(idea)
-                if isinstance(idea, dict)
-                else str(idea),
+                "content": (
+                    format_idea_content(idea) if isinstance(idea, dict) else str(idea)
+                ),
                 "originalData": idea,  # Preserve complete thinker JSON for coder/writer
             }
             for idea in ideas
@@ -253,9 +238,9 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
                 "title": format_name_for_display(
                     idea.get("Name") if isinstance(idea, dict) else None
                 ),
-                "content": format_idea_content(idea)
-                if isinstance(idea, dict)
-                else str(idea),
+                "content": (
+                    format_idea_content(idea) if isinstance(idea, dict) else str(idea)
+                ),
                 "originalData": idea,  # Preserve complete thinker JSON for coder/writer
             }
             for idea in ideas
@@ -267,7 +252,7 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
 
 @app.route("/api/modify", methods=["POST"])
 def modify_idea() -> Union[Response, tuple[Response, int]]:
-    """Modify an idea (modifyHypothesisBasedOnModifications)"""
+    """Modify an idea (modifyIdeaBasedOnModifications)"""
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -304,7 +289,7 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
 
 @app.route("/api/merge", methods=["POST"])
 def merge_ideas() -> Union[Response, tuple[Response, int]]:
-    """Merge two ideas (mergeHypotheses)"""
+    """Merge two ideas (mergeIdeas)"""
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -323,9 +308,11 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
         "title": format_name_for_display(
             merged_idea.get("Name") if isinstance(merged_idea, dict) else None
         ),
-        "content": format_idea_content(merged_idea)
-        if isinstance(merged_idea, dict)
-        else str(merged_idea),
+        "content": (
+            format_idea_content(merged_idea)
+            if isinstance(merged_idea, dict)
+            else str(merged_idea)
+        ),
         "originalData": merged_idea,  # Preserve complete thinker JSON for coder/writer
     }
 
@@ -334,7 +321,7 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
 
 @app.route("/api/evaluate", methods=["POST"])
 def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
-    """Evaluate ideas (evaluateHypotheses)"""
+    """Evaluate ideas (evaluateIdeas)"""
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -408,14 +395,33 @@ def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
     feasibility = idea.get("Difficulty", "").strip().rstrip("*")
     novelty = idea.get("NoveltyComparison", "").strip().rstrip("*")
 
-    return "\n\n".join(
-        [
-            f"Description: {description}",
-            f"Impact: {importance}",
-            f"Feasibility: {feasibility}",
-            f"Novelty: {novelty}",
-        ]
-    )
+    content_sections = [
+        f"Description: {description}",
+        f"Impact: {importance}",
+        f"Feasibility: {feasibility}",
+        f"Novelty: {novelty}",
+    ]
+
+    # Add experiment plan if it exists
+    experiment_data = idea.get("Experiment")
+    if experiment_data:
+        is_experimental = idea.get("is_experimental", True)
+
+        if is_experimental:
+            # For experimental ideas, format as structured sections
+            model = experiment_data.get("Model", "").strip().rstrip("*")
+            dataset = experiment_data.get("Dataset", "").strip().rstrip("*")
+            metric = experiment_data.get("Metric", "").strip().rstrip("*")
+
+            experiment_section = f"Experiment Plan:\n\nModel: {model}\n\nDataset: {dataset}\n\nMetric: {metric}"
+        else:
+            # For non-experimental ideas, use the research plan
+            research_plan = experiment_data.get("Research_Plan", "").strip().rstrip("*")
+            experiment_section = f"Experiment Plan: {research_plan}"
+
+        content_sections.append(experiment_section)
+
+    return "\n\n".join(content_sections)
 
 
 @app.route("/api/code", methods=["POST"])
@@ -452,25 +458,26 @@ def generate_code() -> Union[Response, tuple[Response, int]]:
         print("Starting coder.run()...")
         print("This may take several minutes - please wait...")
 
-        import sys
-
         sys.stdout.flush()  # Ensure logs are written immediately
 
-        status, exp_path = coder.run(idea=idea, baseline_results=baseline_results)
+        status, exp_path, error_details = coder.run(
+            idea=idea, baseline_results=baseline_results
+        )
 
         print(f"Coder completed with status: {status}")
-
-        if status:
-            print(f"✅ Experiment completed successfully. Results saved at {exp_path}")
-        else:
+        if not status:
             print(f"❌ Experiment failed. Please check {exp_path} for details.")
-
-        # Clean the experiment directory path for frontend
-        clean_exp_path = exp_path
-        if clean_exp_path.startswith(os.path.dirname(__file__)):
-            # Remove the backend directory prefix
-            backend_dir = os.path.dirname(__file__)
-            clean_exp_path = os.path.relpath(exp_path, backend_dir)
+            if error_details:
+                print(f"Final error message:\n{error_details}")
+        # --- START OF FIX ---
+        # The path cleaning logic is the primary issue.
+        # We need to make the absolute `exp_path` relative to the `generated` directory
+        # so the frontend can build a correct API URL.
+        generated_base_dir = os.path.join(project_root, "generated")
+        clean_exp_path = os.path.relpath(exp_path, generated_base_dir)
+        # On Unix-like systems, this ensures we use forward slashes for the URL
+        clean_exp_path = clean_exp_path.replace(os.path.sep, "/")
+        # --- END OF FIX ---
 
         response = {
             "status": status,
@@ -481,6 +488,7 @@ def generate_code() -> Union[Response, tuple[Response, int]]:
                 if status
                 else "Code generation failed"
             ),
+            "error_details": error_details,
         }
 
         return jsonify(response)
@@ -490,20 +498,25 @@ def generate_code() -> Union[Response, tuple[Response, int]]:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e), "success": False}), 500
+
+        return (
+            jsonify(
+                {
+                    "error": str(e),
+                    "success": False,
+                    "error_details": traceback.format_exc(),
+                }
+            ),
+            500,
+        )
 
 
 @app.route("/api/write", methods=["POST"])
 def generate_paper() -> Union[Response, tuple[Response, int]]:
     """Generate a paper from an idea using the Writer class"""
-    global writer
+    # global writer
 
     print("📝 Paper generation request received")
-    print(f"Writer configured: {writer is not None}")
-
-    if writer is None:
-        print("ERROR: Writer not configured")
-        return jsonify({"error": "Writer not configured"}), 400
 
     data = request.json
     if data is None:
@@ -513,16 +526,27 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
     idea_data = data.get("idea")
     experiment_dir = data.get("experiment_dir", None)
 
-    print("📝 Writing paper...")
-    print(f"Idea data: {idea_data}")
-    print(f"Idea data keys: {list(idea_data.keys()) if idea_data else 'None'}")
-    print(f"Experiment dir: {experiment_dir}")
+    s2_api_key = data.get("s2_api_key", None)
+
+    if not s2_api_key:
+        return jsonify({"error": "Semantic Scholar API key is required"}), 400
 
     if not idea_data:
         print("ERROR: No idea provided in request")
         return jsonify({"error": "No idea provided"}), 400
 
     try:
+        writer_model = session.get("model", "deepseek-chat")  # Get model from session
+        papers_dir = os.path.join(project_root, "generated", "papers")
+
+        writer = Writer(
+            model=writer_model,
+            output_dir=papers_dir,
+            template="acl",
+            s2_api_key=s2_api_key,  # Pass the key here
+        )
+        print(f"Writer initialized for this request with model: {writer.model}")
+
         # Extract the original idea data
         if isinstance(idea_data, dict) and "originalData" in idea_data:
             idea = idea_data["originalData"]
@@ -538,12 +562,10 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
         abs_experiment_dir = None
         if is_experimental and experiment_dir:
             # Convert experiment_dir to absolute path for experimental ideas
-            if not os.path.isabs(experiment_dir):
-                # If relative path, make it relative to backend directory
-                backend_dir = os.path.dirname(os.path.abspath(__file__))
-                abs_experiment_dir = os.path.join(backend_dir, experiment_dir)
-            else:
-                abs_experiment_dir = experiment_dir
+            generated_base = os.path.join(project_root, "generated")
+            abs_experiment_dir = os.path.abspath(
+                os.path.join(generated_base, experiment_dir)
+            )
 
             print(f"Absolute experiment directory: {abs_experiment_dir}")
 
@@ -573,14 +595,13 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
         print("✅ Paper written.")
 
         # Convert absolute path to API-accessible path
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
-        if pdf_path.startswith(backend_dir):
-            # Remove backend directory prefix and create API path
-            relative_path = os.path.relpath(pdf_path, backend_dir)
-            api_pdf_path = f"/api/files/{relative_path}"
+        generated_base = os.path.join(project_root, "generated")
+        if pdf_path.startswith(generated_base):
+            relative_path = os.path.relpath(pdf_path, generated_base)
+            api_pdf_path = f"/api/files/{relative_path.replace(os.path.sep, '/')}"
         else:
-            # Fallback: just use the filename if path structure is unexpected
-            api_pdf_path = f"/api/files/generated/papers/{os.path.basename(pdf_path)}"
+            # Fallback
+            api_pdf_path = f"/api/files/papers/{os.path.basename(pdf_path)}"
 
         response = {
             "pdf_path": api_pdf_path,
@@ -603,21 +624,14 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
 def serve_experiment_file(file_path: str) -> Union[Response, tuple[Response, int]]:
     """Serve generated experiment files"""
     try:
-        # Get the backend directory to construct full paths
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        # The base directory for all generated content
+        generated_base = os.path.join(project_root, "generated")
 
-        # Construct full path relative to backend directory
-        if file_path.startswith("generated/"):
-            full_path = os.path.join(backend_dir, file_path)
-        else:
-            # For backward compatibility, assume it's in generated folder
-            full_path = os.path.join(backend_dir, "generated", file_path)
-
-        full_path = os.path.abspath(full_path)
-        allowed_base = os.path.abspath(os.path.join(backend_dir, "generated"))
+        # Construct the full path securely
+        full_path = os.path.abspath(os.path.join(generated_base, file_path))
 
         # Security check: ensure the file is within the allowed directory
-        if not full_path.startswith(allowed_base):
+        if not full_path.startswith(os.path.abspath(generated_base)):
             return jsonify({"error": "Access denied"}), 403
 
         if not os.path.exists(full_path):
@@ -637,7 +651,71 @@ def serve_experiment_file(file_path: str) -> Union[Response, tuple[Response, int
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/review", methods=["POST"])
+def review_paper() -> Union[Response, tuple[Response, int]]:
+    """Review a paper using the Reviewer class"""
+    global reviewer
+
+    print("📝 Paper review request received")
+    print(f"Reviewer configured: {reviewer is not None}")
+
+    if reviewer is None:
+        print("ERROR: Reviewer not configured")
+        return jsonify({"error": "Reviewer not configured"}), 400
+
+    data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+
+    pdf_path = data.get("pdf_path")
+    if not pdf_path:
+        return jsonify({"error": "No PDF path provided"}), 400
+
+    try:
+        # Convert API path to absolute path
+        if pdf_path.startswith("/api/files/"):
+            # Remove /api/files/ prefix
+            relative_path = pdf_path[len("/api/files/") :]
+            generated_base = os.path.join(project_root, "generated")
+            absolute_pdf_path = os.path.join(generated_base, relative_path)
+        else:
+            absolute_pdf_path = pdf_path
+
+        print(f"Reviewing paper at: {absolute_pdf_path}")
+
+        # Check if file exists
+        if not os.path.exists(absolute_pdf_path):
+            return jsonify({"error": f"PDF file not found: {absolute_pdf_path}"}), 404
+
+        print("🔍 Starting paper review...")
+
+        # Call reviewer.review() to get a single review
+        review_result = reviewer.review(absolute_pdf_path)
+
+        print("✅ Review completed successfully")
+
+        # Parse the JSON result
+        import json
+
+        review_data = json.loads(review_result)
+
+        response = {
+            "review": review_data,
+            "success": True,
+            "message": "Paper review completed successfully",
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"ERROR in paper review: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"error": str(e), "success": False}), 500
+
+
 if __name__ == "__main__":
     # Configure Flask for long-running requests
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-    app.run(debug=True, port=8080, host="0.0.0.0", threaded=True)
+    app.run(debug=True, use_reloader=False, port=8080, host="0.0.0.0", threaded=True)
