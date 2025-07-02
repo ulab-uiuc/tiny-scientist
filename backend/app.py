@@ -395,14 +395,33 @@ def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
     feasibility = idea.get("Difficulty", "").strip().rstrip("*")
     novelty = idea.get("NoveltyComparison", "").strip().rstrip("*")
 
-    return "\n\n".join(
-        [
-            f"Description: {description}",
-            f"Impact: {importance}",
-            f"Feasibility: {feasibility}",
-            f"Novelty: {novelty}",
-        ]
-    )
+    content_sections = [
+        f"Description: {description}",
+        f"Impact: {importance}",
+        f"Feasibility: {feasibility}",
+        f"Novelty: {novelty}",
+    ]
+
+    # Add experiment plan if it exists
+    experiment_data = idea.get("Experiment")
+    if experiment_data:
+        is_experimental = idea.get("is_experimental", True)
+
+        if is_experimental:
+            # For experimental ideas, format as structured sections
+            model = experiment_data.get("Model", "").strip().rstrip("*")
+            dataset = experiment_data.get("Dataset", "").strip().rstrip("*")
+            metric = experiment_data.get("Metric", "").strip().rstrip("*")
+
+            experiment_section = f"Experiment Plan:\n\nModel: {model}\n\nDataset: {dataset}\n\nMetric: {metric}"
+        else:
+            # For non-experimental ideas, use the research plan
+            research_plan = experiment_data.get("Research_Plan", "").strip().rstrip("*")
+            experiment_section = f"Experiment Plan: {research_plan}"
+
+        content_sections.append(experiment_section)
+
+    return "\n\n".join(content_sections)
 
 
 @app.route("/api/code", methods=["POST"])
