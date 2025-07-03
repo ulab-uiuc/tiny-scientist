@@ -41,11 +41,33 @@ class Thinker:
         self.prompts = self.config.prompt_template.thinker_prompt
         self.intent = ""
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
+
+        # Enhanced criteria system from TinyScientistUI
+        self.default_system_prompt = """You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
+You want to generate creative and impactful research ideas that can be feasibly investigated with the code provided.
+Be critical and realistic in your assessments."""
+
+        self.default_novelty_criteria = (
+            "How original is the idea compared to existing work?"
+        )
+        self.default_feasibility_criteria = (
+            "How practical is implementation within reasonable resource constraints?"
+        )
+        self.default_impact_criteria = "What is the potential impact of this research on the field and broader applications?"
+
+        # Initialize with defaults
+        self.system_prompt = self.default_system_prompt
+        self.novelty_criteria = self.default_novelty_criteria
+        self.feasibility_criteria = self.default_feasibility_criteria
+        self.impact_criteria = self.default_impact_criteria
+
+        # Legacy criteria descriptions for backward compatibility
         self.default_criteria_descriptions = """1. Intent Alignment: How well does each idea address the original research intent?
         2. Scientific Merit: How significant is the potential contribution to the field?
         3. Novelty: How original is the idea compared to existing work?
         4. Feasibility: How practical is implementation within reasonable resource constraints?
         5. Impact: What is the potential impact of this research on the field and broader applications?"""
+
         self.cost_tracker = cost_tracker or CostTracker()
         self.enable_ethical_defense = enable_ethical_defense
 
@@ -65,10 +87,14 @@ class Thinker:
         return idea
 
     def rethink(self, idea_json: str, current_round: int = 1) -> str:
-        query = self._generate_search_query(
-            idea_json, intent=self.intent, query_type="rethink"
-        )
-        related_works_string = self._get_related_works(query)
+        print(f"Rethinking idea in round {current_round}...")
+        if self.search_papers:
+            query = self._generate_search_query(
+                idea_json, intent=self.intent, query_type="rethink"
+            )
+            related_works_string = self._get_related_works(query)
+        else:
+            related_works_string = "No Related Works Found"
 
         self.cost_tracker.report()
         return self._reflect_idea(idea_json, current_round, related_works_string)
@@ -129,25 +155,53 @@ class Thinker:
             self.cost_tracker.report()
             return {}
 
-    def show_ranking_criteria(self, custom_criteria: Optional[str] = None) -> str:
-        """Show the ranking criteria descriptions that will be used"""
-        return (
-            custom_criteria if custom_criteria else self.default_criteria_descriptions
-        )
+    def get_system_prompt(self) -> str:
+        """Get the current system prompt"""
+        return self.system_prompt
+
+    def set_system_prompt(self, prompt: Optional[str]) -> None:
+        """Set the system prompt, use None to reset to default"""
+        if prompt is None:
+            self.system_prompt = self.default_system_prompt
+        else:
+            self.system_prompt = prompt
+
+    def get_criteria(self, dimension: str) -> str:
+        """Get criteria for a specific dimension"""
+        criteria_map = {
+            "novelty": self.novelty_criteria,
+            "feasibility": self.feasibility_criteria,
+            "impact": self.impact_criteria,
+        }
+        return criteria_map.get(dimension, "")
+
+    def set_criteria(self, dimension: str, criteria: Optional[str] = None) -> None:
+        """Set criteria for a specific dimension. If no criteria is provided, reset to default"""
+        if dimension == "novelty":
+            self.novelty_criteria = (
+                criteria if criteria else self.default_novelty_criteria
+            )
+        elif dimension == "feasibility":
+            self.feasibility_criteria = (
+                criteria if criteria else self.default_feasibility_criteria
+            )
+        elif dimension == "impact":
+            self.impact_criteria = (
+                criteria if criteria else self.default_impact_criteria
+            )
+        else:
+            raise ValueError(f"Unknown dimension: {dimension}")
 
     def rank(
         self,
         ideas: List[Dict[str, Any]],
         intent: Optional[str] = None,
-        custom_criteria: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Rank multiple research ideas."""
         intent = intent or self.intent
 
         ideas_json = json.dumps(ideas, indent=2)
-        evaluation_result = self._get_idea_evaluation(
-            ideas_json, intent, custom_criteria
-        )
+        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
         ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
 
         self.cost_tracker.report()
@@ -252,11 +306,19 @@ class Thinker:
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def generate_experiment_plan(self, idea: str) -> str:
         idea_dict = json.loads(idea)
+        is_experimental = idea_dict.get("is_experimental", True)
 
         print("Generating experimental plan for the idea...")
-        prompt = self.prompts.experiment_plan_prompt.format(
-            idea=idea, intent=self.intent
-        )
+        if is_experimental:
+            print("Generating experimental plan for AI-related idea...")
+            prompt = self.prompts.experiment_plan_prompt.format(
+                idea=idea, intent=self.intent
+            )
+        else:
+            print("Generating research plan for non-experimental idea...")
+            prompt = self.prompts.non_experiment_plan_prompt.format(
+                idea=idea, intent=self.intent
+            )
 
         text, _ = get_response_from_llm(
             prompt,
@@ -311,7 +373,11 @@ class Thinker:
     ) -> str:
         """Get comparative evaluation from LLM"""
         prompt = self.prompts.idea_evaluation_prompt.format(
-            intent=intent, ideas=ideas_json
+            intent=intent,
+            ideas=ideas_json,
+            novelty_criteria=self.novelty_criteria,
+            feasibility_criteria=self.feasibility_criteria,
+            impact_criteria=self.impact_criteria,
         )
         if custom_criteria:
             prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
@@ -333,45 +399,40 @@ class Thinker:
     def _parse_evaluation_result(
         self, evaluation_text: str, original_ideas: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Parse evaluation result and update idea dictionaries with rankings"""
+        """Parse evaluation result and update idea dictionaries with scores"""
         # Extract JSON from response
         evaluation_data = extract_json_between_markers(evaluation_text)
         if not evaluation_data:
             print("Failed to extract JSON from evaluation response")
             return []
-        # Create mapping from idea name to original idea dict
-        idea_map = {idea.get("Name", ""): idea for idea in original_ideas}
+        # Create mapping from idea title to original idea dict (check both Title and title)
+        idea_map = {}
+        for idea in original_ideas:
+            title = idea.get("Title", "") or idea.get("title", "")
+            if title:
+                idea_map[title] = idea
 
-        # Create ranked list
-        ranked_ideas = []
-        for ranked_item in evaluation_data.get("ranked_ideas", []):
-            idea_name = ranked_item.get("Name", "")
+        # Create scored list
+        scored_ideas = []
+        # FIX: The key from the prompt is "scored_ideas", not "ranked_ideas"
+        for scored_item in evaluation_data.get("scored_ideas", []):
+            idea_name = scored_item.get("Title", "")
             if idea_name in idea_map:
-                # Get original idea and update with ranking data
+                # Get original idea and update with scoring data
                 idea = idea_map[idea_name].copy()
 
-                # Add ranking information
-                idea["FeasibilityRanking"] = ranked_item.get("FeasibilityRanking")
-                idea["NoveltyRanking"] = ranked_item.get("NoveltyRanking")
-                idea["ImpactRanking"] = ranked_item.get("ImpactRanking")
-                idea["NoveltyReason"] = ranked_item.get("NoveltyReason", "")
-                idea["FeasibilityReason"] = ranked_item.get("FeasibilityReason", "")
-                idea["ImpactReason"] = ranked_item.get("ImpactReason", "")
-                # Remove all the scoring, using ranking instead
-                if "Interestingness" in idea:
-                    del idea["Interestingness"]
-                if "Feasibility" in idea:
-                    del idea["Feasibility"]
-                if "Novelty" in idea:
-                    del idea["Novelty"]
-                if "IntentAlignment" in idea:
-                    del idea["IntentAlignment"]
-                if "Score" in idea:
-                    del idea["Score"]
-                ranked_ideas.append(idea)
+                # Add scoring information
+                idea["FeasibilityScore"] = scored_item.get("FeasibilityScore")
+                idea["NoveltyScore"] = scored_item.get("NoveltyScore")
+                idea["ImpactScore"] = scored_item.get("ImpactScore")
+                idea["NoveltyReason"] = scored_item.get("NoveltyReason", "")
+                idea["FeasibilityReason"] = scored_item.get("FeasibilityReason", "")
+                idea["ImpactReason"] = scored_item.get("ImpactReason", "")
+
+                scored_ideas.append(idea)
 
         self.cost_tracker.report()
-        return ranked_ideas
+        return scored_ideas
 
     def _get_related_works(self, query: str) -> str:
         """Get related works using query caching, similar to Reviewer class"""

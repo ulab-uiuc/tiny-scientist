@@ -3,8 +3,10 @@ import json
 import os
 import re
 import time
+from importlib import resources
 from typing import Any, Dict, List, Optional, cast
 
+import fitz
 import requests
 import toml
 from rich import print
@@ -161,7 +163,7 @@ class CodeSearchTool(BaseTool):
 
     @staticmethod
     def _extract_github_code_info(
-        code_results: List[Dict[str, Any]]
+        code_results: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         return [
             {
@@ -174,9 +176,16 @@ class CodeSearchTool(BaseTool):
 
 
 class PaperSearchTool(BaseTool):
-    def __init__(self) -> None:
+    def __init__(self, s2_api_key: Optional[str] = None) -> None:
         super().__init__()
-        self.s2_api_key = config["core"].get("s2_api_key", None)
+        self.s2_api_key = (
+            s2_api_key
+            or os.environ.get("S2_API_KEY")
+            or config["core"].get("s2_api_key")
+        )
+
+        # Set default engine if not configured
+        self.engine = config["core"].get("engine", "semanticscholar")
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -201,17 +210,16 @@ class PaperSearchTool(BaseTool):
         if not query:
             return None
 
-        engine = config["core"].get("engine", "semanticscholar")
-        if engine == "semanticscholar":
+        if self.engine == "semanticscholar":
             print(
                 f"(semantic scholar API calling) Searching for papers with query: {query}"
             )
             return self._search_semanticscholar(query, result_limit)
-        elif engine == "openalex":
+        elif self.engine == "openalex":
             print(f"(openalex API calling) Searching for papers with query: {query}")
             return self._search_openalex(query, result_limit)
         else:
-            raise NotImplementedError(f"{engine=} not supported!")
+            raise NotImplementedError(f"{self.engine=} not supported!")
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _search_semanticscholar(
@@ -220,7 +228,7 @@ class PaperSearchTool(BaseTool):
         params: Dict[str, str | int] = {
             "query": query,
             "limit": result_limit,
-            "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
+            "fields": "title,authors,venue,year,abstract,citationStyles,citationCount,paperId",
         }
 
         headers = {"X-API-KEY": self.s2_api_key} if self.s2_api_key else {}
@@ -320,20 +328,46 @@ class DrawerTool(BaseTool):
         self.config = Config(prompt_template_dir)
         self.prompts = self.config.prompt_template.drawer_prompt
 
-        # Process template instructions
-        if hasattr(self.prompts, "template_instructions") and hasattr(
-            self.prompts, "few_shot_instructions"
-        ):
-            self.prompts.few_shot_instructions = (
-                self.prompts.few_shot_instructions.replace(
-                    "{{ template_instructions }}", self.prompts.template_instructions
-                )
-            )
+        def escape_curly_braces(text: str) -> str:
+            return re.sub(r"({|})", r"{{\1}}", text)
+
+        def extract_pdf_text_from_resource(package: str, filename: str) -> str:
+            with resources.files(package).joinpath(filename).open("rb") as f:
+                doc = fitz.open(stream=f.read(), filetype="pdf")
+                extracted = [page.get_text().strip() for page in doc]
+                return "\n\n".join(extracted)
+
+        method_sample_raw = extract_pdf_text_from_resource(
+            "tiny_scientist.fewshot_sample", "framework.pdf"
+        )
+        result_sample_raw = extract_pdf_text_from_resource(
+            "tiny_scientist.fewshot_sample", "result.pdf"
+        )
+
+        method_sample = escape_curly_braces(method_sample_raw)
+        result_sample = escape_curly_braces(result_sample_raw)
+
+        self.system_prompts = self.prompts.diagram_system_prompt.format(
+            method_sample=method_sample,
+            result_sample=result_sample,
+        )
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
-        diagram = self.draw_diagram(query)
+        try:
+            query_dict = json.loads(query)
+            section_name = query_dict.get("section_name")
+            section_content = query_dict.get("section_content")
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            raise ValueError(
+                "Expected query to be a JSON string with 'section_name' and 'section_content'."
+            )
+
+        diagram = self.draw_diagram(
+            section_name=section_name, section_content=section_content
+        )
+
         results = {}
         if diagram:
             results["diagram"] = {
@@ -345,42 +379,31 @@ class DrawerTool(BaseTool):
 
     def draw_diagram(
         self,
-        text: str,
-        example: Optional[str] = None,
+        section_name: str,
+        section_content: str,
         msg_history: Optional[List[Dict[str, Any]]] = None,
         return_msg_history: bool = False,
-        drawer_system_prompt: Optional[str] = None,
     ) -> Any:
         # Use default system prompt if none provided
-        drawer_system_prompt = (
-            drawer_system_prompt or self.prompts.diagram_system_prompt_base
-        )
+        section_prompt = self._get_section_prompts(section_name, section_content)
 
-        # Prepare prompt with the few-shot example
-        base_prompt = self._prepare_diagram_prompt(text, example)
-
-        # Generate diagram
         diagram, updated_msg_history = self._generate_diagram(
-            base_prompt, drawer_system_prompt, msg_history
+            section_prompt, self.system_prompts, msg_history
         )
 
         return (diagram, updated_msg_history) if return_msg_history else diagram
 
-    def _prepare_diagram_prompt(self, text: str, example: Optional[str] = None) -> str:
-        if example:
-            # Format with the example
-            few_shot_prompt = self.prompts.few_shot_instructions.format(example=example)
-            base_prompt = f"{few_shot_prompt}\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
-        else:
-            # Use just the template instructions
-            base_prompt = f"{self.prompts.template_instructions}\n\nHere is the paper you are asked to create a diagram for:\n```\n{text}\n```"
+    def _get_section_prompts(self, section_name: str, section_text: str) -> str:
+        section_prompt = self.prompts.section_prompt[section_name].format(
+            section_text=section_text
+        )
 
-        return str(base_prompt)
+        return section_prompt
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_diagram(
         self,
-        base_prompt: str,
+        section_prompt: str,
         drawer_system_prompt: str,
         msg_history: Optional[List[Dict[str, Any]]],
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
@@ -389,50 +412,40 @@ class DrawerTool(BaseTool):
 
         # Generate diagram
         llm_response, msg_history = get_response_from_llm(
-            base_prompt,
+            section_prompt,
             model=self.model,
             client=self.client,
             system_message=drawer_system_prompt,
-            print_debug=False,
             msg_history=msg_history,
             temperature=self.temperature,
             cost_tracker=self.cost_tracker,
             task_name="generate_diagram",
         )
 
-        # Extract the diagram from the response
         diagram = self._extract_diagram(llm_response)
-
         return diagram, msg_history
 
     def _extract_diagram(self, response: str) -> Dict[str, Any]:
         result = {"summary": "", "svg": "", "full_response": response}
 
-        # Extract the summary
-        summary_start = response.find("SUMMARY:")
-        if summary_start != -1:
-            summary_end = response.find("DIAGRAM SVG:", summary_start)
-            if summary_end != -1:
-                result["summary"] = response[summary_start + 8 : summary_end].strip()
-
-        # Extract the SVG
-        svg_start = response.find("```svg", summary_start if summary_start != -1 else 0)
-        if svg_start == -1:
-            # Try without language specifier
-            svg_start = response.find(
-                "```", summary_start if summary_start != -1 else 0
+        try:
+            parsed = json.loads(response)
+            summary = parsed["summary"]
+            svg = parsed["svg"]
+        except json.JSONDecodeError:
+            svg_match = re.search(r"<svg.*?</svg>", response, re.DOTALL)
+            svg = svg_match.group(0) if svg_match else ""
+            summary = (
+                re.sub(r"<svg.*?</svg>", "", response, flags=re.DOTALL)
+                .strip()
+                .split("\n")[0]
             )
-            if svg_start != -1:
-                svg_start += 3  # Skip past ```
+
+        if "<svg" in svg and "</svg>" in svg:
+            result["summary"] = summary
+            result["svg"] = self._clean_svg(svg)
         else:
-            svg_start += 6  # Skip past ```svg
-
-        if svg_start != -1:
-            svg_end = response.find("```", svg_start)
-            if svg_end != -1:
-                raw_svg = response[svg_start:svg_end].strip()
-                result["svg"] = self._clean_svg(raw_svg)
-
+            print("[ERROR] SVG missing or too short.")
         return result
 
     def _clean_svg(self, svg: str) -> str:
