@@ -98,6 +98,21 @@ class BaseOutputFormatter(abc.ABC):
 
         return body_content.strip()
 
+    def clean_body_content(self, body_content: str) -> str:
+        patterns_to_remove = [
+            r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",  # matches \documentclass[...]{...}
+            r"\\begin\{document\}",
+            r"\\end\{document\}",
+            r"\\maketitle",
+            r"\\title\{.*?\}",  # matches \title{...}
+        ]
+
+        for pattern in patterns_to_remove:
+            body_content = re.sub(pattern, "", body_content, flags=re.DOTALL)
+
+        # Strip extra whitespace and newlines at start/end
+        return body_content.strip()
+
     def _wrap_tables_in_latex(self, content: str) -> str:
 
         def replacer(match: Match[str]) -> str:
@@ -313,22 +328,16 @@ class BaseOutputFormatter(abc.ABC):
 
         content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
         
-        # Ensure proper spacing around environments
         content = re.sub(r'\n(\\begin\{[^}]+\})', r'\n\n\1', content)
         content = re.sub(r'(\\end\{[^}]+\})\n', r'\1\n\n', content)
         
-        # Fix spacing around section headers
         content = re.sub(r'(\n\\section\{[^}]+\})\n*', r'\1\n\n', content)
         content = re.sub(r'(\n\\subsection\{[^}]+\})\n*', r'\1\n\n', content)
         
-        # Fix itemize/enumerate spacing
         content = re.sub(r'(\n\\begin\{itemize\}|\n\\begin\{enumerate\})', r'\1\n', content)
         content = re.sub(r'(\n\\end\{itemize\}|\n\\end\{enumerate\})', r'\1\n', content)
-        
-        # Ensure citations don't break lines awkwardly
+
         content = re.sub(r'(\w+)\s*\n\s*(\\cite\{[^}]+\})', r'\1~\2', content)
-        
-        # Fix math environment spacing  
         content = re.sub(r'(\$[^$]+\$)\s*\n\s*(\w)', r'\1 \2', content)
         
         return content.strip()
@@ -456,6 +465,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
     ) -> None:
         
         body_content = self._assemble_body(content)
+        body_content = self.clean_body_content(body_content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
@@ -500,7 +510,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        """Debug LaTeX compilation to identify the exact issue"""
+
         self._ensure_pdflatex()
 
         fname = "acl_latex.tex"
@@ -588,6 +598,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
+        self._ensure_pdflatex()
         self._ensure_pdflatex()
 
         fname = "iclr2025_conference.tex"

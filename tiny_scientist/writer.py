@@ -34,12 +34,13 @@ class Writer:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[CostTracker] = None,
+        s2_api_key: Optional[str] = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool()
+        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
@@ -61,36 +62,54 @@ class Writer:
         )
 
     def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
-        with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
-            code = f.read()
+        is_experimental = idea.get("is_experimental", True)
 
-        with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
-            experiment_result = f.read()
+        code, experiment_result, baseline_result = "", "", ""
 
-        if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
-            with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
-                baseline_result = f.read()
-        else:
-            baseline_result = ""
+        if is_experimental and experiment_dir:
+            # Load experiment files for experimental papers
+            with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
+                code = f.read()
+
+            with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
+                experiment_result = f.read()
+
+            if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
+                with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
+                    baseline_result = f.read()
+        elif is_experimental and not experiment_dir:
+            raise ValueError("Experimental papers require an experiment_dir")
 
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
 
         self._write_abstract(idea)
 
-        for section in [
-            "Introduction",
-            "Method",
-            "Experimental_Setup",
-            "Results",
-            "Discussion",
-            "Conclusion",
-        ]:
-            self._write_section(idea, code, experiment_result, section, baseline_result)
+        # Different section structures for experimental vs non-experimental papers
+        if is_experimental:
+            sections = [
+                "Introduction",
+                "Method",
+                "Experimental_Setup",
+                "Results",
+                "Discussion",
+                "Conclusion",
+            ]
+        else:
+            sections = [
+                "Introduction",
+                "Method",
+                "Analysis",
+                "Discussion",
+                "Conclusion",
+            ]
 
+        for section in sections:
+            self._write_section(idea, code, experiment_result, section, baseline_result)
         
         self._write_related_work(idea)
         self._refine_paper()
+
         self._add_citations(idea)
         self._generate_diagram_for_section()
 
@@ -103,7 +122,9 @@ class Writer:
             output_dir=self.output_dir,
             output_pdf_path=output_pdf_path,
             name=self.generated_sections.get("Title", "Research Paper"),
+            name=self.generated_sections.get("Title", "Research Paper"),
         )
+        self.cost_tracker.report()
         self.cost_tracker.report()
         return output_pdf_path, paper_name
 
@@ -127,6 +148,9 @@ class Writer:
             system_message=self.system_prompt,
             cost_tracker=self.cost_tracker,
             task_name="Abstract",
+            system_message=self.system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name="Abstract",
         )
 
         self.generated_sections["Abstract"] = abstract_content
@@ -146,6 +170,12 @@ class Writer:
                     pdf_filename = f"diagram_{section.lower()}.pdf"
                     pdf_path = os.path.join(self.output_dir, "latex", pdf_filename)
                     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+                    raw_svg = diagram["svg"]
+
+                    cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
+                    cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
+
 
                     raw_svg = diagram["svg"]
 
@@ -228,6 +258,19 @@ class Writer:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
+                baseline_results=baseline_result,
+                experiment_results=experiment_result,
+            )
+        elif section == "Analysis":
+            # For non-experimental papers, use the research plan content
+            research_plan = idea.get("ResearchPlan", experiment)
+            section_prompt = self.prompts.section_prompt.get(
+                section, self.prompts.section_prompt.get("Results", "")
+            ).format(
+                section_tips=self.prompts.section_tips.get(
+                    section, self.prompts.section_tips.get("Results", "")
+                ),
+                experiment=research_plan,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
             )
@@ -427,6 +470,9 @@ class Writer:
                     system_message="",
                     cost_tracker=self.cost_tracker,
                     task_name=f"Second Refine {section}",
+                    system_message="",
+                    cost_tracker=self.cost_tracker,
+                    task_name=f"Second Refine {section}",
                 )
 
                 self.generated_sections[section] = refined_section_content
@@ -454,6 +500,8 @@ class Writer:
                         client=self.client,
                         model=self.model,
                         system_message=self.prompts.citation_system_prompt,
+                        cost_tracker=self.cost_tracker,
+                        task_name=f"Add Citation to {section}",
                         cost_tracker=self.cost_tracker,
                         task_name=f"Add Citation to {section}",
                     )

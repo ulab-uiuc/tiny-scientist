@@ -4,6 +4,7 @@ import os
 import re
 import time
 from importlib import resources
+from importlib import resources
 from typing import Any, Dict, List, Optional, cast
 
 import fitz
@@ -163,7 +164,7 @@ class CodeSearchTool(BaseTool):
 
     @staticmethod
     def _extract_github_code_info(
-        code_results: List[Dict[str, Any]]
+        code_results: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         return [
             {
@@ -176,9 +177,16 @@ class CodeSearchTool(BaseTool):
 
 
 class PaperSearchTool(BaseTool):
-    def __init__(self) -> None:
+    def __init__(self, s2_api_key: Optional[str] = None) -> None:
         super().__init__()
-        self.s2_api_key = config["core"].get("s2_api_key", None)
+        self.s2_api_key = (
+            s2_api_key
+            or os.environ.get("S2_API_KEY")
+            or config["core"].get("s2_api_key")
+        )
+
+        # Set default engine if not configured
+        self.engine = config["core"].get("engine", "semanticscholar")
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -203,17 +211,16 @@ class PaperSearchTool(BaseTool):
         if not query:
             return None
 
-        engine = config["core"].get("engine", "semanticscholar")
-        if engine == "semanticscholar":
+        if self.engine == "semanticscholar":
             print(
                 f"(semantic scholar API calling) Searching for papers with query: {query}"
             )
             return self._search_semanticscholar(query, result_limit)
-        elif engine == "openalex":
+        elif self.engine == "openalex":
             print(f"(openalex API calling) Searching for papers with query: {query}")
             return self._search_openalex(query, result_limit)
         else:
-            raise NotImplementedError(f"{engine=} not supported!")
+            raise NotImplementedError(f"{self.engine=} not supported!")
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _search_semanticscholar(
@@ -222,7 +229,7 @@ class PaperSearchTool(BaseTool):
         params: Dict[str, str | int] = {
             "query": query,
             "limit": result_limit,
-            "fields": "title,authors,venue,year,abstract,citationStyles,citationCount",
+            "fields": "title,authors,venue,year,abstract,citationStyles,citationCount,paperId",
         }
 
         headers = {"X-API-KEY": self.s2_api_key} if self.s2_api_key else {}

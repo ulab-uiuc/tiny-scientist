@@ -102,6 +102,9 @@ refinement_prompt: |
   Pay particular attention to fixing any errors such as:
   {error_list}
 
+  Here is the corresponding section tips:
+  {section_tips}
+
   Here is the section to refine:
   """
   {section_content}
@@ -210,6 +213,13 @@ section_prompt:
     ```python
     {code}
     ```
+
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    In this pass, do not reference anything in later sections of the paper.
+
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
