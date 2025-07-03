@@ -4,7 +4,6 @@ import os
 import re
 import time
 from importlib import resources
-from importlib import resources
 from typing import Any, Dict, List, Optional, cast
 
 import fitz

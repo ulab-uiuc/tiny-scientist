@@ -122,7 +122,6 @@ class Writer:
             output_dir=self.output_dir,
             output_pdf_path=output_pdf_path,
             name=self.generated_sections.get("Title", "Research Paper"),
-            name=self.generated_sections.get("Title", "Research Paper"),
         )
         self.cost_tracker.report()
         self.cost_tracker.report()
@@ -145,9 +144,6 @@ class Writer:
             msg=abstract_prompt,
             client=self.client,
             model=self.model,
-            system_message=self.system_prompt,
-            cost_tracker=self.cost_tracker,
-            task_name="Abstract",
             system_message=self.system_prompt,
             cost_tracker=self.cost_tracker,
             task_name="Abstract",
@@ -470,9 +466,6 @@ class Writer:
                     system_message="",
                     cost_tracker=self.cost_tracker,
                     task_name=f"Second Refine {section}",
-                    system_message="",
-                    cost_tracker=self.cost_tracker,
-                    task_name=f"Second Refine {section}",
                 )
 
                 self.generated_sections[section] = refined_section_content
@@ -500,8 +493,6 @@ class Writer:
                         client=self.client,
                         model=self.model,
                         system_message=self.prompts.citation_system_prompt,
-                        cost_tracker=self.cost_tracker,
-                        task_name=f"Add Citation to {section}",
                         cost_tracker=self.cost_tracker,
                         task_name=f"Add Citation to {section}",
                     )
