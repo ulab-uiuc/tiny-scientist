@@ -20,7 +20,6 @@ class WriterPrompt(BaseModel):
     section_tips: Dict[str, str]
     error_list: str
     refinement_prompt: str
-    second_refinement_prompt: str
     citation_system_prompt: str
     abstract_prompt: str
     section_prompt: Dict[str, str]
@@ -61,8 +60,6 @@ class ThinkerPrompt(BaseModel):
 
 
 class DrawerPrompt(BaseModel):
-    diagram_system_prompt_base: str
-    template_instructions: str
-    few_shot_instructions: str
-    error_list: str
-    refinement_prompt: str
+    diagram_system_prompt: str
+    section_prompt: Dict[str, str]
+    error_list: str  # Remains global

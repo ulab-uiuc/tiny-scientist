@@ -9,6 +9,8 @@ import openai
 import toml
 from google.generativeai.types import GenerationConfig
 
+from tiny_scientist.utils.cost_tracker import CostTracker
+
 # Load config
 config_path = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.toml"
@@ -82,10 +84,15 @@ def get_batch_responses_from_llm(
     msg_history: Any = None,
     temperature: float = 0.75,
     n_responses: int = 1,
+    cost_tracker: Optional[CostTracker] = None,
+    task_name: Optional[str] = None,
 ) -> Tuple[List[str], List[List[Dict[str, str]]]]:
     if msg_history is None:
         msg_history = []
 
+    input_tokens = 0
+    output_tokens = 0
+    response = None
     if model in [
         "gpt-4o-2024-05-13",
         "gpt-4o-mini-2024-07-18",
@@ -108,6 +115,11 @@ def get_batch_responses_from_llm(
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
+            if cost_tracker is not None:
+                cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
     elif model == "llama-3-1-405b-instruct":
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -125,6 +137,11 @@ def get_batch_responses_from_llm(
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
+            if cost_tracker is not None:
+                cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
     elif any(
         model.startswith(prefix)
         for prefix in ["meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"]
@@ -132,7 +149,6 @@ def get_batch_responses_from_llm(
         # Together AI models
         content = []
         new_msg_history = []
-
         for _ in range(n_responses):
             together_msg_history = msg_history + [{"role": "user", "content": msg}]
             response = client.chat.completions.create(
@@ -146,13 +162,17 @@ def get_batch_responses_from_llm(
                 n=1,
                 stop=None,
             )
-
             resp_content = response.choices[0].message.content
             content.append(resp_content)
             updated_history = together_msg_history + [
                 {"role": "assistant", "content": resp_content}
             ]
             new_msg_history.append(updated_history)
+            if hasattr(response, "usage"):
+                input_tokens = getattr(response.usage, "prompt_tokens", 0)
+                output_tokens = getattr(response.usage, "completion_tokens", 0)
+                if cost_tracker is not None:
+                    cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
     else:
         content, new_msg_history = [], []
         for _ in range(n_responses):
@@ -164,6 +184,8 @@ def get_batch_responses_from_llm(
                 print_debug=False,
                 msg_history=None,
                 temperature=temperature,
+                cost_tracker=cost_tracker,
+                task_name=task_name,
             )
             content.append(c)
             new_msg_history.append(hist)
@@ -192,10 +214,15 @@ def get_response_from_llm(
     print_debug: bool = False,
     msg_history: Any = None,
     temperature: float = 0.75,
+    cost_tracker: Optional[CostTracker] = None,
+    task_name: Optional[str] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     if msg_history is None:
         msg_history = []
 
+    input_tokens = 0
+    output_tokens = 0
+    response = None
     if "claude" in model:
         new_msg_history = msg_history + [
             {
@@ -227,6 +254,9 @@ def get_response_from_llm(
                 ],
             }
         ]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "input_tokens", 0)
+            output_tokens = getattr(response.usage, "output_tokens", 0)
     elif model in [
         "gpt-4o-mini",
         "gpt-4o-2024-05-13",
@@ -249,6 +279,9 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -264,6 +297,9 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     elif model in ["meta-llama/llama-3.1-405b-instruct", "llama-3-1-405b-instruct"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -279,6 +315,9 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     elif model in ["deepseek-chat", "deepseek-coder"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -294,6 +333,9 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     elif model in ["deepseek-reasoner"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -307,6 +349,9 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     elif "gemini" in model:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         gemini_contents = [{"role": "system", "parts": system_message}]
@@ -339,6 +384,9 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     elif any(
         model.startswith(prefix)
         for prefix in ["meta-llama/", "Qwen/", "deepseek-ai/", "mistralai/"]
@@ -358,8 +406,14 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
     else:
         raise ValueError(f"Model {model} not supported.")
+
+    if cost_tracker is not None:
+        cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
 
     if print_debug:
         print()
@@ -388,6 +442,8 @@ def get_batch_responses_from_llm_with_tools(
     msg_history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.75,
     n_responses: int = 1,
+    cost_tracker: Optional[CostTracker] = None,
+    task_name: Optional[str] = None,
 ) -> Tuple[List[Union[str, Dict[str, Any]]], List[List[Dict[str, str]]]]:
     """
     Gets batch responses from LLM, potentially including tool calls.
@@ -420,6 +476,20 @@ def get_batch_responses_from_llm_with_tools(
                 stop=None,
                 seed=0,  # Seed might not be available for all models or with tool use
             )
+
+            # Extract token usage for OpenAI
+            input_tokens = (
+                getattr(response.usage, "prompt_tokens", 0)
+                if hasattr(response, "usage")
+                else 0
+            )
+            output_tokens = (
+                getattr(response.usage, "completion_tokens", 0)
+                if hasattr(response, "usage")
+                else 0
+            )
+            if cost_tracker is not None:
+                cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
 
             for choice in response.choices:
                 response_message = choice.message
@@ -488,6 +558,19 @@ def get_batch_responses_from_llm_with_tools(
                 max_tokens=MAX_NUM_TOKENS,
             )
 
+            input_tokens = (
+                getattr(response, "prompt_tokens", 0)
+                if hasattr(response, "prompt_tokens")
+                else 0
+            )
+            output_tokens = (
+                getattr(response, "completion_tokens", 0)
+                if hasattr(response, "completion_tokens")
+                else 0
+            )
+            if cost_tracker is not None:
+                cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
+
             for choice in response.choices:
                 response_message = choice.message
                 current_history = new_msg_history + [
@@ -546,6 +629,8 @@ def get_batch_responses_from_llm_with_tools(
             msg_history=msg_history,
             temperature=temperature,
             n_responses=n_responses,
+            cost_tracker=cost_tracker,
+            task_name=task_name,
         )
         for item in contents:
             all_responses.append(item)

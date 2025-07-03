@@ -17,7 +17,6 @@ class BibManager:
         if template == "acl":
             bib_path = osp.join(dest_template_dir, "custom.bib")
         if template == "iclr":
-            # you should create a custom.bib file in the iclr folder
             bib_path = osp.join(dest_template_dir, "custom.bib")
 
         bib_entries = []

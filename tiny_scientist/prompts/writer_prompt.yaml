@@ -2,10 +2,23 @@ write_system_prompt:
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have already figured out the research idea and the experiments you want to run.
   Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
-  ⚠️ Do not include any citations or \cite{} commands in the content.
+
+  ⚠️ Do not include any citations or \cite{{}} commands in the content.
   Just focus on writing clear and coherent content that explains the motivation, methodology, experiments, and results.
+  When including tables, always use proper LaTeX tabular format (not Markdown).
+  Avoid using Markdown-style tables (e.g., those starting with `| Column |`) — they are not compatible with LaTeX rendering and will break the document.
+
+  [LaTeX Formatting Reminder]
+  - Use `\%` to indicate percentage values (e.g., 93\%)
+  - Do not escape comment `%` symbols (e.g., `% comment`)
+  - Wrap math expressions with `$...$`
+  - Escape special characters, `_` as `\_`, `&` as `\&`, `#` as `\#`, etc.
 
   The purpose of this draft is to flesh out the content. Citations will be added later during the refinement process.
+  Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
+
+  Here's an example of a well-written paper draft to guide your writing style, tone, and section lengths
+  {example_paper_draft}
 
 write_system_prompt_related_work:
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
@@ -23,32 +36,22 @@ section_tips:
     Please make sure the abstract reads smoothly and is well-motivated. This should be one continuous paragraph with no breaks between the lines.
 
   Introduction: |
-    - Think of the introduction as a comprehensive preview of the entire paper.
-    - Open with context: why now, why this field, and what’s at stake.
-    - Define the exact problem and why it’s still unsolved despite prior efforts.
-    - Clarify your insight or hypothesis that led to the proposed approach.
-    - Explicitly state what’s new and how your work differs from previous methods.
-    - Outline the methodology and evaluation approach at a high level.
-    - List contributions in bullets (aim for specificity, not generic points).
-    - Include a roadmap that previews each major section of the paper.
-    - The introduction should be self-contained and understandable without reading the full paper.
+    - Longer version of the Abstract, i.e. of the entire paper
+    - What are we trying to do and why is it relevant?
+    - Why is this hard?
+    - How do we solve it (i.e. our contribution!)
+    - How do we verify that we solved it (e.g. Experiments and results)
+    - New trend: specifically list your contributions as bullet points
+    - Extra space? Future work!
 
   Related_Work: |
-    - Focus on academic siblings of our work — i.e., alternative approaches in the literature attempting to solve the same or similar problem.
-    - The goal is to "compare and contrast": how do these methods differ in assumptions, objectives, or techniques?
-    - Simply describing a paper is not enough — explain how it relates to our study and why it matters.
-    - If a cited method is applicable to our problem setting, note its strengths or weaknesses. If it is not applicable, clearly justify why.
-    - Organize the discussion into coherent subtopics or themes.
-    - Use only the provided paper list, and cite each using \cite{{...}} placeholders.
+    - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
+    - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
+    - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
 
   Method: |
-    - Clearly describe what your method does and how it works.
-    - Start with intuition before diving into formal equations or code details.
-    - Use the same naming as in your figures/code to ensure consistency.
-    - Formalize the key parts: models, loss functions, algorithms, and modules.
-    - Emphasize what’s **new** and how it extends prior work.
-    - Be as explicit as possible about algorithmic flow, data dependencies, and expected behavior.
-    - Assume readers will try to re-implement your method — make that feasible.
+    - What we do. Why we do it. All described using the general Formalism introduced in the Problem Setting and building on top of the concepts / foundations introduced in Background.
+    - Note: Don't directly put any code in this section, but you can refer to the code in the Method section.
 
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
@@ -63,7 +66,6 @@ section_tips:
     - If results exist: includes ablation studies to show that specific parts of the method are relevant.
     - Discusses limitations of the method.
     - Make sure to include all the results from the experiments, and include all relevant figures.
-    - When you write the table, you should wrap the table with \resizebox{\columnwidth}{!}{% ... } to make sure the size of the table is normal.
 
   Discussion: |
     - Analyze what the experimental results reveal in the context of the original research question.
@@ -84,24 +86,18 @@ error_list: |
   - LaTeX syntax errors
   - Numerical results that do not come from explicit experiments and logs
   - Repeatedly defined figure labels
+  - References to papers that are not in the .bib file, DO NOT ADD ANY NEW CITATIONS!
   - Unnecessary verbosity or repetition, unclear text
-  - Results or insights in the notes.txt that have not yet been included
+  - Results or insights in the `notes.txt` that have not yet need included
   - Any relevant figures that have not yet been included in the text
-  - Improper closing of environments (e.g., use \end{figure} for \begin{figure})
-  - Duplicate headers (e.g., multiple \section{Introduction})
-  - Unescaped special characters (e.g., use shakespeare\_char instead of shakespeare_char)
-  - Incorrect closing of environments (e.g., </end{figure}> instead of \end{figure})
+  - Closing any \\begin{{figure}} with a \\end{{figure}} and \\begin{{table}} with a \\end{{table}}, etc.
+  - Duplicate headers, e.g. duplicated \\section{{Introduction}} or \\end{{document}}
+  - Unescaped symbols, e.g. shakespeare_char should be shakespeare\\_char in text
+  - Incorrect closing of environments, e.g. </end{{figure}}> instead of \\end{{figure}}
 
 refinement_prompt: |
-  Great job! Now, please review and refine only the {section} you just wrote.
-  Your output must consist solely of valid LaTeX code for the {section}—no additional commentary, markdown, or annotations are allowed.
-  Do not include any extra explanatory text, headers, or markdown formatting. Ensure that the output is a complete, self-contained LaTeX section.
-
-  Do not introduce new references or citations that were not already included.
-  Do not add any new content beyond refinement of what is already present.
-  When you write the table, you must wrap the table with \resizebox{\columnwidth}{!}{% ... } to make sure the size of the table is normal.
-  When you write the table, you must add \usepackage{booktabs} at the beginning of the latex and use \midrule, \toprule, \bottomrule instead of \hline.
-
+  Great job! Now criticize and refine only the {section} that you just wrote.
+  Make this complete in this pass, do not leave any placeholders.
 
   Pay particular attention to fixing any errors such as:
   {error_list}
@@ -111,31 +107,8 @@ refinement_prompt: |
   {section_content}
   """
 
-second_refinement_prompt: |
-  Please review and further refine the {section} to ensure it integrates seamlessly with the full paper.
-  Your output must be valid LaTeX code for the {section} only, with no extraneous annotations, markdown formatting, or commentary.
-  Focus on eliminating redundancies, improving conciseness, and correcting any remaining syntax errors.
-  Do not output any text beyond the LaTeX code needed for the refined section.
-  Do not introduce new references, citations, or external works.
-
-  Recall the following guidance:
-  {tips}
-
-  Also, address the following errors:
-  {error_list}
-
-  --- Full Draft for Context ---
-  """
-  {full_draft}
-  """
-
-  --- Section to Refine ---
-  """
-  {section_content}
-  """
-
 citation_system_prompt: |
-  You are an academic writing assistant helping add and improve citation coverage in a research paper.
+  You are an academic writing assistant helping add and embed citation coverage in a research paper.
 
   Your role:
   - When asked to suggest citations, return only real, published academic paper titles that are highly relevant to the given content.
@@ -143,44 +116,27 @@ citation_system_prompt: |
 
   Do not invent or fabricate any citations.
   Do not output BibTeX, author names, or publication details.
+  Be thorough - missing citations is not acceptable
   Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
 
 abstract_prompt: |
-  We've provided the `latex/template.tex` file to the project. We will be filling it in section by section.
-
-  First, please fill in the "Title" and "Abstract" sections of the writeup.
-
+  You are writing the Abstract section of a top-tier AI research paper.
   Some tips are provided below:
   {abstract_tips}
 
   Here is the research idea that the paper is based on:
 
-  **Title**:
-  {title}
+  - Title: **{title}**
+  - Research Problem: **{problem}**
+  - Importance: **{importance}**
+  - Difficulty: **{difficulty}**
+  - Novelty: **{novelty}**
+  - Experiment Plan: **{experiment}**
 
-  **Research Problem**:
-  {problem}
-
-  **Research Challenege**:
-  {difficulty}
-
-  **Research Importance**:
-  {importance}
-
-  **Research Novelty**:
-  {novelty}
-
-  **Proposed Experiment**:
-  {experiment}
-
-  **Key Contributions**:
-  - Clearly state the unique contributions of this research.
-  - Explain why this approach is novel compared to existing methods.
-  - Mention any expected improvements over traditional techniques.
-
-  Use this information to write a concise and well-structured abstract.
-
+  In this pass, do not reference anything in later sections of the paper.
+  The output must be pure LaTeX and enclosed with \begin{{abstract}} ... \end{{abstract}}.
   Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+
 
 section_prompt:
   Introduction: |
@@ -196,48 +152,46 @@ section_prompt:
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
-    - Written Method Section:
-    ```text
-    {method_section}
-    ```
+ 
+    **Your goal is to write a compelling, multi-paragraph introduction** that logically develops the background, motivation, and research gap. The tone should be formal, informative, and engaging.
 
-    Please remember that Introduction section is a enriched version of the abstract, should be much longer and detail than abstract.
-    ```
-    {abstract}
-    ```
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
-    Your introduction should follow this structure:
-    1. **Context & Motivation**
-    2. **Research Gap & Challenge**
-    3. **Proposed Approach**
-    4. **Contributions**
-    5. **Roadmap**
+    Use at least **4 paragraphs**, and aim for **250–300 words**.
 
-    Write in a clear, professional academic tone. Prioritize specificity, depth, and logical flow.
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Introduction}}
+    ...
 
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
     Some tips are provided below:
     {section_tips}
 
-    The **research problem** is: **{problem}**.
-    The **importance** of this problem is: **{importance}**.
-    The **difficulty** of this problem is: **{difficulty}**.
-    The **novelty** of this work is: **{novelty}**.
+    - Research Problem: **{problem}**
+    - Importance: **{importance}**
+    - Difficulty: **{difficulty}**
+    - Novelty: **{novelty}**
+    - Experiment Plan: **{experiment}**
 
-    - **Explicit structure** mimics typical method sections in real papers.
-    - Describe the approach taken in this paper and why it was chosen.
-    - If applicable, formalize the method mathematically.
-    - Clearly define any novel techniques, modifications, or extensions.
-    - Explain the algorithmic workflow and key implementation in detail to make sure every point is clear.
-
-    This section must be written based on the **provided code and experimental modifications**.
-    The proposed experiment was: **{experiment}**.
     The implementation code was:
 
     ```python
     {code}
     ```
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Method}}
+    ...
 
   Experimental_Setup: |
     Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
@@ -245,15 +199,10 @@ section_prompt:
     Some tips are provided below:
     {section_tips}
 
-    The **research problem** is: **{problem}**.
-    The **importance** of this problem is: **{importance}**.
-    The **difficulty** of this problem is: **{difficulty}**.
-    The **novelty** of this work is: **{novelty}**.
-
-    - Describe the dataset(s) used for evaluation.
-    - Specify key experimental settings, including hardware/software configurations.
-    - Explain how hyperparameters were selected and tuned.
-    - Detail evaluation metrics and baselines used for comparison.
+    - Research Problem: **{problem}**
+    - Importance: **{importance}**
+    - Difficulty: **{difficulty}**
+    - Novelty: **{novelty}**
 
     The experiments were run using the following method: **{experiment}**.
     The dataset, optimizer, and model settings are derived from the provided implementation.
@@ -262,64 +211,66 @@ section_prompt:
     {code}
     ```
 
-  Discussion: |
-    Please write the Discussion section of the research paper. Follow the instructions carefully.
-    Some tips for writing a strong Discussion section:
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Experiemtnal Setup}}
+    ...
+
+  Discussion: |
+    Please fill in the Discussion section of the writeup. Follow the instructions carefully.
+
+    Some tips for writing a strong Discussion section:
     {section_tips}
 
-    Base your discussion on the following data:
-    **Experimental results:**
-    {experiment_results}
+    - Experimental results: **{experiment_results}**
+    - Baseline results** (may be empty if not available): **{baseline_results}**
 
-    **Baseline results** (may be empty if not available):
-    {baseline_results}
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
-    Do not restate raw metrics. Instead, reflect on their implications, relative performance, and what they say about the method’s effectiveness.
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    In this pass, do not reference anything in later sections of the paper.
 
-    Maintain a critical and scholarly tone. Do not introduce new experiments or citations in this section.
+    Begin with:
+    \section{{Discussion}}
+    ...
 
   Results: |
-    Please fill in the Results section of the writeup. Some tips are provided below:
+    Please fill in the Results section of the research paper. Follow the instructions carefully.
+
+    Some tips for writing a strong Results section:
     {section_tips}
 
-    - Present key experimental findings in a structured manner.
-    - Use tables, figures, and confidence intervals to support conclusions.
-    - Compare results against baselines and state-of-the-art methods.
-    - Discuss error analysis, ablation studies, and potential limitations.
-
-    All results must be based on the actual experiment execution logs.
-
-    **Baseline results** (may be empty if not available):
-    {baseline_results}
-
-    The obtained experimental results are:
-    **{experiment_results}**
-
-    Only describe what was observed in the experiment — do not interpret the meaning of results, speculate about causes, or evaluate significance. That will be done in the Discussion section.
+    - Experimental results: **{experiment_results}**
+    - Baseline results** (may be empty if not available): **{baseline_results}**
 
     Ensure that all results presented have been obtained and are recorded in the logs.
-    Do not hallucinate numerical results or make unverifiable claims.
+    In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Results}}
+    ...
 
   Conclusion: |
-    Please fill in the Conclusion section of the writeup. Some tips are provided below:
-    {section_tips}
+    Please fill in the Conclusion section of the research paper. Follow the instructions carefully.
 
-    - Summarize the key contributions and findings of the paper.
-    - Reflect on the broader impact of this work.
-    - Highlight potential future research directions.
+    Some tips for writing a strong Conclusion section:
+    {section_tips}
 
     The proposed experiment was **{experiment}**.
     Summarize its findings based on the results section and highlight its importance.
 
     Keep the conclusion concise and ensure it aligns with the claims made throughout the paper.
+    In this pass, do not reference anything in later sections of the paper.
 
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-
-    Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
-
-    Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
+    Begin with:
+    \section{{Conclusion}}
+    ...
 
 citation_related_work_prompt: |
   Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
@@ -344,9 +295,11 @@ add_citation_prompt: |
   The challenges of the paper are: {challenges}
 
   You are reviewing the following section: {section}
-  Current content of the section:
-  {section_content}
 
+  Current content of the section:
+  """
+  {section_content}
+  """
   Based on the type of section (e.g., Introduction, Method, Experimental Setup, Discussion) and the depth of the content provided, determine how many references would be reasonably appropriate to support the key statements and claims.
 
   Your task:
@@ -355,7 +308,7 @@ add_citation_prompt: |
   - Prefer widely recognized or foundational papers if possible.
   - Do **not** fabricate or suggest speculative titles.
 
-  You **must return at least 4** real paper titles.
+  You **must return at least 6** real paper titles.
   All titles must be real and verifiable.
   Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
 
@@ -364,22 +317,27 @@ add_citation_prompt: |
   ```
 
 embed_citation_prompt: |
-  You are assisting with inserting citation placeholders into an academic paper draft.
+  You are assisting with embedding citation placeholders into an academic LaTeX section.
 
-  Section: {section}
-  Below is the current content of the section:
+  You are reviewing the following section: {section}
 
-  You must add citations from the following list of real, relevant paper titles:
+  Here is the current content of the section:
+  """
+  {section_content}
+  """
+
+  You must cite **all** of the following papers using LaTeX \cite{{...}} format:
   {references}
 
-  These papers were selected specifically because they relate to the section's content. Your task is to embed **all of these citations** into the section where they are most relevant.
+  INSTRUCTIONS:
+  - Integrate citations into the most relevant parts of the section.
+  - Use `\cite{{...}}` format strictly (no markdown, no commentary).
+  - Do not fabricate new citations.
+  - Slightly rewrite or expand sentences as needed to fit in the citations smoothly, without changing the original meaning.
+  - Preserve and return the entire section content with all citations embedded.
+  - The output must be valid, standalone LaTeX with consistent formatting.
 
-  Instructions:
-  - Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
-  - You must cite **all** of the following papers at least once using \cite{{...}}.
-  - You may adjust the sentence slightly to help integrate the citation smoothly, but preserve the original meaning and tone.
-
-  Return the updated section as valid LaTeX with citation placeholders embedded. No additional commentary or explanation should be included.
+  FINAL OUTPUT: Return only valid LaTeX (no markdown, no explanations).
 
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
@@ -388,11 +346,9 @@ related_work_prompt: |
 
   {related_work_tips}
 
-  - Discuss prior foundational works relevant to this research.
-  - Organize the section into at least two subtopics (e.g., problem formulations, techniques, or perspectives).
-  - Compare and contrast different approaches and their limitations.
-  - Identify gaps in the literature that justify this study.
-  - Align prior work with the **motivation** of the research, but do NOT include experiment-specific details.
+  - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
+  - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
+  - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
 
   The motivation for this study is: {experiment}
 

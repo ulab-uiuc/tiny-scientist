@@ -12,6 +12,7 @@ from aider.models import Model
 from rich import print
 
 from .configs import Config
+from .utils.cost_tracker import CostTracker
 from .utils.llm import create_client, get_response_from_llm
 
 
@@ -25,6 +26,7 @@ class Coder:
         max_stderr_output: int = 1500,
         prompt_template_dir: Optional[str] = None,
         chat_history: Optional[str] = None,
+        cost_tracker: Optional[CostTracker] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
@@ -33,6 +35,7 @@ class Coder:
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
         self.config = Config()
+        self.cost_tracker = cost_tracker or CostTracker()
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
@@ -103,6 +106,8 @@ class Coder:
 
         print(f"[System] All experiment results saved to {save_path}")
 
+        self.cost_tracker.report()
+
         return True, self.output_dir
 
     def _format_experiment_for_prompt(
@@ -117,6 +122,8 @@ class Coder:
             client=self.client,
             model=self.model,
             system_message="You are helping an AI agent extract implementation-relevant key information from an experiment description.",
+            cost_tracker=self.cost_tracker,
+            task_name="_format_experiment_for_prompt",
         )
 
         try:
