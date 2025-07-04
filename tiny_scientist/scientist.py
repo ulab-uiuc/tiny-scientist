@@ -34,7 +34,7 @@ class TinyScientist:
         modules = ["safety_checker", "thinker", "coder", "writer", "reviewer"]
         per_module_budget = budget / len(modules) if budget else None
 
-        self.safety_checker = SafetyChecker(model=model) if enable_safety_check else None
+        self.safety_checker = SafetyChecker(model=model, cost_tracker=CostTracker(budget=per_module_budget)) if enable_safety_check else None
 
         self.thinker = Thinker(
             model=model,
