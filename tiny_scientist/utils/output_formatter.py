@@ -127,7 +127,7 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
-    def _clean_latex_content(self, content: Union[str, Dict[str, Any]]) -> str:
+    def _clean_latex_content(self, content: str) -> str:
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if not match:
             match = re.search(r'```\s*(.*?)\s*```', content, flags=re.DOTALL)
@@ -235,7 +235,7 @@ class BaseOutputFormatter(abc.ABC):
         return content
 
 
-    def _assemble_body(self, contents: Dict[str, Dict[str, Any]]) -> str:
+    def _assemble_body(self, contents: Dict[str, str]) -> str:
         """Enhanced body assembly with better text flow"""
         section_order = [
             "Abstract",
@@ -431,7 +431,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
 
     def run(
         self,
-        content: Dict[str, Any],
+        content: Dict[str, str],
         references: Dict[str, Any],
         output_dir: str,
         output_pdf_path: str,
@@ -569,7 +569,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
 
     def run(
         self,
-        content: Dict[str, Any],
+        content: Dict[str, str],
         references: Dict[str, Any],
         output_dir: str,
         output_pdf_path: str,
