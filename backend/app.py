@@ -385,41 +385,25 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
 
 
 def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
-    """Format Thinker idea into content for TreePlot - with standardized section headers"""
+    """
+    Formats the Thinker's idea JSON into a single content string for the frontend.
+    This is now simplified, as the frontend will pull most data from originalData.
+    We only format the main sections for basic display.
+    """
     if isinstance(idea, str):
         return idea
 
-    # Get content and ensure no trailing ** in any of the content sections
-    description = idea.get("Description", "").strip().rstrip("*")
-    importance = idea.get("Importance", "").strip().rstrip("*")
-    feasibility = idea.get("Difficulty", "").strip().rstrip("*")
-    novelty = idea.get("NoveltyComparison", "").strip().rstrip("*")
+    description = idea.get("Description", "")
+    importance = idea.get("Importance", "")
+    difficulty = idea.get("Difficulty", "")
+    novelty = idea.get("NoveltyComparison", "")
 
     content_sections = [
-        f"Description: {description}",
-        f"Impact: {importance}",
-        f"Feasibility: {feasibility}",
-        f"Novelty: {novelty}",
+        f"**Description:**\n{description}",
+        f"**Impact:**\n{importance}",
+        f"**Feasibility:**\n{difficulty}",
+        f"**Novelty:**\n{novelty}",
     ]
-
-    # Add experiment plan if it exists
-    experiment_data = idea.get("Experiment")
-    if experiment_data:
-        is_experimental = idea.get("is_experimental", True)
-
-        if is_experimental:
-            # For experimental ideas, format as structured sections
-            model = experiment_data.get("Model", "").strip().rstrip("*")
-            dataset = experiment_data.get("Dataset", "").strip().rstrip("*")
-            metric = experiment_data.get("Metric", "").strip().rstrip("*")
-
-            experiment_section = f"Experiment Plan:\n\nModel: {model}\n\nDataset: {dataset}\n\nMetric: {metric}"
-        else:
-            # For non-experimental ideas, use the research plan
-            research_plan = experiment_data.get("Research_Plan", "").strip().rstrip("*")
-            experiment_section = f"Experiment Plan: {research_plan}"
-
-        content_sections.append(experiment_section)
 
     return "\n\n".join(content_sections)
 

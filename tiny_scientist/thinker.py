@@ -331,13 +331,22 @@ Be critical and realistic in your assessments."""
             task_name="generate_experiment_plan",
         )
 
-        experiment_plan = extract_json_between_markers(text)
-        if not experiment_plan:
-            print("Failed to generate experimental plan.")
+        # Extract both the original JSON and the new Markdown table
+        experiment_plan_json = extract_json_between_markers(text)
+        try:
+            experiment_plan_table = text.split("```markdown")[1].split("```")[0].strip()
+        except IndexError:
+            experiment_plan_table = None
+
+        if not experiment_plan_json or not experiment_plan_table:
+            print("Failed to generate one or both parts of the experimental plan.")
+            # Return the original idea if generation fails
             return idea
 
-        idea_dict["Experiment"] = experiment_plan
-        print("Experimental plan generated successfully.")
+        # Store the JSON in 'Experiment' and the table in 'ExperimentTable'
+        idea_dict["Experiment"] = experiment_plan_json
+        idea_dict["ExperimentTable"] = experiment_plan_table
+        print("Dual-format experimental plan generated successfully.")
 
         self.cost_tracker.report()
         return json.dumps(idea_dict, indent=2)
@@ -641,23 +650,22 @@ Be critical and realistic in your assessments."""
     def _ethical_defense_check(self, idea_json: str) -> str:
         """
         Check and enhance the ethical safety of a research idea.
-        
+
         Args:
             idea_json: JSON string containing the research idea
-            
+
         Returns:
             str: Modified idea JSON with enhanced ethical safety
         """
         if not self.enable_ethical_defense:
             return idea_json
-            
+
         print("Applying ethical defense check...")
-        
+
         prompt = self.prompts.ethical_defense_prompt.format(
-            idea=idea_json,
-            intent=self.intent
+            idea=idea_json, intent=self.intent
         )
-        
+
         text, _ = get_response_from_llm(
             prompt,
             client=self.client,
@@ -668,13 +676,13 @@ Be critical and realistic in your assessments."""
             cost_tracker=self.cost_tracker,
             task_name="ethical_defense_check",
         )
-        
+
         # Extract the enhanced idea from response
         enhanced_idea = extract_json_between_markers(text)
         if not enhanced_idea:
             print("⚠️ Ethical defense failed to extract enhanced idea, using original")
             return idea_json
-            
+
         print("✅ Ethical defense applied successfully")
         self.cost_tracker.report()
         return json.dumps(enhanced_idea, indent=2)
