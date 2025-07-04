@@ -29,6 +29,7 @@ class Coder:
         chat_history: Optional[str] = None,
         auto_install: bool = True,
         cost_tracker: Optional[CostTracker] = None,
+        mcp_client = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
@@ -39,6 +40,7 @@ class Coder:
         self.auto_install = auto_install
         self.config = Config()
         self.cost_tracker = cost_tracker or CostTracker()
+        self.mcp_client = mcp_client
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt

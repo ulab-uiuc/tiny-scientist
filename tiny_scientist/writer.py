@@ -11,7 +11,7 @@ import cairosvg
 from rich import print
 
 from .configs import Config
-from .tool import BaseTool, DrawerTool, PaperSearchTool
+from .mcp.tool import BaseTool, DrawerTool, PaperSearchTool
 from .utils.cost_tracker import CostTracker
 from .utils.llm import (
     create_client,
@@ -35,13 +35,16 @@ class Writer:
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[CostTracker] = None,
         s2_api_key: Optional[str] = None,
+        mcp_client = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
-        self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
+        self.mcp_client = mcp_client
+        # Fallback to traditional tools if MCP is not available
+        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key) if not mcp_client else None
+        self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature) if not mcp_client else None
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
         if self.template == "acl":
@@ -158,10 +161,46 @@ class Writer:
         for section in ["Method", "Experimental_Setup", "Results"]:
             content = self.generated_sections[section]
             try:
-                query = json.dumps(
-                    {"section_name": section, "section_content": content}
-                )
-                diagram_result = self.drawer.run(query)
+                if self.mcp_client:
+                    # Use MCP client for diagram generation
+                    import asyncio
+                    from .utils.mcp_client import generate_diagram
+                    
+                    try:
+                        # Run the async function in the current event loop
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # If we're already in an async context, we need to handle this differently
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, generate_diagram(section, content, self.mcp_client))
+                                results_json = future.result()
+                        else:
+                            results_json = asyncio.run(generate_diagram(section, content, self.mcp_client))
+                        
+                        if results_json:
+                            import json
+                            diagram_result = json.loads(results_json)
+                        else:
+                            diagram_result = {}
+                    except Exception as e:
+                        print(f"[WARNING] MCP diagram generation failed, falling back to traditional drawer: {e}")
+                        if self.drawer:
+                            query = json.dumps(
+                                {"section_name": section, "section_content": content}
+                            )
+                            diagram_result = self.drawer.run(query)
+                        else:
+                            diagram_result = {}
+                else:
+                    # Use traditional drawer
+                    if self.drawer:
+                        query = json.dumps(
+                            {"section_name": section, "section_content": content}
+                        )
+                        diagram_result = self.drawer.run(query)
+                    else:
+                        diagram_result = {}
 
                 if diagram_result and "diagram" in diagram_result:
                     diagram = diagram_result["diagram"]
@@ -334,7 +373,40 @@ class Writer:
 
         for paper_name in paper_list:
             try:
-                result = self.searcher.run(paper_name)
+                if self.mcp_client:
+                    # Use MCP client for paper search
+                    import asyncio
+                    from .utils.mcp_client import search_papers
+                    
+                    try:
+                        # Run the async function in the current event loop
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # If we're already in an async context, we need to handle this differently
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, search_papers(paper_name, self.mcp_client))
+                                results_json = future.result()
+                        else:
+                            results_json = asyncio.run(search_papers(paper_name, self.mcp_client))
+                        
+                        if results_json:
+                            import json
+                            result = json.loads(results_json)
+                        else:
+                            result = {}
+                    except Exception as e:
+                        print(f"[WARNING] MCP search failed, falling back to traditional search: {e}")
+                        if self.searcher:
+                            result = self.searcher.run(paper_name)
+                        else:
+                            result = {}
+                else:
+                    # Use traditional searcher
+                    if self.searcher:
+                        result = self.searcher.run(paper_name)
+                    else:
+                        result = {}
 
                 if result:
                     if paper_name in result:

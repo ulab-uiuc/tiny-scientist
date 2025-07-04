@@ -25,3 +25,21 @@ llm_api_key = ""
 
 # paper searching engine
 #engine = "semanticscholar"
+
+#################################### MCP ####################################
+[mcp.servers]
+
+[mcp.servers.code_search]
+command = "python"
+args = ["-m", "tiny_scientist.mcp.code_search_server"]
+cwd = "."
+
+[mcp.servers.paper_search]
+command = "python"
+args = ["-m", "tiny_scientist.mcp.paper_search_server"]
+cwd = "."
+
+[mcp.servers.drawer]
+command = "python"
+args = ["-m", "tiny_scientist.mcp.drawer_server"]
+cwd = "."

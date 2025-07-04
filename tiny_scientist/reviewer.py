@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from rich import print
 
 from .configs import Config
-from .tool import BaseTool, PaperSearchTool
+from .mcp.tool import BaseTool, PaperSearchTool
 from .utils.cost_tracker import CostTracker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.input_formatter import InputFormatter
@@ -25,6 +25,7 @@ class Reviewer:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[CostTracker] = None,
+        mcp_client = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -32,7 +33,9 @@ class Reviewer:
         self.client, self.model = create_client(model)
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
-        self.searcher = PaperSearchTool()
+        self.mcp_client = mcp_client
+        # Fallback to traditional searcher if MCP is not available
+        self.searcher = PaperSearchTool() if not mcp_client else None
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         self.cost_tracker = cost_tracker or CostTracker()
@@ -107,8 +110,44 @@ class Reviewer:
         if query in self._query_cache:
             related_papers = self._query_cache[query]
         else:
-            results_dict = self.searcher.run(query)
-            related_papers = list(results_dict.values())
+            if self.mcp_client:
+                # Use MCP client for paper search
+                import asyncio
+                from .utils.mcp_client import search_papers
+                
+                try:
+                    # Run the async function in the current event loop
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # If we're already in an async context, we need to handle this differently
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(asyncio.run, search_papers(query, self.mcp_client))
+                            results_json = future.result()
+                    else:
+                        results_json = asyncio.run(search_papers(query, self.mcp_client))
+                    
+                    if results_json:
+                        import json
+                        results_dict = json.loads(results_json)
+                        related_papers = list(results_dict.values()) if results_dict else []
+                    else:
+                        related_papers = []
+                except Exception as e:
+                    print(f"[WARNING] MCP search failed, falling back to traditional search: {e}")
+                    if self.searcher:
+                        results_dict = self.searcher.run(query)
+                        related_papers = list(results_dict.values())
+                    else:
+                        related_papers = []
+            else:
+                # Use traditional searcher
+                if self.searcher:
+                    results_dict = self.searcher.run(query)
+                    related_papers = list(results_dict.values())
+                else:
+                    related_papers = []
+                    
             self._query_cache[query] = related_papers if related_papers else []
 
         if related_papers:

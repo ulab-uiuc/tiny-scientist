@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
+import asyncio
 
 from rich import print
 
@@ -7,6 +8,7 @@ from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.cost_tracker import CostTracker
 from .utils.input_formatter import InputFormatter
+from .utils.mcp_client import MCPClient
 from .writer import Writer
 
 
@@ -18,14 +20,19 @@ class TinyScientist:
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
         budget: Optional[float] = None,
+        use_mcp: bool = True,
     ):
         self.model = model
         self.output_dir = output_dir
         self.template = template
         self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
+        self.use_mcp = use_mcp
 
         self.cost = 0.0
+
+        # Initialize MCP client if enabled
+        self.mcp_client = MCPClient() if use_mcp else None
 
         # Naive budget split
         modules = ["thinker", "coder", "writer", "reviewer"]
@@ -41,6 +48,7 @@ class TinyScientist:
             generate_exp_plan=True,
             enable_ethical_defense=False,
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
 
         self.coder = Coder(
@@ -50,6 +58,7 @@ class TinyScientist:
             max_iters=4,
             max_runs=3,
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
 
         self.writer = Writer(
@@ -58,6 +67,7 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             template=template,
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
 
         self.reviewer = Reviewer(
@@ -65,7 +75,34 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             tools=[],
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
+
+    async def initialize_mcp(self):
+        """Initialize MCP servers."""
+        if self.mcp_client:
+            print("🔧 Initializing MCP servers...")
+            results = await self.mcp_client.start_all_servers()
+            for server_name, success in results.items():
+                if success:
+                    print(f"✅ MCP server '{server_name}' started successfully")
+                else:
+                    print(f"❌ Failed to start MCP server '{server_name}'")
+
+    async def cleanup_mcp(self):
+        """Clean up MCP servers."""
+        if self.mcp_client:
+            print("🧹 Shutting down MCP servers...")
+            await self.mcp_client.stop_all_servers()
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self.initialize_mcp()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        await self.cleanup_mcp()
 
     def think(
         self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None

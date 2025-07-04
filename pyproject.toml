@@ -32,6 +32,9 @@ cairosvg = "^2.7.1"
 together = "*"
 flask = "^3.0.0"
 flask-cors = "^4.0.0"
+fastmcp = "*"
+mcp = "*"
+httpx = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
