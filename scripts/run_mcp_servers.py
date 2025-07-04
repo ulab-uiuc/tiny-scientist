@@ -9,6 +9,7 @@ import signal
 import sys
 import os
 from pathlib import Path
+from typing import Any, Dict
 
 # Add the parent directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,11 +20,11 @@ from tiny_scientist.utils.mcp_client import MCPClient
 class MCPServerManager:
     """Manager for running multiple MCP servers for testing."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = MCPClient()
         self.running = True
     
-    async def start_all_servers(self):
+    async def start_all_servers(self) -> bool:
         """Start all configured MCP servers."""
         print("🚀 Starting all MCP servers...")
         results = await self.client.start_all_servers()
@@ -41,7 +42,7 @@ class MCPServerManager:
         
         return success_count > 0
     
-    async def health_check(self):
+    async def health_check(self) -> None:
         """Perform health check on all servers."""
         print("\n🔍 Performing health check...")
         health = await self.client.health_check()
@@ -55,7 +56,7 @@ class MCPServerManager:
             status = "💚 Healthy" if is_healthy else "💔 Unhealthy"
             print(f"  {server_name}: {status}")
     
-    async def list_available_tools(self):
+    async def list_available_tools(self) -> None:
         """List all available tools from all servers."""
         print("\n🛠️  Available Tools:")
         
@@ -69,7 +70,7 @@ class MCPServerManager:
                 else:
                     print(f"  📦 {server_name}: No tools available")
     
-    async def run_interactive_mode(self):
+    async def run_interactive_mode(self) -> None:
         """Run in interactive mode for testing tools."""
         print("\n🎮 Interactive Mode - Type 'help' for commands")
         
@@ -121,7 +122,7 @@ Available commands:
                 print("\n👋 Shutting down...")
                 self.running = False
     
-    async def test_tool(self, server_name: str, tool_name: str):
+    async def test_tool(self, server_name: str, tool_name: str) -> None:
         """Test a specific tool."""
         if not self.client.is_server_running(server_name):
             print(f"❌ Server {server_name} is not running")
@@ -130,7 +131,7 @@ Available commands:
         print(f"🧪 Testing {server_name}.{tool_name}...")
         
         # Sample test inputs for different tools
-        test_inputs = {
+        test_inputs: Dict[str, Dict[str, Any]] = {
             "search_papers": {"query": "machine learning", "result_limit": 2},
             "search_github_repositories": {"query": "pytorch", "result_limit": 3},
             "search_github_code": {"query": "neural network", "result_limit": 3},
@@ -142,7 +143,7 @@ Available commands:
             "get_supported_sections": {},
         }
         
-        kwargs = test_inputs.get(tool_name, {})
+        kwargs: Dict[str, Any] = test_inputs.get(tool_name, {})
         
         if not kwargs and tool_name not in ["get_supported_sections"]:
             print(f"❌ No test input defined for tool: {tool_name}")
@@ -158,19 +159,19 @@ Available commands:
         except Exception as e:
             print(f"❌ Tool execution failed: {e}")
     
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources."""
         print("\n🧹 Cleaning up...")
         await self.client.stop_all_servers()
         print("✅ All servers stopped")
 
 
-async def main():
+async def main() -> None:
     """Main function to run the MCP server manager."""
     manager = MCPServerManager()
     
     # Handle Ctrl+C gracefully
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame: Any) -> None:
         print("\n🛑 Received interrupt signal")
         manager.running = False
     

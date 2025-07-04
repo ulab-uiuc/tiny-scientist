@@ -19,7 +19,7 @@ GITHUB_API_BASE = "https://api.github.com"
 GITHUB_TOKEN = config["core"].get("github_token", None)
 
 
-async def make_github_request(url: str, params: dict) -> Optional[dict]:
+async def make_github_request(url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Make a request to the GitHub API with proper error handling."""
     headers = {"Accept": "application/vnd.github.v3+json"}
     if GITHUB_TOKEN:
@@ -29,7 +29,8 @@ async def make_github_request(url: str, params: dict) -> Optional[dict]:
         try:
             response = await client.get(url, headers=headers, params=params, timeout=30.0)
             response.raise_for_status()
-            return response.json()
+            result: Dict[str, Any] = response.json()
+            return result
         except Exception as e:
             print(f"GitHub API request failed: {e}")
             return None

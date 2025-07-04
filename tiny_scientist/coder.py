@@ -29,7 +29,7 @@ class Coder:
         chat_history: Optional[str] = None,
         auto_install: bool = True,
         cost_tracker: Optional[CostTracker] = None,
-        mcp_client = None,
+        mcp_client: Any = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)

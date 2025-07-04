@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, IO
 import toml
 from rich import print
 
@@ -19,7 +19,7 @@ class MCPClient:
         """
         self.config_path = config_path or self._get_default_config_path()
         self.config = self._load_config()
-        self.servers: Dict[str, subprocess.Popen] = {}
+        self.servers: Dict[str, subprocess.Popen[str]] = {}
         self.server_configs = self.config.get("mcp", {}).get("servers", {})
         
     def _get_default_config_path(self) -> str:
@@ -123,10 +123,16 @@ class MCPClient:
             }
             
             request_json = json.dumps(init_request) + "\n"
+            if process.stdin is None:
+                print(f"[ERROR] No stdin available for server {server_name}")
+                return False
             process.stdin.write(request_json)
             process.stdin.flush()
             
             # Read initialization response
+            if process.stdout is None:
+                print(f"[ERROR] No stdout available for server {server_name}")
+                return False
             response_line = process.stdout.readline()
             if not response_line:
                 print(f"[ERROR] No initialization response from {server_name}")
@@ -147,6 +153,9 @@ class MCPClient:
             }
             
             notification_json = json.dumps(initialized_notification) + "\n"
+            if process.stdin is None:
+                print(f"[ERROR] No stdin available for server {server_name}")
+                return False
             process.stdin.write(notification_json)
             process.stdin.flush()
             
@@ -210,7 +219,7 @@ class MCPClient:
             results[server_name] = await self.stop_server(server_name)
         return results
     
-    async def call_tool(self, server_name: str, tool_name: str, **kwargs) -> Optional[str]:
+    async def call_tool(self, server_name: str, tool_name: str, **kwargs: Any) -> Optional[str]:
         """Call a tool on a specific MCP server.
         
         Args:
@@ -241,10 +250,16 @@ class MCPClient:
             
             # Send request to server
             request_json = json.dumps(request) + "\n"
+            if process.stdin is None:
+                print(f"[ERROR] No stdin available for server {server_name}")
+                return None
             process.stdin.write(request_json)
             process.stdin.flush()
             
             # Read response
+            if process.stdout is None:
+                print(f"[ERROR] No stdout available for server {server_name}")
+                return None
             response_line = process.stdout.readline()
             if not response_line:
                 print(f"[ERROR] No response from server {server_name}")
@@ -260,7 +275,8 @@ class MCPClient:
             # Extract result
             result = response.get("result", {})
             if isinstance(result, dict) and "content" in result:
-                return result["content"][0].get("text", "")
+                content = result["content"][0].get("text", "")
+                return content if isinstance(content, str) else str(content)
             elif isinstance(result, str):
                 return result
             else:
@@ -296,10 +312,16 @@ class MCPClient:
             
             # Send request to server
             request_json = json.dumps(request) + "\n"
+            if process.stdin is None:
+                print(f"[ERROR] No stdin available for server {server_name}")
+                return None
             process.stdin.write(request_json)
             process.stdin.flush()
             
             # Read response
+            if process.stdout is None:
+                print(f"[ERROR] No stdout available for server {server_name}")
+                return None
             response_line = process.stdout.readline()
             if not response_line:
                 print(f"[ERROR] No response from server {server_name}")
@@ -314,7 +336,8 @@ class MCPClient:
             
             # Extract tools
             result = response.get("result", {})
-            return result.get("tools", [])
+            tools = result.get("tools", [])
+            return tools if isinstance(tools, list) else []
                 
         except Exception as e:
             print(f"[ERROR] Failed to get tools from {server_name}: {e}")
@@ -359,12 +382,12 @@ class MCPClient:
                 results[server_name] = False
         return results
     
-    async def __aenter__(self):
+    async def __aenter__(self) -> "MCPClient":
         """Async context manager entry."""
         await self.start_all_servers()
         return self
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.stop_all_servers()
 

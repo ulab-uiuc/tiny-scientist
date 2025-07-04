@@ -35,7 +35,7 @@ class Writer:
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[CostTracker] = None,
         s2_api_key: Optional[str] = None,
-        mcp_client = None,
+        mcp_client: Any = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
@@ -43,8 +43,8 @@ class Writer:
         self.temperature = temperature
         self.mcp_client = mcp_client
         # Fallback to traditional tools if MCP is not available
-        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key) if not mcp_client else None
-        self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature) if not mcp_client else None
+        self.searcher: Optional[BaseTool] = PaperSearchTool(s2_api_key=s2_api_key) if not mcp_client else None
+        self.drawer: Optional[BaseTool] = DrawerTool(model, prompt_template_dir, temperature) if not mcp_client else None
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
         if self.template == "acl":
@@ -170,7 +170,7 @@ class Writer:
                         # Handle async function call properly to avoid event loop conflicts
                         import concurrent.futures
                         
-                        def run_async_diagram():
+                        def run_async_diagram() -> Optional[str]:
                             """Run the async diagram function in a new event loop."""
                             return asyncio.run(generate_diagram(section, content, self.mcp_client))
                         
@@ -389,7 +389,7 @@ class Writer:
                         # Handle async function call properly to avoid event loop conflicts
                         import concurrent.futures
                         
-                        def run_async_search():
+                        def run_async_search() -> Optional[str]:
                             """Run the async search function in a new event loop."""
                             return asyncio.run(search_papers(paper_name, self.mcp_client))
                         

@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from tiny_scientist.utils.mcp_client import MCPClient
 
-async def test_mcp_servers():
+async def test_mcp_servers() -> None:
     """Test all MCP server startup and functionality"""
     print("🧪 Starting MCP server diagnostics...")
     
@@ -137,7 +137,7 @@ async def test_mcp_servers():
     await client.stop_all_servers()
     print("✅ All servers stopped")
 
-async def debug_writer_search():
+async def debug_writer_search() -> None:
     """Debug search functionality in writer"""
     print("\n🔍 Debugging Writer search format issues...")
     

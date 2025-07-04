@@ -25,7 +25,7 @@ class Reviewer:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[CostTracker] = None,
-        mcp_client = None,
+        mcp_client: Any = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -119,7 +119,7 @@ class Reviewer:
                     # Handle async function call properly to avoid event loop conflicts
                     import concurrent.futures
                     
-                    def run_async_search():
+                    def run_async_search() -> Optional[str]:
                         """Run the async search function in a new event loop."""
                         return asyncio.run(search_papers(query, self.mcp_client))
                     

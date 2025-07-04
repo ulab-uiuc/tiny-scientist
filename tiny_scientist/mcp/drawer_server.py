@@ -73,7 +73,8 @@ async def make_llm_request(prompt: str, system_message: str) -> Optional[str]:
             )
             response.raise_for_status()
             result = response.json()
-            return result["choices"][0]["message"]["content"]
+            content = result["choices"][0]["message"]["content"]
+            return content if isinstance(content, str) else None
         except Exception as e:
             print(f"LLM API request failed: {e}")
             return None

@@ -26,7 +26,7 @@ print(f"[Paper Search] API Key configured: {'Yes' if S2_API_KEY else 'No'}")
 print(f"[Paper Search] Search engine: {SEARCH_ENGINE}")
 
 
-async def make_s2_request(url: str, params: Optional[dict] = None, headers: Optional[dict] = None) -> Optional[dict]:
+async def make_s2_request(url: str, params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
     """Make a request to the Semantic Scholar API with proper error handling."""
     default_headers = {}
     
@@ -48,7 +48,7 @@ async def make_s2_request(url: str, params: Optional[dict] = None, headers: Opti
             response = await client.get(url, headers=default_headers, params=params, timeout=30.0)
             print(f"[Paper Search] Response status: {response.status_code}")
             response.raise_for_status()
-            result = response.json()
+            result: Dict[str, Any] = response.json()
             if result.get('data'):
                 print(f"[Paper Search] Found {len(result['data'])} papers")
             return result
@@ -181,7 +181,8 @@ async def search_semanticscholar(query: str, result_limit: int) -> Optional[List
 
     # Add a small delay to be respectful to the API
     await asyncio.sleep(8.0)
-    return data.get("data")
+    result = data.get("data")
+    return result if isinstance(result, list) else None
 
 
 @mcp.tool()
@@ -201,7 +202,8 @@ async def fetch_bibtex(paper_id: str) -> str:
         return "N/A"
     
     citation_styles = data.get("citationStyles", {})
-    return citation_styles.get("bibtex", "N/A")
+    bibtex = citation_styles.get("bibtex", "N/A")
+    return bibtex if isinstance(bibtex, str) else "N/A"
 
 
 @mcp.tool()

@@ -6,7 +6,7 @@ Test Semantic Scholar API key validity
 import asyncio
 import httpx
 
-async def test_api_key():
+async def test_api_key() -> None:
     """Test API key validity with various methods"""
     
     print("🔧 Testing Semantic Scholar API Key Validity")

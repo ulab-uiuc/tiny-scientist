@@ -90,7 +90,7 @@ class TinyScientist:
             mcp_client=self.mcp_client,
         )
 
-    async def initialize_mcp(self):
+    async def initialize_mcp(self) -> None:
         """Initialize MCP servers."""
         if self.mcp_client:
             print("🔧 Initializing MCP servers...")
@@ -101,18 +101,18 @@ class TinyScientist:
                 else:
                     print(f"❌ Failed to start MCP server '{server_name}'")
 
-    async def cleanup_mcp(self):
+    async def cleanup_mcp(self) -> None:
         """Clean up MCP servers."""
         if self.mcp_client:
             print("🧹 Shutting down MCP servers...")
             await self.mcp_client.stop_all_servers()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "TinyScientist":
         """Async context manager entry."""
         await self.initialize_mcp()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.cleanup_mcp()
 
