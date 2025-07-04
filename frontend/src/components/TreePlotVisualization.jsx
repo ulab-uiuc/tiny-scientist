@@ -298,7 +298,8 @@ const Dashboard = ({
   setCustomIdea,
   setIsEditingSystemPrompt,
   editIcon,
-  handleProceedWithSelectedIdea
+  handleProceedWithSelectedIdea,
+  onUpdateTable
 }) => {
   const [showAfter, setShowAfter] = useState(true);
   const [activeSection, setActiveSection] = useState('Impact');
@@ -346,6 +347,7 @@ const Dashboard = ({
           setModalAnchorEl(buttonRef);
           setEditingCriteria(dimension);
         }}
+        onUpdateTable={onUpdateTable} // Pass the function down to IdeaCard
       />
       {showTree ? (
         <ContextAndGenerateCard
@@ -374,7 +376,6 @@ const Dashboard = ({
 
 // ============== 段落2：定义 TreePlotVisualization 组件 ==============
 const TreePlotVisualization = () => {
-  // ... (all your existing state hooks remain here)
   const [currentView, setCurrentView] = useState('home_view'); // Start with home_view
   const [nodes, setNodes] = useState([]);
   const [links, setLinks] = useState([]);
@@ -444,7 +445,6 @@ const TreePlotVisualization = () => {
   const [isReviewing, setIsReviewing] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState('comments'); // 'comments' or 'review'
 
-  // Removed tracking hooks
 
   // Track view changes
   const previousViewRef = useRef(currentView); // Initialize with current view
@@ -491,6 +491,23 @@ const TreePlotVisualization = () => {
     root: '#4C84FF',
     simple: '#45B649',
     complex: '#FF6B6B',
+  };
+  const handleUpdateTable = (nodeId, tableName, newContent) => {
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === nodeId) {
+          // Create a deep copy to avoid direct state mutation, which can cause bugs.
+          const updatedNode = JSON.parse(JSON.stringify(node));
+          if (!updatedNode.originalData) {
+            updatedNode.originalData = {};
+          }
+          updatedNode.originalData[tableName] = newContent;
+          console.log(`Updated table '${tableName}' for node ${nodeId}`);
+          return updatedNode;
+        }
+        return node;
+      })
+    );
   };
   // ============== 配置模型和API Key ==============
   const modelOptions = [
@@ -3694,6 +3711,7 @@ const TreePlotVisualization = () => {
                 setIsEditingSystemPrompt={setIsEditingSystemPrompt}
                 editIcon={editIcon}
                 handleProceedWithSelectedIdea={handleProceedWithSelectedIdea}
+                onUpdateTable={handleUpdateTable} // Pass the new handler here
               />
             </div>
           </div>
