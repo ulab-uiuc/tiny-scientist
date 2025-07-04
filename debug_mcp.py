@@ -15,6 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from tiny_scientist.utils.mcp_client import MCPClient
 
+
 async def test_mcp_servers() -> None:
     """Test all MCP server startup and functionality"""
     print("🧪 Starting MCP server diagnostics...")

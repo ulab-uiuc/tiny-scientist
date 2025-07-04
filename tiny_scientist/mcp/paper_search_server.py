@@ -3,6 +3,7 @@ import json
 import os
 import time
 from typing import Any, Dict, List, Optional
+
 import httpx
 import toml
 from mcp.server.fastmcp import FastMCP
@@ -227,7 +228,6 @@ async def get_paper_details(paper_id: str) -> str:
 
 # Import asyncio at the end to avoid issues
 import asyncio
-
 
 if __name__ == "__main__":
     # Initialize and run the server

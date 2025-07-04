@@ -5,9 +5,9 @@ This script will start all configured MCP servers and keep them running.
 """
 
 import asyncio
+import os
 import signal
 import sys
-import os
 from pathlib import Path
 from typing import Any, Dict
 

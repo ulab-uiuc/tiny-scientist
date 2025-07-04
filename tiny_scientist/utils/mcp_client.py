@@ -3,7 +3,8 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple, IO
+from typing import IO, Any, Dict, List, Optional, Tuple
+
 import toml
 from rich import print
 

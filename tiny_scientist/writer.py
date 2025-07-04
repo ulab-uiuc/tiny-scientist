@@ -164,6 +164,7 @@ class Writer:
                 if self.mcp_client:
                     # Use MCP client for diagram generation
                     import asyncio
+
                     from .utils.mcp_client import generate_diagram
                     
                     try:
@@ -383,6 +384,7 @@ class Writer:
                 if self.mcp_client:
                     # Use MCP client for paper search
                     import asyncio
+
                     from .utils.mcp_client import search_papers
                     
                     try:

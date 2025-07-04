@@ -1,11 +1,12 @@
 import json
 import os
 import re
-from typing import Any, Dict, Optional
 from importlib import resources
+from typing import Any, Dict, Optional
+
 import fitz
-import toml
 import httpx
+import toml
 from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP server
@@ -22,6 +23,7 @@ LLM_TEMPERATURE = config["core"].get("temperature", 0.75)
 
 # Load prompt templates from the configs module
 from tiny_scientist.configs import Config
+
 prompt_config = Config()
 prompts = prompt_config.prompt_template.drawer_prompt
 

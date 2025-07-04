@@ -43,6 +43,7 @@ types-setuptools = "*"
 types-pyyaml = "^6.0.12.20250402"
 types-requests = "^2.31"
 types-toml = "^0.10"
+isort = "^6.0.1"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"

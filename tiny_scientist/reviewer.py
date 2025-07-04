@@ -113,6 +113,7 @@ class Reviewer:
             if self.mcp_client:
                 # Use MCP client for paper search
                 import asyncio
+
                 from .utils.mcp_client import search_papers
                 
                 try:
