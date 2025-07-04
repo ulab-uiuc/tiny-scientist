@@ -4,7 +4,14 @@ from typing import Any, Optional, Type, TypeVar
 import yaml
 from pydantic import BaseModel
 
-from .data import CoderPrompt, DrawerPrompt, ReviewerPrompt, ThinkerPrompt, WriterPrompt
+from .data import (
+    CoderPrompt,
+    DrawerPrompt,
+    PlannerPrompt,
+    ReviewerPrompt,
+    ThinkerPrompt,
+    WriterPrompt,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -14,6 +21,7 @@ class PromptTemplate(BaseModel):
 
     coder_prompt: CoderPrompt
     thinker_prompt: ThinkerPrompt
+    planner_prompt: PlannerPrompt
     reviewer_prompt: ReviewerPrompt
     writer_prompt: WriterPrompt
     drawer_prompt: DrawerPrompt
@@ -38,6 +46,9 @@ class Config(BaseModel):
         return PromptTemplate(
             thinker_prompt=self._load_yaml_file(
                 os.path.join(prompt_path, "thinker_prompt.yaml"), ThinkerPrompt
+            ),
+            planner_prompt=self._load_yaml_file(
+                os.path.join(prompt_path, "planner_prompt.yaml"), PlannerPrompt
             ),
             coder_prompt=self._load_yaml_file(
                 os.path.join(prompt_path, "coder_prompt.yaml"), CoderPrompt

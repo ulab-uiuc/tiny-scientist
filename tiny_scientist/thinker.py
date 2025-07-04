@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 from rich import print
 
 from .configs import Config
+from .planner import Planner
 from .tool import PaperSearchTool
 from .utils.cost_tracker import CostTracker
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -70,6 +71,16 @@ Be critical and realistic in your assessments."""
 
         self.cost_tracker = cost_tracker or CostTracker()
         self.enable_ethical_defense = enable_ethical_defense
+
+        # Initialize Planner for experiment plan generation
+        self.planner = Planner(
+            tools=[],
+            model=model,
+            output_dir=output_dir,
+            prompt_template_dir=prompt_template_dir,
+            temperature=temperature,
+            cost_tracker=self.cost_tracker,
+        )
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
@@ -303,53 +314,57 @@ Be critical and realistic in your assessments."""
         self.cost_tracker.report()
         return merged_idea
 
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def generate_experiment_plan(self, idea: str) -> str:
-        idea_dict = json.loads(idea)
-        is_experimental = idea_dict.get("is_experimental", True)
+        """Generate experiment plan using the Planner class."""
+        return self.planner.run(idea, intent=self.intent)
 
-        print("Generating experimental plan for the idea...")
-        if is_experimental:
-            print("Generating experimental plan for AI-related idea...")
-            prompt = self.prompts.experiment_plan_prompt.format(
-                idea=idea, intent=self.intent
-            )
-        else:
-            print("Generating research plan for non-experimental idea...")
-            prompt = self.prompts.non_experiment_plan_prompt.format(
-                idea=idea, intent=self.intent
-            )
+    # @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    # def generate_experiment_plan(self, idea: str) -> str:
+    #     idea_dict = json.loads(idea)
+    #     is_experimental = idea_dict.get("is_experimental", True)
 
-        text, _ = get_response_from_llm(
-            prompt,
-            client=self.client,
-            model=self.model,
-            system_message=self.prompts.idea_system_prompt,
-            msg_history=[],
-            temperature=self.temperature,
-            cost_tracker=self.cost_tracker,
-            task_name="generate_experiment_plan",
-        )
+    #     print("Generating experimental plan for the idea...")
+    #     if is_experimental:
+    #         print("Generating experimental plan for AI-related idea...")
+    #         prompt = self.prompts.experiment_plan_prompt.format(
+    #             idea=idea, intent=self.intent
+    #         )
+    #     else:
+    #         print("Generating research plan for non-experimental idea...")
+    #         prompt = self.prompts.non_experiment_plan_prompt.format(
+    #             idea=idea, intent=self.intent
+    #         )
 
-        # Extract both the original JSON and the new Markdown table
-        experiment_plan_json = extract_json_between_markers(text)
-        try:
-            experiment_plan_table = text.split("```markdown")[1].split("```")[0].strip()
-        except IndexError:
-            experiment_plan_table = None
+    #     text, _ = get_response_from_llm(
+    #         prompt,
+    #         client=self.client,
+    #         model=self.model,
+    #         system_message=self.prompts.idea_system_prompt,
+    #         msg_history=[],
+    #         temperature=self.temperature,
+    #         cost_tracker=self.cost_tracker,
+    #         task_name="generate_experiment_plan",
+    #     )
 
-        if not experiment_plan_json or not experiment_plan_table:
-            print("Failed to generate one or both parts of the experimental plan.")
-            # Return the original idea if generation fails
-            return idea
+    #     # Extract both the original JSON and the new Markdown table
+    #     experiment_plan_json = extract_json_between_markers(text)
+    #     try:
+    #         experiment_plan_table = text.split("```markdown")[1].split("```")[0].strip()
+    #     except IndexError:
+    #         experiment_plan_table = None
 
-        # Store the JSON in 'Experiment' and the table in 'ExperimentTable'
-        idea_dict["Experiment"] = experiment_plan_json
-        idea_dict["ExperimentTable"] = experiment_plan_table
-        print("Dual-format experimental plan generated successfully.")
+    #     if not experiment_plan_json or not experiment_plan_table:
+    #         print("Failed to generate one or both parts of the experimental plan.")
+    #         # Return the original idea if generation fails
+    #         return idea
 
-        self.cost_tracker.report()
-        return json.dumps(idea_dict, indent=2)
+    #     # Store the JSON in 'Experiment' and the table in 'ExperimentTable'
+    #     idea_dict["Experiment"] = experiment_plan_json
+    #     idea_dict["ExperimentTable"] = experiment_plan_table
+    #     print("Dual-format experimental plan generated successfully.")
+
+    #     self.cost_tracker.report()
+    #     return json.dumps(idea_dict, indent=2)
 
     def _load_pdf_content(self, pdf_path: Optional[str] = None) -> Optional[str]:
         if pdf_path and osp.isfile(pdf_path):
