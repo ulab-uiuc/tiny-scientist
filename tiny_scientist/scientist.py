@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 import asyncio
+import os
+import datetime
 
 from rich import print
 
@@ -23,7 +25,16 @@ class TinyScientist:
         use_mcp: bool = True,
     ):
         self.model = model
-        self.output_dir = output_dir
+        self.base_output_dir = output_dir  # Store user's base directory
+        
+        # Create a unique experiment directory with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.experiment_dir = os.path.join(output_dir, f"experiment_{timestamp}")
+        
+        # Ensure the experiment directory exists
+        os.makedirs(self.experiment_dir, exist_ok=True)
+        print(f"🔬 Created experiment directory: {self.experiment_dir}")
+        
         self.template = template
         self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
@@ -38,9 +49,10 @@ class TinyScientist:
         modules = ["thinker", "coder", "writer", "reviewer"]
         per_module_budget = budget / len(modules) if budget else None
 
+        # Use the unique experiment directory for all modules
         self.thinker = Thinker(
             model=model,
-            output_dir=output_dir,
+            output_dir=self.experiment_dir,
             prompt_template_dir=prompt_template_dir,
             tools=[],
             iter_num=3,
@@ -53,7 +65,7 @@ class TinyScientist:
 
         self.coder = Coder(
             model=model,
-            output_dir=output_dir,
+            output_dir=self.experiment_dir,
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
@@ -63,7 +75,7 @@ class TinyScientist:
 
         self.writer = Writer(
             model=model,
-            output_dir=output_dir,
+            output_dir=self.experiment_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
             cost_tracker=CostTracker(budget=per_module_budget),
@@ -130,11 +142,13 @@ class TinyScientist:
             print(f"❌ Experiment failed. Please check {exp_path} for details.")
             if error_details:
                 print(f"Error details: {error_details}")
-        return status, exp_path
+        return status, self.experiment_dir
 
-    def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
+    def write(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> str:
         print("📝 Writing paper...")
-        pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
+        # Use the internal experiment directory if no specific directory is provided
+        exp_dir = experiment_dir if experiment_dir is not None else self.experiment_dir
+        pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=exp_dir)
         print(
             f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
         )
