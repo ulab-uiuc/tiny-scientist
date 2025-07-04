@@ -167,16 +167,17 @@ class Writer:
                     from .utils.mcp_client import generate_diagram
                     
                     try:
-                        # Run the async function in the current event loop
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # If we're already in an async context, we need to handle this differently
-                            import concurrent.futures
-                            with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(asyncio.run, generate_diagram(section, content, self.mcp_client))
-                                results_json = future.result()
-                        else:
-                            results_json = asyncio.run(generate_diagram(section, content, self.mcp_client))
+                        # Handle async function call properly to avoid event loop conflicts
+                        import concurrent.futures
+                        
+                        def run_async_diagram():
+                            """Run the async diagram function in a new event loop."""
+                            return asyncio.run(generate_diagram(section, content, self.mcp_client))
+                        
+                        # Always use ThreadPoolExecutor to avoid event loop conflicts
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(run_async_diagram)
+                            results_json = future.result(timeout=60.0)  # Longer timeout for diagram generation
                         
                         if results_json:
                             import json
@@ -379,16 +380,17 @@ class Writer:
                     from .utils.mcp_client import search_papers
                     
                     try:
-                        # Run the async function in the current event loop
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # If we're already in an async context, we need to handle this differently
-                            import concurrent.futures
-                            with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(asyncio.run, search_papers(paper_name, self.mcp_client))
-                                results_json = future.result()
-                        else:
-                            results_json = asyncio.run(search_papers(paper_name, self.mcp_client))
+                        # Handle async function call properly to avoid event loop conflicts
+                        import concurrent.futures
+                        
+                        def run_async_search():
+                            """Run the async search function in a new event loop."""
+                            return asyncio.run(search_papers(paper_name, self.mcp_client))
+                        
+                        # Always use ThreadPoolExecutor to avoid event loop conflicts
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(run_async_search)
+                            results_json = future.result(timeout=30.0)  # Add timeout
                         
                         if results_json:
                             import json
