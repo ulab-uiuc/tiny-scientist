@@ -98,21 +98,6 @@ class BaseOutputFormatter(abc.ABC):
 
         return body_content.strip()
 
-    def clean_body_content(self, body_content: str) -> str:
-        patterns_to_remove = [
-            r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",  # matches \documentclass[...]{...}
-            r"\\begin\{document\}",
-            r"\\end\{document\}",
-            r"\\maketitle",
-            r"\\title\{.*?\}",  # matches \title{...}
-        ]
-
-        for pattern in patterns_to_remove:
-            body_content = re.sub(pattern, "", body_content, flags=re.DOTALL)
-
-        # Strip extra whitespace and newlines at start/end
-        return body_content.strip()
-
     def _wrap_tables_in_latex(self, content: str) -> str:
 
         def replacer(match: Match[str]) -> str:
@@ -123,7 +108,7 @@ class BaseOutputFormatter(abc.ABC):
                 "\\begin{table}" in content[: match.start()]
                 and "\\end{table}" in content[match.end() :]
             ):
-                return tabular_block  # Already inside a table, skip wrapping
+                return tabular_block 
 
             # Use [!t] to force table to top of page, reducing text wrapping issues
             return (
@@ -142,8 +127,8 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
-    def _clean_latex_content(self, content: dict[str, Any] | str) -> str:
-        """Enhanced LaTeX content cleaning with better text flow handling"""
+    def _clean_latex_content(self, content: str) -> str:
+        print(type(content))
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if not match:
             match = re.search(r'```\s*(.*?)\s*```', content, flags=re.DOTALL)
@@ -199,13 +184,13 @@ class BaseOutputFormatter(abc.ABC):
             
             while i < len(lines):
                 current_line = lines[i].strip()
-                
+
                 # Skip empty lines
                 if not current_line:
                     fixed_lines.append(lines[i])
                     i += 1
                     continue
-                
+
                 # Check if we should merge with next line
                 if i + 1 < len(lines):
                     next_line = lines[i + 1].strip()
@@ -217,28 +202,39 @@ class BaseOutputFormatter(abc.ABC):
                         not next_line.startswith(('\\', '-', '•', '*')) and
                         not next_line[0].isupper() and
                         not current_line.endswith('\\\\') and
-                        not re.match(r'^\d+\.', next_line) 
+                        not re.match(r'^\d+\.', next_line)  # Not numbered list
                     )
-                    
+
                     if should_merge:
+                        # Merge the lines with a space
                         merged_line = current_line + ' ' + next_line
                         fixed_lines.append(merged_line)
-                        i += 2  
+                        i += 2  # Skip next line since we merged it
                         continue
-                
+
                 fixed_lines.append(lines[i])
                 i += 1
-            
+
             return '\n'.join(fixed_lines)
-        
+
+        # Apply the fix
         content = fix_broken_sentences(content)
+
+        # Fix multiple spaces
         content = re.sub(r' +', ' ', content)
+
+        # Fix spacing around punctuation
         content = re.sub(r' +([,.;:!?])', r'\1', content)
+
+        # Fix paragraph spacing (ensure proper spacing between paragraphs)
         content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
+
+        # Fix spacing around section headers
         content = re.sub(r'\n(\\section\{[^}]+\})\n*', r'\n\n\1\n', content)
         content = re.sub(r'\n(\\subsection\{[^}]+\})\n*', r'\n\n\1\n', content)
-        
+
         return content
+
 
     def _assemble_body(self, contents: Dict[str, Dict[str, Any]]) -> str:
         """Enhanced body assembly with better text flow"""
@@ -445,7 +441,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
     ) -> None:
         
         body_content = self._assemble_body(content)
-        body_content = self.clean_body_content(body_content)
+        body_content = self._clean_body_content(body_content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
@@ -490,34 +486,81 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-
-        self._ensure_pdflatex()
-
+        """Corrected LaTeX compilation using LuaLaTeX (for Overleaf compatibility)"""
+        self._ensure_pdflatex()  # This also ensures lualatex is available
+        
         fname = "acl_latex.tex"
         if not osp.exists(osp.join(cwd, fname)):
             print(f"File {fname} not found in {cwd}.")
             return
 
         try:
+            # Method 1: Try latexmk (should handle everything automatically)
             result = subprocess.run(
-                ["latexmk", "-lualatex", "-interaction=nonstopmode", fname],
+                ["latexmk", "-lualatex", "-bibtex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-            print("Standard Output:\n", result.stdout.decode("utf-8", errors="ignore"))
-            print("Standard Error:\n", result.stderr.decode("utf-8", errors="ignore"))
+            
+            pdf_name = fname.replace(".tex", ".pdf")
+            pdf_path = osp.join(cwd, pdf_name)
+            
+            # If latexmk succeeded and PDF exists, we're done
+            if osp.exists(pdf_path):
+                stdout_output = result.stdout.decode("utf-8", errors="ignore")
+                if not ("undefined" in stdout_output.lower() and "citation" in stdout_output.lower()):
+                    shutil.move(pdf_path, output_pdf_path)
+                    return
+                
+            # Method 2: Manual compilation (only if latexmk failed or has citation issues)
+            # Step 1: First lualatex run
+            subprocess.run(
+                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+            
+            # Step 2: Run bibtex (only if .aux file exists)
+            aux_file = osp.join(cwd, fname.replace(".tex", ".aux"))
+            if osp.exists(aux_file):
+                base_name = fname.replace(".tex", "")
+                subprocess.run(
+                    ["bibtex", base_name],
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout,
+                )
+            
+            # Step 3: Final lualatex run (only one more needed)
+            subprocess.run(
+                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+                    
         except subprocess.TimeoutExpired:
-            print(f"LaTeX timed out after {timeout} seconds.")
-        except subprocess.CalledProcessError as e:
-            print(f"Error running latexmk: {e}")
-
-        pdf_name = fname.replace(".tex", ".pdf")
-        try:
-            shutil.move(osp.join(cwd, pdf_name), output_pdf_path)
+            print(f"LaTeX compilation timed out after {timeout} seconds.")
+            return
         except FileNotFoundError:
-            print("Failed to rename PDF.")
+            print("LaTeX commands not found. Make sure lualatex and bibtex are installed.")
+            return
+        except Exception:
+            return
+
+        # Move the PDF
+        pdf_source = osp.join(cwd, fname.replace(".tex", ".pdf"))
+        if osp.exists(pdf_source):
+            try:
+                shutil.move(pdf_source, output_pdf_path)
+            except Exception:
+                pass
 
 class ICLROutputFormatter(BaseOutputFormatter):
     def __init__(self, model: str, client: Any) -> None:
@@ -579,7 +622,6 @@ class ICLROutputFormatter(BaseOutputFormatter):
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
         self._ensure_pdflatex()
-        self._ensure_pdflatex()
 
         fname = "iclr2025_conference.tex"
         if not osp.exists(osp.join(cwd, fname)):
@@ -587,22 +629,69 @@ class ICLROutputFormatter(BaseOutputFormatter):
             return
 
         try:
+            # Method 1: Try latexmk (should handle everything automatically)
             result = subprocess.run(
-                ["latexmk", "-lualatex", "-interaction=nonstopmode", fname],
+                ["latexmk", "-lualatex", "-bibtex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-            print("Standard Output:\n", result.stdout.decode("utf-8", errors="ignore"))
-            print("Standard Error:\n", result.stderr.decode("utf-8", errors="ignore"))
+            
+            pdf_name = fname.replace(".tex", ".pdf")
+            pdf_path = osp.join(cwd, pdf_name)
+            
+            # If latexmk succeeded and PDF exists, we're done
+            if osp.exists(pdf_path):
+                stdout_output = result.stdout.decode("utf-8", errors="ignore")
+                if not ("undefined" in stdout_output.lower() and "citation" in stdout_output.lower()):
+                    shutil.move(pdf_path, output_pdf_path)
+                    return
+                
+            # Method 2: Manual compilation (only if latexmk failed or has citation issues)
+            # Step 1: First lualatex run
+            subprocess.run(
+                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+            
+            # Step 2: Run bibtex (only if .aux file exists)
+            aux_file = osp.join(cwd, fname.replace(".tex", ".aux"))
+            if osp.exists(aux_file):
+                base_name = fname.replace(".tex", "")
+                subprocess.run(
+                    ["bibtex", base_name],
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout,
+                )
+            
+            # Step 3: Final lualatex run (only one more needed)
+            subprocess.run(
+                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+                    
         except subprocess.TimeoutExpired:
-            print(f"LaTeX timed out after {timeout} seconds.")
-        except subprocess.CalledProcessError as e:
-            print(f"Error running latexmk: {e}")
-
-        pdf_name = fname.replace(".tex", ".pdf")
-        try:
-            shutil.move(osp.join(cwd, pdf_name), output_pdf_path)
+            print(f"LaTeX compilation timed out after {timeout} seconds.")
+            return
         except FileNotFoundError:
-            print("Failed to rename PDF.")
+            print("LaTeX commands not found. Make sure lualatex and bibtex are installed.")
+            return
+        except Exception:
+            return
+
+        # Move the PDF
+        pdf_source = osp.join(cwd, fname.replace(".tex", ".pdf"))
+        if osp.exists(pdf_source):
+            try:
+                shutil.move(pdf_source, output_pdf_path)
+            except Exception:
+                pass
