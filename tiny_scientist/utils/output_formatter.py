@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, Match
+from typing import Any, Dict, Match, Union
 
 import requests
 from rich import print
@@ -127,8 +127,7 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
-    def _clean_latex_content(self, content: str) -> str:
-        print(type(content))
+    def _clean_latex_content(self, content: Union[str, Dict[str, Any]]) -> str:
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if not match:
             match = re.search(r'```\s*(.*?)\s*```', content, flags=re.DOTALL)
