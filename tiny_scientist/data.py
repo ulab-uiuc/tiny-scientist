@@ -56,13 +56,9 @@ class ThinkerPrompt(BaseModel):
     idea_first_prompt: str
     idea_reflection_prompt: str
     novelty_prompt: str
+    experiment_plan_prompt: str
     ethical_defense_system_prompt: str
     ethical_defense_prompt: str
-
-
-class PlannerPrompt(BaseModel):
-    planner_system_prompt: str
-    experiment_plan_prompt: str
     non_experiment_plan_prompt: str
 
 
