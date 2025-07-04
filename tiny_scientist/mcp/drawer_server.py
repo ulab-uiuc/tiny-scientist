@@ -9,6 +9,8 @@ import httpx
 import toml
 from mcp.server.fastmcp import FastMCP
 
+from tiny_scientist.configs import Config
+
 # Initialize FastMCP server
 mcp = FastMCP("drawer")
 
@@ -22,8 +24,6 @@ LLM_API_KEY = config["core"].get("llm_api_key", "")
 LLM_TEMPERATURE = config["core"].get("temperature", 0.75)
 
 # Load prompt templates from the configs module
-from tiny_scientist.configs import Config
-
 prompt_config = Config()
 prompts = prompt_config.prompt_template.drawer_prompt
 

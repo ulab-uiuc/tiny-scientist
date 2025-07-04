@@ -5,7 +5,6 @@ This script will start all configured MCP servers and keep them running.
 """
 
 import asyncio
-import os
 import signal
 import sys
 from pathlib import Path
@@ -152,10 +151,10 @@ Available commands:
         try:
             result = await self.client.call_tool(server_name, tool_name, **kwargs)
             if result:
-                print(f"✅ Tool executed successfully")
+                print("✅ Tool executed successfully")
                 print(f"Result preview: {result[:200]}..." if len(result) > 200 else f"Result: {result}")
             else:
-                print(f"❌ Tool returned empty result")
+                print("❌ Tool returned empty result")
         except Exception as e:
             print(f"❌ Tool execution failed: {e}")
     

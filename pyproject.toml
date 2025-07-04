@@ -44,6 +44,7 @@ types-pyyaml = "^6.0.12.20250402"
 types-requests = "^2.31"
 types-toml = "^0.10"
 isort = "^6.0.1"
+ruff = "^0.12.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
