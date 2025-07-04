@@ -78,9 +78,26 @@ class Coder:
     ) -> Tuple[bool, str, Optional[str]]:
         # Ensure a clean slate for every run
         print(f"[System] Cleaning experiment directory: {self.output_dir}")
-        if osp.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
-        os.makedirs(self.output_dir)
+        
+        # Save current working directory and switch to parent directory to avoid deletion issues
+        original_cwd = os.getcwd()
+        safe_cwd = osp.dirname(osp.abspath(self.output_dir))
+        
+        try:
+            # Switch to safe directory before cleaning
+            os.chdir(safe_cwd)
+            
+            if osp.exists(self.output_dir):
+                shutil.rmtree(self.output_dir)
+            os.makedirs(self.output_dir)
+            
+        finally:
+            # Restore original working directory if it still exists, otherwise use safe directory
+            try:
+                os.chdir(original_cwd)
+            except (FileNotFoundError, OSError):
+                print(f"[System] Original working directory no longer exists, staying in {safe_cwd}")
+                os.chdir(safe_cwd)
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),
