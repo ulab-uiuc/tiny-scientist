@@ -1,3 +1,5 @@
+import datetime
+import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from rich import print
@@ -7,6 +9,7 @@ from .reviewer import Reviewer
 from .thinker import Thinker
 from .utils.cost_tracker import CostTracker
 from .utils.input_formatter import InputFormatter
+from .utils.mcp_client import MCPClient
 from .writer import Writer
 
 
@@ -18,22 +21,37 @@ class TinyScientist:
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
         budget: Optional[float] = None,
+        use_mcp: bool = True,
     ):
         self.model = model
-        self.output_dir = output_dir
+        self.base_output_dir = output_dir  # Store user's base directory
+        
+        # Create a unique experiment directory with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.experiment_dir = os.path.join(output_dir, f"experiment_{timestamp}")
+        
+        # Ensure the experiment directory exists
+        os.makedirs(self.experiment_dir, exist_ok=True)
+        print(f"🔬 Created experiment directory: {self.experiment_dir}")
+        
         self.template = template
         self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
+        self.use_mcp = use_mcp
 
         self.cost = 0.0
+
+        # Initialize MCP client if enabled
+        self.mcp_client = MCPClient() if use_mcp else None
 
         # Naive budget split
         modules = ["thinker", "coder", "writer", "reviewer"]
         per_module_budget = budget / len(modules) if budget else None
 
+        # Use the unique experiment directory for all modules
         self.thinker = Thinker(
             model=model,
-            output_dir=output_dir,
+            output_dir=self.experiment_dir,
             prompt_template_dir=prompt_template_dir,
             tools=[],
             iter_num=3,
@@ -41,23 +59,26 @@ class TinyScientist:
             generate_exp_plan=True,
             enable_ethical_defense=False,
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
 
         self.coder = Coder(
             model=model,
-            output_dir=output_dir,
+            output_dir=self.experiment_dir,
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
 
         self.writer = Writer(
             model=model,
-            output_dir=output_dir,
+            output_dir=self.experiment_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
 
         self.reviewer = Reviewer(
@@ -65,7 +86,34 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             tools=[],
             cost_tracker=CostTracker(budget=per_module_budget),
+            mcp_client=self.mcp_client,
         )
+
+    async def initialize_mcp(self) -> None:
+        """Initialize MCP servers."""
+        if self.mcp_client:
+            print("🔧 Initializing MCP servers...")
+            results = await self.mcp_client.start_all_servers()
+            for server_name, success in results.items():
+                if success:
+                    print(f"✅ MCP server '{server_name}' started successfully")
+                else:
+                    print(f"❌ Failed to start MCP server '{server_name}'")
+
+    async def cleanup_mcp(self) -> None:
+        """Clean up MCP servers."""
+        if self.mcp_client:
+            print("🧹 Shutting down MCP servers...")
+            await self.mcp_client.stop_all_servers()
+
+    async def __aenter__(self) -> "TinyScientist":
+        """Async context manager entry."""
+        await self.initialize_mcp()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        await self.cleanup_mcp()
 
     def think(
         self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
@@ -93,11 +141,13 @@ class TinyScientist:
             print(f"❌ Experiment failed. Please check {exp_path} for details.")
             if error_details:
                 print(f"Error details: {error_details}")
-        return status, exp_path
+        return status, self.experiment_dir
 
-    def write(self, idea: Dict[str, Any], experiment_dir: str) -> str:
+    def write(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> str:
         print("📝 Writing paper...")
-        pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=experiment_dir)
+        # Use the internal experiment directory if no specific directory is provided
+        exp_dir = experiment_dir if experiment_dir is not None else self.experiment_dir
+        pdf_path, paper_name = self.writer.run(idea=idea, experiment_dir=exp_dir)
         print(
             f"Check the generated paper named as {paper_name} and saved at {pdf_path}"
         )

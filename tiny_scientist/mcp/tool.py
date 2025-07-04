@@ -11,10 +11,10 @@ import requests
 import toml
 from rich import print
 
-from .configs import Config
-from .utils.cost_tracker import CostTracker
-from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.llm import create_client, get_response_from_llm
+from ..configs import Config
+from ..utils.cost_tracker import CostTracker
+from ..utils.error_handler import api_calling_error_exponential_backoff
+from ..utils.llm import create_client, get_response_from_llm
 
 # Load config
 config_path = os.path.join(os.path.dirname(__file__), "config.toml")

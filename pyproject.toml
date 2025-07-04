@@ -32,6 +32,9 @@ cairosvg = "^2.7.1"
 together = "*"
 flask = "^3.0.0"
 flask-cors = "^4.0.0"
+fastmcp = "*"
+mcp = "*"
+httpx = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
@@ -40,6 +43,8 @@ types-setuptools = "*"
 types-pyyaml = "^6.0.12.20250402"
 types-requests = "^2.31"
 types-toml = "^0.10"
+isort = "^6.0.1"
+ruff = "^0.12.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
