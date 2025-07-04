@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import time
@@ -18,12 +19,26 @@ S2_API_BASE = "https://api.semanticscholar.org/graph/v1"
 S2_API_KEY = config["core"].get("s2_api_key", None)
 SEARCH_ENGINE = config["core"].get("engine", "semanticscholar")
 
+# Debug: Print configuration status
+print(f"[Paper Search] Config path: {config_path}")
+print(f"[Paper Search] Config exists: {os.path.exists(config_path)}")
+print(f"[Paper Search] API Key configured: {'Yes' if S2_API_KEY else 'No'}")
+print(f"[Paper Search] Search engine: {SEARCH_ENGINE}")
+
 
 async def make_s2_request(url: str, params: Optional[dict] = None, headers: Optional[dict] = None) -> Optional[dict]:
     """Make a request to the Semantic Scholar API with proper error handling."""
     default_headers = {}
-    if S2_API_KEY:
+    
+    # Temporarily disable API key due to invalid key issue
+    # TODO: Update with a valid API key when available
+    use_api_key = False  # Set to True when you have a valid API key
+    
+    if S2_API_KEY and use_api_key:
         default_headers["X-API-KEY"] = S2_API_KEY
+        print(f"[Paper Search] Using API key: {S2_API_KEY[:10]}...")
+    else:
+        print("[Paper Search] Using unauthenticated access (rate limited)")
     
     if headers:
         default_headers.update(headers)
@@ -31,10 +46,16 @@ async def make_s2_request(url: str, params: Optional[dict] = None, headers: Opti
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url, headers=default_headers, params=params, timeout=30.0)
+            print(f"[Paper Search] Response status: {response.status_code}")
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            if result.get('data'):
+                print(f"[Paper Search] Found {len(result['data'])} papers")
+            return result
         except Exception as e:
-            print(f"Semantic Scholar API request failed: {e}")
+            print(f"[Paper Search] Semantic Scholar API request failed: {e}")
+            if hasattr(e, 'response'):
+                print(f"[Paper Search] Response text: {e.response.text if e.response else 'No response'}")
             return None
 
 

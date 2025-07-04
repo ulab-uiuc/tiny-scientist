@@ -301,12 +301,16 @@ class Writer:
         elif section == "Analysis":
             # For non-experimental papers, use the research plan content
             research_plan = idea.get("ResearchPlan", experiment)
+            approach = idea.get("Approach", "No approach specified")
             section_prompt = self.prompts.section_prompt.get(
                 section, self.prompts.section_prompt.get("Results", "")
             ).format(
                 section_tips=self.prompts.section_tips.get(
                     section, self.prompts.section_tips.get("Results", "")
                 ),
+                problem=idea["Problem"],  # Add the required problem field
+                approach=approach,  # Add the required approach field
+                research_plan=research_plan,  # Add the required research_plan field
                 experiment=research_plan,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
@@ -374,6 +378,8 @@ class Writer:
 
         for paper_name in paper_list:
             try:
+                print(f"[Writer] Searching for paper: {paper_name}")
+                
                 if self.mcp_client:
                     # Use MCP client for paper search
                     import asyncio
@@ -392,36 +398,71 @@ class Writer:
                             future = executor.submit(run_async_search)
                             results_json = future.result(timeout=30.0)  # Add timeout
                         
+                        print(f"[Writer] MCP raw result: {results_json[:200] if results_json else 'None'}...")
+                        
                         if results_json:
                             import json
                             result = json.loads(results_json)
+                            print(f"[Writer] MCP JSON parsing successful: {type(result)}")
+                            
+                            # Check MCP return format and handle errors
+                            if isinstance(result, dict):
+                                if 'error' in result:
+                                    print(f"[Writer] MCP returned error: {result['error']}")
+                                    result = {}  # Convert error to empty result
+                                else:
+                                    # Validate and convert data format
+                                    formatted_result = {}
+                                    for title, meta in result.items():
+                                        if isinstance(meta, dict) and 'bibtex' in meta:
+                                            # MCP format correct: {title: {title: "...", bibtex: "..."}}
+                                            formatted_result[title] = meta
+                                            print(f"[Writer] Valid format paper: {title}")
+                                        elif isinstance(meta, str):
+                                            print(f"[Writer] Invalid format, skipping: {title} -> {meta}")
+                                        else:
+                                            print(f"[Writer] Unknown format, skipping: {title} -> {type(meta)}")
+                                    result = formatted_result
                         else:
+                            print("[Writer] MCP returned empty result")
                             result = {}
+                            
                     except Exception as e:
-                        print(f"[WARNING] MCP search failed, falling back to traditional search: {e}")
+                        print(f"[Writer] MCP search failed, falling back to traditional search: {e}")
                         if self.searcher:
                             result = self.searcher.run(paper_name)
+                            print(f"[Writer] Traditional search result: {type(result)}, length: {len(result) if result else 0}")
                         else:
                             result = {}
                 else:
                     # Use traditional searcher
+                    print("[Writer] Using traditional searcher")
                     if self.searcher:
                         result = self.searcher.run(paper_name)
+                        print(f"[Writer] Traditional search result: {type(result)}, length: {len(result) if result else 0}")
                     else:
                         result = {}
 
+                # Process search results
                 if result:
+                    print(f"[Writer] Found search results, count: {len(result)}")
                     if paper_name in result:
                         results_dict[paper_name] = result[paper_name]
+                        print(f"[Writer] Exact match: {paper_name}")
                     else:
+                        # Use first result
                         first_key = next(iter(result))
                         results_dict[first_key] = result[first_key]
+                        print(f"[Writer] Using first result: {first_key}")
+                else:
+                    print(f"[Writer] No papers found for: {paper_name}")
 
                 time.sleep(1.0)
             except Exception as e:
-                print(f"[ERROR] While processing '{paper_name}': {e}")
+                print(f"[Writer] Error while processing '{paper_name}': {e}")
                 traceback.print_exc()
 
+        print(f"[Writer] Search completed, found {len(results_dict)} papers total")
         return results_dict
 
     def _write_related_work(self, idea: Dict[str, Any]) -> None:
@@ -453,7 +494,17 @@ class Writer:
         )
 
         for title, meta in paper_source.items():
-            match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
+            # Ensure meta is a dictionary before accessing 'bibtex'
+            if isinstance(meta, dict):
+                bibtex = meta.get("bibtex", "")
+            elif isinstance(meta, str):
+                print(f"[Writer] Warning: meta is string for {title}, skipping citation replacement")
+                continue
+            else:
+                print(f"[Writer] Warning: unexpected meta type {type(meta)} for {title}, skipping citation replacement")
+                continue
+                
+            match = re.search(r"@\w+\{(.+?),", bibtex)
             if match:
                 try:
                     bibtex_key = match.group(1)
@@ -465,7 +516,7 @@ class Writer:
                         relatedwork_content,
                     )
                 except Exception:
-                    print(f"[ERROR] Failed to replace citation for title: {title}")
+                    print(f"[Writer] Failed to replace citation for title: {title}")
                     traceback.print_exc()
 
         self.generated_sections["Related_Work"] = relatedwork_content
@@ -612,7 +663,17 @@ class Writer:
                     print(f"Refined section for {section}: {refined_section}")
 
                     for title, meta in paper_source.items():
-                        match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
+                        # Ensure meta is a dictionary before accessing 'bibtex'
+                        if isinstance(meta, dict):
+                            bibtex = meta.get("bibtex", "")
+                        elif isinstance(meta, str):
+                            print(f"[Writer] Warning: meta is string for {title}, skipping citation replacement")
+                            continue
+                        else:
+                            print(f"[Writer] Warning: unexpected meta type {type(meta)} for {title}, skipping citation replacement")
+                            continue
+                            
+                        match = re.search(r"@\w+\{(.+?),", bibtex)
                         if match:
                             bibtex_key = match.group(1)
                             escaped_title = re.escape(title)
@@ -625,5 +686,5 @@ class Writer:
                     self.generated_sections[section] = refined_section
 
                 except Exception:
-                    print(f"[ERROR] Failed to add citations to section: {section}")
+                    print(f"[Writer] Failed to add citations to section: {section}")
                     traceback.print_exc()
