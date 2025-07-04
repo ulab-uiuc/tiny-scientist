@@ -61,10 +61,7 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def run(
-        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
-    ) -> Tuple[str, str]:
-        # Check if this is an experimental or non-experimental paper
+    def run(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> Tuple[str, str]:
         is_experimental = idea.get("is_experimental", True)
 
         code, experiment_result, baseline_result = "", "", ""
@@ -109,14 +106,14 @@ class Writer:
 
         for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
-
+        
         self._write_related_work(idea)
         self._refine_paper()
 
         self._add_citations(idea)
         self._generate_diagram_for_section()
 
-        paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_")
+        paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_").lower().replace(" ", "_")
 
         output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         self.formatter.run(
@@ -154,7 +151,6 @@ class Writer:
         self.generated_sections["Abstract"] = abstract_content
 
     def _generate_diagram_for_section(self) -> None:
-        print("[blue]Generating diagrams for sections...")
         for section in ["Method", "Experimental_Setup", "Results"]:
             content = self.generated_sections[section]
             try:
@@ -175,6 +171,12 @@ class Writer:
                     cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
                     cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
 
+
+                    raw_svg = diagram["svg"]
+
+                    cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
+                    cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
+
                     cairosvg.svg2pdf(
                         bytestring=cleaned_svg.encode("utf-8"), write_to=pdf_path
                     )
@@ -183,13 +185,13 @@ class Writer:
                     caption = diagram["summary"].replace("{", "").replace("}", "")
 
                     figure_latex = f"""
-    \\begin{{figure}}[h]
-    \\centering
-    \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
-    \\caption{{{caption}}}
-    \\label{{fig:{section.lower()}}}
-    \\end{{figure}}
-    """
+            \\begin{{figure}}[!htbp]
+            \\centering
+            \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
+            \\caption{{{caption}}}
+            \\label{{fig:{section.lower()}}}
+            \\end{{figure}}
+            """         
                     marker = "```"
 
                     if self.generated_sections[section].strip().endswith(marker):
@@ -203,10 +205,6 @@ class Writer:
                                 + marker
                                 + parts[1]
                             )
-
-                            print(parts[1])
-
-                    print(f"[yellow]**{self.generated_sections[section]}")
 
             except Exception as e:
                 print(f"[WARNING] Failed to generate diagram for {section}: {e}")
@@ -470,7 +468,7 @@ class Writer:
                 )
 
                 self.generated_sections[section] = refined_section_content
-
+     
     def _add_citations(self, idea: Dict[str, Any]) -> None:
         idea_title = idea.get("Title", "Research Paper")
 
@@ -503,6 +501,7 @@ class Writer:
                     except json.JSONDecodeError:
                         new_titles = extract_json_between_markers(response)
 
+        
                     collected_papers.extend(new_titles)
                     paper_source = self._search_reference(collected_papers)
 
@@ -535,8 +534,6 @@ class Writer:
                         task_name=f"Embed Citation in {section}",
                     )
 
-                    print(f"Refined section for {section}: {refined_section}")
-
                     for title, meta in paper_source.items():
                         match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
                         if match:
@@ -549,7 +546,7 @@ class Writer:
                                 refined_section,
                             )
                     self.generated_sections[section] = refined_section
-
+                    
                 except Exception:
                     print(f"[ERROR] Failed to add citations to section: {section}")
                     traceback.print_exc()
