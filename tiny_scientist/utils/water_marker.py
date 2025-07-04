@@ -1,8 +1,8 @@
 import os
 import tempfile
 import textwrap
-
 from io import BytesIO
+
 from pypdf import PageObject, PdfReader, PdfWriter
 from reportlab.lib.colors import Color
 from reportlab.lib.pagesizes import letter
@@ -11,7 +11,7 @@ from rich import print
 
 
 class WaterMarker:
-    def __init__(self, opacity=0.1, font_size=36):
+    def __init__(self, opacity: float = 0.1, font_size: int = 36):
         self.opacity = opacity
         self.font_size = font_size
 
@@ -20,7 +20,6 @@ class WaterMarker:
         writer = PdfWriter()
 
         for page in reader.pages:
-            # Get size of the current page
             page_width = float(page.mediabox.width)
             page_height = float(page.mediabox.height)
 
@@ -37,12 +36,10 @@ class WaterMarker:
             max_chars = 25
             lines = textwrap.wrap(watermark_text, width=max_chars)
 
-            # Calculate center and rotate
             c.saveState()
             c.translate(page_width / 2, page_height / 2)
             c.rotate(45)
 
-            # Draw each line vertically centered
             spacing = base_font_size + 8
             total_height = spacing * len(lines)
             y_start = total_height / 2

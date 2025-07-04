@@ -124,7 +124,6 @@ class Writer:
             name=self.generated_sections.get("Title", "Research Paper"),
         )
         self.cost_tracker.report()
-        self.cost_tracker.report()
         return output_pdf_path, paper_name
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:

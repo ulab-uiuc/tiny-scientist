@@ -56,7 +56,7 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{table}.*?\\centering.*?)(\\begin{tabular}.*?\\end{tabular})",
             re.DOTALL,
         )
-        def wrap_tabular_resizebox(match):
+        def wrap_tabular_resizebox(match: Match[str]) -> str:
             table_start = match.group(1)
             tabular_block = match.group(2)
             return (
@@ -71,7 +71,7 @@ class BaseOutputFormatter(abc.ABC):
             re.DOTALL,
         )
 
-        def wrap_array_resizebox(match):
+        def wrap_array_resizebox(match: Match[str]) -> str:
             open_math = match.group(1)
             array_block = match.group(2)
             close_math = match.group(3)
@@ -144,7 +144,6 @@ class BaseOutputFormatter(abc.ABC):
 
     def _clean_latex_content(self, content: str) -> str:
         """Enhanced LaTeX content cleaning with better text flow handling"""
-        # First, extract from code blocks if present
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if not match:
             match = re.search(r'```\s*(.*?)\s*```', content, flags=re.DOTALL)
@@ -174,8 +173,7 @@ class BaseOutputFormatter(abc.ABC):
         
         for line in lines:
             stripped = line.strip()
-            
-            # Skip markdown artifacts
+
             if stripped in ["```", "```latex", "```tex"]:
                 continue
             if stripped.startswith("#") and not stripped.startswith("%"):
@@ -187,8 +185,6 @@ class BaseOutputFormatter(abc.ABC):
         
         # Rejoin and fix text flow issues
         content = "\n".join(cleaned_lines)
-        
-        # Fix common text flow problems
         content = self._fix_text_flow(content)
         
         return content.strip()
@@ -196,9 +192,7 @@ class BaseOutputFormatter(abc.ABC):
     def _fix_text_flow(self, content: str) -> str:
         """Fix common text flow and formatting issues"""
         
-        # Fix broken sentences across lines (common LaTeX issue)
-        # Look for lines ending with lowercase letters followed by lines starting with lowercase
-        def fix_broken_sentences(text):
+        def fix_broken_sentences(text: str) -> str:
             lines = text.split('\n')
             fixed_lines = []
             i = 0
@@ -215,11 +209,7 @@ class BaseOutputFormatter(abc.ABC):
                 # Check if we should merge with next line
                 if i + 1 < len(lines):
                     next_line = lines[i + 1].strip()
-                    
-                    # Merge conditions:
-                    # 1. Current line doesn't end with sentence terminators
-                    # 2. Next line doesn't start with LaTeX commands or bullet points
-                    # 3. Neither line is too short (likely intentional break)
+
                     should_merge = (
                         current_line and next_line and
                         len(current_line) > 20 and len(next_line) > 10 and
@@ -227,14 +217,13 @@ class BaseOutputFormatter(abc.ABC):
                         not next_line.startswith(('\\', '-', '•', '*')) and
                         not next_line[0].isupper() and
                         not current_line.endswith('\\\\') and
-                        not re.match(r'^\d+\.', next_line)  # Not numbered list
+                        not re.match(r'^\d+\.', next_line) 
                     )
                     
                     if should_merge:
-                        # Merge the lines with a space
                         merged_line = current_line + ' ' + next_line
                         fixed_lines.append(merged_line)
-                        i += 2  # Skip next line since we merged it
+                        i += 2  
                         continue
                 
                 fixed_lines.append(lines[i])
@@ -242,19 +231,10 @@ class BaseOutputFormatter(abc.ABC):
             
             return '\n'.join(fixed_lines)
         
-        # Apply the fix
         content = fix_broken_sentences(content)
-        
-        # Fix multiple spaces
         content = re.sub(r' +', ' ', content)
-        
-        # Fix spacing around punctuation
         content = re.sub(r' +([,.;:!?])', r'\1', content)
-        
-        # Fix paragraph spacing (ensure proper spacing between paragraphs)
         content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
-        
-        # Fix spacing around section headers
         content = re.sub(r'\n(\\section\{[^}]+\})\n*', r'\n\n\1\n', content)
         content = re.sub(r'\n(\\subsection\{[^}]+\})\n*', r'\n\n\1\n', content)
         
@@ -377,7 +357,7 @@ class BaseOutputFormatter(abc.ABC):
             bib_content = f.read()
         valid_keys = set(re.findall(r'@(?:Article|Conference|InProceedings|Misc|Book|TechReport)\{([\w\-]+),', bib_content))
 
-        def citation_replacer(match):
+        def citation_replacer(match: Match[str]) -> str:
             raw_keys = match.group(1)
             keys = [k.strip() for k in raw_keys.split(",")]
             valid = [k for k in keys if k in valid_keys]

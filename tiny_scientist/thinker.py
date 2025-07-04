@@ -69,7 +69,6 @@ Be critical and realistic in your assessments."""
         5. Impact: What is the potential impact of this research on the field and broader applications?"""
         self.cost_tracker = cost_tracker or CostTracker()
 
-        self.cost_tracker = cost_tracker or CostTracker()
         self.enable_ethical_defense = enable_ethical_defense
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
