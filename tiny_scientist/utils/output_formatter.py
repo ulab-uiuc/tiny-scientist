@@ -142,7 +142,7 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{tabular}.*?\\end{tabular})", replacer, content, flags=re.DOTALL
         )
 
-    def _clean_latex_content(self, content: str) -> str:
+    def _clean_latex_content(self, content: dict[str, Any] | str) -> str:
         """Enhanced LaTeX content cleaning with better text flow handling"""
         match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
         if not match:
@@ -582,8 +582,6 @@ class ICLROutputFormatter(BaseOutputFormatter):
         self._ensure_pdflatex()
 
         fname = "iclr2025_conference.tex"
-
-        compile_target = fname
         if not osp.exists(osp.join(cwd, fname)):
             print(f"File {fname} not found in {cwd}.")
             return

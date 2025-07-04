@@ -61,7 +61,7 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
+    def run(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> Tuple[str, str]:
         is_experimental = idea.get("is_experimental", True)
 
         code, experiment_result, baseline_result = "", "", ""
