@@ -15,7 +15,7 @@ from tiny_scientist.writer import Writer  # noqa: E402
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here"
-CORS(app, supports_credentials=True)
+CORS(app, supports_credentials=True, origins=["https://app.auto-research.dev", "http://app.auto-research.dev", "http://localhost:3000"])
 
 
 thinker: Optional[Thinker] = None
@@ -702,4 +702,4 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
 if __name__ == "__main__":
     # Configure Flask for long-running requests
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-    app.run(debug=True, use_reloader=False, port=8080, host="0.0.0.0", threaded=True)
+    app.run(debug=True, use_reloader=False, port=5000, host="0.0.0.0", threaded=True)
