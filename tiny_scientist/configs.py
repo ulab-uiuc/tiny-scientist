@@ -4,7 +4,14 @@ from typing import Any, Optional, Type, TypeVar
 import yaml
 from pydantic import BaseModel
 
-from .data import CoderPrompt, DrawerPrompt, ReviewerPrompt, SafetyPrompt, ThinkerPrompt, WriterPrompt
+from .data import (
+    CoderPrompt,
+    DrawerPrompt,
+    ReviewerPrompt,
+    SafetyPrompt,
+    ThinkerPrompt,
+    WriterPrompt,
+)
 
 T = TypeVar("T", bound=BaseModel)
 

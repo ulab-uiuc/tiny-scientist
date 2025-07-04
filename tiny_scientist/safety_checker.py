@@ -5,10 +5,7 @@ from typing import Any, Dict, Optional, Tuple
 from .configs import Config
 from .utils.cost_tracker import CostTracker
 from .utils.error_handler import api_calling_error_exponential_backoff
-from .utils.llm import (
-    create_client,
-    get_response_from_llm,
-)
+from .utils.llm import create_client, get_response_from_llm
 
 
 class RiskLevel(Enum):
@@ -36,14 +33,16 @@ def is_rejection_response(response: str) -> bool:
         "i don't",
         "i do not",
         "i won't",
-        "i will not"
+        "i will not",
     ]
     response_lower = response.lower()
     return any(phrase in response_lower for phrase in rejection_phrases)
 
 
 class PromptAttackDetector:
-    def __init__(self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None) -> None:
+    def __init__(
+        self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None
+    ) -> None:
         self.client, self.model = create_client(model)
         self.cost_tracker = cost_tracker or CostTracker()
         self.config = Config()
@@ -63,10 +62,10 @@ class PromptAttackDetector:
                 cost_tracker=self.cost_tracker,
                 task_name="assess_risk",
             )
-            
+
             if text is None or is_rejection_response(text):
                 return RiskLevel.NULL, None
-            
+
             try:
                 risk_level_str = text.split("RISK_LEVEL:")[1].split("\n")[0].strip()
                 reason = text.split("REASON:")[1].strip()
@@ -75,13 +74,15 @@ class PromptAttackDetector:
                 print(f"Error parsing risk assessment response: {str(e)}")
                 print(f"Raw response: {text}")
                 return RiskLevel.NULL, None
-            
+
         except Exception as e:
             print(f"Error in LLM assessment: {str(e)}")
             return RiskLevel.NULL, None
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def detect_attack_with_llm(self, prompt: str) -> Tuple[Optional[bool], Optional[str]]:
+    def detect_attack_with_llm(
+        self, prompt: str
+    ) -> Tuple[Optional[bool], Optional[str]]:
         """Use LLM to detect potential prompt attacks"""
         try:
             text, _ = get_response_from_llm(
@@ -94,69 +95,76 @@ class PromptAttackDetector:
                 cost_tracker=self.cost_tracker,
                 task_name="detect_attack",
             )
-            
+
             if text is None or is_rejection_response(text):
                 return None, None
-            
+
             try:
-                is_attacked = text.split("IS_ATTACKED:")[1].split("\n")[0].strip().lower() == "true"
+                is_attacked = (
+                    text.split("IS_ATTACKED:")[1].split("\n")[0].strip().lower()
+                    == "true"
+                )
                 attack_type = text.split("ATTACK_TYPE:")[1].split("\n")[0].strip()
                 return is_attacked, attack_type if is_attacked else "None"
             except (IndexError, KeyError) as e:
                 print(f"Error parsing attack detection response: {str(e)}")
                 print(f"Raw response: {text}")
                 return None, None
-            
+
         except Exception as e:
             print(f"Error in attack detection: {str(e)}")
             return None, None
 
     def analyze_prompt(self, prompt: str) -> Dict[str, Any]:
         risk_level, risk_reason = self.assess_risk_with_llm(prompt)
-        
+
         is_attacked, attack_type = self.detect_attack_with_llm(prompt)
-        
+
         output = {
             "risk_assessment": {
                 "level": risk_level.value if risk_level != RiskLevel.NULL else None,
-                "reason": risk_reason
+                "reason": risk_reason,
             },
             "attack_detection": {
                 "is_attacked": is_attacked,
-                "attack_type": attack_type
-            }
+                "attack_type": attack_type,
+            },
         }
-        
+
         return output
 
 
 class SafetyChecker:
     """Safety checker module for Tiny Scientist"""
-    
-    def __init__(self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None) -> None:
+
+    def __init__(
+        self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None
+    ) -> None:
         self.model = model
         self.cost_tracker = cost_tracker or CostTracker()
-        self.detector = PromptAttackDetector(model=model, cost_tracker=self.cost_tracker)
-    
+        self.detector = PromptAttackDetector(
+            model=model, cost_tracker=self.cost_tracker
+        )
+
     def check_safety(self, intent: str) -> Tuple[bool, Dict[str, Any]]:
         """
         Check the safety of the input intent
-        
+
         Args:
             intent: The research intent to be checked
-            
+
         Returns:
             Tuple of (is_safe: bool, safety_report: Dict)
         """
         print("🔒 Performing safety check...")
-        
+
         # Analyze the prompt for safety
         safety_report = self.detector.analyze_prompt(intent)
-        
+
         # Determine if the intent is safe to proceed
         risk_level = safety_report["risk_assessment"]["level"]
         is_attacked = safety_report["attack_detection"]["is_attacked"]
-        
+
         is_safe = True
         if risk_level == "block":
             is_safe = False
@@ -168,11 +176,11 @@ class SafetyChecker:
             print("❌ BLOCKED: Potential prompt attack detected")
         else:
             print("✅ SAFE: Input passed safety checks")
-        
+
         print(f"Risk Level: {risk_level}")
         print(f"Attack Detected: {is_attacked}")
         if safety_report["risk_assessment"]["reason"]:
             print(f"Reason: {safety_report['risk_assessment']['reason']}")
-        
+
         self.cost_tracker.report()
-        return is_safe, safety_report 
+        return is_safe, safety_report

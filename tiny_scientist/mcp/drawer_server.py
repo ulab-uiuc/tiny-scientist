@@ -53,25 +53,25 @@ async def make_llm_request(prompt: str, system_message: str) -> Optional[str]:
     """Make a request to the LLM API."""
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-    
+
     data = {
         "model": LLM_MODEL,
         "messages": [
             {"role": "system", "content": system_message},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
         ],
-        "temperature": LLM_TEMPERATURE
+        "temperature": LLM_TEMPERATURE,
     }
-    
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=60.0
+                timeout=60.0,
             )
             response.raise_for_status()
             result = response.json()
@@ -161,22 +161,22 @@ async def generate_diagram(section_name: str, section_content: str) -> str:
         section_content: Content of the section to visualize
     """
     print(f"[Drawer] Generating diagram for section: {section_name}")
-    
+
     if not section_content.strip():
         return json.dumps({"error": "Section content cannot be empty"})
-    
+
     # Get section-specific prompts
     section_prompt = get_section_prompts(section_name, section_content)
-    
+
     # Generate diagram using LLM
     llm_response = await make_llm_request(section_prompt, SYSTEM_PROMPT)
-    
+
     if not llm_response:
         return json.dumps({"error": "Failed to generate diagram from LLM"})
-    
+
     # Extract diagram data
     diagram = extract_diagram_data(llm_response)
-    
+
     # Format response
     result = {
         "diagram": {
@@ -184,7 +184,7 @@ async def generate_diagram(section_name: str, section_content: str) -> str:
             "svg": diagram.get("svg", ""),
         }
     }
-    
+
     return json.dumps(result, indent=2)
 
 
@@ -196,49 +196,51 @@ async def validate_svg(svg_content: str) -> str:
         svg_content: SVG content to validate and clean
     """
     print("[Drawer] Validating and cleaning SVG content")
-    
+
     if not svg_content.strip():
         return json.dumps({"error": "SVG content cannot be empty"})
-    
+
     try:
         cleaned_svg = clean_svg(svg_content)
-        
+
         # Basic validation - check if it looks like valid SVG
         if "<svg" in cleaned_svg and "</svg>" in cleaned_svg:
             result = {
                 "valid": True,
                 "cleaned_svg": cleaned_svg,
-                "message": "SVG is valid and has been cleaned"
+                "message": "SVG is valid and has been cleaned",
             }
         else:
             result = {
                 "valid": False,
                 "cleaned_svg": "",
-                "message": "SVG appears to be invalid or incomplete"
+                "message": "SVG appears to be invalid or incomplete",
             }
-        
+
         return json.dumps(result, indent=2)
     except Exception as e:
-        return json.dumps({
-            "valid": False,
-            "cleaned_svg": "",
-            "message": f"Error validating SVG: {str(e)}"
-        })
+        return json.dumps(
+            {
+                "valid": False,
+                "cleaned_svg": "",
+                "message": f"Error validating SVG: {str(e)}",
+            }
+        )
 
 
 @mcp.tool()
 async def get_supported_sections() -> str:
     """Get list of supported section types for diagram generation."""
     supported_sections = list(prompts.section_prompt.keys())
-    
+
     result = {
         "supported_sections": supported_sections,
-        "description": "These are the section types that have specialized prompts for diagram generation"
+        "description": "These are the section types that have specialized prompts for diagram generation",
     }
-    
+
     return json.dumps(result, indent=2)
 
 
 if __name__ == "__main__":
     # Initialize and run the server
-    mcp.run(transport='stdio') 
+    mcp.run(transport="stdio")

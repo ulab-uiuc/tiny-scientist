@@ -34,7 +34,13 @@ class TinyScientist:
         modules = ["safety_checker", "thinker", "coder", "writer", "reviewer"]
         per_module_budget = budget / len(modules) if budget else None
 
-        self.safety_checker = SafetyChecker(model=model, cost_tracker=CostTracker(budget=per_module_budget)) if enable_safety_check else None
+        self.safety_checker = (
+            SafetyChecker(
+                model=model, cost_tracker=CostTracker(budget=per_module_budget)
+            )
+            if enable_safety_check
+            else None
+        )
 
         self.thinker = Thinker(
             model=model,
@@ -74,17 +80,16 @@ class TinyScientist:
     def think(
         self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
-        
         if self.enable_safety_check and self.safety_checker:
             is_safe, safety_report = self.safety_checker.check_safety(intent)
-            
+
             if not is_safe:
                 print("❌ Safety check failed. Stopping execution.")
                 print(f"Safety Report: {safety_report}")
                 return {}
-            
+
             print("✅ Safety check passed. Proceeding with idea generation...")
-        
+
         print("🧠 Generating idea...")
         ideas = self.thinker.run(
             intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
