@@ -26,6 +26,12 @@ def main() -> None:
         default="acl",
         help="Paper format template (e.g. acl, iclr)",
     )
+    parser.add_argument(
+        "--enable_safety_check",
+        type=bool,
+        default=True,
+        help="Enable safety check for input prompts (True/False)",
+    )
     args = parser.parse_args()
 
     if os.path.exists(args.output_dir):
@@ -55,6 +61,7 @@ def main() -> None:
         output_dir=args.output_dir,
         prompt_template_dir=args.prompt_template_dir,
         template=args.template,
+        enable_safety_check=args.enable_safety_check,
     )
 
     idea = scientist.think(

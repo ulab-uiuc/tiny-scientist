@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
+
 def main() -> int:
     args: argparse.Namespace = parse_args()
 
@@ -71,10 +72,12 @@ def main() -> int:
 
         print(f"Generating diagram using {args.model}...")
 
-        query = json.dumps({
-            "section_name": "Method",
-            "section_content": text,
-        })
+        query = json.dumps(
+            {
+                "section_name": "Method",
+                "section_content": text,
+            }
+        )
         result = drawer.run(query)
         diagram = result.get("diagram", {})
 
@@ -109,6 +112,7 @@ def main() -> int:
         return 1
 
     return 0
+
 
 if __name__ == "__main__":
     exit(main())
