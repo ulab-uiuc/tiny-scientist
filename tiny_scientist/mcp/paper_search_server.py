@@ -180,7 +180,7 @@ async def search_semanticscholar(query: str, result_limit: int) -> Optional[List
         return None
 
     # Add a small delay to be respectful to the API
-    await asyncio.sleep(1.0)
+    await asyncio.sleep(8.0)
     return data.get("data")
 
 
