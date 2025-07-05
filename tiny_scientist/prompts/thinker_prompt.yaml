@@ -161,7 +161,7 @@ query_prompt: |
   Please generate an optimized search query to find the most relevant related work in the scientific literature. The query should:
 
   1. Include key terms from the research intent
-  2. Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
+  2. Use short phrases and avoid long sentences
   3. Be specific enough to find closely related work but not so narrow that it misses important papers
   4. Be formatted for academic search engines
   5. Ensure the search will find papers that would help generate ideas relevant to the intent
@@ -193,7 +193,7 @@ rethink_query_prompt: |
 
   1. Include key terms from BOTH the original intent AND the current research idea
   2. Focus particularly on finding papers that can address current limitations or gaps in the idea
-  3. Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
+  3. Use short phrases and avoid long sentences
   4. Be specific enough to find closely related work but not so narrow that it misses important papers
   5. Be formatted for academic search engines
 
@@ -224,7 +224,7 @@ novelty_query_prompt: |
 
   1. Target papers that might have already implemented similar approaches to address the original intent
   2. Include key terms from both the idea and intent, focusing on the most distinctive aspects of the approach
-  3. Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
+  3. Use short phrases and avoid long sentences
   4. Be formatted for academic search engines
   5. Aim to find the most similar existing work to determine if this idea is truly novel
 

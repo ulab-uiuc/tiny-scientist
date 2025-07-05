@@ -233,57 +233,57 @@ class MCPClient:
             print(f"[ERROR] Server {server_name} is not running")
             return None
         
-        try:
-            process = self.servers[server_name]
-            
-            # Create tool call request
-            request = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": kwargs
-                }
+        # try:
+        process = self.servers[server_name]
+        
+        # Create tool call request
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": kwargs
             }
-            
-            # Send request to server
-            request_json = json.dumps(request) + "\n"
-            if process.stdin is None:
-                print(f"[ERROR] No stdin available for server {server_name}")
-                return None
-            process.stdin.write(request_json)
-            process.stdin.flush()
-            
-            # Read response
-            if process.stdout is None:
-                print(f"[ERROR] No stdout available for server {server_name}")
-                return None
-            response_line = process.stdout.readline()
-            if not response_line:
-                print(f"[ERROR] No response from server {server_name}")
-                return None
-            
-            response = json.loads(response_line.strip())
-            
-            # Check for errors
-            if "error" in response:
-                print(f"[ERROR] Tool call failed: {response['error']}")
-                return None
-            
-            # Extract result
-            result = response.get("result", {})
-            if isinstance(result, dict) and "content" in result:
-                content = result["content"][0].get("text", "")
-                return content if isinstance(content, str) else str(content)
-            elif isinstance(result, str):
-                return result
-            else:
-                return json.dumps(result)
-                
-        except Exception as e:
-            print(f"[ERROR] Failed to call tool {tool_name} on {server_name}: {e}")
+        }
+        
+        # Send request to server
+        request_json = json.dumps(request) + "\n"
+        if process.stdin is None:
+            print(f"[ERROR] No stdin available for server {server_name}")
             return None
+        process.stdin.write(request_json)
+        process.stdin.flush()
+        
+        # Read response
+        if process.stdout is None:
+            print(f"[ERROR] No stdout available for server {server_name}")
+            return None
+        response_line = process.stdout.readline()
+        if not response_line:
+            print(f"[ERROR] No response from server {server_name}")
+            return None
+        
+        response = json.loads(response_line.strip())
+        
+        # Check for errors
+        if "error" in response:
+            print(f"[ERROR] Tool call failed: {response['error']}")
+            return None
+        
+        # Extract result
+        result = response.get("result", {})
+        if isinstance(result, dict) and "content" in result:
+            content = result["content"][0].get("text", "")
+            return content if isinstance(content, str) else str(content)
+        elif isinstance(result, str):
+            return result
+        else:
+            return json.dumps(result)
+                
+        # except Exception as e:
+        #     print(f"[ERROR] Failed to call tool {tool_name} on {server_name}: {e}")
+        #     return None
     
     async def get_available_tools(self, server_name: str) -> Optional[List[Dict[str, Any]]]:
         """Get list of available tools from a server.
@@ -449,7 +449,7 @@ async def search_papers(query: str, client: MCPClient, result_limit: int = 3) ->
     """
     if not client.is_server_running("paper_search"):
         await client.start_server("paper_search")
-    
+    print(f"Searching for papers with query: {query}")
     return await client.call_tool(
         "paper_search", 
         "search_papers", 

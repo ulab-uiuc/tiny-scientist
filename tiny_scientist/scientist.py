@@ -116,11 +116,11 @@ class TinyScientist:
         await self.cleanup_mcp()
 
     def think(
-        self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
+        self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None, tool_use: bool = True
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         print("🧠 Generating idea...")
         ideas = self.thinker.run(
-            intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
+            intent=intent, num_ideas=num_ideas, pdf_content=pdf_content, tool_use=tool_use
         )
         print(ideas)
         print("✅ Idea generated.")

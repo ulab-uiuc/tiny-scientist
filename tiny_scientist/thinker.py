@@ -74,30 +74,30 @@ Be critical and realistic in your assessments."""
         self.cost_tracker = cost_tracker or CostTracker()
         self.enable_ethical_defense = enable_ethical_defense
 
-    def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
+    def think(self, intent: str, pdf_content: Optional[str] = None, tool_use: bool = True) -> str:
         self.intent = intent
         print(f"Generating research idea based on: {intent}")
 
         pdf_content = self._load_pdf_content(pdf_content)
-        if self.search_papers:
+        if self.search_papers and tool_use:
             query = self._generate_search_query(intent)
             related_works_string = self._get_related_works(query)
         else:
-            related_works_string = "No Related Works Found"
+            related_works_string = ""
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
         self.cost_tracker.report()
         return idea
 
-    def rethink(self, idea_json: str, current_round: int = 1) -> str:
+    def rethink(self, idea_json: str, current_round: int = 1, tool_use: bool = True) -> str:
         print(f"Rethinking idea in round {current_round}...")
-        if self.search_papers:
+        if self.search_papers and tool_use:
             query = self._generate_search_query(
                 idea_json, intent=self.intent, query_type="rethink"
             )
             related_works_string = self._get_related_works(query)
         else:
-            related_works_string = "No Related Works Found"
+            related_works_string = ""
 
         self.cost_tracker.report()
         return self._reflect_idea(idea_json, current_round, related_works_string)
@@ -108,6 +108,7 @@ Be critical and realistic in your assessments."""
         num_ideas: int = 1,
         check_novelty: bool = False,
         pdf_content: Optional[str] = None,
+        tool_use: bool = True,
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         all_ideas = []
         pdf_content = self._load_pdf_content(pdf_content)
@@ -115,7 +116,7 @@ Be critical and realistic in your assessments."""
         for i in range(num_ideas):
             print(f"\nProcessing idea {i + 1}/{num_ideas}")
 
-            idea_json = self.think(intent, pdf_content)
+            idea_json = self.think(intent, pdf_content, tool_use)
             idea_dict = json.loads(idea_json)
 
             if not idea_dict:
@@ -124,7 +125,7 @@ Be critical and realistic in your assessments."""
 
             print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
 
-            current_idea_json = self._refine_idea(idea_json)
+            current_idea_json = self._refine_idea(idea_json, tool_use)
 
             current_idea_exp = (
                 self.generate_experiment_plan(current_idea_json)
@@ -353,7 +354,7 @@ Be critical and realistic in your assessments."""
             return content
         return None
 
-    def _refine_idea(self, idea_json: str) -> str:
+    def _refine_idea(self, idea_json: str, tool_use: bool = True) -> str:
         current_idea_json = idea_json
 
         for j in range(self.iter_num):
@@ -366,7 +367,7 @@ Be critical and realistic in your assessments."""
                 current_idea_dict.update(info)
             current_idea_json = json.dumps(current_idea_dict)
 
-            current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
+            current_idea_json = self.rethink(current_idea_json, current_round=j + 1, tool_use=tool_use)
 
         self.cost_tracker.report()
         return current_idea_json
@@ -463,30 +464,38 @@ Be critical and realistic in your assessments."""
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(run_async_search)
                         results_json = future.result(timeout=30.0)  # Add timeout
-                    
+                    print(f"Results JSON: {results_json}")
                     if results_json:
                         import json
-                        results_dict = json.loads(results_json)
-                        if results_dict:
-                            # Convert MCP format to expected format
-                            related_papers = []
-                            for title, paper_data in results_dict.items():
-                                if isinstance(paper_data, dict):
-                                    # MCP format: {"title": ..., "bibtex": ...}
-                                    paper = {
-                                        "title": paper_data.get("title", title),
-                                        "source": "Unknown authors",  # MCP doesn't return author info
-                                        "info": f"BibTeX available: {paper_data.get('bibtex', 'N/A') != 'N/A'}"
-                                    }
-                                else:
-                                    # Fallback if unexpected format
-                                    paper = {
-                                        "title": title,
-                                        "source": "Unknown authors",
-                                        "info": "Unknown venue"
-                                    }
-                                related_papers.append(paper)
-                        else:
+                        try:
+                            results_dict = json.loads(results_json)
+                            # Check if it's an error response
+                            if isinstance(results_dict, dict) and "error" in results_dict:
+                                print(f"❌ Search error: {results_dict['error']}")
+                                related_papers = []
+                            elif results_dict:
+                                # Convert MCP format to expected format
+                                related_papers = []
+                                for title, paper_data in results_dict.items():
+                                    if isinstance(paper_data, dict):
+                                        # MCP format: {"title": ..., "bibtex": ...}
+                                        paper = {
+                                            "title": paper_data.get("title", title),
+                                            "source": "Unknown authors",  # MCP doesn't return author info
+                                            "info": f"BibTeX available: {paper_data.get('bibtex', 'N/A') != 'N/A'}"
+                                        }
+                                    else:
+                                        # Fallback if unexpected format
+                                        paper = {
+                                            "title": title,
+                                            "source": "Unknown authors",
+                                            "info": "Unknown venue"
+                                        }
+                                    related_papers.append(paper)
+                            else:
+                                related_papers = []
+                        except json.JSONDecodeError as e:
+                            print(f"❌ Failed to parse search results: {e}")
                             related_papers = []
                     else:
                         related_papers = []
@@ -520,6 +529,7 @@ Be critical and realistic in your assessments."""
                                     "info": "Unknown venue"
                                 }
                             related_papers.append(paper)
+                            print(f"Related papers: {related_papers}")
                     else:
                         related_papers = []
                 else:

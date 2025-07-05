@@ -1,9 +1,10 @@
 import asyncio
 import json
 import os
+import time
 from typing import Any, Dict, List, Optional
 
-import httpx
+import requests
 import toml
 from mcp.server.fastmcp import FastMCP
 
@@ -16,7 +17,7 @@ config = toml.load(config_path) if os.path.exists(config_path) else {"core": {}}
 
 # Semantic Scholar API configuration
 S2_API_BASE = "https://api.semanticscholar.org/graph/v1"
-S2_API_KEY = config["core"].get("s2_api_key", None)
+S2_API_KEY = None
 SEARCH_ENGINE = config["core"].get("engine", "semanticscholar")
 
 # Debug: Print configuration status
@@ -26,40 +27,31 @@ print(f"[Paper Search] API Key configured: {'Yes' if S2_API_KEY else 'No'}")
 print(f"[Paper Search] Search engine: {SEARCH_ENGINE}")
 
 
-async def make_s2_request(url: str, params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
+def make_s2_request(url: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Make a request to the Semantic Scholar API with proper error handling."""
-    default_headers = {}
+    headers = {"X-API-KEY": S2_API_KEY} if S2_API_KEY else {}
     
-    # Temporarily disable API key due to invalid key issue
-    # TODO: Update with a valid API key when available
-    use_api_key = False  # Set to True when you have a valid API key
-    
-    if S2_API_KEY and use_api_key:
-        default_headers["X-API-KEY"] = S2_API_KEY
+    if S2_API_KEY:
         print(f"[Paper Search] Using API key: {S2_API_KEY[:10]}...")
     else:
         print("[Paper Search] Using unauthenticated access (rate limited)")
     
-    if headers:
-        default_headers.update(headers)
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, headers=default_headers, params=params, timeout=30.0)
-            print(f"[Paper Search] Response status: {response.status_code}")
-            response.raise_for_status()
-            result: Dict[str, Any] = response.json()
-            if result.get('data'):
-                print(f"[Paper Search] Found {len(result['data'])} papers")
-            return result
-        except Exception as e:
-            print(f"[Paper Search] Semantic Scholar API request failed: {e}")
-            if hasattr(e, 'response'):
-                print(f"[Paper Search] Response text: {e.response.text if e.response else 'No response'}")
-            return None
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30.0)
+        print(f"[Paper Search] Response status: {response.status_code}")
+        response.raise_for_status()
+        result: Dict[str, Any] = response.json()
+        if result.get('data'):
+            print(f"[Paper Search] Found {len(result['data'])} papers")
+        return result
+    except Exception as e:
+        print(f"[Paper Search] Semantic Scholar API request failed: {e}")
+        if hasattr(e, 'response'):
+            print(f"[Paper Search] Response text: {e.response.text if e.response else 'No response'}")
+        return None
 
 
-async def make_openalex_request(query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
+def make_openalex_request(query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
     """Make a request to OpenAlex API."""
     try:
         import pyalex
@@ -120,7 +112,7 @@ def extract_openalex_work_info(work: Dict[str, Any], max_abstract_length: int = 
 
 
 @mcp.tool()
-async def search_papers(query: str, result_limit: int = 3) -> str:
+def search_papers(query: str, result_limit: int = 3) -> str:
     """Search for academic papers using Semantic Scholar or OpenAlex.
 
     Args:
@@ -133,60 +125,77 @@ async def search_papers(query: str, result_limit: int = 3) -> str:
         return json.dumps({"error": "No query provided"})
 
     papers = None
+    max_retries = 5
+    retry_delay = 2
     
-    if SEARCH_ENGINE == "semanticscholar":
-        print(f"(Semantic Scholar API) Searching for papers with query: {query}")
-        papers = await search_semanticscholar(query, result_limit)
-    elif SEARCH_ENGINE == "openalex":
-        print(f"(OpenAlex API) Searching for papers with query: {query}")
-        papers = await make_openalex_request(query, result_limit)
-    else:
-        return json.dumps({"error": f"Unsupported search engine: {SEARCH_ENGINE}"})
+    # Retry logic for paper search
+    for attempt in range(max_retries):
+        if SEARCH_ENGINE == "semanticscholar":
+            print(f"(Semantic Scholar API) Searching for papers with query: {query} (attempt {attempt + 1}/{max_retries})")
+            papers = search_semanticscholar(query, result_limit)
+        elif SEARCH_ENGINE == "openalex":
+            print(f"(OpenAlex API) Searching for papers with query: {query} (attempt {attempt + 1}/{max_retries})")
+            papers = make_openalex_request(query, result_limit)
+        else:
+            return json.dumps({"error": f"Unsupported search engine: {SEARCH_ENGINE}"})
 
-    if not papers:
-        return json.dumps({"error": "No papers found or API error"})
+        if papers and len(papers) > 0:
+            print(f"✅ Papers found on attempt {attempt + 1}")
+            break
+        else:
+            print(f"❌ No papers found on attempt {attempt + 1}")
+            if attempt < max_retries - 1:  # Not the last attempt
+                print(f"⏳ Waiting {retry_delay} seconds before retry...")
+                time.sleep(retry_delay)
+                retry_delay += 2  # Increase delay by 2 seconds each retry
+
+    if not papers or len(papers) == 0:
+        return json.dumps({"error": f"No papers found after {max_retries} attempts"})
 
     # Format papers and fetch bibtex for Semantic Scholar results
     results = {}
-    for paper in papers:
+    for i, paper in enumerate(papers):
         paper_id = paper.get("paperId", None)
         bibtex = "N/A"
         
         if SEARCH_ENGINE == "semanticscholar" and paper_id:
-            bibtex = await fetch_bibtex(paper_id)
+            bibtex = fetch_bibtex(paper_id)
+            # Add delay between bibtex requests to be respectful to the API
+            if i < len(papers) - 1:  # Not the last paper
+                time.sleep(1.0)
         
-        if bibtex and bibtex != "N/A":
-            title = paper.get("title", "Unknown Title")
-            results[title] = {
-                "title": title,
-                "bibtex": bibtex
-            }
+        # Always add the paper to results, even if bibtex is not available
+        title = paper.get("title", "Unknown Title")
+        results[title] = {
+            "title": title,
+            "bibtex": bibtex
+        }
 
     return json.dumps(results, indent=2)
 
 
-async def search_semanticscholar(query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
+def search_semanticscholar(query: str, result_limit: int) -> Optional[List[Dict[str, Any]]]:
     """Search Semantic Scholar for papers."""
     params = {
         "query": query,
         "limit": result_limit,
         "fields": "title,authors,venue,year,abstract,citationStyles,citationCount,paperId",
     }
-
+    
     url = f"{S2_API_BASE}/paper/search"
-    data = await make_s2_request(url, params)
+    data = make_s2_request(url, params)
     
     if not data or not data.get("total"):
         return None
 
-    # Add a small delay to be respectful to the API
-    await asyncio.sleep(8.0)
+    # Add a delay to be respectful to the API
+    time.sleep(1.0)
     result = data.get("data")
     return result if isinstance(result, list) else None
 
 
 @mcp.tool()
-async def fetch_bibtex(paper_id: str) -> str:
+def fetch_bibtex(paper_id: str) -> str:
     """Fetch BibTeX citation for a paper by its Semantic Scholar ID.
 
     Args:
@@ -197,7 +206,7 @@ async def fetch_bibtex(paper_id: str) -> str:
     url = f"{S2_API_BASE}/paper/{paper_id}"
     params = {"fields": "citationStyles"}
     
-    data = await make_s2_request(url, params)
+    data = make_s2_request(url, params)
     if not data:
         return "N/A"
     
@@ -207,7 +216,7 @@ async def fetch_bibtex(paper_id: str) -> str:
 
 
 @mcp.tool()
-async def get_paper_details(paper_id: str) -> str:
+def get_paper_details(paper_id: str) -> str:
     """Get detailed information about a paper by its Semantic Scholar ID.
 
     Args:
@@ -218,7 +227,7 @@ async def get_paper_details(paper_id: str) -> str:
     url = f"{S2_API_BASE}/paper/{paper_id}"
     params = {"fields": "title,authors,venue,year,abstract,citationCount,citationStyles"}
     
-    data = await make_s2_request(url, params)
+    data = make_s2_request(url, params)
     if not data:
         return json.dumps({"error": "Paper not found or API error"})
     
