@@ -25,6 +25,7 @@
 - 💻 **Code**: Automatically generate and run experiments based on the idea.
 - ✍️ **Write**: Convert your results and ideas into a conference-style paper.
 - 📝 **Review**: Review any form of paper and output structured feedback in JSON.
+- 🔧 **MCP**: The extensible tool use protocol by Anthropic
 
 #### Software Architecture
 
