@@ -269,7 +269,7 @@ idea_first_prompt: |
     - Discuss why this problem remains difficult in the context of the original intent.
   4. Why hasn't it been solved before?
     - Provide a textual summary explaining how your idea differs from existing solutions and why they don't fully address the intent. This will be the main content for the "NoveltyComparison" field.
-    - Separately, you will provide a Markdown table in the "ComparisonTable" field.
+    - You will also provide a separate comparison table after the JSON.
   5. What are the key components of my approach and results?
     - Outline your proposed methodology.
     - Explain how your approach specifically addresses the original intent.
@@ -288,7 +288,14 @@ idea_first_prompt: |
   <JSON>
   ```
 
+  COMPARISON TABLE:
+  ```markdown
+  <COMPARISON_TABLE>
+  ```
+
   In <THOUGHT>, first briefly discuss your intuitions and motivations for the idea. Detail your high-level plan, necessary design choices and ideal outcomes of the experiments. Justify how the idea is different from the existing ones.
+
+  In <COMPARISON_TABLE>, provide a Markdown table comparing your idea to existing work. List each existing work on its own row. You MUST autonomously decide on the most relevant columns for this comparison. The final row MUST be your proposed idea, clearly marked (e.g., in bold as "**Our Approach**").
 
   In <JSON>, provide the new idea in JSON format with the following fields:
   - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
@@ -298,7 +305,6 @@ idea_first_prompt: |
   - "Importance": Answer to question 2.
   - "Difficulty": Answer to question 3.
   - "NoveltyComparison": Answer to question 4.
-  - "ComparisonTable": A Markdown table comparing your idea to existing work. List each existing work on its own row. You MUST autonomously decide on the most relevant columns for this comparison. The final row MUST be your proposed idea, clearly marked (e.g., in bold as "Our Approach").
   - "Approach": Answer to question 5.
   - "is_experimental": A boolean (true or false). Set to true if the idea requires a computational experiment (like training a model). Set to false if it is a theoretical, qualitative, or historical study.
   - "Interestingness": A rating from 1 to 10 (lowest to highest).

@@ -50,7 +50,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
         "deepseek-reasoner": "DEEPSEEK_API_KEY",
         "gpt-4o": "OPENAI_API_KEY",
         "gpt-o1": "OPENAI_API_KEY",
-        "claude-3.5-sonnet": "ANTHROPIC_API_KEY",
+        "claude-3-5-sonnet-20241022": "ANTHROPIC_API_KEY",
     }
 
     # Set the appropriate environment variable

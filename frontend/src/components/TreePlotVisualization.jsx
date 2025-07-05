@@ -2267,8 +2267,10 @@ const TreePlotVisualization = () => {
       return;
     }
 
-    if (!experimentDir) {
-      console.log("ERROR: Missing experiment directory for paper generation");
+    // Only require experiment directory for experimental ideas
+    const isExperimental = node.originalData.is_experimental;
+    if (isExperimental && !experimentDir) {
+      console.log("ERROR: Missing experiment directory for experimental idea");
       return;
     }
 
@@ -2312,12 +2314,10 @@ const TreePlotVisualization = () => {
         throw new Error(paperData.error || 'Paper generation failed');
       }
 
+      // Set the paper result and switch to paper view
+      setPaperResult(paperData);
+      setCurrentView('paper_view');
       setOperationStatus('Paper generated successfully!');
-
-      // Optionally switch to a papers view or show download link
-      if (paperData.pdf_path) {
-        alert(`Paper generated successfully! You can download it from: ${paperData.pdf_path}`);
-      }
 
     } catch (error) {
       console.error("Paper generation failed:", error);
@@ -2611,14 +2611,35 @@ const TreePlotVisualization = () => {
     setPdfComments(pdfComments.filter(c => c.id !== commentId));
   };
 
-  const downloadPDF = (pdfPath) => {
-    // Create a link to download the PDF
-    const link = document.createElement('a');
-    link.href = `http://localhost:8080${pdfPath}?download=true`;
-    link.download = 'research_paper.pdf';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadPDF = async (pdfPath) => {
+    try {
+      // Fetch the PDF as a blob to force download
+      const response = await fetch(`http://localhost:8080${pdfPath}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to download PDF: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+
+      // Extract filename from path or use default
+      const filename = pdfPath.split('/').pop() || 'research_paper.pdf';
+
+      // Create download link
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up the object URL
+      URL.revokeObjectURL(link.href);
+
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF. Please try again.');
+    }
   };
 
   const reviewPaper = async (pdfPath) => {
@@ -2760,14 +2781,14 @@ const TreePlotVisualization = () => {
                 {/* Generate Paper Button */}
                 <button
                   onClick={() => handleGeneratePaper(selectedNode, codeResult?.experiment_dir)}
-                  disabled={!selectedNode || !codeResult || !codeResult.success || isGeneratingPaper}
+                  disabled={!selectedNode || isGeneratingPaper || (selectedNode?.originalData?.is_experimental && (!codeResult || !codeResult.success))}
                   style={{
                     padding: '8px 16px',
-                    backgroundColor: (!selectedNode || !codeResult || !codeResult.success || isGeneratingPaper) ? '#9CA3AF' : '#10B981',
+                    backgroundColor: (!selectedNode || isGeneratingPaper || (selectedNode?.originalData?.is_experimental && (!codeResult || !codeResult.success))) ? '#9CA3AF' : '#10B981',
                     color: 'white',
                     border: 'none',
                     borderRadius: '6px',
-                    cursor: (!selectedNode || !codeResult || !codeResult.success || isGeneratingPaper) ? 'not-allowed' : 'pointer',
+                    cursor: (!selectedNode || isGeneratingPaper || (selectedNode?.originalData?.is_experimental && (!codeResult || !codeResult.success))) ? 'not-allowed' : 'pointer',
                     fontSize: '0.875rem',
                     fontWeight: 500,
                     display: 'flex',
@@ -2775,7 +2796,7 @@ const TreePlotVisualization = () => {
                     gap: '6px'
                   }}
                 >
-                  📄 Generate Paper
+                  {isGeneratingPaper ? '⏳ Generating...' : '📄 Generate Paper'}
                 </button>
 
                 {/* Download All Button */}

@@ -14,6 +14,8 @@ MODEL_PRICING = {
     "claude-3-sonnet": (3, 15),
     "claude-3-5-sonnet-v2": (3, 15),
     "claude-3-5-sonnet": (3, 15),
+    "claude-3-5-sonnet-20240620": (3, 15),
+    "claude-3-5-sonnet-20241022": (3, 15),
     "claude-3-haiku-v1": (0.25, 1.25),
     "claude-3-haiku": (0.25, 1.25),
     "claude-3-opus-v1": (15, 75),
@@ -30,11 +32,15 @@ MODEL_PRICING = {
 def calculate_pricing(model: str, input_tokens: int, output_tokens: int) -> float:
     # Check if the model exists
     if model not in MODEL_PRICING:
+        found_match = False
         for m in MODEL_PRICING:
             if model.startswith(m):
                 model = m
-            else:
-                raise ValueError(f"Pricing for '{model}' is not found.")
+                found_match = True
+                break
+
+        if not found_match:
+            raise ValueError(f"Pricing for '{model}' is not found.")
 
     input_price, output_price = MODEL_PRICING[model]
 
