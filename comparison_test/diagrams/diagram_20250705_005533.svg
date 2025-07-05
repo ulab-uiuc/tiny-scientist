@@ -1,0 +1,94 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+        </marker>
+        <marker id="arrowhead-dotted" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+        </marker>
+    </defs>
+    
+    <style>
+        .node-box { fill: "#e3f2fd"; stroke: "#1976d2"; stroke-width: 2; }
+        .node-circle { fill: "#f3e5f5"; stroke: "#7b1fa2"; stroke-width: 2; }
+        .node-diamond { fill: "#e8f5e9"; stroke: "#388e3c"; stroke-width: 2; }
+        .node-text { font-family: Arial, sans-serif; font-size: 14px; text-anchor: middle; }
+        .edge-line { stroke: "#333"; stroke-width: 2; fill: none; }
+        .edge-dotted { stroke: "#666"; stroke-width: 2; stroke-dasharray: 5,5; fill: none; }
+        .edge-label { font-family: Arial, sans-serif; font-size: 12px; fill: "#666"; }
+    </style>
+    <line x1="200.0" y1="100" x2="200.0" y2="250" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="200.0" y="170.0" class="edge-label">feeds into</text>
+    <line x1="200.0" y1="250" x2="200.0" y2="400" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="200.0" y="320.0" class="edge-label">produces</text>
+    <line x1="200.0" y1="400" x2="0.0" y2="550" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="100.0" y="470.0" class="edge-label">creates</text>
+    <line x1="200.0" y1="400" x2="200.0" y2="550" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="200.0" y="470.0" class="edge-label">creates</text>
+    <line x1="200.0" y1="400" x2="400.0" y2="550" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="300.0" y="470.0" class="edge-label">creates</text>
+    <line x1="0.0" y1="550" x2="100.0" y2="700" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="50.0" y="620.0" class="edge-label">used in</text>
+    <line x1="400.0" y1="550" x2="100.0" y2="700" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="250.0" y="620.0" class="edge-label">validates</text>
+    <line x1="100.0" y1="700" x2="100.0" y2="850" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="100.0" y="770.0" class="edge-label">produces</text>
+    <line x1="100.0" y1="850" x2="300.0" y2="700" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="200.0" y="770.0" class="edge-label">undergoes</text>
+    <line x1="200.0" y1="550" x2="300.0" y2="700" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="250.0" y="620.0" class="edge-label">used for</text>
+    <line x1="300.0" y1="700" x2="300.0" y2="850" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="300.0" y="770.0" class="edge-label">determines</text>
+    <line x1="300.0" y1="850" x2="100.0" y2="1000" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="200.0" y="920.0" class="edge-label">yes</text>
+    <line x1="300.0" y1="850" x2="300.0" y2="1000" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="300.0" y="920.0" class="edge-label">no</text>
+    <line x1="300.0" y1="1000" x2="100.0" y2="700" 
+        class="edge-line" marker-end="url(#arrowhead)" />
+    <text x="200.0" y="845.0" class="edge-label">leads to</text>
+    <rect x="130.0" y="65.0" 
+        width="140" height="70" class="node-box" rx="5" />
+    <text x="200.0" y="105" class="node-text">Data Collection</text>
+    <rect x="130.0" y="215.0" 
+        width="140" height="70" class="node-box" rx="5" />
+    <text x="200.0" y="255" class="node-text">Data Preprocessing</text>
+    <rect x="140.0" y="370.0" 
+        width="120" height="60" class="node-box" rx="5" />
+    <text x="200.0" y="405" class="node-text">Data Split</text>
+    <circle cx="0.0" cy="550" r="30.0" class="node-circle" />
+    <text x="0.0" y="555" class="node-text">Training Data</text>
+    <circle cx="200.0" cy="550" r="30.0" class="node-circle" />
+    <text x="200.0" y="555" class="node-text">Testing Data</text>
+    <circle cx="400.0" cy="550" r="25.0" class="node-circle" />
+    <text x="400.0" y="555" class="node-text">Validation Set</text>
+    <rect x="20.0" y="660.0" 
+        width="160" height="80" class="node-box" rx="5" />
+    <text x="100.0" y="705" class="node-text">Training Process</text>
+    <rect x="20.0" y="810.0" 
+        width="160" height="80" class="node-box" rx="5" />
+    <text x="100.0" y="855" class="node-text">Machine Learning Model</text>
+    <rect x="230.0" y="665.0" 
+        width="140" height="70" class="node-box" rx="5" />
+    <text x="300.0" y="705" class="node-text">Model Evaluation</text>
+    <polygon points="300.0,815.0 370.0,850 300.0,885.0 230.0,850" class="node-diamond" />
+    <text x="300.0" y="855" class="node-text">Performance Satisfactory?</text>
+    <rect x="30.0" y="965.0" 
+        width="140" height="70" class="node-box" rx="5" />
+    <text x="100.0" y="1005" class="node-text">Deployment</text>
+    <rect x="240.0" y="970.0" 
+        width="120" height="60" class="node-box" rx="5" />
+    <text x="300.0" y="1005" class="node-text">Hyperparameter Tuning</text>
+</svg>

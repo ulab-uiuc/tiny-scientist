@@ -1,0 +1,44 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+
+\tikzstyle{box} = [rectangle, rounded corners, minimum width=3cm, minimum height=1cm,
+                   text centered, draw=blue!70, fill=blue!20]
+\tikzstyle{circle} = [circle, minimum width=2cm, text centered, draw=purple!70, fill=purple!20]
+\tikzstyle{diamond} = [diamond, minimum width=2.5cm, minimum height=1.5cm, text centered,
+                        draw=green!70, fill=green!20]
+\tikzstyle{arrow} = [thick,->,>=stealth]
+\tikzstyle{line} = [thick]
+\tikzstyle{dotted} = [thick, dashed]
+
+\begin{document}
+\begin{tikzpicture}[node distance=3cm]
+    \node (data_collection) at (4.00,-2.00) [box] {Data Collection};
+    \node (data_preprocessing) at (4.00,-5.00) [box] {Data Preprocessing};
+    \node (data_split) at (4.00,-8.00) [box] {Data Split};
+    \node (training_data) at (0.00,-11.00) [circle] {Training Data};
+    \node (testing_data) at (4.00,-11.00) [circle] {Testing Data};
+    \node (validation_set) at (8.00,-11.00) [circle] {Validation Set};
+    \node (training_process) at (2.00,-14.00) [box] {Training Process};
+    \node (ml_model) at (2.00,-17.00) [box] {Machine Learning Model};
+    \node (evaluation) at (6.00,-14.00) [box] {Model Evaluation};
+    \node (performance_check) at (6.00,-17.00) [diamond] {Performance Satisfactory?};
+    \node (deployment) at (2.00,-20.00) [box] {Deployment};
+    \node (hyperparameter_tuning) at (6.00,-20.00) [box] {Hyperparameter Tuning};
+
+    \draw [arrow] (data_collection) -- node[above] {feeds into} (data_preprocessing);
+    \draw [arrow] (data_preprocessing) -- node[above] {produces} (data_split);
+    \draw [arrow] (data_split) -- node[above] {creates} (training_data);
+    \draw [arrow] (data_split) -- node[above] {creates} (testing_data);
+    \draw [arrow] (data_split) -- node[above] {creates} (validation_set);
+    \draw [arrow] (training_data) -- node[above] {used in} (training_process);
+    \draw [arrow] (validation_set) -- node[above] {validates} (training_process);
+    \draw [arrow] (training_process) -- node[above] {produces} (ml_model);
+    \draw [arrow] (ml_model) -- node[above] {undergoes} (evaluation);
+    \draw [arrow] (testing_data) -- node[above] {used for} (evaluation);
+    \draw [arrow] (evaluation) -- node[above] {determines} (performance_check);
+    \draw [arrow] (performance_check) -- node[above] {yes} (deployment);
+    \draw [arrow] (performance_check) -- node[above] {no} (hyperparameter_tuning);
+    \draw [arrow] (hyperparameter_tuning) -- node[above] {leads to} (training_process);
+\end{tikzpicture}
+\end{document}
