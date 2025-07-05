@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, Match, Union
+from typing import Any, Dict, Match
 
 import requests
 from rich import print
@@ -56,6 +56,7 @@ class BaseOutputFormatter(abc.ABC):
             r"(\\begin{table}.*?\\centering.*?)(\\begin{tabular}.*?\\end{tabular})",
             re.DOTALL,
         )
+
         def wrap_tabular_resizebox(match: Match[str]) -> str:
             table_start = match.group(1)
             tabular_block = match.group(2)
@@ -99,7 +100,6 @@ class BaseOutputFormatter(abc.ABC):
         return body_content.strip()
 
     def _wrap_tables_in_latex(self, content: str) -> str:
-
         def replacer(match: Match[str]) -> str:
             tabular_block = match.group(1)
 
@@ -108,7 +108,7 @@ class BaseOutputFormatter(abc.ABC):
                 "\\begin{table}" in content[: match.start()]
                 and "\\end{table}" in content[match.end() :]
             ):
-                return tabular_block 
+                return tabular_block
 
             # Use [!t] to force table to top of page, reducing text wrapping issues
             return (
@@ -128,33 +128,33 @@ class BaseOutputFormatter(abc.ABC):
         )
 
     def _clean_latex_content(self, content: str) -> str:
-        match = re.search(r'```latex\s*(.*?)\s*```', content, flags=re.DOTALL)
+        match = re.search(r"```latex\s*(.*?)\s*```", content, flags=re.DOTALL)
         if not match:
-            match = re.search(r'```\s*(.*?)\s*```', content, flags=re.DOTALL)
-        
+            match = re.search(r"```\s*(.*?)\s*```", content, flags=re.DOTALL)
+
         if match:
             content = match.group(1)
-    
+
         # Remove LaTeX document structure commands
         patterns_to_remove = [
-            r'\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}',
-            r'\\usepackage(?:\[[^\]]*\])?\{[^\}]+\}',
-            r'\\begin\{document\}',
-            r'\\end\{document\}',
-            r'\\maketitle',
-            r'\\title\{.*?\}',
-            r'\\author\{.*?\}',
-            r'\\bibliographystyle\{[^\}]+\}',
-            r'\\bibliography\{[^\}]+\}',
+            r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",
+            r"\\usepackage(?:\[[^\]]*\])?\{[^\}]+\}",
+            r"\\begin\{document\}",
+            r"\\end\{document\}",
+            r"\\maketitle",
+            r"\\title\{.*?\}",
+            r"\\author\{.*?\}",
+            r"\\bibliographystyle\{[^\}]+\}",
+            r"\\bibliography\{[^\}]+\}",
         ]
-        
+
         for pattern in patterns_to_remove:
             content = re.sub(pattern, "", content, flags=re.DOTALL)
-        
+
         # Clean line by line
         lines = content.splitlines()
         cleaned_lines = []
-        
+
         for line in lines:
             stripped = line.strip()
 
@@ -164,23 +164,23 @@ class BaseOutputFormatter(abc.ABC):
                 continue
             if stripped.startswith("**") and stripped.endswith("**"):
                 continue
-                
+
             cleaned_lines.append(line)
-        
+
         # Rejoin and fix text flow issues
         content = "\n".join(cleaned_lines)
         content = self._fix_text_flow(content)
-        
+
         return content.strip()
 
     def _fix_text_flow(self, content: str) -> str:
         """Fix common text flow and formatting issues"""
-        
+
         def fix_broken_sentences(text: str) -> str:
-            lines = text.split('\n')
+            lines = text.split("\n")
             fixed_lines = []
             i = 0
-            
+
             while i < len(lines):
                 current_line = lines[i].strip()
 
@@ -195,18 +195,20 @@ class BaseOutputFormatter(abc.ABC):
                     next_line = lines[i + 1].strip()
 
                     should_merge = (
-                        current_line and next_line and
-                        len(current_line) > 20 and len(next_line) > 10 and
-                        not current_line.endswith(('.', '!', '?', ':', ';')) and
-                        not next_line.startswith(('\\', '-', '•', '*')) and
-                        not next_line[0].isupper() and
-                        not current_line.endswith('\\\\') and
-                        not re.match(r'^\d+\.', next_line)  # Not numbered list
+                        current_line
+                        and next_line
+                        and len(current_line) > 20
+                        and len(next_line) > 10
+                        and not current_line.endswith((".", "!", "?", ":", ";"))
+                        and not next_line.startswith(("\\", "-", "•", "*"))
+                        and not next_line[0].isupper()
+                        and not current_line.endswith("\\\\")
+                        and not re.match(r"^\d+\.", next_line)  # Not numbered list
                     )
 
                     if should_merge:
                         # Merge the lines with a space
-                        merged_line = current_line + ' ' + next_line
+                        merged_line = current_line + " " + next_line
                         fixed_lines.append(merged_line)
                         i += 2  # Skip next line since we merged it
                         continue
@@ -214,26 +216,25 @@ class BaseOutputFormatter(abc.ABC):
                 fixed_lines.append(lines[i])
                 i += 1
 
-            return '\n'.join(fixed_lines)
+            return "\n".join(fixed_lines)
 
         # Apply the fix
         content = fix_broken_sentences(content)
 
         # Fix multiple spaces
-        content = re.sub(r' +', ' ', content)
+        content = re.sub(r" +", " ", content)
 
         # Fix spacing around punctuation
-        content = re.sub(r' +([,.;:!?])', r'\1', content)
+        content = re.sub(r" +([,.;:!?])", r"\1", content)
 
         # Fix paragraph spacing (ensure proper spacing between paragraphs)
-        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
+        content = re.sub(r"\n\s*\n\s*\n+", "\n\n", content)
 
         # Fix spacing around section headers
-        content = re.sub(r'\n(\\section\{[^}]+\})\n*', r'\n\n\1\n', content)
-        content = re.sub(r'\n(\\subsection\{[^}]+\})\n*', r'\n\n\1\n', content)
+        content = re.sub(r"\n(\\section\{[^}]+\})\n*", r"\n\n\1\n", content)
+        content = re.sub(r"\n(\\subsection\{[^}]+\})\n*", r"\n\n\1\n", content)
 
         return content
-
 
     def _assemble_body(self, contents: Dict[str, str]) -> str:
         """Enhanced body assembly with better text flow"""
@@ -260,17 +261,17 @@ class BaseOutputFormatter(abc.ABC):
         }
 
         body_parts = []
-        
+
         for section in section_order:
             content = contents.get(section, "")
-            
+
             if content:
                 # Clean the content
                 cleaned_content = self._clean_latex_content(content)
-                
+
                 # Wrap tables
                 cleaned_content = self._wrap_tables_in_latex(cleaned_content)
-                
+
                 # Add section title if needed
                 section_title = section_titles[section]
                 if section_title is not None:
@@ -281,40 +282,43 @@ class BaseOutputFormatter(abc.ABC):
                         re.IGNORECASE,
                     )
                     if not starts_with_section:
-                        cleaned_content = f"\\section{{{section_title}}}\n\n{cleaned_content}"
-                
+                        cleaned_content = (
+                            f"\\section{{{section_title}}}\n\n{cleaned_content}"
+                        )
+
                 body_parts.append(cleaned_content)
-        
+
         # Join all parts with proper spacing
         body = "\n\n".join(body_parts)
-        
+
         # Apply table width adjustments
         body = self._adjust_table_width_in_latex(body)
-        
+
         # Add bibliography
         body += "\n\n\\bibliography{custom}"
-        
+
         # Final cleanup
         body = self._final_cleanup(body)
-        
+
         return body
 
     def _final_cleanup(self, content: str) -> str:
+        content = re.sub(r"\n\s*\n\s*\n+", "\n\n", content)
 
-        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
-        
-        content = re.sub(r'\n(\\begin\{[^}]+\})', r'\n\n\1', content)
-        content = re.sub(r'(\\end\{[^}]+\})\n', r'\1\n\n', content)
-        
-        content = re.sub(r'(\n\\section\{[^}]+\})\n*', r'\1\n\n', content)
-        content = re.sub(r'(\n\\subsection\{[^}]+\})\n*', r'\1\n\n', content)
-        
-        content = re.sub(r'(\n\\begin\{itemize\}|\n\\begin\{enumerate\})', r'\1\n', content)
-        content = re.sub(r'(\n\\end\{itemize\}|\n\\end\{enumerate\})', r'\1\n', content)
+        content = re.sub(r"\n(\\begin\{[^}]+\})", r"\n\n\1", content)
+        content = re.sub(r"(\\end\{[^}]+\})\n", r"\1\n\n", content)
 
-        content = re.sub(r'(\w+)\s*\n\s*(\\cite\{[^}]+\})', r'\1~\2', content)
-        content = re.sub(r'(\$[^$]+\$)\s*\n\s*(\w)', r'\1 \2', content)
-        
+        content = re.sub(r"(\n\\section\{[^}]+\})\n*", r"\1\n\n", content)
+        content = re.sub(r"(\n\\subsection\{[^}]+\})\n*", r"\1\n\n", content)
+
+        content = re.sub(
+            r"(\n\\begin\{itemize\}|\n\\begin\{enumerate\})", r"\1\n", content
+        )
+        content = re.sub(r"(\n\\end\{itemize\}|\n\\end\{enumerate\})", r"\1\n", content)
+
+        content = re.sub(r"(\w+)\s*\n\s*(\\cite\{[^}]+\})", r"\1~\2", content)
+        content = re.sub(r"(\$[^$]+\$)\s*\n\s*(\w)", r"\1 \2", content)
+
         return content.strip()
 
     def _insert_body_into_template(
@@ -341,16 +345,22 @@ class BaseOutputFormatter(abc.ABC):
             preamble = template_text[: begin_doc_match.end()]
             return preamble + "\n" + body_content + "\n" + ending
 
-    def _clean_invalid_citations(self, content: str, dest_template_dir: str, template: str) -> str:
-        
+    def _clean_invalid_citations(
+        self, content: str, dest_template_dir: str, template: str
+    ) -> str:
         if template == "acl":
             bib_path = osp.join(dest_template_dir, "custom.bib")
         if template == "iclr":
             bib_path = osp.join(dest_template_dir, "custom.bib")
 
-        with open(bib_path, 'r') as f:
+        with open(bib_path, "r") as f:
             bib_content = f.read()
-        valid_keys = set(re.findall(r'@(?:Article|Conference|InProceedings|Misc|Book|TechReport)\{([\w\-]+),', bib_content))
+        valid_keys = set(
+            re.findall(
+                r"@(?:Article|Conference|InProceedings|Misc|Book|TechReport)\{([\w\-]+),",
+                bib_content,
+            )
+        )
 
         def citation_replacer(match: Match[str]) -> str:
             raw_keys = match.group(1)
@@ -361,7 +371,8 @@ class BaseOutputFormatter(abc.ABC):
             else:
                 return ""
 
-        return re.sub(r'\\cite\{([^\}]+)\}', citation_replacer, content)
+        return re.sub(r"\\cite\{([^\}]+)\}", citation_replacer, content)
+
 
 class TemplateDownloader:
     @staticmethod
@@ -438,14 +449,15 @@ class ACLOutputFormatter(BaseOutputFormatter):
         name: str,
         timeout: int = 30,
     ) -> None:
-        
         body_content = self._assemble_body(content)
         body_content = self._clean_body_content(body_content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
-        body_content = self._clean_invalid_citations(body_content, dest_template_dir, self.template)
+        body_content = self._clean_invalid_citations(
+            body_content, dest_template_dir, self.template
+        )
         main_tex_path = osp.join(dest_template_dir, "acl_latex.tex")
 
         with open(main_tex_path, "r", encoding="utf-8") as f:
@@ -487,7 +499,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
         """Corrected LaTeX compilation using LuaLaTeX (for Overleaf compatibility)"""
         self._ensure_pdflatex()  # This also ensures lualatex is available
-        
+
         fname = "acl_latex.tex"
         if not osp.exists(osp.join(cwd, fname)):
             print(f"File {fname} not found in {cwd}.")
@@ -496,23 +508,33 @@ class ACLOutputFormatter(BaseOutputFormatter):
         try:
             # Method 1: Try latexmk (should handle everything automatically)
             result = subprocess.run(
-                ["latexmk", "-lualatex", "-bibtex", "-interaction=nonstopmode", "-file-line-error", fname],
+                [
+                    "latexmk",
+                    "-lualatex",
+                    "-bibtex",
+                    "-interaction=nonstopmode",
+                    "-file-line-error",
+                    fname,
+                ],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-            
+
             pdf_name = fname.replace(".tex", ".pdf")
             pdf_path = osp.join(cwd, pdf_name)
-            
+
             # If latexmk succeeded and PDF exists, we're done
             if osp.exists(pdf_path):
                 stdout_output = result.stdout.decode("utf-8", errors="ignore")
-                if not ("undefined" in stdout_output.lower() and "citation" in stdout_output.lower()):
+                if not (
+                    "undefined" in stdout_output.lower()
+                    and "citation" in stdout_output.lower()
+                ):
                     shutil.move(pdf_path, output_pdf_path)
                     return
-                
+
             # Method 2: Manual compilation (only if latexmk failed or has citation issues)
             # Step 1: First lualatex run
             subprocess.run(
@@ -522,7 +544,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-            
+
             # Step 2: Run bibtex (only if .aux file exists)
             aux_file = osp.join(cwd, fname.replace(".tex", ".aux"))
             if osp.exists(aux_file):
@@ -534,7 +556,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
                     stderr=subprocess.PIPE,
                     timeout=timeout,
                 )
-            
+
             # Step 3: Final lualatex run (only one more needed)
             subprocess.run(
                 ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
@@ -543,12 +565,14 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-                    
+
         except subprocess.TimeoutExpired:
             print(f"LaTeX compilation timed out after {timeout} seconds.")
             return
         except FileNotFoundError:
-            print("LaTeX commands not found. Make sure lualatex and bibtex are installed.")
+            print(
+                "LaTeX commands not found. Make sure lualatex and bibtex are installed."
+            )
             return
         except Exception:
             return
@@ -560,6 +584,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 shutil.move(pdf_source, output_pdf_path)
             except Exception:
                 pass
+
 
 class ICLROutputFormatter(BaseOutputFormatter):
     def __init__(self, model: str, client: Any) -> None:
@@ -595,7 +620,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
 
         with open(main_tex_path, "r") as f:
             final_content = f.read()
-        
+
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
         self.watermarker._add_watermark(
             output_pdf_path,
@@ -630,23 +655,33 @@ class ICLROutputFormatter(BaseOutputFormatter):
         try:
             # Method 1: Try latexmk (should handle everything automatically)
             result = subprocess.run(
-                ["latexmk", "-lualatex", "-bibtex", "-interaction=nonstopmode", "-file-line-error", fname],
+                [
+                    "latexmk",
+                    "-lualatex",
+                    "-bibtex",
+                    "-interaction=nonstopmode",
+                    "-file-line-error",
+                    fname,
+                ],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-            
+
             pdf_name = fname.replace(".tex", ".pdf")
             pdf_path = osp.join(cwd, pdf_name)
-            
+
             # If latexmk succeeded and PDF exists, we're done
             if osp.exists(pdf_path):
                 stdout_output = result.stdout.decode("utf-8", errors="ignore")
-                if not ("undefined" in stdout_output.lower() and "citation" in stdout_output.lower()):
+                if not (
+                    "undefined" in stdout_output.lower()
+                    and "citation" in stdout_output.lower()
+                ):
                     shutil.move(pdf_path, output_pdf_path)
                     return
-                
+
             # Method 2: Manual compilation (only if latexmk failed or has citation issues)
             # Step 1: First lualatex run
             subprocess.run(
@@ -656,7 +691,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-            
+
             # Step 2: Run bibtex (only if .aux file exists)
             aux_file = osp.join(cwd, fname.replace(".tex", ".aux"))
             if osp.exists(aux_file):
@@ -668,7 +703,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
                     stderr=subprocess.PIPE,
                     timeout=timeout,
                 )
-            
+
             # Step 3: Final lualatex run (only one more needed)
             subprocess.run(
                 ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
@@ -677,12 +712,14 @@ class ICLROutputFormatter(BaseOutputFormatter):
                 stderr=subprocess.PIPE,
                 timeout=timeout,
             )
-                    
+
         except subprocess.TimeoutExpired:
             print(f"LaTeX compilation timed out after {timeout} seconds.")
             return
         except FileNotFoundError:
-            print("LaTeX commands not found. Make sure lualatex and bibtex are installed.")
+            print(
+                "LaTeX commands not found. Make sure lualatex and bibtex are installed."
+            )
             return
         except Exception:
             return

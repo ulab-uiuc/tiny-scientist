@@ -61,7 +61,9 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def run(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> Tuple[str, str]:
+    def run(
+        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
+    ) -> Tuple[str, str]:
         is_experimental = idea.get("is_experimental", True)
 
         code, experiment_result, baseline_result = "", "", ""
@@ -106,14 +108,20 @@ class Writer:
 
         for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
-        
+
         self._write_related_work(idea)
         self._refine_paper()
 
         self._add_citations(idea)
         self._generate_diagram_for_section()
 
-        paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_").lower().replace(" ", "_")
+        paper_name = (
+            idea.get("Title", "Research Paper")
+            .lower()
+            .replace(" ", "_")
+            .lower()
+            .replace(" ", "_")
+        )
 
         output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         self.formatter.run(
@@ -171,7 +179,6 @@ class Writer:
                     cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
                     cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
 
-
                     raw_svg = diagram["svg"]
 
                     cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
@@ -191,7 +198,7 @@ class Writer:
             \\caption{{{caption}}}
             \\label{{fig:{section.lower()}}}
             \\end{{figure}}
-            """         
+            """
                     marker = "```"
 
                     if self.generated_sections[section].strip().endswith(marker):
@@ -468,7 +475,7 @@ class Writer:
                 )
 
                 self.generated_sections[section] = refined_section_content
-     
+
     def _add_citations(self, idea: Dict[str, Any]) -> None:
         idea_title = idea.get("Title", "Research Paper")
 
@@ -501,7 +508,6 @@ class Writer:
                     except json.JSONDecodeError:
                         new_titles = extract_json_between_markers(response)
 
-        
                     collected_papers.extend(new_titles)
                     paper_source = self._search_reference(collected_papers)
 
@@ -546,7 +552,7 @@ class Writer:
                                 refined_section,
                             )
                     self.generated_sections[section] = refined_section
-                    
+
                 except Exception:
                     print(f"[ERROR] Failed to add citations to section: {section}")
                     traceback.print_exc()
