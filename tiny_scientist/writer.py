@@ -61,7 +61,42 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def run(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> Tuple[str, str]:
+    def _cleanup_papers_directory(self) -> None:
+        """Clean up the papers directory by removing old generated files."""
+        try:
+            import shutil
+
+            if os.path.exists(self.output_dir):
+                print(f"🧹 Cleaning up papers directory: {self.output_dir}")
+
+                # Remove all files and subdirectories in the papers directory
+                for filename in os.listdir(self.output_dir):
+                    file_path = os.path.join(self.output_dir, filename)
+                    try:
+                        if os.path.isfile(file_path) or os.path.islink(file_path):
+                            os.unlink(file_path)
+                            print(f"   Removed file: {filename}")
+                        elif os.path.isdir(file_path):
+                            shutil.rmtree(file_path)
+                            print(f"   Removed directory: {filename}")
+                    except Exception as e:
+                        print(f"   Failed to delete {file_path}: {e}")
+
+                print("✅ Papers directory cleaned up")
+            else:
+                print(f"📁 Papers directory does not exist yet: {self.output_dir}")
+
+        except Exception as e:
+            print(f"⚠️ Error during papers directory cleanup: {e}")
+            # Don't fail the entire process if cleanup fails
+            pass
+
+    def run(
+        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
+    ) -> Tuple[str, str]:
+        # Clean up the papers directory before generating new paper
+        self._cleanup_papers_directory()
+
         is_experimental = idea.get("is_experimental", True)
 
         code, experiment_result, baseline_result = "", "", ""
@@ -106,14 +141,20 @@ class Writer:
 
         for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
-        
+
         self._write_related_work(idea)
         self._refine_paper()
 
         self._add_citations(idea)
         self._generate_diagram_for_section()
 
-        paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_").lower().replace(" ", "_")
+        paper_name = (
+            idea.get("Title", "Research Paper")
+            .lower()
+            .replace(" ", "_")
+            .lower()
+            .replace(" ", "_")
+        )
 
         output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         self.formatter.run(
@@ -171,7 +212,6 @@ class Writer:
                     cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
                     cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
 
-
                     raw_svg = diagram["svg"]
 
                     cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
@@ -191,7 +231,7 @@ class Writer:
             \\caption{{{caption}}}
             \\label{{fig:{section.lower()}}}
             \\end{{figure}}
-            """         
+            """
                     marker = "```"
 
                     if self.generated_sections[section].strip().endswith(marker):
@@ -468,7 +508,7 @@ class Writer:
                 )
 
                 self.generated_sections[section] = refined_section_content
-     
+
     def _add_citations(self, idea: Dict[str, Any]) -> None:
         idea_title = idea.get("Title", "Research Paper")
 
@@ -501,7 +541,6 @@ class Writer:
                     except json.JSONDecodeError:
                         new_titles = extract_json_between_markers(response)
 
-        
                     collected_papers.extend(new_titles)
                     paper_source = self._search_reference(collected_papers)
 
@@ -546,7 +585,7 @@ class Writer:
                                 refined_section,
                             )
                     self.generated_sections[section] = refined_section
-                    
+
                 except Exception:
                     print(f"[ERROR] Failed to add citations to section: {section}")
                     traceback.print_exc()
