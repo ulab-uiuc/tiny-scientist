@@ -569,6 +569,14 @@ Be critical and realistic in your assessments."""
             print("Failed to generate a valid idea")
             return json.dumps({})
 
+        # Extract comparison table if present
+        try:
+            comparison_table = text.split("```markdown")[1].split("```")[0].strip()
+            idea["ComparisonTable"] = comparison_table
+        except IndexError:
+            # No comparison table found, continue without it
+            pass
+
         self.cost_tracker.report()
         return json.dumps(idea, indent=2)
 
