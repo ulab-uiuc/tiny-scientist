@@ -61,42 +61,9 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def _cleanup_papers_directory(self) -> None:
-        """Clean up the papers directory by removing old generated files."""
-        try:
-            import shutil
-
-            if os.path.exists(self.output_dir):
-                print(f"🧹 Cleaning up papers directory: {self.output_dir}")
-
-                # Remove all files and subdirectories in the papers directory
-                for filename in os.listdir(self.output_dir):
-                    file_path = os.path.join(self.output_dir, filename)
-                    try:
-                        if os.path.isfile(file_path) or os.path.islink(file_path):
-                            os.unlink(file_path)
-                            print(f"   Removed file: {filename}")
-                        elif os.path.isdir(file_path):
-                            shutil.rmtree(file_path)
-                            print(f"   Removed directory: {filename}")
-                    except Exception as e:
-                        print(f"   Failed to delete {file_path}: {e}")
-
-                print("✅ Papers directory cleaned up")
-            else:
-                print(f"📁 Papers directory does not exist yet: {self.output_dir}")
-
-        except Exception as e:
-            print(f"⚠️ Error during papers directory cleanup: {e}")
-            # Don't fail the entire process if cleanup fails
-            pass
-
     def run(
         self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
     ) -> Tuple[str, str]:
-        # Clean up the papers directory before generating new paper
-        self._cleanup_papers_directory()
-
         is_experimental = idea.get("is_experimental", True)
 
         code, experiment_result, baseline_result = "", "", ""

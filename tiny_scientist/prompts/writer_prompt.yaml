@@ -155,7 +155,7 @@ section_prompt:
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
- 
+
     **Your goal is to write a compelling, multi-paragraph introduction** that logically develops the background, motivation, and research gap. The tone should be formal, informative, and engaging.
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.

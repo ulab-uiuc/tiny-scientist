@@ -1,13 +1,9 @@
-import os
-import tempfile
 import textwrap
 from io import BytesIO
 
-from pypdf import PageObject, PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib.colors import Color
-from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from rich import print
 
 
 class WaterMarker:
@@ -15,7 +11,9 @@ class WaterMarker:
         self.opacity = opacity
         self.font_size = font_size
 
-    def _add_watermark(self, original_pdf_path: str, watermark_text: str, output_pdf_path: str) -> None:
+    def _add_watermark(
+        self, original_pdf_path: str, watermark_text: str, output_pdf_path: str
+    ) -> None:
         reader = PdfReader(original_pdf_path)
         writer = PdfWriter()
 
@@ -28,9 +26,13 @@ class WaterMarker:
             c = canvas.Canvas(packet, pagesize=(page_width, page_height))
 
             # Configure font size relative to page width
-            base_font_size = min(page_width, page_height) * 0.035  # ~3.5% of min dimension
+            base_font_size = (
+                min(page_width, page_height) * 0.035
+            )  # ~3.5% of min dimension
             c.setFont("Helvetica-Bold", base_font_size)
-            c.setFillColor(Color(0.6, 0.6, 0.6, alpha=0.06))  # very low opacity to avoid disruption
+            c.setFillColor(
+                Color(0.6, 0.6, 0.6, alpha=0.06)
+            )  # very low opacity to avoid disruption
 
             # Wrap long watermark text to fit the diagonal
             max_chars = 25
