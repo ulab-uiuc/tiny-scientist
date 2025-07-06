@@ -25,6 +25,7 @@
 - 💻 **Code**: Automatically generate and run experiments based on the idea.
 - ✍️ **Write**: Convert your results and ideas into a conference-style paper.
 - 📝 **Review**: Review any form of paper and output structured feedback in JSON.
+- 🔧 **MCP**: The extensible tool use protocol by Anthropic
 
 #### Software Architecture
 
@@ -167,7 +168,7 @@ We’re working on extending support for more tools, models, and paper formats. 
 
 ```
 @misc{tinyscientist,
-author       = {Haofei Yu and Keyang Xuan and Fenghai Li and Zijie Lei and Jiaxuan You},
+author       = {Haofei Yu and Keyang Xuan and Fenghai Li and Kunlun Zhu and Zijie Lei and Jiaxun Zhang and Ziheng Qi and Jiaxuan You},
 title        = {TinyScientist: A Lightweight Framework for Building Research Agents},
 howpublished = {https://github.com/ulab-uiuc/tiny-scientist},
 note         = {Accessed: 2025-04-14},
