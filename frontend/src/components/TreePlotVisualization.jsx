@@ -677,6 +677,15 @@ const TreePlotVisualization = () => {
                 boxSizing: 'border-box',
               }}
             />
+            <p style={{
+              fontSize: '0.75rem',
+              color: '#ef4444',
+              marginTop: '4px',
+              marginBottom: '0',
+              fontStyle: 'italic'
+            }}>
+              *We will not save the API key, it is only used for your following usage
+            </p>
           </div>
 
           {/* Error Message */}

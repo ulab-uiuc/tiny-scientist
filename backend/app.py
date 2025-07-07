@@ -92,18 +92,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
         max_iters=4,
         max_runs=3,
     )
-    writer = Writer(
-        model=model,
-        output_dir=papers_dir,
-        template="acl",
-    )
-    reviewer = Reviewer(
-        model=model,
-        tools=[],
-        num_reviews=1,
-        num_reflections=1,
-        temperature=0.75,
-    )
+
     return jsonify({"status": "configured", "model": model})
 
 
@@ -638,20 +627,16 @@ def serve_experiment_file(file_path: str) -> Union[Response, tuple[Response, int
 @app.route("/api/review", methods=["POST"])
 def review_paper() -> Union[Response, tuple[Response, int]]:
     """Review a paper using the Reviewer class"""
-    global reviewer
 
     print("📝 Paper review request received")
-    print(f"Reviewer configured: {reviewer is not None}")
-
-    if reviewer is None:
-        print("ERROR: Reviewer not configured")
-        return jsonify({"error": "Reviewer not configured"}), 400
 
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
 
     pdf_path = data.get("pdf_path")
+    s2_api_key = data.get("s2_api_key")
+
     if not pdf_path:
         return jsonify({"error": "No PDF path provided"}), 400
 
@@ -670,9 +655,16 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
         # Check if file exists
         if not os.path.exists(absolute_pdf_path):
             return jsonify({"error": f"PDF file not found: {absolute_pdf_path}"}), 404
-
+        reviewer_model = session.get("model", "deepseek-chat")  # Get model from session
         print("🔍 Starting paper review...")
-
+        reviewer = Reviewer(
+            model=reviewer_model,
+            tools=[],
+            num_reviews=1,
+            num_reflections=1,
+            temperature=0.75,
+            s2_api_key=s2_api_key,
+        )
         # Call reviewer.review() to get a single review
         review_result = reviewer.review(absolute_pdf_path)
 
