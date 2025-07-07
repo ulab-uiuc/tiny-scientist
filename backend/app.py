@@ -29,7 +29,7 @@ class WebSocketCapture(io.StringIO):
         return len(text)
 
 
-def websocket_print(*args, **kwargs) -> None:
+def websocket_print(*args: Any, **kwargs: Any) -> None:
     # Call original print
     original_print(*args, **kwargs)
     # Also emit via WebSocket in real-time
