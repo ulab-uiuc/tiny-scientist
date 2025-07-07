@@ -20,7 +20,7 @@ log_buffer = []
 
 
 class WebSocketCapture(io.StringIO):
-    def write(self, text):
+    def write(self, text: str) -> int:
         # Also write to original stdout
         original_stdout.write(text)
         # Store for WebSocket emission
@@ -29,7 +29,7 @@ class WebSocketCapture(io.StringIO):
         return len(text)
 
 
-def websocket_print(*args, **kwargs):
+def websocket_print(*args, **kwargs) -> None:
     # Call original print
     original_print(*args, **kwargs)
     # Also emit via WebSocket in real-time
@@ -48,13 +48,13 @@ try:
     rich.print = websocket_print
     # Also override the console print if rich.console exists
     if hasattr(rich, "console"):
-        rich.console.print = websocket_print
+        rich.console.print = websocket_print  # type: ignore
 except ImportError:
     pass
 
 
 # Create a function to emit buffered logs when socketio is ready
-def emit_buffered_logs():
+def emit_buffered_logs() -> None:
     global log_buffer
     try:
         for message in log_buffer:
@@ -72,7 +72,7 @@ def emit_buffered_logs():
 
 
 # Create a function to emit logs in real-time
-def emit_log_realtime(message: str, level: str = "info"):
+def emit_log_realtime(message: str, level: str = "info") -> None:
     try:
         # Check if socketio is available
         if "socketio" in globals():
@@ -96,7 +96,7 @@ from tiny_scientist.writer import Writer  # noqa: E402
 
 # Patch print in the imported modules - this needs to happen after import
 # The modules use "from rich import print" so we need to patch their local print
-def patch_module_print():
+def patch_module_print() -> None:
     import sys
 
     modules_to_patch = [
@@ -109,7 +109,7 @@ def patch_module_print():
     for module in modules_to_patch:
         if module and hasattr(module, "print"):
             # Replace with our websocket print
-            module.print = websocket_print
+            module.print = websocket_print  # type: ignore
             print(f"✅ Patched print in {module.__name__}")
 
 
