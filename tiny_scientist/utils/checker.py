@@ -6,10 +6,12 @@ from .pricing import calculate_pricing
 
 
 class BudgetExceededError(Exception):
-    pass
+    """Raised when a call would exceed the configured budget."""
 
 
-class CostTracker:
+class Checker:
+    """Track API usage cost and enforce a spending budget."""
+
     def __init__(self, budget: Optional[float] = None) -> None:
         self.total_cost = 0.0
         self.per_task_cost: Dict[str, float] = {}
@@ -58,3 +60,13 @@ class CostTracker:
 
     def get_task_cost(self, task_name: str) -> float:
         return self.per_task_cost.get(task_name, 0.0)
+
+    def get_remaining_budget(self) -> Optional[float]:
+        """Return remaining budget if a limit is set."""
+        if self.budget is None:
+            return None
+        return self.budget - self.total_cost
+
+    def get_budget(self) -> Optional[float]:
+        """Return the configured budget."""
+        return self.budget
