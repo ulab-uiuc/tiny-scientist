@@ -1,21 +1,128 @@
+import builtins
+import io
 import os
 import sys
 from typing import Any, Dict, Optional, Union
 
 from flask import Flask, Response, jsonify, request, send_file, session
 from flask_cors import CORS
+from flask_socketio import SocketIO
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+original_print = builtins.print
+original_stdout = sys.stdout
+
+# Buffer to store messages until socketio is ready
+log_buffer = []
+
+
+class WebSocketCapture(io.StringIO):
+    def write(self, text: str) -> int:
+        # Also write to original stdout
+        original_stdout.write(text)
+        # Store for WebSocket emission
+        if text.strip():  # Only non-empty messages
+            log_buffer.append(text.strip())
+        return len(text)
+
+
+def websocket_print(*args: Any, **kwargs: Any) -> None:
+    # Call original print
+    original_print(*args, **kwargs)
+    # Also emit via WebSocket in real-time
+    message = " ".join(str(arg) for arg in args)
+    if message.strip():
+        emit_log_realtime(message.strip())
+
+
+# Override print globally before importing tiny_scientist modules
+builtins.print = websocket_print
+
+# Also need to override rich.print which is used in many modules
+try:
+    import rich
+
+    rich.print = websocket_print
+    # Also override the console print if rich.console exists
+    if hasattr(rich, "console"):
+        rich.console.print = websocket_print  # type: ignore
+except ImportError:
+    pass
+
+
+# Create a function to emit buffered logs when socketio is ready
+def emit_buffered_logs() -> None:
+    global log_buffer
+    try:
+        for message in log_buffer:
+            socketio.emit(
+                "log",
+                {
+                    "message": message,
+                    "level": "info",
+                    "timestamp": __import__("time").time(),
+                },
+            )
+        log_buffer = []  # Clear buffer after emitting
+    except Exception:
+        pass
+
+
+# Create a function to emit logs in real-time
+def emit_log_realtime(message: str, level: str = "info") -> None:
+    try:
+        # Check if socketio is available
+        if "socketio" in globals():
+            socketio.emit(
+                "log",
+                {
+                    "message": message,
+                    "level": level,
+                    "timestamp": __import__("time").time(),
+                },
+            )
+    except Exception:
+        pass
+
+
 from tiny_scientist.coder import Coder  # noqa: E402
 from tiny_scientist.reviewer import Reviewer  # noqa: E402
 from tiny_scientist.thinker import Thinker  # noqa: E402
 from tiny_scientist.writer import Writer  # noqa: E402
 
+
+# Patch print in the imported modules - this needs to happen after import
+# The modules use "from rich import print" so we need to patch their local print
+def patch_module_print() -> None:
+    import sys
+
+    modules_to_patch = [
+        sys.modules.get("tiny_scientist.thinker"),
+        sys.modules.get("tiny_scientist.coder"),
+        sys.modules.get("tiny_scientist.writer"),
+        sys.modules.get("tiny_scientist.reviewer"),
+    ]
+
+    for module in modules_to_patch:
+        if module and hasattr(module, "print"):
+            # Replace with our websocket print
+            module.print = websocket_print  # type: ignore
+            print(f"✅ Patched print in {module.__name__}")
+
+
+# Call the patching function
+patch_module_print()
+
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here"
 CORS(app, supports_credentials=True)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Print override is now active
+print("🚀 Backend server starting with WebSocket logging enabled!")
 
 
 thinker: Optional[Thinker] = None
@@ -99,6 +206,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/generate-initial", methods=["POST"])
 def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
+    emit_buffered_logs()  # Emit any buffered logs from module initialization
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -400,6 +508,7 @@ def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
 @app.route("/api/code", methods=["POST"])
 def generate_code() -> Union[Response, tuple[Response, int]]:
     """Generate code synchronously and return when complete"""
+    emit_buffered_logs()  # Emit any buffered logs
     global coder
 
     if coder is None:
@@ -694,4 +803,11 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
 if __name__ == "__main__":
     # Configure Flask for long-running requests
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-    app.run(debug=True, use_reloader=False, port=8080, host="0.0.0.0", threaded=True)
+    socketio.run(
+        app,
+        debug=True,
+        use_reloader=False,
+        port=8080,
+        host="0.0.0.0",
+        allow_unsafe_werkzeug=True,
+    )
