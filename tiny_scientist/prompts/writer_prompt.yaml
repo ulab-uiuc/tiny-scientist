@@ -8,6 +8,12 @@ write_system_prompt:
   When including tables, always use proper LaTeX tabular format (not Markdown).
   Avoid using Markdown-style tables (e.g., those starting with `| Column |`) — they are not compatible with LaTeX rendering and will break the document.
 
+  [LaTeX Formatting Reminder]
+  - Use `\%` to indicate percentage values (e.g., 93\%)
+  - Do not escape comment `%` symbols (e.g., `% comment`)
+  - Wrap math expressions with `$...$`
+  - Escape special characters, `_` as `\_`, `&` as `\&`, `#` as `\#`, etc.
+
   The purpose of this draft is to flesh out the content. Citations will be added later during the refinement process.
   Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
 
@@ -45,6 +51,7 @@ section_tips:
 
   Method: |
     - What we do. Why we do it. All described using the general Formalism introduced in the Problem Setting and building on top of the concepts / foundations introduced in Background.
+    - Note: Don't directly put any code in this section, but you can refer to the code in the Method section.
 
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
@@ -79,17 +86,19 @@ error_list: |
   - LaTeX syntax errors
   - Numerical results that do not come from explicit experiments and logs
   - Repeatedly defined figure labels
+  - References to papers that are not in the .bib file, DO NOT ADD ANY NEW CITATIONS!
   - Unnecessary verbosity or repetition, unclear text
-  - Results or insights in the notes.txt that have not yet been included
+  - Results or insights in the `notes.txt` that have not yet need included
   - Any relevant figures that have not yet been included in the text
-  - Improper closing of environments (e.g., use \end{figure} for \begin{figure})
-  - Duplicate headers (e.g., multiple \section{Introduction})
-  - Unescaped special characters (e.g., use shakespeare\_char instead of shakespeare_char)
-  - Incorrect closing of environments (e.g., </end{figure}> instead of \end{figure})
+  - Closing any \\begin{{figure}} with a \\end{{figure}} and \\begin{{table}} with a \\end{{table}}, etc.
+  - Duplicate headers, e.g. duplicated \\section{{Introduction}} or \\end{{document}}
+  - Unescaped symbols, e.g. shakespeare_char should be shakespeare\\_char in text
+  - Incorrect closing of environments, e.g. </end{{figure}}> instead of \\end{{figure}}
 
 refinement_prompt: |
-  Great job! Now, please review and refine only the {section} you just wrote.
+  Great job! Now criticize and refine only the {section} that you just wrote.
   Make this complete in this pass, do not leave any placeholders.
+
   Pay particular attention to fixing any errors such as:
   {error_list}
 
@@ -102,7 +111,7 @@ refinement_prompt: |
   """
 
 citation_system_prompt: |
-  You are an academic writing assistant helping add and improve citation coverage in a research paper.
+  You are an academic writing assistant helping add and embed citation coverage in a research paper.
 
   Your role:
   - When asked to suggest citations, return only real, published academic paper titles that are highly relevant to the given content.
@@ -110,13 +119,11 @@ citation_system_prompt: |
 
   Do not invent or fabricate any citations.
   Do not output BibTeX, author names, or publication details.
+  Be thorough - missing citations is not acceptable
   Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
 
 abstract_prompt: |
-  We've provided the `latex/template.tex` file to the project. We will be filling it in section by section.
-
-  First, please fill in the "Title" and "Abstract" sections of the writeup.
-
+  You are writing the Abstract section of a top-tier AI research paper.
   Some tips are provided below:
   {abstract_tips}
 
@@ -129,14 +136,8 @@ abstract_prompt: |
   - Novelty: **{novelty}**
   - Experiment Plan: **{experiment}**
 
-  Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-  Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-
-  Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
   In this pass, do not reference anything in later sections of the paper.
-
-  Before every paragraph, please include a brief description of what you plan to write in that paragraph in a comment.
-
+  The output must be pure LaTeX and enclosed with \begin{{abstract}} ... \end{{abstract}}.
   Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
 
@@ -155,11 +156,19 @@ section_prompt:
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
 
+    **Your goal is to write a compelling, multi-paragraph introduction** that logically develops the background, motivation, and research gap. The tone should be formal, informative, and engaging.
+
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
+    Use at least **4 paragraphs**, and aim for **250–300 words**.
+
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
     In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Introduction}}
+    ...
 
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
@@ -182,6 +191,10 @@ section_prompt:
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
     In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Method}}
+    ...
 
   Experimental_Setup: |
     Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
@@ -208,6 +221,16 @@ section_prompt:
     In this pass, do not reference anything in later sections of the paper.
 
 
+    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
+    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Experiemtnal Setup}}
+    ...
+
   Discussion: |
     Please fill in the Discussion section of the writeup. Follow the instructions carefully.
 
@@ -223,6 +246,10 @@ section_prompt:
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
     In this pass, do not reference anything in later sections of the paper.
 
+    Begin with:
+    \section{{Discussion}}
+    ...
+
   Results: |
     Please fill in the Results section of the research paper. Follow the instructions carefully.
 
@@ -233,7 +260,11 @@ section_prompt:
     - Baseline results** (may be empty if not available): **{baseline_results}**
 
     Ensure that all results presented have been obtained and are recorded in the logs.
-    Do not hallucinate numerical results or make unverifiable claims.
+    In this pass, do not reference anything in later sections of the paper.
+
+    Begin with:
+    \section{{Results}}
+    ...
 
   Conclusion: |
     Please fill in the Conclusion section of the research paper. Follow the instructions carefully.
@@ -245,19 +276,12 @@ section_prompt:
     Summarize its findings based on the results section and highlight its importance.
 
     Keep the conclusion concise and ensure it aligns with the claims made throughout the paper.
+    In this pass, do not reference anything in later sections of the paper.
 
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-  Analysis: |
-    Please write the main Analysis section of the paper.
-    This section should develop the core argument based on the paper's planned approach.
-    You do not have experimental result logs. Instead, you must generate a coherent analysis that logically follows from the research plan.
+    Begin with:
+    \section{{Conclusion}}
+    ...
 
-    - The core research problem is: **{problem}**
-    - The paper's approach to solving it is: **{approach}**
-    - The detailed plan for this is: **{research_plan}**
-
-    Your task is to write the detailed analytical content that fulfills this plan. This will form the main body of the paper's argument.
 citation_related_work_prompt: |
   Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
 
@@ -281,9 +305,11 @@ add_citation_prompt: |
   The challenges of the paper are: {challenges}
 
   You are reviewing the following section: {section}
-  Current content of the section:
-  {section_content}
 
+  Current content of the section:
+  """
+  {section_content}
+  """
   Based on the type of section (e.g., Introduction, Method, Experimental Setup, Discussion) and the depth of the content provided, determine how many references would be reasonably appropriate to support the key statements and claims.
 
   Your task:
@@ -292,7 +318,7 @@ add_citation_prompt: |
   - Prefer widely recognized or foundational papers if possible.
   - Do **not** fabricate or suggest speculative titles.
 
-  You **must return at least 4** real paper titles.
+  You **must return at least 6** real paper titles.
   All titles must be real and verifiable.
   Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
 
@@ -301,22 +327,27 @@ add_citation_prompt: |
   ```
 
 embed_citation_prompt: |
-  You are assisting with inserting citation placeholders into an academic paper draft.
+  You are assisting with embedding citation placeholders into an academic LaTeX section.
 
-  Section: {section}
-  Below is the current content of the section:
+  You are reviewing the following section: {section}
 
-  You must add citations from the following list of real, relevant paper titles:
+  Here is the current content of the section:
+  """
+  {section_content}
+  """
+
+  You must cite **all** of the following papers using LaTeX \cite{{...}} format:
   {references}
 
-  These papers were selected specifically because they relate to the section's content. Your task is to embed **all of these citations** into the section where they are most relevant.
+  INSTRUCTIONS:
+  - Integrate citations into the most relevant parts of the section.
+  - Use `\cite{{...}}` format strictly (no markdown, no commentary).
+  - Do not fabricate new citations.
+  - Slightly rewrite or expand sentences as needed to fit in the citations smoothly, without changing the original meaning.
+  - Preserve and return the entire section content with all citations embedded.
+  - The output must be valid, standalone LaTeX with consistent formatting.
 
-  Instructions:
-  - Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
-  - You must cite **all** of the following papers at least once using \cite{{...}}.
-  - You may adjust the sentence slightly to help integrate the citation smoothly, but preserve the original meaning and tone.
-
-  Return the updated section as valid LaTeX with citation placeholders embedded. No additional commentary or explanation should be included.
+  FINAL OUTPUT: Return only valid LaTeX (no markdown, no explanations).
 
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.

@@ -67,8 +67,8 @@ Be critical and realistic in your assessments."""
         3. Novelty: How original is the idea compared to existing work?
         4. Feasibility: How practical is implementation within reasonable resource constraints?
         5. Impact: What is the potential impact of this research on the field and broader applications?"""
-
         self.cost_tracker = cost_tracker or CostTracker()
+
         self.enable_ethical_defense = enable_ethical_defense
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
@@ -310,12 +310,10 @@ Be critical and realistic in your assessments."""
 
         print("Generating experimental plan for the idea...")
         if is_experimental:
-            print("Generating experimental plan for AI-related idea...")
             prompt = self.prompts.experiment_plan_prompt.format(
                 idea=idea, intent=self.intent
             )
         else:
-            print("Generating research plan for non-experimental idea...")
             prompt = self.prompts.non_experiment_plan_prompt.format(
                 idea=idea, intent=self.intent
             )
@@ -568,6 +566,14 @@ Be critical and realistic in your assessments."""
         if not idea:
             print("Failed to generate a valid idea")
             return json.dumps({})
+
+        # Extract comparison table if present
+        try:
+            comparison_table = text.split("```markdown")[1].split("```")[0].strip()
+            idea["ComparisonTable"] = comparison_table
+        except IndexError:
+            # No comparison table found, continue without it
+            pass
 
         self.cost_tracker.report()
         return json.dumps(idea, indent=2)

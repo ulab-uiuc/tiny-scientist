@@ -283,11 +283,6 @@ class Coder:
             elif isinstance(results, list):
                 results = {f"entry_{i+1}": entry for i, entry in enumerate(results)}
 
-            results = {
-                k: v["means"] if isinstance(v, dict) and "means" in v else v
-                for k, v in results.items()
-            }
-
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1
             )
