@@ -118,7 +118,7 @@ patch_module_print()
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here"
-CORS(app, supports_credentials=True)
+CORS(app, supports_credentials=True, origins=["https://app.auto-research.dev", "http://app.auto-research.dev", "http://localhost:3000"])
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Print override is now active
@@ -807,7 +807,7 @@ if __name__ == "__main__":
         app,
         debug=True,
         use_reloader=False,
-        port=8080,
+        port=5000,
         host="0.0.0.0",
         allow_unsafe_werkzeug=True,
     )
