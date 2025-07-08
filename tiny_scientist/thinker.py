@@ -314,12 +314,10 @@ Be critical and realistic in your assessments."""
 
         print("Generating experimental plan for the idea...")
         if is_experimental:
-            print("Generating experimental plan for AI-related idea...")
             prompt = self.prompts.experiment_plan_prompt.format(
                 idea=idea, intent=self.intent
             )
         else:
-            print("Generating research plan for non-experimental idea...")
             prompt = self.prompts.non_experiment_plan_prompt.format(
                 idea=idea, intent=self.intent
             )

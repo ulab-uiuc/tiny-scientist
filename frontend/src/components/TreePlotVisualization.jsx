@@ -6,6 +6,7 @@ import Editor from '@monaco-editor/react';
 import TopNav from './TopNav';
 import IdeaCard from './IdeaCard';
 import IdeaFactorsAndScoresCard from './IdeaFactorsAndScoresCard';
+import LogDisplay from './LogDisplay';
 
 
 // Helper components defined outside the main component to preserve state
@@ -425,6 +426,9 @@ const TreePlotVisualization = () => {
 
   // New state for Code View and Paper View
   const [showProceedConfirm, setShowProceedConfirm] = useState(false);
+
+  // State for log display
+  const [showLogs, setShowLogs] = useState(false);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [isGeneratingPaper, setIsGeneratingPaper] = useState(false);
   const [codeResult, setCodeResult] = useState(null);
@@ -580,6 +584,44 @@ const TreePlotVisualization = () => {
     }
   };
 
+  // Quick setup handler for GPT-4o with pre-configured API key
+  const handleQuickSetup = async () => {
+    // Pre-configured API key - replace with your actual OpenAI API key
+    const preConfiguredApiKey = 'your-openai-api-key-here';
+
+    // Auto-configure with GPT-4o
+    setSelectedModel('gpt-4o');
+    setApiKey(preConfiguredApiKey);
+    setConfigError('');
+    setOperationStatus('Configuring model...');
+
+    try {
+      const response = await fetch('/api/configure', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          api_key: preConfiguredApiKey,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to configure model');
+      }
+
+      setIsConfigured(true);
+      setOperationStatus('');
+      setCurrentView('exploration'); // Auto-switch to exploration view
+    } catch (err) {
+      console.error('Quick setup error:', err);
+      setConfigError(err.message);
+      setOperationStatus('');
+    }
+  };
+
   // Overview Component
   const OverviewPage = () => (
     <div
@@ -677,6 +719,15 @@ const TreePlotVisualization = () => {
                 boxSizing: 'border-box',
               }}
             />
+            <p style={{
+              fontSize: '0.75rem',
+              color: '#ef4444',
+              marginTop: '4px',
+              marginBottom: '0',
+              fontStyle: 'italic'
+            }}>
+              *We will not save the API key, it is only used for your following usage
+            </p>
           </div>
 
           {/* Error Message */}
@@ -715,6 +766,38 @@ const TreePlotVisualization = () => {
           >
             {operationStatus === 'Configuring model...' ? 'Configuring...' : 'Start Session'}
           </button>
+
+          {/* Quick Setup Button */}
+          {!isConfigured && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={handleQuickSetup}
+                disabled={operationStatus === 'Configuring model...'}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  cursor: operationStatus === 'Configuring model...' ? 'not-allowed' : 'pointer',
+                  opacity: operationStatus === 'Configuring model...' ? 0.7 : 1,
+                }}
+              >
+                🚀 Quick Setup with GPT-4o
+              </button>
+              <div style={{
+                marginTop: '4px',
+                fontSize: '0.7rem',
+                color: '#6b7280',
+                fontStyle: 'italic'
+              }}>
+                Auto-configure with recommended settings
+              </div>
+            </div>
+          )}
 
           {/* Status for already configured */}
           {isConfigured && (
@@ -959,6 +1042,7 @@ const TreePlotVisualization = () => {
     setIsEvaluating(true);
     setOperationStatus('Evaluating ideas...');
     setError(null);
+    setShowLogs(true); // Show logs when starting idea evaluation
 
     try {
       const requestBody = {
@@ -1033,6 +1117,7 @@ const TreePlotVisualization = () => {
     setIsGenerating(true);
     setOperationStatus('Generating initial ideas...');
     setError(null);
+    setShowLogs(true); // Show logs when starting idea generation
 
     try {
       // Call Flask backend
@@ -1122,6 +1207,7 @@ const TreePlotVisualization = () => {
     setIsGenerating(true);
     setOperationStatus('Generating child ideas...');
     setError(null);
+    setShowLogs(true); // Show logs when generating child ideas
 
     try {
       const response = await fetch('/api/generate-children', {
@@ -2216,6 +2302,7 @@ const TreePlotVisualization = () => {
     setOperationStatus('Retrying code generation...');
     setCodeResult(null);
     setExperimentFiles({});
+    setShowLogs(true); // Show logs when starting code generation
 
     try {
       const codeResponse = await fetch('/api/code', {
@@ -2277,6 +2364,7 @@ const TreePlotVisualization = () => {
     console.log("Generating paper for idea:", node.originalData.Title);
     setIsGeneratingPaper(true);
     setOperationStatus('Generating paper...');
+    setShowLogs(true); // Show logs when starting paper generation
 
     try {
       // Get S2 API key from localStorage or prompt user
@@ -2445,6 +2533,7 @@ const TreePlotVisualization = () => {
         console.log("Processing experimental idea - generating code first...");
         setIsGeneratingCode(true);
         setOperationStatus('Generating experiment code...');
+        setShowLogs(true); // Show logs when starting code generation
 
         let codeData = null;
         let timeoutOccurred = false;
@@ -2541,6 +2630,7 @@ const TreePlotVisualization = () => {
         console.log("Processing non-experimental idea - generating paper directly...");
         setIsGeneratingPaper(true);
         setOperationStatus('Generating paper...');
+        setShowLogs(true); // Show logs when starting paper generation
 
         const paperResponse = await fetch('/api/write', {
           method: 'POST',
@@ -3735,6 +3825,21 @@ const TreePlotVisualization = () => {
                 onUpdateTable={handleUpdateTable} // Pass the new handler here
               />
             </div>
+          </div>
+
+          {/* Log Display Panel - positioned to match plot width */}
+          <div
+            style={{
+              padding: '0 20px',
+              maxWidth: '1600px',
+              margin: '0 auto',
+              boxSizing: 'border-box',
+            }}
+          >
+            <LogDisplay
+              isVisible={showLogs}
+              onToggle={() => setShowLogs(!showLogs)}
+            />
           </div>
         </>)}
 

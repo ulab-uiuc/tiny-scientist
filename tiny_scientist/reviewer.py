@@ -27,6 +27,7 @@ class Reviewer:
         cost_tracker: Optional[Checker] = None,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
+        s2_api_key: Optional[str] = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -34,7 +35,7 @@ class Reviewer:
         self.client, self.model = create_client(model)
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
-        self.searcher = PaperSearchTool()
+        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         self.cost_tracker = cost_tracker or Checker()
