@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 from rich import print
 
 from .configs import Config
+from .safety_checker import SafetyChecker
 from .tool import PaperSearchTool
 from .utils.checker import Checker
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -27,7 +28,7 @@ class Thinker:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[Checker] = None,
-        enable_ethical_defense: bool = False,
+        enable_safety_check: bool = False,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
     ):
@@ -73,7 +74,14 @@ Be critical and realistic in your assessments."""
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
 
-        self.enable_ethical_defense = enable_ethical_defense
+        self.enable_safety_check = enable_safety_check
+        # Initialize SafetyChecker for comprehensive safety checks
+        if self.enable_safety_check:
+            self.safety_checker = SafetyChecker(
+                model=self.model, cost_tracker=self.cost_tracker
+            )
+        else:
+            self.safety_checker = None
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
@@ -143,8 +151,8 @@ Be critical and realistic in your assessments."""
                 else current_idea_exp
             )
 
-            # Apply ethical defense check if enabled
-            current_idea_final = self._ethical_defense_check(current_idea_final)
+            # Apply comprehensive safety check if enabled
+            current_idea_final = self._safety_check(current_idea_final)
 
             current_idea_dict = json.loads(current_idea_final)
 
@@ -699,43 +707,53 @@ Be critical and realistic in your assessments."""
 
         return "\n\n".join(paper_strings)
 
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
-    def _ethical_defense_check(self, idea_json: str) -> str:
+    def _safety_check(self, idea_json: str) -> str:
         """
-        Check and enhance the ethical safety of a research idea.
+        Check and enhance the safety of a research idea.
 
         Args:
             idea_json: JSON string containing the research idea
 
         Returns:
-            str: Modified idea JSON with enhanced ethical safety
+            str: Modified idea JSON with enhanced safety
         """
-        if not self.enable_ethical_defense:
+        if not self.enable_safety_check or not self.safety_checker:
             return idea_json
 
-        print("Applying ethical defense check...")
+        print("🔒 Applying comprehensive safety check...")
 
-        prompt = self.prompts.ethical_defense_prompt.format(
-            idea=idea_json, intent=self.intent
-        )
+        try:
+            # Parse the idea JSON
+            idea_dict = json.loads(idea_json)
 
-        text, _ = get_response_from_llm(
-            prompt,
-            client=self.client,
-            model=self.model,
-            system_message=self.prompts.ethical_defense_system_prompt,
-            msg_history=[],
-            temperature=self.temperature,
-            cost_tracker=self.cost_tracker,
-            task_name="ethical_defense_check",
-        )
+            # Use the integrated SafetyChecker for comprehensive safety evaluation
+            safety_result = self.safety_checker.comprehensive_safety_check(
+                self.intent, idea_dict
+            )
 
-        # Extract the enhanced idea from response
-        enhanced_idea = extract_json_between_markers(text)
-        if not enhanced_idea:
-            print("⚠️ Ethical defense failed to extract enhanced idea, using original")
+            # Check if the idea passed all safety checks
+            if safety_result["overall_safety"]["is_safe"]:
+                # If there's an enhanced idea from ethics evaluation, use it
+                if safety_result.get("idea_ethics") and safety_result[
+                    "idea_ethics"
+                ].get("ethics_evaluation", {}).get("enhanced_idea"):
+                    enhanced_idea = safety_result["idea_ethics"]["ethics_evaluation"][
+                        "enhanced_idea"
+                    ]
+                    print("✅ Safety check passed with enhancements")
+                    return json.dumps(enhanced_idea, indent=2)
+                else:
+                    print("✅ Safety check passed")
+                    return idea_json
+            else:
+                print(
+                    f"⚠️ Safety check warning: {safety_result['overall_safety']['recommendation']}"
+                )
+                return idea_json
+
+        except json.JSONDecodeError:
+            print("⚠️ Safety check failed to parse idea JSON, using original")
             return idea_json
-
-        print("✅ Ethical defense applied successfully")
-        self.cost_tracker.report()
-        return json.dumps(enhanced_idea, indent=2)
+        except Exception as e:
+            print(f"⚠️ Safety check error: {str(e)}, using original idea")
+            return idea_json
