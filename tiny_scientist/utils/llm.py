@@ -9,7 +9,7 @@ import openai
 import toml
 from google.generativeai.types import GenerationConfig
 
-from tiny_scientist.utils.checker import Checker
+from tiny_scientist.budget_checker import BudgetChecker
 
 # Load config
 config_path = os.path.join(
@@ -84,7 +84,7 @@ def get_batch_responses_from_llm(
     msg_history: Any = None,
     temperature: float = 0.75,
     n_responses: int = 1,
-    cost_tracker: Optional[Checker] = None,
+    cost_tracker: Optional[BudgetChecker] = None,
     task_name: Optional[str] = None,
 ) -> Tuple[List[str], List[List[Dict[str, str]]]]:
     if msg_history is None:
@@ -214,7 +214,7 @@ def get_response_from_llm(
     print_debug: bool = False,
     msg_history: Any = None,
     temperature: float = 0.75,
-    cost_tracker: Optional[Checker] = None,
+    cost_tracker: Optional[BudgetChecker] = None,
     task_name: Optional[str] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     if msg_history is None:
@@ -442,7 +442,7 @@ def get_batch_responses_from_llm_with_tools(
     msg_history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.75,
     n_responses: int = 1,
-    cost_tracker: Optional[Checker] = None,
+    cost_tracker: Optional[BudgetChecker] = None,
     task_name: Optional[str] = None,
 ) -> Tuple[List[Union[str, Dict[str, Any]]], List[List[Dict[str, str]]]]:
     """

@@ -9,7 +9,7 @@ class BudgetExceededError(Exception):
     """Raised when a call would exceed the configured budget."""
 
 
-class Checker:
+class BudgetChecker:
     """Track API usage cost and enforce a spending budget."""
 
     def __init__(self, budget: Optional[float] = None) -> None:
@@ -48,7 +48,7 @@ class Checker:
             if task_name not in self.per_task_cost:
                 self.per_task_cost[task_name] = 0.0
             self.per_task_cost[task_name] += cost
-        return cost
+        return float(cost)
 
     def report(self) -> None:
         print(f"Total cost: ${self.total_cost:.4f}")

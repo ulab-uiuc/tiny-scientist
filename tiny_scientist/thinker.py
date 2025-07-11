@@ -4,10 +4,10 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from rich import print
 
+from .budget_checker import BudgetChecker
 from .configs import Config
 from .safety_checker import SafetyChecker
 from .tool import PaperSearchTool
-from .utils.checker import Checker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import (
     create_client,
@@ -27,10 +27,11 @@ class Thinker:
         output_dir: str = "",
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
-        cost_tracker: Optional[Checker] = None,
+        cost_tracker: Optional[BudgetChecker] = None,
         enable_safety_check: bool = False,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
+        enable_ethical_defense: bool = False,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -70,12 +71,13 @@ Be critical and realistic in your assessments."""
         3. Novelty: How original is the idea compared to existing work?
         4. Feasibility: How practical is implementation within reasonable resource constraints?
         5. Impact: What is the potential impact of this research on the field and broader applications?"""
-        self.cost_tracker = cost_tracker or Checker()
+        self.cost_tracker = cost_tracker or BudgetChecker()
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
 
         self.enable_safety_check = enable_safety_check
-        # Initialize SafetyChecker for comprehensive safety checks
+        self.enable_ethical_defense = enable_ethical_defense
+        self.safety_checker: Optional[SafetyChecker]
         if self.enable_safety_check:
             self.safety_checker = SafetyChecker(
                 model=self.model, cost_tracker=self.cost_tracker
