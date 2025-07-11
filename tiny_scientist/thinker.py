@@ -31,8 +31,6 @@ class Thinker:
         enable_safety_check: bool = False,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
-        # Deprecated parameter for backward compatibility
-        enable_ethical_defense: Optional[bool] = None,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -75,14 +73,6 @@ Be critical and realistic in your assessments."""
         self.cost_tracker = cost_tracker or Checker()
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
-
-        # Handle backward compatibility for enable_ethical_defense
-        if enable_ethical_defense is not None:
-            print("⚠️  Warning: enable_ethical_defense is deprecated. Use enable_safety_check instead.")
-            # If both are set, enable_safety_check takes precedence
-            if enable_ethical_defense and not enable_safety_check:
-                enable_safety_check = True
-                print("🔄 Enabling safety_check due to enable_ethical_defense=True")
 
         self.enable_safety_check = enable_safety_check
         # Initialize SafetyChecker for comprehensive safety checks
@@ -159,8 +149,8 @@ Be critical and realistic in your assessments."""
                 else current_idea_exp
             )
 
-            # Apply ethical defense check if enabled
-            current_idea_final = self._ethical_defense_check(current_idea_final)
+            # Apply comprehensive safety check if enabled
+            current_idea_final = self._safety_check(current_idea_final)
 
             current_idea_dict = json.loads(current_idea_final)
 
@@ -715,38 +705,48 @@ Be critical and realistic in your assessments."""
 
         return "\n\n".join(paper_strings)
 
-    def _ethical_defense_check(self, idea_json: str) -> str:
+    def _safety_check(self, idea_json: str) -> str:
         """
-        Check and enhance the ethical safety of a research idea.
+        Check and enhance the safety of a research idea.
 
         Args:
             idea_json: JSON string containing the research idea
 
         Returns:
-            str: Modified idea JSON with enhanced ethical safety
+            str: Modified idea JSON with enhanced safety
         """
-        if not self.enable_ethical_defense or not self.safety_checker:
+        if not self.enable_safety_check or not self.safety_checker:
             return idea_json
 
-        print("🔒 Applying ethical defense check...")
+        print("🔒 Applying comprehensive safety check...")
         
         try:
             # Parse the idea JSON
             idea_dict = json.loads(idea_json)
             
-            # Use the integrated SafetyChecker for ethics evaluation
-            ethics_result = self.safety_checker.evaluate_ethics(self.intent, idea_dict)
+            # Use the integrated SafetyChecker for comprehensive safety evaluation
+            safety_result = self.safety_checker.comprehensive_safety_check(self.intent, idea_dict)
             
-            if ethics_result["status"] == "success" and ethics_result["enhanced_idea"]:
-                print("✅ Ethical defense applied successfully")
-                return json.dumps(ethics_result["enhanced_idea"], indent=2)
+            # Check if the idea passed all safety checks
+            if safety_result["overall_safety"]["is_safe"]:
+                # If there's an enhanced idea from ethics evaluation, use it
+                if (safety_result.get("idea_ethics") and 
+                    safety_result["idea_ethics"].get("ethics_evaluation", {}).get("enhanced_idea")):
+                    enhanced_idea = safety_result["idea_ethics"]["ethics_evaluation"]["enhanced_idea"]
+                    print("✅ Safety check passed with enhancements")
+                    return json.dumps(enhanced_idea, indent=2)
+                else:
+                    print("✅ Safety check passed")
+                    return idea_json
             else:
-                print(f"⚠️ Ethical defense warning: {ethics_result.get('error_message', 'Unknown issue')}")
+                print(f"⚠️ Safety check warning: {safety_result['overall_safety']['recommendation']}")
                 return idea_json
                 
         except json.JSONDecodeError:
-            print("⚠️ Ethical defense failed to parse idea JSON, using original")
+            print("⚠️ Safety check failed to parse idea JSON, using original")
             return idea_json
         except Exception as e:
-            print(f"⚠️ Ethical defense error: {str(e)}, using original idea")
+            print(f"⚠️ Safety check error: {str(e)}, using original idea")
             return idea_json
+
+

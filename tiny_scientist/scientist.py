@@ -24,23 +24,12 @@ class TinyScientist:
         budget: Optional[float] = None,
         enable_safety_check: bool = True,
         budget_preference: Optional[str] = None,
-        # Deprecated parameters for backward compatibility
-        enable_ethical_defense: Optional[bool] = None,
     ):
         self.model = model
         self.output_dir = output_dir
         self.template = template
         self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
-        
-        # Handle backward compatibility for enable_ethical_defense
-        if enable_ethical_defense is not None:
-            print("⚠️  Warning: enable_ethical_defense is deprecated. Use enable_safety_check instead.")
-            # If both are set, enable_safety_check takes precedence
-            if enable_ethical_defense and not enable_safety_check:
-                enable_safety_check = True
-                print("🔄 Enabling safety_check due to enable_ethical_defense=True")
-        
         self.enable_safety_check = enable_safety_check
 
         self.cost = 0.0

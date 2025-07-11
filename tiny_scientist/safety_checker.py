@@ -137,7 +137,14 @@ class PromptAttackDetector:
 
 
 class SafetyChecker:
-    """Safety checker module for Tiny Scientist"""
+    """
+    Comprehensive safety checker module for Tiny Scientist.
+    
+    This class provides:
+    1. Intent safety checking (prompt attacks, risk assessment)
+    2. Idea ethics evaluation and enhancement
+    3. Comprehensive safety analysis combining all checks
+    """
 
     def __init__(
         self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None
