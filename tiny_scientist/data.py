@@ -66,3 +66,8 @@ class DrawerPrompt(BaseModel):
     diagram_system_prompt: str
     section_prompt: Dict[str, str]
     error_list: str  # Remains global
+
+
+class SafetyPrompt(BaseModel):
+    risk_assessment_system_prompt: str
+    attack_detection_system_prompt: str
