@@ -5,7 +5,7 @@ from rich import print
 
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
-from .utils.cost_tracker import CostTracker
+from .utils.checker import Checker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.input_formatter import InputFormatter
 from .utils.llm import (
@@ -24,7 +24,9 @@ class Reviewer:
         num_reflections: int = 2,
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
-        cost_tracker: Optional[CostTracker] = None,
+        cost_tracker: Optional[Checker] = None,
+        pre_reflection_threshold: float = 0.5,
+        post_reflection_threshold: float = 0.8,
         s2_api_key: Optional[str] = None,
     ):
         self.tools = tools
@@ -36,7 +38,9 @@ class Reviewer:
         self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
-        self.cost_tracker = cost_tracker or CostTracker()
+        self.cost_tracker = cost_tracker or Checker()
+        self.pre_reflection_threshold = pre_reflection_threshold
+        self.post_reflection_threshold = post_reflection_threshold
 
         self.prompts = self.config.prompt_template.reviewer_prompt
         self.prompts.neurips_form = self.prompts.neurips_form.format(
@@ -95,9 +99,36 @@ class Reviewer:
                 if "review" in tool_output:
                     current_review = tool_output["review"]["review"]
 
-            # Apply reflections
-            for j in range(self.num_reflections):
-                current_review = self.re_review(current_review)
+            # Apply reflections with dynamic budgeting
+            budget = self.cost_tracker.get_budget()
+            if (
+                budget is not None
+                and self.cost_tracker.get_total_cost() / budget
+                >= self.pre_reflection_threshold
+            ):
+                print("[Reviewer] Skipping review reflections due to budget limit.")
+            else:
+                max_rounds = self.num_reflections
+                rounds_done = 0
+                per_round_cost = None
+                while rounds_done < max_rounds:
+                    start_cost = self.cost_tracker.get_total_cost()
+                    current_review = self.re_review(current_review)
+                    iteration_cost = self.cost_tracker.get_total_cost() - start_cost
+                    if per_round_cost is None:
+                        per_round_cost = max(iteration_cost, 1e-6)
+                        if budget is not None:
+                            allowed = budget * self.post_reflection_threshold
+                            remaining = allowed - self.cost_tracker.get_total_cost()
+                            additional = int(max(0.0, remaining) // per_round_cost)
+                            max_rounds = min(self.num_reflections, 1 + additional)
+                    rounds_done += 1
+                    if (
+                        budget is not None
+                        and self.cost_tracker.get_total_cost()
+                        >= budget * self.post_reflection_threshold
+                    ):
+                        break
 
             all_reviews.append(json.loads(current_review))
 

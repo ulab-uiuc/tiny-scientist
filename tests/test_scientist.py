@@ -47,5 +47,5 @@ def test_output_dir(tmp_path: Path) -> Path:
     return output_dir
 
 
-def test_mock() -> bool:
-    return True
+def test_mock() -> None:
+    assert True

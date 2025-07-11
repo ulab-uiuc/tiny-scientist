@@ -1,11 +1,13 @@
+import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import toml
 from rich import print
 
 from .coder import Coder
 from .reviewer import Reviewer
 from .thinker import Thinker
-from .utils.cost_tracker import CostTracker
+from .utils.checker import Checker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
@@ -18,6 +20,7 @@ class TinyScientist:
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
         budget: Optional[float] = None,
+        budget_preference: Optional[str] = None,
     ):
         self.model = model
         self.output_dir = output_dir
@@ -27,9 +30,46 @@ class TinyScientist:
 
         self.cost = 0.0
 
-        # Naive budget split
-        modules = ["thinker", "coder", "writer", "reviewer"]
-        per_module_budget = budget / len(modules) if budget else None
+        if budget_preference is None:
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "config.toml"
+            )
+            if os.path.exists(config_path):
+                cfg = toml.load(config_path)
+                budget_preference = cfg.get("core", {}).get(
+                    "budget_preference", "balanced"
+                )
+            else:
+                budget_preference = "balanced"
+
+        weights = {
+            "balanced": {"thinker": 0.3, "writer": 0.3, "reviewer": 0.3, "coder": 0.1},
+            "write-heavy": {
+                "thinker": 0.2,
+                "writer": 0.5,
+                "reviewer": 0.2,
+                "coder": 0.1,
+            },
+            "think-heavy": {
+                "thinker": 0.5,
+                "writer": 0.2,
+                "reviewer": 0.2,
+                "coder": 0.1,
+            },
+            "review-heavy": {
+                "thinker": 0.2,
+                "writer": 0.2,
+                "reviewer": 0.5,
+                "coder": 0.1,
+            },
+        }
+        if budget_preference not in weights:
+            raise ValueError(f"Unknown budget preference: {budget_preference}")
+
+        allocation = {
+            k: (budget * w if budget is not None else None)
+            for k, w in weights[budget_preference].items()
+        }
 
         self.thinker = Thinker(
             model=model,
@@ -40,7 +80,7 @@ class TinyScientist:
             search_papers=True,
             generate_exp_plan=True,
             enable_ethical_defense=False,
-            cost_tracker=CostTracker(budget=per_module_budget),
+            cost_tracker=Checker(budget=allocation.get("thinker")),
         )
 
         self.coder = Coder(
@@ -49,7 +89,7 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
-            cost_tracker=CostTracker(budget=per_module_budget),
+            cost_tracker=Checker(budget=allocation.get("coder")),
         )
 
         self.writer = Writer(
@@ -57,14 +97,14 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
-            cost_tracker=CostTracker(budget=per_module_budget),
+            cost_tracker=Checker(budget=allocation.get("writer")),
         )
 
         self.reviewer = Reviewer(
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            cost_tracker=CostTracker(budget=per_module_budget),
+            cost_tracker=Checker(budget=allocation.get("reviewer")),
         )
 
     def think(

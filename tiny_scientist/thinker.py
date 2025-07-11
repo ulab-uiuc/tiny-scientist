@@ -6,7 +6,7 @@ from rich import print
 
 from .configs import Config
 from .tool import PaperSearchTool
-from .utils.cost_tracker import CostTracker
+from .utils.checker import Checker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import (
     create_client,
@@ -26,8 +26,10 @@ class Thinker:
         output_dir: str = "",
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
-        cost_tracker: Optional[CostTracker] = None,
+        cost_tracker: Optional[Checker] = None,
         enable_ethical_defense: bool = False,
+        pre_reflection_threshold: float = 0.5,
+        post_reflection_threshold: float = 0.8,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -67,7 +69,9 @@ Be critical and realistic in your assessments."""
         3. Novelty: How original is the idea compared to existing work?
         4. Feasibility: How practical is implementation within reasonable resource constraints?
         5. Impact: What is the potential impact of this research on the field and broader applications?"""
-        self.cost_tracker = cost_tracker or CostTracker()
+        self.cost_tracker = cost_tracker or Checker()
+        self.pre_reflection_threshold = pre_reflection_threshold
+        self.post_reflection_threshold = post_reflection_threshold
 
         self.enable_ethical_defense = enable_ethical_defense
 
@@ -364,9 +368,25 @@ Be critical and realistic in your assessments."""
     def _refine_idea(self, idea_json: str) -> str:
         current_idea_json = idea_json
 
-        for j in range(self.iter_num):
-            print(f"Refining idea {j + 1}th time out of {self.iter_num} times.")
+        # Skip reflections entirely if budget usage is already high
+        budget = self.cost_tracker.get_budget()
+        if (
+            budget is not None
+            and self.cost_tracker.get_total_cost() / budget
+            >= self.pre_reflection_threshold
+        ):
+            print("[Thinker] Skipping idea reflections due to budget limit.")
+            self.cost_tracker.report()
+            return current_idea_json
 
+        max_rounds = self.iter_num
+        rounds_done = 0
+        per_round_cost = None
+
+        while rounds_done < max_rounds:
+            print(f"Refining idea {rounds_done + 1}th time out of {max_rounds} times.")
+
+            start_cost = self.cost_tracker.get_total_cost()
             current_idea_dict = json.loads(current_idea_json)
             for tool in self.tools:
                 tool_input = json.dumps(current_idea_dict)
@@ -374,7 +394,26 @@ Be critical and realistic in your assessments."""
                 current_idea_dict.update(info)
             current_idea_json = json.dumps(current_idea_dict)
 
-            current_idea_json = self.rethink(current_idea_json, current_round=j + 1)
+            current_idea_json = self.rethink(
+                current_idea_json, current_round=rounds_done + 1
+            )
+
+            iteration_cost = self.cost_tracker.get_total_cost() - start_cost
+            if per_round_cost is None:
+                per_round_cost = max(iteration_cost, 1e-6)
+                if budget is not None:
+                    allowed = budget * self.post_reflection_threshold
+                    remaining = allowed - self.cost_tracker.get_total_cost()
+                    additional = int(max(0.0, remaining) // per_round_cost)
+                    max_rounds = min(self.iter_num, 1 + additional)
+
+            rounds_done += 1
+            if (
+                budget is not None
+                and self.cost_tracker.get_total_cost()
+                >= budget * self.post_reflection_threshold
+            ):
+                break
 
         self.cost_tracker.report()
         return current_idea_json
