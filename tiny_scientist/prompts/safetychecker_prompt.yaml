@@ -47,4 +47,4 @@ ethical_defense_prompt: |
   ```
 
   In <ANALYSIS>, provide your ethical assessment and explain any modifications you made.
-  In <JSON>, provide the enhanced research idea in the same JSON format as the input, maintaining all original fields while incorporating ethical improvements. 
+  In <JSON>, provide the enhanced research idea in the same JSON format as the input, maintaining all original fields while incorporating ethical improvements.

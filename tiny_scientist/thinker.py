@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 from rich import print
 
 from .configs import Config
+from .safety_checker import SafetyChecker
 from .tool import PaperSearchTool
 from .utils.checker import Checker
 from .utils.error_handler import api_calling_error_exponential_backoff
@@ -13,7 +14,6 @@ from .utils.llm import (
     extract_json_between_markers,
     get_response_from_llm,
 )
-from .safety_checker import SafetyChecker
 
 
 class Thinker:
@@ -77,7 +77,9 @@ Be critical and realistic in your assessments."""
         self.enable_safety_check = enable_safety_check
         # Initialize SafetyChecker for comprehensive safety checks
         if self.enable_safety_check:
-            self.safety_checker = SafetyChecker(model=self.model, cost_tracker=self.cost_tracker)
+            self.safety_checker = SafetyChecker(
+                model=self.model, cost_tracker=self.cost_tracker
+            )
         else:
             self.safety_checker = None
 
@@ -719,34 +721,39 @@ Be critical and realistic in your assessments."""
             return idea_json
 
         print("🔒 Applying comprehensive safety check...")
-        
+
         try:
             # Parse the idea JSON
             idea_dict = json.loads(idea_json)
-            
+
             # Use the integrated SafetyChecker for comprehensive safety evaluation
-            safety_result = self.safety_checker.comprehensive_safety_check(self.intent, idea_dict)
-            
+            safety_result = self.safety_checker.comprehensive_safety_check(
+                self.intent, idea_dict
+            )
+
             # Check if the idea passed all safety checks
             if safety_result["overall_safety"]["is_safe"]:
                 # If there's an enhanced idea from ethics evaluation, use it
-                if (safety_result.get("idea_ethics") and 
-                    safety_result["idea_ethics"].get("ethics_evaluation", {}).get("enhanced_idea")):
-                    enhanced_idea = safety_result["idea_ethics"]["ethics_evaluation"]["enhanced_idea"]
+                if safety_result.get("idea_ethics") and safety_result[
+                    "idea_ethics"
+                ].get("ethics_evaluation", {}).get("enhanced_idea"):
+                    enhanced_idea = safety_result["idea_ethics"]["ethics_evaluation"][
+                        "enhanced_idea"
+                    ]
                     print("✅ Safety check passed with enhancements")
                     return json.dumps(enhanced_idea, indent=2)
                 else:
                     print("✅ Safety check passed")
                     return idea_json
             else:
-                print(f"⚠️ Safety check warning: {safety_result['overall_safety']['recommendation']}")
+                print(
+                    f"⚠️ Safety check warning: {safety_result['overall_safety']['recommendation']}"
+                )
                 return idea_json
-                
+
         except json.JSONDecodeError:
             print("⚠️ Safety check failed to parse idea JSON, using original")
             return idea_json
         except Exception as e:
             print(f"⚠️ Safety check error: {str(e)}, using original idea")
             return idea_json
-
-
