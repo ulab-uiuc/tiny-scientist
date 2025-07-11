@@ -28,9 +28,11 @@ class Thinker:
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[Checker] = None,
-        enable_ethical_defense: bool = False,
+        enable_safety_check: bool = False,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
+        # Deprecated parameter for backward compatibility
+        enable_ethical_defense: Optional[bool] = None,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -74,9 +76,17 @@ Be critical and realistic in your assessments."""
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
 
-        self.enable_ethical_defense = enable_ethical_defense
-        # Initialize SafetyChecker for ethical defense
-        if self.enable_ethical_defense:
+        # Handle backward compatibility for enable_ethical_defense
+        if enable_ethical_defense is not None:
+            print("⚠️  Warning: enable_ethical_defense is deprecated. Use enable_safety_check instead.")
+            # If both are set, enable_safety_check takes precedence
+            if enable_ethical_defense and not enable_safety_check:
+                enable_safety_check = True
+                print("🔄 Enabling safety_check due to enable_ethical_defense=True")
+
+        self.enable_safety_check = enable_safety_check
+        # Initialize SafetyChecker for comprehensive safety checks
+        if self.enable_safety_check:
             self.safety_checker = SafetyChecker(model=self.model, cost_tracker=self.cost_tracker)
         else:
             self.safety_checker = None
