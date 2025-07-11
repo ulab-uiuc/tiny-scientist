@@ -12,7 +12,7 @@ from rich import print
 
 from .configs import Config
 from .tool import BaseTool, DrawerTool, PaperSearchTool
-from .utils.cost_tracker import CostTracker
+from .utils.checker import Checker
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
@@ -33,13 +33,14 @@ class Writer:
         template: str,
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
-        cost_tracker: Optional[CostTracker] = None,
+        cost_tracker: Optional[Checker] = None,
+        s2_api_key: Optional[str] = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool()
+        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
@@ -49,7 +50,7 @@ class Writer:
             self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
 
         self.prompts = self.config.prompt_template.writer_prompt
-        self.cost_tracker = cost_tracker or CostTracker()
+        self.cost_tracker = cost_tracker or Checker()
 
         with resources.files("tiny_scientist.fewshot_sample").joinpath(
             "automated_relational.txt"
@@ -60,32 +61,52 @@ class Writer:
             example_paper_draft=few_shot_sample_text
         )
 
-    def run(self, idea: Dict[str, Any], experiment_dir: str) -> Tuple[str, str]:
-        with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
-            code = f.read()
+    def run(
+        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
+    ) -> Tuple[str, str]:
+        is_experimental = idea.get("is_experimental", True)
 
-        with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
-            experiment_result = f.read()
+        code, experiment_result, baseline_result = "", "", ""
 
-        if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
-            with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
-                baseline_result = f.read()
-        else:
-            baseline_result = ""
+        if is_experimental and experiment_dir:
+            # Load experiment files for experimental papers
+            with open(osp.join(experiment_dir, "experiment.py"), "r") as f:
+                code = f.read()
+
+            with open(osp.join(experiment_dir, "experiment_results.txt"), "r") as f:
+                experiment_result = f.read()
+
+            if osp.exists(osp.join(experiment_dir, "baseline_results.txt")):
+                with open(osp.join(experiment_dir, "baseline_results.txt"), "r") as f:
+                    baseline_result = f.read()
+        elif is_experimental and not experiment_dir:
+            raise ValueError("Experimental papers require an experiment_dir")
 
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
 
         self._write_abstract(idea)
 
-        for section in [
-            "Introduction",
-            "Method",
-            "Experimental_Setup",
-            "Results",
-            "Discussion",
-            "Conclusion",
-        ]:
+        # Different section structures for experimental vs non-experimental papers
+        if is_experimental:
+            sections = [
+                "Introduction",
+                "Method",
+                "Experimental_Setup",
+                "Results",
+                "Discussion",
+                "Conclusion",
+            ]
+        else:
+            sections = [
+                "Introduction",
+                "Method",
+                "Analysis",
+                "Discussion",
+                "Conclusion",
+            ]
+
+        for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
 
         self._write_related_work(idea)
@@ -94,7 +115,13 @@ class Writer:
         self._add_citations(idea)
         self._generate_diagram_for_section()
 
-        paper_name = idea.get("Title", "Research Paper").lower().replace(" ", "_")
+        paper_name = (
+            idea.get("Title", "Research Paper")
+            .lower()
+            .replace(" ", "_")
+            .lower()
+            .replace(" ", "_")
+        )
 
         output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         self.formatter.run(
@@ -132,7 +159,6 @@ class Writer:
         self.generated_sections["Abstract"] = abstract_content
 
     def _generate_diagram_for_section(self) -> None:
-        print("[blue]Generating diagrams for sections...")
         for section in ["Method", "Experimental_Setup", "Results"]:
             content = self.generated_sections[section]
             try:
@@ -153,6 +179,11 @@ class Writer:
                     cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
                     cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
 
+                    raw_svg = diagram["svg"]
+
+                    cleaned_svg = raw_svg.encode("utf-8").decode("unicode_escape")
+                    cleaned_svg = cleaned_svg.replace("\\n", "\n").replace("\\", "")
+
                     cairosvg.svg2pdf(
                         bytestring=cleaned_svg.encode("utf-8"), write_to=pdf_path
                     )
@@ -161,13 +192,13 @@ class Writer:
                     caption = diagram["summary"].replace("{", "").replace("}", "")
 
                     figure_latex = f"""
-    \\begin{{figure}}[h]
-    \\centering
-    \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
-    \\caption{{{caption}}}
-    \\label{{fig:{section.lower()}}}
-    \\end{{figure}}
-    """
+            \\begin{{figure}}[!htbp]
+            \\centering
+            \\includegraphics[width=0.9\\linewidth]{{{pdf_filename}}}
+            \\caption{{{caption}}}
+            \\label{{fig:{section.lower()}}}
+            \\end{{figure}}
+            """
                     marker = "```"
 
                     if self.generated_sections[section].strip().endswith(marker):
@@ -181,10 +212,6 @@ class Writer:
                                 + marker
                                 + parts[1]
                             )
-
-                            print(parts[1])
-
-                    print(f"[yellow]**{self.generated_sections[section]}")
 
             except Exception as e:
                 print(f"[WARNING] Failed to generate diagram for {section}: {e}")
@@ -233,6 +260,19 @@ class Writer:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
+                baseline_results=baseline_result,
+                experiment_results=experiment_result,
+            )
+        elif section == "Analysis":
+            # For non-experimental papers, use the research plan content
+            research_plan = idea.get("ResearchPlan", experiment)
+            section_prompt = self.prompts.section_prompt.get(
+                section, self.prompts.section_prompt.get("Results", "")
+            ).format(
+                section_tips=self.prompts.section_tips.get(
+                    section, self.prompts.section_tips.get("Results", "")
+                ),
+                experiment=research_plan,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
             )
@@ -499,8 +539,6 @@ class Writer:
                         cost_tracker=self.cost_tracker,
                         task_name=f"Embed Citation in {section}",
                     )
-
-                    print(f"Refined section for {section}: {refined_section}")
 
                     for title, meta in paper_source.items():
                         match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))

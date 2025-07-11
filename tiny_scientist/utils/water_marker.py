@@ -1,60 +1,65 @@
-import os
-import tempfile
 import textwrap
+from io import BytesIO
 
-from pypdf import PageObject, PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib.colors import Color
-from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from rich import print
 
 
 class WaterMarker:
+    def __init__(self, opacity: float = 0.1, font_size: int = 36):
+        self.opacity = opacity
+        self.font_size = font_size
+
     def _add_watermark(
         self, original_pdf_path: str, watermark_text: str, output_pdf_path: str
     ) -> None:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            watermark_pdf_path = tmp_file.name
-
-        c = canvas.Canvas(watermark_pdf_path, pagesize=letter)
-        c.saveState()
-        c.translate(300, 400)
-        c.rotate(45)
-        c.setFillColor(Color(0.95, 0.95, 0.95))
-        c.setFont("Helvetica-Bold", 28)
-
-        max_chars_per_line = 30
-        lines = textwrap.wrap(watermark_text, width=max_chars_per_line)
-
-        line_height = 35
-        y_offset = 0
-        for line in lines:
-            c.drawCentredString(0, y_offset, line)
-            y_offset -= line_height
-        c.restoreState()
-        c.showPage()
-        c.save()
-
-        original_reader = PdfReader(original_pdf_path)
-        watermark_reader = PdfReader(watermark_pdf_path)
-        if len(watermark_reader.pages) == 0:
-            print("Warning: Watermark PDF is empty. No watermark will be applied.")
-            return
-
-        watermark_page = watermark_reader.pages[0]
+        reader = PdfReader(original_pdf_path)
         writer = PdfWriter()
 
-        for orig_page in original_reader.pages:
-            new_page = PageObject.create_blank_page(
-                width=orig_page.mediabox.width, height=orig_page.mediabox.height
-            )
+        for page in reader.pages:
+            page_width = float(page.mediabox.width)
+            page_height = float(page.mediabox.height)
 
-            new_page.merge_page(watermark_page)
-            new_page.merge_page(orig_page)
+            # Create watermark canvas in memory
+            packet = BytesIO()
+            c = canvas.Canvas(packet, pagesize=(page_width, page_height))
 
-            writer.add_page(new_page)
+            # Configure font size relative to page width
+            base_font_size = (
+                min(page_width, page_height) * 0.035
+            )  # ~3.5% of min dimension
+            c.setFont("Helvetica-Bold", base_font_size)
+            c.setFillColor(
+                Color(0.6, 0.6, 0.6, alpha=0.06)
+            )  # very low opacity to avoid disruption
 
-        with open(output_pdf_path, "wb") as out_f:
-            writer.write(out_f)
-        print(f"Watermarked PDF saved to: {output_pdf_path}")
-        os.remove(watermark_pdf_path)
+            # Wrap long watermark text to fit the diagonal
+            max_chars = 25
+            lines = textwrap.wrap(watermark_text, width=max_chars)
+
+            c.saveState()
+            c.translate(page_width / 2, page_height / 2)
+            c.rotate(45)
+
+            spacing = base_font_size + 8
+            total_height = spacing * len(lines)
+            y_start = total_height / 2
+
+            for i, line in enumerate(lines):
+                y = y_start - i * spacing
+                c.drawCentredString(0, y, line)
+
+            c.restoreState()
+            c.save()
+            packet.seek(0)
+
+            # Merge watermark with the page
+            watermark_pdf = PdfReader(packet)
+            watermark_page = watermark_pdf.pages[0]
+            page.merge_page(watermark_page)
+            writer.add_page(page)
+
+        # Output the watermarked PDF
+        with open(output_pdf_path, "wb") as f:
+            writer.write(f)

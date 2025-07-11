@@ -6,12 +6,11 @@ idea_system_prompt: >
   You want to generate creative and impactful research ideas that can be feasibly investigated with the code provided.
   Be critical and realistic in your assessments.
 evaluation_system_prompt: >
-  You are an expert AI research reviewer who evaluates scientific ideas with rigor and fairness.
-  Your role is to comparatively evaluate multiple research ideas and rank them based on their
-  scientific merit, feasibility, novelty, and alignment with the original research intent.
-  Be thoughtful, objective, and provide clear justifications for your rankings.
+  You are an expert research reviewer who evaluates scientific ideas with rigor and fairness.
+  Your role is to comparatively evaluate multiple research ideas and score them based on their feasibility, novelty, impact, and alignment with the original research intent.
+  Be thoughtful, objective, and provide clear justifications for your scoring.
 idea_evaluation_prompt: |
-  You are tasked with evaluating and ranking multiple research ideas generated for the following research intent:
+  You are tasked with evaluating and scoring multiple research ideas generated for the following research intent:
 
   RESEARCH INTENT:
   ```
@@ -22,27 +21,28 @@ idea_evaluation_prompt: |
   ```
   {ideas}
   ```
-  Please evaluate these ideas comparatively, considering:
+  Please evaluate these ideas comparatively across three key dimensions:
 
-  1. Intent Alignment: How well does each idea address the original research intent?
-  2. Scientific Merit: How significant is the potential contribution to the field?
-  3. Novelty: How original is the idea compared to existing work?
-  4. Feasibility: How practical is implementation within reasonable resource constraints?
-  5. Impact: What is the potential impact of this research on the field and broader applications?
+  **NOVELTY DIMENSION**
+  {novelty_criteria}
+
+  **FEASIBILITY DIMENSION**
+  {feasibility_criteria}
+
+  **IMPACT DIMENSION**
+  {impact_criteria}
 
   CRITICAL REQUIREMENTS:
-  1. Assign each idea a comparative "Rank" (where 1 is the best idea, 2 is the second best, etc., up to the total number of ideas)
+  1. For EACH idea, you MUST provide three separate rating fields that MUST follow this format:
+    - "FeasibilityScore": A number from 0 to 100, where 100 is most feasible
+    - "NoveltyScore": A number from 0 to 100, where 100 is most novel
+    - "ImpactScore": A number from 0 to 100, where 100 is highest impact
 
-  2. For EACH idea, you MUST provide three separate rating fields that MUST follow this format:
-     - "FeasibilityRanking": A number from 1 to the total number of ideas, where 1 is most feasible
-     - "NoveltyRanking": A number from 1 to the total number of ideas, where 1 is most novel
-     - "ImpactRanking": A number from 1 to the total number of ideas, where 1 is highest impact
-
-  3. For EACH idea, also provide a brief reasoning for each ranking:
-     - "NoveltyReason": Brief explanation (1-2 sentences) of why this idea received its novelty ranking
-     - "FeasibilityReason": Brief explanation (1-2 sentences) of why this idea received its feasibility ranking
-     - "ImpactReason": Brief explanation (1-2 sentences) of why this idea received its impact ranking
-  These three rankings must be completely separate and independent from each other. For example, the idea ranked #1 in impact might be ranked #3 in feasibility.
+  2. For EACH idea, also provide a brief reasoning for each score:
+    - "NoveltyReason": Brief explanation (1-2 sentences) of why this idea received its novelty score
+    - "FeasibilityReason": Brief explanation (1-2 sentences) of why this idea received its feasibility score
+    - "ImpactReason": Brief explanation (1-2 sentences) of why this idea received its impact score
+  These three scores must be completely separate and independent from each other. For example, the idea with the highest impact score might have a low feasibility score.
 
   Respond in the following format:
 
@@ -56,14 +56,16 @@ idea_evaluation_prompt: |
 
   In <ANALYSIS>, provide a thoughtful comparative analysis discussing the trade-offs between ideas.
   In <JSON>, provide the evaluation results in JSON format with the following structure:
-  "ranked_ideas": A list of ranked idea objects, each containing:
-  - "Name": The original name of the idea as in the input JSON
-  - "FeasibilityRanking": A number from 1 to total ideas, ranking feasibility
-  - "NoveltyRanking": A number from 1 to total ideas, ranking novelty
-  - "ImpactRanking": A number from 1 to total ideas, ranking impact
-  - "NoveltyReason": Explanation of the novelty ranking
-  - "FeasibilityReason": Explanation of the feasibility ranking
-  - "ImpactReason": Explanation of the impact ranking
+  "scored_ideas": A list of scored idea objects, each containing:
+  - "Title": The EXACT original title of the idea as provided in the input JSON - DO NOT MODIFY OR CHANGE THE TITLE IN ANY WAY
+  - "FeasibilityScore": A number from 0 to 100, scoring feasibility
+  - "NoveltyScore": A number from 0 to 100, scoring novelty
+  - "ImpactScore": A number from 0 to 100, scoring impact
+  - "NoveltyReason": Explanation of the novelty score
+  - "FeasibilityReason": Explanation of the feasibility score
+  - "ImpactReason": Explanation of the impact score
+
+  CRITICAL: You MUST preserve the exact original titles from the input. Do not change, modify, or improve the titles in any way.
   Ensure your evaluation is fair, comprehensive, and based solely on the scientific and practical merits of each idea.
 modify_idea_prompt: |
   Given a research idea and a set of requested modifications, generate a modified version of the idea.
@@ -140,7 +142,6 @@ merge_ideas_prompt: |
   - "Importance": Answer to question 2.
   - "Difficulty": Answer to question 3.
   - "NoveltyComparison": Answer to question 4.
-  - "Approach": Answer to question 5.
 
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
@@ -267,8 +268,8 @@ idea_first_prompt: |
     - Analyze the inherent challenges of the problem and explain why naive approaches have failed, citing previous studies.
     - Discuss why this problem remains difficult in the context of the original intent.
   4. Why hasn't it been solved before?
-    - Clearly describe how your idea differs from existing solutions. Highlight innovative aspects and include comparative citations.
-    - Explain why existing approaches from the related works don't fully address the intent.
+    - Provide a textual summary explaining how your idea differs from existing solutions and why they don't fully address the intent. This will be the main content for the "NoveltyComparison" field.
+    - You will also provide a separate comparison table after the JSON.
   5. What are the key components of my approach and results?
     - Outline your proposed methodology.
     - Explain how your approach specifically addresses the original intent.
@@ -287,16 +288,25 @@ idea_first_prompt: |
   <JSON>
   ```
 
+  COMPARISON TABLE:
+  ```markdown
+  <COMPARISON_TABLE>
+  ```
+
   In <THOUGHT>, first briefly discuss your intuitions and motivations for the idea. Detail your high-level plan, necessary design choices and ideal outcomes of the experiments. Justify how the idea is different from the existing ones.
+
+  In <COMPARISON_TABLE>, provide a Markdown table comparing your idea to existing work. List each existing work on its own row. You MUST autonomously decide on the most relevant columns for this comparison. The final row MUST be your proposed idea, clearly marked (e.g., in bold as "**Our Approach**").
 
   In <JSON>, provide the new idea in JSON format with the following fields:
   - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
   - "Title": A title for the idea, will be used for the report writing.
+  - "Description": A concise, one or two-sentence summary that combines the core problem and the key insight of your proposed approach. This should provide a clear and immediate understanding of the research idea.
   - "Problem": Answer to question 1.
   - "Importance": Answer to question 2.
   - "Difficulty": Answer to question 3.
   - "NoveltyComparison": Answer to question 4.
   - "Approach": Answer to question 5.
+  - "is_experimental": A boolean (true or false). Set to true if the idea requires a computational experiment (like training a model). Set to false if it is a theoretical, qualitative, or historical study.
   - "Interestingness": A rating from 1 to 10 (lowest to highest).
   - "Feasibility": A rating from 1 to 10 (lowest to highest).
   - "Novelty": A rating from 1 to 10 (lowest to highest).
@@ -416,12 +426,9 @@ experiment_plan_prompt: |
   {intent}
   ```
 
-  Develop a concise experimental plan focusing on three key components. Your response should heavily rely on literature search; use the approaches from relevant papers as references. Include:
-    - "Model": Provide a paragraph describing the model architecture or algorithm. Explain what other papers have used and why that approach is effective.
-    - "Dataset": Provide a paragraph describing the dataset or data processing approach. Reference how similar datasets have been used in the literature.
-    - "Metric": Provide a paragraph describing the evaluation metrics and methods, citing common practices from relevant research.
+  Develop a comprehensive experimental plan. You must provide TWO separate outputs: a JSON object and a Markdown table.
 
-  IMPORTANT: Your experiment plan MUST directly support investigation of the original intent. Ensure that your experimental design directly addresses the research question posed in the original intent and builds upon the idea that was generated.
+  IMPORTANT: Your experiment plan MUST directly support investigation of the original intent. Ensure that your experimental design directly addresses the research question posed in the original intent and builds upon the idea that was generated. Your response should heavily rely on literature search; use the approaches from relevant papers as references.
 
   Respond in the following format:
 
@@ -432,10 +439,108 @@ experiment_plan_prompt: |
   ```json
   <JSON>
   ```
+  EXPERIMENT PLAN MARKDOWN TABLE:
+  ```markdown
+  <MARKDOWN_TABLE>
+  ```
+  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
 
-  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach and how it aligns with the original intent. Consider how this experiment will effectively test the hypotheses generated from the original intent.
-
-  In <JSON>, provide the experimental plan in JSON format with the following fields:
+  In <JSON>, provide the plan in JSON format with these fields:
   - "Model": Description of model architecture
   - "Dataset": Description of dataset
   - "Metric": Description of evaluation metric
+
+  In <MARKDOWN_TABLE>, provide a more detailed plan as a Markdown table. This table MUST include the following columns:
+  - "Component": The part of the experiment (e.g., Model, Dataset, Baselines, Evaluation Metric).
+  - "Specification": A detailed description of the chosen approach.
+  - "Justification / Rationale": Why this choice is appropriate, citing relevant literature.
+  - "Status": Leave this column EMPTY.
+# Ethical Defense System
+ethical_defense_system_prompt: >
+  You are an expert AI research ethics advisor. Your role is to review research ideas and ensure they align with scientific ethical standards.
+  You help researchers enhance their ideas to be more ethical, beneficial, and responsible while maintaining their scientific value.
+  Focus on identifying potential risks and suggesting constructive improvements that make research more ethically sound.
+
+ethical_defense_prompt: |
+  You are tasked with reviewing and enhancing the ethical aspects of the following research idea:
+
+  ORIGINAL RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  CURRENT RESEARCH IDEA:
+  ```
+  {idea}
+  ```
+
+  Please carefully review this research idea for ethical considerations and enhance it as needed. Consider the following aspects:
+
+  1. **Potential Harm Assessment**: Does the research have any potential to cause harm to individuals, communities, or society?
+  2. **Beneficial Purpose**: Is the research directed towards beneficial outcomes for humanity and scientific progress?
+  3. **Responsible Methodology**: Are the proposed methods ethical and responsible?
+  4. **Dual-Use Concerns**: Could the research be misused for harmful purposes?
+  5. **Privacy and Consent**: Does the research respect privacy and involve proper consent where applicable?
+  6. **Bias and Fairness**: Does the research adequately address potential biases and fairness concerns?
+
+  If you identify any ethical concerns, please enhance the idea to address these issues while preserving its scientific merit and original intent. Your enhancements should:
+  - Maintain the core scientific value and innovation of the idea
+  - Redirect potentially harmful aspects towards beneficial applications
+  - Add appropriate safeguards and ethical considerations
+  - Ensure alignment with research ethics best practices
+
+  If the idea is already ethically sound, you may return it unchanged.
+
+  Respond in the following format:
+
+  ETHICAL ANALYSIS:
+  <ANALYSIS>
+
+  ENHANCED IDEA JSON:
+  ```json
+  <JSON>
+  ```
+
+  In <ANALYSIS>, provide your ethical assessment and explain any modifications you made.
+  In <JSON>, provide the enhanced research idea in the same JSON format as the input, maintaining all original fields while incorporating ethical improvements.
+
+non_experiment_plan_prompt: |
+  Given the following non-experimental research idea:
+
+  ```
+  {idea}
+  ```
+
+  And the ORIGINAL INTENT:
+  ```
+  {intent}
+  ```
+
+  Develop a comprehensive research plan. You must provide TWO separate outputs: a JSON object and a Markdown table.
+
+  IMPORTANT: Your research plan MUST directly support the investigation of the original intent.
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  EXPERIMENT PLAN JSON:
+  ```json
+  <JSON>
+  ```
+  EXPERIMENT PLAN MARKDOWN TABLE:
+  ```markdown
+  <MARKDOWN_TABLE>
+  ```
+
+  In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
+
+  In <JSON>, provide a concise research plan in JSON format with a SINGLE field:
+  - "Research_Plan": A detailed paragraph describing the complete research plan.
+
+  In <MARKDOWN_TABLE>, provide a more detailed plan as a Markdown table. This table MUST include the following columns:
+  - "Phase": The stage of the research (e.g., Literature Review, Data Collection, Analysis).
+  - "Methodology": The specific methods to be used in this phase.
+  - "Expected Outcome": The deliverable or result of this phase.
+  - "Status": Leave this column EMPTY.

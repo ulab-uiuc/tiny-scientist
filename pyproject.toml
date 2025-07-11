@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tiny-scientist"
-version = "0.0.4"
+version = "0.1.0"
 description = "A lightweight framework for building research agents"
 authors = ["Haofei Yu <yuhaofei44@gmail.com>"]
 license = "Apache 2.0 License"
@@ -8,7 +8,7 @@ readme = "README.md"
 
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.12"
+python = ">=3.9, <3.12"
 mypy = "^1.8.0"
 beartype = "*"
 pydantic = "^2.8.2"
@@ -22,7 +22,7 @@ pypdf = "^5.3.1"
 anthropic = "*"
 google-generativeai = "*"
 openai = "*"
-aider-chat = "0.84.0"
+aider-chat = "*"
 toml = "*"
 spacy = "^3.0.0"
 reportlab = "*"
@@ -32,6 +32,7 @@ cairosvg = "^2.7.1"
 together = "*"
 flask = "^3.0.0"
 flask-cors = "^4.0.0"
+flask-socketio = "^5.5.1"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

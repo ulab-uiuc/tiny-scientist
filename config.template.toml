@@ -25,3 +25,7 @@ llm_api_key = ""
 
 # paper searching engine
 #engine = "semanticscholar"
+
+# Budget allocation preference for pipeline modules: balanced, write-heavy,
+# think-heavy, or review-heavy
+#budget_preference = "balanced"

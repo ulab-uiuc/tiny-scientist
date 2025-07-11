@@ -1,4 +1,5 @@
 import json
+import os
 import os.path as osp
 import shutil
 import subprocess
@@ -12,7 +13,7 @@ from aider.models import Model
 from rich import print
 
 from .configs import Config
-from .utils.cost_tracker import CostTracker
+from .utils.checker import Checker
 from .utils.llm import create_client, get_response_from_llm
 
 
@@ -26,7 +27,8 @@ class Coder:
         max_stderr_output: int = 1500,
         prompt_template_dir: Optional[str] = None,
         chat_history: Optional[str] = None,
-        cost_tracker: Optional[CostTracker] = None,
+        auto_install: bool = True,
+        cost_tracker: Optional[Checker] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
@@ -34,8 +36,9 @@ class Coder:
         self.max_iters = max_iters
         self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
+        self.auto_install = auto_install
         self.config = Config()
-        self.cost_tracker = cost_tracker or CostTracker()
+        self.cost_tracker = cost_tracker or Checker()
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
@@ -44,9 +47,11 @@ class Coder:
         self, model: str, fnames: List[str], chat_history: Optional[str] = None
     ) -> None:
         """Setup Aider coder with the specified model."""
-        io = InputOutput(
-            yes=True, chat_history_file=chat_history or f"{self.output_dir}/aider.txt"
-        )
+        # Ensure the output directory exists
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        # Disable chat history to avoid IO recursion issues in web environment
+        io = InputOutput(yes=True, chat_history_file=None)
 
         if model == "deepseek-coder-v2-0724":
             main_model = Model("deepseek/deepseek-coder")
@@ -68,7 +73,12 @@ class Coder:
 
     def run(
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, Optional[str]]:
+        # Ensure a clean slate for every run
+        print(f"[System] Cleaning experiment directory: {self.output_dir}")
+        if osp.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        os.makedirs(self.output_dir)
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),
@@ -87,7 +97,7 @@ class Coder:
             print(
                 f"[System] No experiments succeeded, but wrote empty result to {save_path}"
             )
-            return False, self.output_dir
+            return False, self.output_dir, "Experiment generation failed"
 
         self._update_notes()
 
@@ -108,7 +118,7 @@ class Coder:
 
         self.cost_tracker.report()
 
-        return True, self.output_dir
+        return True, self.output_dir, None
 
     def _format_experiment_for_prompt(
         self, exp: Dict[str, str]
@@ -272,11 +282,6 @@ class Coder:
                 }
             elif isinstance(results, list):
                 results = {f"entry_{i+1}": entry for i, entry in enumerate(results)}
-
-            results = {
-                k: v["means"] if isinstance(v, dict) and "means" in v else v
-                for k, v in results.items()
-            }
 
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1
