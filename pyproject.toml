@@ -31,7 +31,7 @@ rich = "*"
 cairosvg = "^2.7.1"
 together = "*"
 flask = "^3.0.0"
-flask-cors = "^4.0.0"
+flask-cors = ">=4,<7"
 flask-socketio = "^5.5.1"
 
 [tool.poetry.group.dev.dependencies]
