@@ -9,6 +9,7 @@ from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
 from .utils.checker import Checker
+from .utils.cost_tracker import CostTracker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
@@ -22,6 +23,7 @@ class TinyScientist:
         prompt_template_dir: Optional[str] = None,
         budget: Optional[float] = None,
         enable_safety_check: bool = True,
+        enable_ethical_defense: bool = False,
         budget_preference: Optional[str] = None,
     ):
         self.model = model
@@ -93,7 +95,7 @@ class TinyScientist:
             iter_num=3,
             search_papers=True,
             generate_exp_plan=True,
-            enable_ethical_defense=False,
+            enable_ethical_defense=enable_ethical_defense,
             cost_tracker=Checker(budget=allocation.get("thinker")),
         )
 

@@ -13,6 +13,7 @@ from .utils.llm import (
     extract_json_between_markers,
     get_response_from_llm,
 )
+from .safety_checker import SafetyChecker
 
 
 class Thinker:
@@ -74,6 +75,11 @@ Be critical and realistic in your assessments."""
         self.post_reflection_threshold = post_reflection_threshold
 
         self.enable_ethical_defense = enable_ethical_defense
+        # Initialize SafetyChecker for ethical defense
+        if self.enable_ethical_defense:
+            self.safety_checker = SafetyChecker(model=self.model, cost_tracker=self.cost_tracker)
+        else:
+            self.safety_checker = None
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
@@ -699,7 +705,6 @@ Be critical and realistic in your assessments."""
 
         return "\n\n".join(paper_strings)
 
-    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _ethical_defense_check(self, idea_json: str) -> str:
         """
         Check and enhance the ethical safety of a research idea.
@@ -710,32 +715,28 @@ Be critical and realistic in your assessments."""
         Returns:
             str: Modified idea JSON with enhanced ethical safety
         """
-        if not self.enable_ethical_defense:
+        if not self.enable_ethical_defense or not self.safety_checker:
             return idea_json
 
-        print("Applying ethical defense check...")
-
-        prompt = self.prompts.ethical_defense_prompt.format(
-            idea=idea_json, intent=self.intent
-        )
-
-        text, _ = get_response_from_llm(
-            prompt,
-            client=self.client,
-            model=self.model,
-            system_message=self.prompts.ethical_defense_system_prompt,
-            msg_history=[],
-            temperature=self.temperature,
-            cost_tracker=self.cost_tracker,
-            task_name="ethical_defense_check",
-        )
-
-        # Extract the enhanced idea from response
-        enhanced_idea = extract_json_between_markers(text)
-        if not enhanced_idea:
-            print("⚠️ Ethical defense failed to extract enhanced idea, using original")
+        print("🔒 Applying ethical defense check...")
+        
+        try:
+            # Parse the idea JSON
+            idea_dict = json.loads(idea_json)
+            
+            # Use the integrated SafetyChecker for ethics evaluation
+            ethics_result = self.safety_checker.evaluate_ethics(self.intent, idea_dict)
+            
+            if ethics_result["status"] == "success" and ethics_result["enhanced_idea"]:
+                print("✅ Ethical defense applied successfully")
+                return json.dumps(ethics_result["enhanced_idea"], indent=2)
+            else:
+                print(f"⚠️ Ethical defense warning: {ethics_result.get('error_message', 'Unknown issue')}")
+                return idea_json
+                
+        except json.JSONDecodeError:
+            print("⚠️ Ethical defense failed to parse idea JSON, using original")
             return idea_json
-
-        print("✅ Ethical defense applied successfully")
-        self.cost_tracker.report()
-        return json.dumps(enhanced_idea, indent=2)
+        except Exception as e:
+            print(f"⚠️ Ethical defense error: {str(e)}, using original idea")
+            return idea_json
