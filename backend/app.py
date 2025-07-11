@@ -118,7 +118,15 @@ patch_module_print()
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here"
-CORS(app, supports_credentials=True, origins=["https://app.auto-research.dev", "http://app.auto-research.dev", "http://localhost:3000"])
+CORS(
+    app,
+    supports_credentials=True,
+    origins=[
+        "https://app.auto-research.dev",
+        "http://app.auto-research.dev",
+        "http://localhost:3000",
+    ],
+)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Print override is now active
@@ -427,34 +435,14 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     ideas = data.get("ideas")
     intent = data.get("intent")
 
-    # Debug: Print the incoming ideas to see their structure
-    print("DEBUG: Incoming ideas for evaluation:")
-    for idea in ideas:
-        print(f"ID: {idea.get('id')}, Title: {idea.get('title', idea.get('Title'))}")
-        print("---")
-
     # Use original data directly (no conversion needed)
     thinker_ideas = ideas
 
     # Store original IDs in order - LLM doesn't preserve titles, use index mapping
     original_ids = [idea.get("id") for idea in ideas]
-    print(f"Original IDs in order: {original_ids}")
 
     # Rank ideas
     scored_ideas = thinker.rank(ideas=thinker_ideas, intent=intent)
-
-    print(f"Number of input ideas: {len(ideas)}")
-    print(f"Number of scored ideas: {len(scored_ideas)}")
-
-    # Debug: Print the scored ideas to check if scores are present
-    print("DEBUG: Scored ideas:")
-    for i, idea in enumerate(scored_ideas):
-        title = idea.get("Title", idea.get("title", "No Title"))
-        print(f"Index {i}, Title: {title}")
-        print(f"NoveltyScore: {idea.get('NoveltyScore')}")
-        print(f"FeasibilityScore: {idea.get('FeasibilityScore')}")
-        print(f"ImpactScore: {idea.get('ImpactScore')}")
-        print("---")
 
     # Return in the format expected by TreePlot
     # Use index-based mapping since LLM changes titles but preserves order
@@ -462,7 +450,6 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     for i, idea in enumerate(scored_ideas):
         # Use index to map back to original ID
         original_id = original_ids[i] if i < len(original_ids) else f"idea_{i}"
-        print(f"Index {i} -> ID: {original_id}")
 
         response.append(
             {
@@ -475,9 +462,6 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
                 "impactReason": idea.get("ImpactReason", ""),
             }
         )
-
-    print("DEBUG: API Response:")
-    print(response)
     return jsonify(response)
 
 

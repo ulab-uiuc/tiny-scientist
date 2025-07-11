@@ -73,7 +73,11 @@ Be critical and realistic in your assessments."""
 
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
-        print(f"Generating research idea based on: {intent}")
+        # If intent is too long, show simplified message
+        if len(intent) > 100:
+            print("Generating children ideas")
+        else:
+            print(f"Generating research idea based on: {intent}")
 
         pdf_content = self._load_pdf_content(pdf_content)
         if self.search_papers:
@@ -409,6 +413,7 @@ Be critical and realistic in your assessments."""
         """Parse evaluation result and update idea dictionaries with scores"""
         # Extract JSON from response
         evaluation_data = extract_json_between_markers(evaluation_text)
+
         if not evaluation_data:
             print("Failed to extract JSON from evaluation response")
             return []
@@ -421,9 +426,12 @@ Be critical and realistic in your assessments."""
 
         # Create scored list
         scored_ideas = []
+        scored_items = evaluation_data.get("scored_ideas", [])
+
         # FIX: The key from the prompt is "scored_ideas", not "ranked_ideas"
-        for scored_item in evaluation_data.get("scored_ideas", []):
+        for scored_item in scored_items:
             idea_name = scored_item.get("Title", "")
+
             if idea_name in idea_map:
                 # Get original idea and update with scoring data
                 idea = idea_map[idea_name].copy()
