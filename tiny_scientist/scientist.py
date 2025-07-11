@@ -9,7 +9,6 @@ from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
 from .utils.budget_checker import BudgetChecker
-from .utils.cost_tracker import CostTracker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
