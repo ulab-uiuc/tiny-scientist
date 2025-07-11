@@ -1049,8 +1049,9 @@ const TreePlotVisualization = () => {
         ideas: ideas.map(h => ({
           ...(h.originalData || {}),
           id: h.id,  // Always include the frontend node ID
-          title: h.title,
-          content: h.content
+          // Don't overwrite the original Title field - use it for evaluation
+          // title: h.title,
+          // content: h.content
         })),
         intent: analysisIntent
       };
@@ -1253,7 +1254,7 @@ const TreePlotVisualization = () => {
         originalData: hyp.originalData, // Preserve original data for coder/writer
       }));
 
-      const newLinks = newNodes.map((nd) => ({ source: selectedNode.id, target: nd.id }));
+      const newLinks = newNodes.map((nd) => ({ source: selectedNode.id, target: nd.id, isParentChild: true }));
       setNodes((prev) => [...prev, ...newNodes]);
       setLinks((prev) => [...prev, ...newLinks]);
 
@@ -1916,7 +1917,8 @@ const TreePlotVisualization = () => {
             .attr('x2', x(t[xAxisMetric]))
             .attr('y2', y(t[yAxisMetric]))
             .style('stroke', isMergeEdge ? '#999' : '#ccc')
-            .style('stroke-width', isMergeEdge ? 1.5 : 1);
+            .style('stroke-width', isMergeEdge ? 1.5 : 1)
+            .style('stroke-dasharray', lk.isParentChild ? '5,5' : 'none');
         });
 
         /* 节点绘制 & 拖拽 */
@@ -2704,7 +2706,7 @@ const TreePlotVisualization = () => {
   const downloadPDF = async (pdfPath) => {
     try {
       // Fetch the PDF as a blob to force download
-      const response = await fetch(`http://localhost:8080${pdfPath}`);
+      const response = await fetch(`http://localhost:5000${pdfPath}`);
 
       if (!response.ok) {
         throw new Error(`Failed to download PDF: ${response.status}`);
@@ -2744,7 +2746,7 @@ const TreePlotVisualization = () => {
     try {
       console.log('Starting paper review for:', pdfPath);
 
-      const response = await fetch('http://localhost:8080/api/review', {
+      const response = await fetch('http://localhost:5000/api/review', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3330,7 +3332,7 @@ const TreePlotVisualization = () => {
                     </button>
                   </div>
                   <iframe
-                    src={`http://localhost:8080${paperResult.pdf_path}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
+                    src={`http://localhost:5000${paperResult.pdf_path}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
                     style={{
                       width: '100%',
                       height: 'calc(100% - 45px)',
@@ -3796,6 +3798,11 @@ const TreePlotVisualization = () => {
             {/* 左侧图 */}
             <div ref={svgContainerRef} style={{ flexBasis: '60%', marginRight: '20px' }}>
               <svg ref={svgRef} />
+              {/* Log Display Panel - positioned directly under the plot */}
+              <LogDisplay
+                isVisible={showLogs}
+                onToggle={() => setShowLogs(!showLogs)}
+              />
             </div>
 
             {/* 右侧 Dashboard */}
@@ -3827,20 +3834,6 @@ const TreePlotVisualization = () => {
             </div>
           </div>
 
-          {/* Log Display Panel - positioned to match plot width */}
-          <div
-            style={{
-              padding: '0 20px',
-              maxWidth: '1600px',
-              margin: '0 auto',
-              boxSizing: 'border-box',
-            }}
-          >
-            <LogDisplay
-              isVisible={showLogs}
-              onToggle={() => setShowLogs(!showLogs)}
-            />
-          </div>
         </>)}
 
       {/* ========== 段落12：悬浮确认修改的按钮 (pendingChange) ========== */}
