@@ -9,7 +9,7 @@ import openai
 import toml
 from google.generativeai.types import GenerationConfig
 
-from tiny_scientist.utils.budget_checker import BudgetChecker
+from tiny_scientist.budget_checker import BudgetChecker
 
 # Load config
 config_path = os.path.join(

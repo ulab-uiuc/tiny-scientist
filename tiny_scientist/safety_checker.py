@@ -5,8 +5,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import yaml
 
+from .budget_checker import BudgetChecker
 from .configs import Config
-from .utils.budget_checker import BudgetChecker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
 
@@ -199,14 +199,16 @@ class SafetyChecker:
         self.cost_tracker.report()
         return is_safe, safety_report
 
-    def _load_ethics_prompts(self) -> Dict[str, str]:
+    def _load_ethics_prompts(self) -> Dict[str, Any]:
         """Load ethics prompts from the YAML file."""
         prompt_path = os.path.join(
             os.path.dirname(__file__), "prompts", "safetychecker_prompt.yaml"
         )
         try:
             with open(prompt_path, "r", encoding="utf-8") as file:
-                return yaml.safe_load(file)
+                import typing
+
+                return typing.cast(Dict[str, Any], yaml.safe_load(file))
         except FileNotFoundError:
             print(f"Warning: Ethics prompts file not found at {prompt_path}")
             return {}
@@ -399,7 +401,9 @@ class SafetyChecker:
         # Overall safety determination
         overall_safe = is_intent_safe
         if idea is not None:
-            overall_safe = overall_safe and result["idea_ethics"]["is_ethically_sound"]
+            overall_safe = overall_safe and bool(
+                result["idea_ethics"]["is_ethically_sound"]
+            )
 
         result["overall_safety"] = {
             "is_safe": overall_safe,

@@ -11,8 +11,8 @@ import requests
 import toml
 from rich import print
 
+from .budget_checker import BudgetChecker
 from .configs import Config
-from .utils.budget_checker import BudgetChecker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
 

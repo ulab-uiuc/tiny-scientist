@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import cairosvg
 from rich import print
 
+from .budget_checker import BudgetChecker
 from .configs import Config
 from .tool import BaseTool, DrawerTool, PaperSearchTool
-from .utils.budget_checker import BudgetChecker
 from .utils.llm import (
     create_client,
     extract_json_between_markers,

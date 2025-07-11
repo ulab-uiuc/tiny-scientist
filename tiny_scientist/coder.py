@@ -12,8 +12,8 @@ from aider.io import InputOutput
 from aider.models import Model
 from rich import print
 
+from .budget_checker import BudgetChecker
 from .configs import Config
-from .utils.budget_checker import BudgetChecker
 from .utils.llm import create_client, get_response_from_llm
 
 

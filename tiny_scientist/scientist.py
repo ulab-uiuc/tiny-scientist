@@ -4,11 +4,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import toml
 from rich import print
 
+from .budget_checker import BudgetChecker
 from .coder import Coder
 from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
-from .utils.budget_checker import BudgetChecker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
