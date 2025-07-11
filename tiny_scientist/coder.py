@@ -13,7 +13,7 @@ from aider.models import Model
 from rich import print
 
 from .configs import Config
-from .utils.checker import Checker
+from .utils.budget_checker import BudgetChecker
 from .utils.llm import create_client, get_response_from_llm
 
 
@@ -28,7 +28,7 @@ class Coder:
         prompt_template_dir: Optional[str] = None,
         chat_history: Optional[str] = None,
         auto_install: bool = True,
-        cost_tracker: Optional[Checker] = None,
+        cost_tracker: Optional[BudgetChecker] = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
@@ -38,7 +38,7 @@ class Coder:
         self.max_stderr_output = max_stderr_output
         self.auto_install = auto_install
         self.config = Config()
-        self.cost_tracker = cost_tracker or Checker()
+        self.cost_tracker = cost_tracker or BudgetChecker()
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt

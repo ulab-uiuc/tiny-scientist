@@ -12,7 +12,7 @@ import toml
 from rich import print
 
 from .configs import Config
-from .utils.checker import Checker
+from .utils.budget_checker import BudgetChecker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
 
@@ -22,8 +22,8 @@ config = toml.load(config_path) if os.path.exists(config_path) else {"core": {}}
 
 
 class BaseTool(abc.ABC):
-    def __init__(self, cost_tracker: Optional[Checker] = None) -> None:
-        self.cost_tracker = cost_tracker or Checker()
+    def __init__(self, cost_tracker: Optional[BudgetChecker] = None) -> None:
+        self.cost_tracker = cost_tracker or BudgetChecker()
         self.github_token = config["core"].get("github_token", None)
 
     @abc.abstractmethod

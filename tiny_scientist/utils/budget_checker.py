@@ -9,7 +9,7 @@ class BudgetExceededError(Exception):
     """Raised when a call would exceed the configured budget."""
 
 
-class Checker:
+class BudgetChecker:
     """Track API usage cost and enforce a spending budget."""
 
     def __init__(self, budget: Optional[float] = None) -> None:

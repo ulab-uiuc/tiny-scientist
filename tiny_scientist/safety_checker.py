@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
 from .configs import Config
-from .utils.cost_tracker import CostTracker
+from .utils.budget_checker import BudgetChecker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
 
@@ -41,10 +41,10 @@ def is_rejection_response(response: str) -> bool:
 
 class PromptAttackDetector:
     def __init__(
-        self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None
+        self, model: str = "gpt-4o", cost_tracker: Optional[BudgetChecker] = None
     ) -> None:
         self.client, self.model = create_client(model)
-        self.cost_tracker = cost_tracker or CostTracker()
+        self.cost_tracker = cost_tracker or BudgetChecker()
         self.config = Config()
         self.prompts = self.config.prompt_template.safety_prompt
 
@@ -138,10 +138,10 @@ class SafetyChecker:
     """Safety checker module for Tiny Scientist"""
 
     def __init__(
-        self, model: str = "gpt-4o", cost_tracker: Optional[CostTracker] = None
+        self, model: str = "gpt-4o", cost_tracker: Optional[BudgetChecker] = None
     ) -> None:
         self.model = model
-        self.cost_tracker = cost_tracker or CostTracker()
+        self.cost_tracker = cost_tracker or BudgetChecker()
         self.detector = PromptAttackDetector(
             model=model, cost_tracker=self.cost_tracker
         )

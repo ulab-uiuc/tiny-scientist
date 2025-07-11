@@ -12,7 +12,7 @@ from rich import print
 
 from .configs import Config
 from .tool import BaseTool, DrawerTool, PaperSearchTool
-from .utils.checker import Checker
+from .utils.budget_checker import BudgetChecker
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
@@ -33,7 +33,7 @@ class Writer:
         template: str,
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
-        cost_tracker: Optional[Checker] = None,
+        cost_tracker: Optional[BudgetChecker] = None,
         s2_api_key: Optional[str] = None,
     ) -> None:
         self.client, self.model = create_client(model)
@@ -50,7 +50,7 @@ class Writer:
             self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
 
         self.prompts = self.config.prompt_template.writer_prompt
-        self.cost_tracker = cost_tracker or Checker()
+        self.cost_tracker = cost_tracker or BudgetChecker()
 
         with resources.files("tiny_scientist.fewshot_sample").joinpath(
             "automated_relational.txt"

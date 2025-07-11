@@ -5,7 +5,7 @@ from rich import print
 
 from .configs import Config
 from .tool import BaseTool, PaperSearchTool
-from .utils.checker import Checker
+from .utils.budget_checker import BudgetChecker
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.input_formatter import InputFormatter
 from .utils.llm import (
@@ -24,7 +24,7 @@ class Reviewer:
         num_reflections: int = 2,
         temperature: float = 0.75,
         prompt_template_dir: Optional[str] = None,
-        cost_tracker: Optional[Checker] = None,
+        cost_tracker: Optional[BudgetChecker] = None,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
         s2_api_key: Optional[str] = None,
@@ -38,7 +38,7 @@ class Reviewer:
         self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
-        self.cost_tracker = cost_tracker or Checker()
+        self.cost_tracker = cost_tracker or BudgetChecker()
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
 

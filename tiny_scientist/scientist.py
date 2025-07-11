@@ -8,7 +8,7 @@ from .coder import Coder
 from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
-from .utils.checker import Checker
+from .utils.budget_checker import BudgetChecker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
@@ -79,7 +79,7 @@ class TinyScientist:
 
         self.safety_checker = (
             SafetyChecker(
-                model=model, cost_tracker=CostTracker(budget=per_module_budget)
+                model=model, cost_tracker=BudgetChecker(budget=per_module_budget)
             )
             if enable_safety_check
             else None
@@ -94,7 +94,7 @@ class TinyScientist:
             search_papers=True,
             generate_exp_plan=True,
             enable_ethical_defense=False,
-            cost_tracker=Checker(budget=allocation.get("thinker")),
+            cost_tracker=BudgetChecker(budget=allocation.get("thinker")),
         )
 
         self.coder = Coder(
@@ -103,7 +103,7 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
-            cost_tracker=Checker(budget=allocation.get("coder")),
+            cost_tracker=BudgetChecker(budget=allocation.get("coder")),
         )
 
         self.writer = Writer(
@@ -111,14 +111,14 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
-            cost_tracker=Checker(budget=allocation.get("writer")),
+            cost_tracker=BudgetChecker(budget=allocation.get("writer")),
         )
 
         self.reviewer = Reviewer(
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            cost_tracker=Checker(budget=allocation.get("reviewer")),
+            cost_tracker=BudgetChecker(budget=allocation.get("reviewer")),
         )
 
     def think(
