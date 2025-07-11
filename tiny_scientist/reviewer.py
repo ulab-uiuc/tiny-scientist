@@ -103,7 +103,8 @@ class Reviewer:
             budget = self.cost_tracker.get_budget()
             if (
                 budget is not None
-                and self.cost_tracker.get_total_cost() / budget >= self.pre_reflection_threshold
+                and self.cost_tracker.get_total_cost() / budget
+                >= self.pre_reflection_threshold
             ):
                 print("[Reviewer] Skipping review reflections due to budget limit.")
             else:

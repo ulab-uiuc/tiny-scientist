@@ -2,7 +2,6 @@ import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import toml
-
 from rich import print
 
 from .coder import Coder
@@ -32,18 +31,37 @@ class TinyScientist:
         self.cost = 0.0
 
         if budget_preference is None:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "config.toml"
+            )
             if os.path.exists(config_path):
                 cfg = toml.load(config_path)
-                budget_preference = cfg.get("core", {}).get("budget_preference", "balanced")
+                budget_preference = cfg.get("core", {}).get(
+                    "budget_preference", "balanced"
+                )
             else:
                 budget_preference = "balanced"
 
         weights = {
             "balanced": {"thinker": 0.3, "writer": 0.3, "reviewer": 0.3, "coder": 0.1},
-            "write-heavy": {"thinker": 0.2, "writer": 0.5, "reviewer": 0.2, "coder": 0.1},
-            "think-heavy": {"thinker": 0.5, "writer": 0.2, "reviewer": 0.2, "coder": 0.1},
-            "review-heavy": {"thinker": 0.2, "writer": 0.2, "reviewer": 0.5, "coder": 0.1},
+            "write-heavy": {
+                "thinker": 0.2,
+                "writer": 0.5,
+                "reviewer": 0.2,
+                "coder": 0.1,
+            },
+            "think-heavy": {
+                "thinker": 0.5,
+                "writer": 0.2,
+                "reviewer": 0.2,
+                "coder": 0.1,
+            },
+            "review-heavy": {
+                "thinker": 0.2,
+                "writer": 0.2,
+                "reviewer": 0.5,
+                "coder": 0.1,
+            },
         }
         if budget_preference not in weights:
             raise ValueError(f"Unknown budget preference: {budget_preference}")

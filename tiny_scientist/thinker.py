@@ -368,7 +368,8 @@ Be critical and realistic in your assessments."""
         budget = self.cost_tracker.get_budget()
         if (
             budget is not None
-            and self.cost_tracker.get_total_cost() / budget >= self.pre_reflection_threshold
+            and self.cost_tracker.get_total_cost() / budget
+            >= self.pre_reflection_threshold
         ):
             print("[Thinker] Skipping idea reflections due to budget limit.")
             self.cost_tracker.report()
@@ -379,9 +380,7 @@ Be critical and realistic in your assessments."""
         per_round_cost = None
 
         while rounds_done < max_rounds:
-            print(
-                f"Refining idea {rounds_done + 1}th time out of {max_rounds} times."
-            )
+            print(f"Refining idea {rounds_done + 1}th time out of {max_rounds} times.")
 
             start_cost = self.cost_tracker.get_total_cost()
             current_idea_dict = json.loads(current_idea_json)
@@ -391,7 +390,9 @@ Be critical and realistic in your assessments."""
                 current_idea_dict.update(info)
             current_idea_json = json.dumps(current_idea_dict)
 
-            current_idea_json = self.rethink(current_idea_json, current_round=rounds_done + 1)
+            current_idea_json = self.rethink(
+                current_idea_json, current_round=rounds_done + 1
+            )
 
             iteration_cost = self.cost_tracker.get_total_cost() - start_cost
             if per_round_cost is None:
@@ -405,7 +406,8 @@ Be critical and realistic in your assessments."""
             rounds_done += 1
             if (
                 budget is not None
-                and self.cost_tracker.get_total_cost() >= budget * self.post_reflection_threshold
+                and self.cost_tracker.get_total_cost()
+                >= budget * self.post_reflection_threshold
             ):
                 break
 
