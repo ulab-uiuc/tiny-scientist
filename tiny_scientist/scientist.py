@@ -9,6 +9,7 @@ from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
 from .utils.budget_checker import BudgetChecker
+from .utils.cost_tracker import CostTracker
 from .utils.input_formatter import InputFormatter
 from .writer import Writer
 
@@ -94,6 +95,7 @@ class TinyScientist:
             search_papers=True,
             generate_exp_plan=True,
             enable_ethical_defense=False,
+            enable_safety_check=enable_safety_check,
             cost_tracker=BudgetChecker(budget=allocation.get("thinker")),
         )
 
