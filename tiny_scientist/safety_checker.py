@@ -202,7 +202,7 @@ class SafetyChecker:
     def _load_ethics_prompts(self) -> Dict[str, Any]:
         """Load ethics prompts from the YAML file."""
         prompt_path = os.path.join(
-            os.path.dirname(__file__), "prompts", "safetychecker_prompt.yaml"
+            os.path.dirname(__file__), "prompts", "safety_prompt.yaml"
         )
         try:
             with open(prompt_path, "r", encoding="utf-8") as file:
