@@ -4,6 +4,7 @@ import os.path as osp
 import shutil
 import subprocess
 import sys
+import time
 from subprocess import TimeoutExpired
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -255,11 +256,44 @@ class Coder:
                     print(
                         f"[System] Missing package detected: {missing_pkg}. Attempting to install..."
                     )
-                    subprocess.run(
-                        [sys.executable, "-m", "pip", "install", missing_pkg]
-                    )
-                    print("[System] Re-running after installing dependency...")
-                    return self._run_single_experiment(run_num, timeout=timeout)
+
+                    # Install package with proper wait and error handling
+                    try:
+                        install_result = subprocess.run(
+                            [sys.executable, "-m", "pip", "install", missing_pkg],
+                            capture_output=True,
+                            text=True,
+                            timeout=300,  # 5 minutes timeout for installation
+                            check=True,
+                        )
+                        print(f"[System] Successfully installed {missing_pkg}")
+                        print(f"[System] Install output: {install_result.stdout}")
+
+                        # Small delay to ensure the package is fully available
+                        time.sleep(2)
+
+                        print("[System] Re-running after installing dependency...")
+                        return self._run_single_experiment(run_num, timeout=timeout)
+
+                    except subprocess.TimeoutExpired:
+                        print(
+                            f"[System] Package installation timed out after 5 minutes for {missing_pkg}"
+                        )
+                        return 1, f"Package installation timeout for {missing_pkg}"
+
+                    except subprocess.CalledProcessError as e:
+                        print(f"[System] Package installation failed for {missing_pkg}")
+                        print(f"[System] Installation error: {e.stderr}")
+                        return (
+                            1,
+                            f"Package installation failed for {missing_pkg}: {e.stderr}",
+                        )
+
+                    except Exception as e:
+                        print(
+                            f"[System] Unexpected error during package installation: {str(e)}"
+                        )
+                        return 1, f"Unexpected installation error: {str(e)}"
 
                 self._cleanup_failed_run(run_num)
 
