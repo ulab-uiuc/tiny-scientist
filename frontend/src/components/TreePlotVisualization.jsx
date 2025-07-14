@@ -586,8 +586,8 @@ const TreePlotVisualization = () => {
 
   // Quick setup handler for GPT-4o with pre-configured API key
   const handleQuickSetup = async () => {
-    // Pre-configured API key - replace with your actual OpenAI API key
-    const preConfiguredApiKey = 'your-openai-api-key-here';
+    // Pre-configured API key from environment variable
+    const preConfiguredApiKey = process.env.REACT_APP_OPENAI_API_KEY || 'your-openai-api-key-here';
 
     // Auto-configure with GPT-4o
     setSelectedModel('gpt-4o');

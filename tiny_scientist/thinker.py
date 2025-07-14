@@ -1,5 +1,6 @@
 import json
 import os.path as osp
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Union, cast
 
 from rich import print
@@ -31,7 +32,6 @@ class Thinker:
         enable_safety_check: bool = False,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
-        enable_ethical_defense: bool = False,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -76,7 +76,6 @@ Be critical and realistic in your assessments."""
         self.post_reflection_threshold = post_reflection_threshold
 
         self.enable_safety_check = enable_safety_check
-        self.enable_ethical_defense = enable_ethical_defense
         self.safety_checker: Optional[SafetyChecker]
         if self.enable_safety_check:
             self.safety_checker = SafetyChecker(
@@ -117,6 +116,48 @@ Be critical and realistic in your assessments."""
         self.cost_tracker.report()
         return self._reflect_idea(idea_json, current_round, related_works_string)
 
+    def _process_single_idea(
+        self,
+        intent: str,
+        pdf_content: Optional[str],
+        idea_index: int,
+        total_ideas: int,
+        check_novelty: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Process a single idea through the complete pipeline."""
+        print(f"\nProcessing idea {idea_index + 1}/{total_ideas}")
+
+        idea_json = self.think(intent, pdf_content)
+        idea_dict = json.loads(idea_json)
+
+        if not idea_dict:
+            print(f"Failed to generate idea {idea_index + 1}")
+            return None
+
+        print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
+
+        current_idea_json = self._refine_idea(idea_json)
+
+        current_idea_exp = (
+            self.generate_experiment_plan(current_idea_json)
+            if self.generate_exp_plan
+            else current_idea_json
+        )
+
+        current_idea_final = (
+            self._check_novelty(current_idea_exp) if check_novelty else current_idea_exp
+        )
+
+        # Apply comprehensive safety check if enabled
+        current_idea_final = self._safety_check(current_idea_final)
+
+        current_idea_dict = json.loads(current_idea_final)
+
+        print(
+            f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
+        )
+        return current_idea_dict
+
     def run(
         self,
         intent: str,
@@ -127,41 +168,46 @@ Be critical and realistic in your assessments."""
         all_ideas = []
         pdf_content = self._load_pdf_content(pdf_content)
 
-        for i in range(num_ideas):
-            print(f"\nProcessing idea {i + 1}/{num_ideas}")
-
-            idea_json = self.think(intent, pdf_content)
-            idea_dict = json.loads(idea_json)
-
-            if not idea_dict:
-                print(f"Failed to generate idea {i + 1}")
-                continue
-
-            print(f"Generated idea: {idea_dict.get('Title', 'Unnamed')}")
-
-            current_idea_json = self._refine_idea(idea_json)
-
-            current_idea_exp = (
-                self.generate_experiment_plan(current_idea_json)
-                if self.generate_exp_plan
-                else current_idea_json
+        if num_ideas == 1:
+            # For single idea, use sequential processing to avoid thread overhead
+            idea_dict = self._process_single_idea(
+                intent, pdf_content, 0, 1, check_novelty
             )
+            if idea_dict:
+                all_ideas.append(idea_dict)
+        else:
+            # For multiple ideas, use parallel processing
+            print(f"🚀 Starting parallel generation of {num_ideas} ideas...")
 
-            current_idea_final = (
-                self._check_novelty(current_idea_exp)
-                if check_novelty
-                else current_idea_exp
-            )
+            with ThreadPoolExecutor(max_workers=min(num_ideas, 3)) as executor:
+                # Submit all idea generation tasks
+                future_to_index = {
+                    executor.submit(
+                        self._process_single_idea,
+                        intent,
+                        pdf_content,
+                        i,
+                        num_ideas,
+                        check_novelty,
+                    ): i
+                    for i in range(num_ideas)
+                }
 
-            # Apply comprehensive safety check if enabled
-            current_idea_final = self._safety_check(current_idea_final)
+                # Collect results as they complete
+                for future in as_completed(future_to_index):
+                    idea_index = future_to_index[future]
+                    try:
+                        result = future.result()
+                        if result:
+                            all_ideas.append(result)
+                    except Exception as e:
+                        print(f"Error processing idea {idea_index + 1}: {str(e)}")
+                        continue
 
-            current_idea_dict = json.loads(current_idea_final)
-
-            all_ideas.append(current_idea_dict)
             print(
-                f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
+                f"✅ Parallel generation completed. Generated {len(all_ideas)} out of {num_ideas} ideas."
             )
+
         if len(all_ideas) > 1:
             self.cost_tracker.report()
             return all_ideas
