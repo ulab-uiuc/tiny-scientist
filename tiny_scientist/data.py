@@ -57,8 +57,6 @@ class ThinkerPrompt(BaseModel):
     idea_reflection_prompt: str
     novelty_prompt: str
     experiment_plan_prompt: str
-    ethical_defense_system_prompt: str
-    ethical_defense_prompt: str
     non_experiment_plan_prompt: str
 
 
@@ -71,3 +69,5 @@ class DrawerPrompt(BaseModel):
 class SafetyPrompt(BaseModel):
     risk_assessment_system_prompt: str
     attack_detection_system_prompt: str
+    ethical_defense_system_prompt: str
+    ethical_defense_prompt: str
