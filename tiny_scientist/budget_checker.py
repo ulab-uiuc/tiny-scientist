@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 from rich import print
 
-from .pricing import calculate_pricing
+from .utils.pricing import calculate_pricing
 
 
 class BudgetExceededError(Exception):
