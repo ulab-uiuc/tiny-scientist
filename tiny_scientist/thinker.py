@@ -31,7 +31,6 @@ class Thinker:
         enable_safety_check: bool = False,
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
-        enable_ethical_defense: bool = False,
     ):
         self.tools = tools
         self.iter_num = iter_num
@@ -76,7 +75,6 @@ Be critical and realistic in your assessments."""
         self.post_reflection_threshold = post_reflection_threshold
 
         self.enable_safety_check = enable_safety_check
-        self.enable_ethical_defense = enable_ethical_defense
         self.safety_checker: Optional[SafetyChecker]
         if self.enable_safety_check:
             self.safety_checker = SafetyChecker(
