@@ -29,3 +29,21 @@ llm_api_key = ""
 # Budget allocation preference for pipeline modules: balanced, write-heavy,
 # think-heavy, or review-heavy
 #budget_preference = "balanced"
+
+#################################### MCP ####################################
+[mcp.servers]
+
+[mcp.servers.code_search]
+command = "python"
+args = ["-m", "tiny_scientist.mcp.code_search_server"]
+cwd = "."
+
+[mcp.servers.paper_search]
+command = "python"
+args = ["-m", "tiny_scientist.mcp.paper_search_server"]
+cwd = "."
+
+[mcp.servers.drawer]
+command = "python"
+args = ["-m", "tiny_scientist.mcp.drawer_server"]
+cwd = "."

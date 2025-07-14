@@ -30,6 +30,7 @@ class Coder:
         chat_history: Optional[str] = None,
         auto_install: bool = True,
         cost_tracker: Optional[BudgetChecker] = None,
+        mcp_client: Any = None,
     ):
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
@@ -40,6 +41,7 @@ class Coder:
         self.auto_install = auto_install
         self.config = Config()
         self.cost_tracker = cost_tracker or BudgetChecker()
+        self.mcp_client = mcp_client
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
@@ -77,9 +79,28 @@ class Coder:
     ) -> Tuple[bool, str, Optional[str]]:
         # Ensure a clean slate for every run
         print(f"[System] Cleaning experiment directory: {self.output_dir}")
-        if osp.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
-        os.makedirs(self.output_dir)
+
+        # Save current working directory and switch to parent directory to avoid deletion issues
+        original_cwd = os.getcwd()
+        safe_cwd = osp.dirname(osp.abspath(self.output_dir))
+
+        try:
+            # Switch to safe directory before cleaning
+            os.chdir(safe_cwd)
+
+            if osp.exists(self.output_dir):
+                shutil.rmtree(self.output_dir)
+            os.makedirs(self.output_dir)
+
+        finally:
+            # Restore original working directory if it still exists, otherwise use safe directory
+            try:
+                os.chdir(original_cwd)
+            except (FileNotFoundError, OSError):
+                print(
+                    f"[System] Original working directory no longer exists, staying in {safe_cwd}"
+                )
+                os.chdir(safe_cwd)
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),

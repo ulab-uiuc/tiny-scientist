@@ -28,6 +28,7 @@ class Reviewer:
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
         s2_api_key: Optional[str] = None,
+        mcp_client: Any = None,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -35,7 +36,11 @@ class Reviewer:
         self.client, self.model = create_client(model)
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
-        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
+        self.mcp_client = mcp_client
+        # Use MCP searcher if available, otherwise fallback to traditional searcher
+        self.searcher: Optional[BaseTool] = (
+            PaperSearchTool(s2_api_key=s2_api_key) if not mcp_client else None
+        )
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         self.cost_tracker = cost_tracker or BudgetChecker()
@@ -139,8 +144,89 @@ class Reviewer:
         if query in self._query_cache:
             related_papers = self._query_cache[query]
         else:
-            results_dict = self.searcher.run(query)
-            related_papers = list(results_dict.values())
+            if self.mcp_client:
+                # Use MCP client for paper search
+                import asyncio
+
+                from .utils.mcp_client import search_papers
+
+                try:
+                    # Handle async function call properly to avoid event loop conflicts
+                    import concurrent.futures
+
+                    def run_async_search() -> Optional[str]:
+                        """Run the async search function in a new event loop."""
+                        return asyncio.run(search_papers(query, self.mcp_client))
+
+                    # Always use ThreadPoolExecutor to avoid event loop conflicts
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_async_search)
+                        results_json = future.result(timeout=30.0)  # Add timeout
+
+                    if results_json:
+                        import json
+
+                        results_dict = json.loads(results_json)
+                        if results_dict:
+                            # Convert MCP format to expected format
+                            related_papers = []
+                            for title, paper_data in results_dict.items():
+                                if isinstance(paper_data, dict):
+                                    # MCP format: {"title": ..., "bibtex": ...}
+                                    paper = {
+                                        "title": paper_data.get("title", title),
+                                        "source": "Unknown authors",  # MCP doesn't return author info
+                                        "info": f"BibTeX available: {paper_data.get('bibtex', 'N/A') != 'N/A'}",
+                                    }
+                                else:
+                                    # Fallback if unexpected format
+                                    paper = {
+                                        "title": title,
+                                        "source": "Unknown authors",
+                                        "info": "Unknown venue",
+                                    }
+                                related_papers.append(paper)
+                        else:
+                            related_papers = []
+                    else:
+                        related_papers = []
+                except Exception as e:
+                    print(
+                        f"[WARNING] MCP search failed, falling back to traditional search: {e}"
+                    )
+                    if self.searcher:
+                        results_dict = self.searcher.run(query)
+                        related_papers = list(results_dict.values())
+                    else:
+                        related_papers = []
+            else:
+                # Use traditional searcher
+                if self.searcher:
+                    results_dict = self.searcher.run(query)
+                    if results_dict:
+                        # Convert traditional format to expected format
+                        related_papers = []
+                        for title, paper_data in results_dict.items():
+                            if isinstance(paper_data, dict):
+                                # Traditional format: {"title": ..., "bibtex": ...}
+                                paper = {
+                                    "title": paper_data.get("title", title),
+                                    "source": "Unknown authors",  # Traditional tool doesn't return author info either
+                                    "info": f"BibTeX available: {paper_data.get('bibtex', 'N/A') != 'N/A'}",
+                                }
+                            else:
+                                # Fallback if unexpected format
+                                paper = {
+                                    "title": title,
+                                    "source": "Unknown authors",
+                                    "info": "Unknown venue",
+                                }
+                            related_papers.append(paper)
+                    else:
+                        related_papers = []
+                else:
+                    related_papers = []
+
             self._query_cache[query] = related_papers if related_papers else []
 
         if related_papers:

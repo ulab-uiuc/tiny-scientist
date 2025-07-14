@@ -162,6 +162,7 @@ run_experiments/
 generated/
 runs/
 testst/
+test/
 
 # System files
 .DS_Store
@@ -175,7 +176,6 @@ flask_test.log
 # Temporary files
 *.tmp
 *.temp
-
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
