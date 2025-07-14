@@ -93,7 +93,6 @@ class TinyScientist:
             iter_num=3,
             search_papers=True,
             generate_exp_plan=True,
-            enable_ethical_defense=False,
             enable_safety_check=enable_safety_check,
             cost_tracker=BudgetChecker(budget=allocation.get("thinker")),
         )
