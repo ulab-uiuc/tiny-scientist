@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from subprocess import TimeoutExpired
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional, Dict, Tuple, List, Union, Set, Type, Callable
 
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
@@ -32,7 +32,7 @@ class Coder:
         auto_install: bool = True,
         cost_tracker: Optional[BudgetChecker] = None,
         use_docker: bool = True,
-    ):
+    ) -> None:
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)

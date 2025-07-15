@@ -3,10 +3,11 @@ import argparse
 import os
 from typing import Any, Dict
 
+from tiny_scientist.budget_checker import BudgetChecker
+
 # Import the Coder class - assuming it's in a module called "coder"
 # You may need to adjust this import based on your actual project structure
 from tiny_scientist.coder import Coder
-from tiny_scientist.budget_checker import BudgetChecker
 
 
 def test_docker_availability():

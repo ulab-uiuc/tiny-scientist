@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import time
 from importlib import resources
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Optional, Dict, Tuple, List, Union, Set, Type, Callable, cast
 
 import docker
 import fitz
@@ -865,7 +865,7 @@ RUN pip install --no-cache-dir -r requirements.txt
     @staticmethod
     def extract_missing_package(stderr: str) -> str:
         """Extract missing package name from stderr with package name mapping."""
-        # Common package name mappings (import_name -> pip_package_name)
+ 
         package_mapping = {
             'sklearn': 'scikit-learn',
             'cv2': 'opencv-python',

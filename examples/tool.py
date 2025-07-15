@@ -8,16 +8,18 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, Union, List
 
 import docker
 import requests
 from websocket import create_connection
+from subprocess import Popen
+from typing import WebSocketTimeoutException
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-EnvironmentProcess = Union[subprocess.Popen, None, docker.models.containers.Container]
+EnvironmentProcess = Union[Popen[Any], None, docker.models.containers.Container]
 
 
 @dataclass
@@ -46,7 +48,7 @@ class Environment:
                 pass
 
 
-def wait_for_jupyter(host, port, timeout=20):
+def wait_for_jupyter(host: str, port: int, timeout: int = 20) -> bool:
     """Waits for the jupyter notebook to load and for it to be accessible.
 
     Raises:
@@ -149,8 +151,8 @@ def launch_docker_jupyter(
                     logger.info(log_message)
 
         ## run the container
-        container = None
-        container_kwargs = {}
+        container: Optional[docker.models.containers.Container] = None
+        container_kwargs: Dict[str, Any] = {}
         container_kwargs["ports"] = {}
         container_kwargs["ports"]["8888/tcp"] = (host, port)
         container_kwargs["detach"] = True
@@ -513,7 +515,7 @@ def CodingEnvironment(env_type: str, **kwargs) -> Tuple[Any, Any]:
     return (env, executor)
 
 
-def test_local_jupyter():
+def test_local_jupyter() -> None:
     """Run code execution inside of jupyter running on the local computer"""
     env, executor = CodingEnvironment(env_type="notebook", run_docker=False)
     notebook = executor()  ## create new notebook instance
@@ -530,7 +532,7 @@ def test_local_jupyter():
     env.close()
 
 
-def test_docker_jupyter():
+def test_docker_jupyter() -> None:
     """Run code execution inside of jupyter running on the local computer"""
     env, executor = CodingEnvironment(env_type="notebook", run_docker=True)
     notebook = executor()  ## create new notebook instance
