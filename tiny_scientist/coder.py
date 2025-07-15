@@ -268,7 +268,6 @@ class Coder:
             osp.join(self.output_dir, f"run_{run_num}.py"),
         )
 
-        # Read experiment code
         with open(osp.join(self.output_dir, "experiment.py"), "r") as f:
             experiment_code = f.read()
 
@@ -277,7 +276,7 @@ class Coder:
             return_code, logs = self.docker_runner.run_experiment_in_docker(
                 experiment_code, run_num, self.output_dir, timeout
             )
-            if return_code is not None:  # Docker was used
+            if return_code is not None:  
                 return return_code, logs
 
         # Fallback to local execution
@@ -338,15 +337,15 @@ class Coder:
                 with open(results_path, "r") as f:
                     results = json.load(f)
             else:
-                results = None
+                results = {}
 
             if isinstance(results, dict):
                 results = {
                     k: v["means"] if isinstance(v, dict) and "means" in v else v
                     for k, v in results.items()
-                } if results is not None else {}
+                }
             elif isinstance(results, list):
-                results = {f"entry_{i+1}": entry for i, entry in enumerate(results)} if results is not None else {}
+                results = {f"entry_{i+1}": entry for i, entry in enumerate(results)}
             else:
                 results = {}
 
