@@ -273,10 +273,11 @@ class Coder:
 
         # Try Docker first if available
         if self.use_docker and self.docker_runner and self.docker_runner.use_docker:
-            return_code, logs = self.docker_runner.run_experiment_in_docker(
+            docker_result = self.docker_runner.run_experiment_in_docker(
                 experiment_code, run_num, self.output_dir, timeout
             )
-            if return_code is not None:  
+            if docker_result is not None:
+                return_code, logs = docker_result
                 return return_code, logs
 
         # Fallback to local execution
