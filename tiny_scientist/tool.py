@@ -467,8 +467,6 @@ class DrawerTool(BaseTool):
 
 
 class DockerExperimentRunner:
-    """Handles Docker-based experiment execution with dynamic dependency management."""
-    
     def __init__(self, docker_image: str = "tiny-scientist-ml", docker_base: str = "python:3.11-slim"):
         self.docker_image = docker_image
         self.docker_base = docker_base
@@ -698,10 +696,10 @@ COPY experiment.py .
         run_num: int, 
         output_dir: str,
         timeout: int = 7200
-    ) -> Tuple[int, str]:
+    ) -> Optional[Tuple[int, str]]:
         """Run experiment in a Docker container."""
         if not self.use_docker:
-            return None, "Docker not available"
+            return None
             
         with tempfile.TemporaryDirectory() as temp_dir:
             # Copy experiment.py
@@ -718,122 +716,124 @@ COPY experiment.py .
             container = None
             try:
                 # Create container without auto-removal
-                container = self.docker_client.containers.run(
-                    image=image_name,
-                    command=f"python experiment.py --out_dir=run_{run_num}",
-                    volumes={
-                        temp_dir: {'bind': '/experiment', 'mode': 'rw'},
-                        output_dir: {'bind': '/experiment/output', 'mode': 'rw'}
-                    },
-                    working_dir="/experiment",
-                    detach=True,
-                    remove=False,  # Don't auto-remove
-                    mem_limit="2g",
-                    cpu_period=100000,
-                    cpu_quota=50000,
-                )
-                
-                print(f"[Docker] Container {container.id[:12]} started")
-                
-                # Wait for container to finish
-                try:
-                    result = container.wait(timeout=timeout)
-                    print(f"[Docker] Container {container.id[:12]} finished with status {result['StatusCode']}")
-                except Exception as wait_e:
-                    print(f"[Docker] Container wait failed: {wait_e}")
-                    # Try to get logs and stop container
+                if self.docker_client is not None:
+                    container = self.docker_client.containers.run(
+                        image=image_name,
+                        command=f"python experiment.py --out_dir=run_{run_num}",
+                        volumes={
+                            temp_dir: {'bind': '/experiment', 'mode': 'rw'},
+                            output_dir: {'bind': '/experiment/output', 'mode': 'rw'}
+                        },
+                        working_dir="/experiment",
+                        detach=True,
+                        remove=False,  # Don't auto-remove
+                        mem_limit="2g",
+                        cpu_period=100000,
+                        cpu_quota=50000,
+                    )
+                    
+                    print(f"[Docker] Container {container.id[:12]} started")
+                    
+                    # Wait for container to finish
+                    try:
+                        result = container.wait(timeout=timeout)
+                        print(f"[Docker] Container {container.id[:12]} finished with status {result['StatusCode']}")
+                    except Exception as wait_e:
+                        print(f"[Docker] Container wait failed: {wait_e}")
+                        # Try to get logs and stop container
+                        try:
+                            logs = container.logs().decode('utf-8')
+                            container.stop(timeout=10)
+                        except Exception:
+                            logs = "Container failed to start or stopped unexpectedly"
+                        return (1, f"Container execution failed: {wait_e}\nLogs: {logs}")
+                    
+                    # Get logs before removing container
                     try:
                         logs = container.logs().decode('utf-8')
-                        container.stop(timeout=10)
-                    except:
-                        logs = "Container failed to start or stopped unexpectedly"
-                    return 1, f"Container execution failed: {wait_e}\nLogs: {logs}"
-                
-                # Get logs before removing container
-                try:
-                    logs = container.logs().decode('utf-8')
-                except Exception as log_e:
-                    print(f"[Docker] Failed to get logs: {log_e}")
-                    logs = "Failed to retrieve container logs"
-                
-                if result['StatusCode'] == 0:
-                    # Copy results from temp_dir/output/run_{run_num} to output_dir/run_{run_num}
-                    src = os.path.join(temp_dir, f"run_{run_num}")
-                    dst = os.path.join(output_dir, f"run_{run_num}")
-                    if os.path.exists(src):
-                        shutil.copytree(src, dst, dirs_exist_ok=True)
-                    return 0, logs
-                else:
-                    # Check if it's a missing package error
-                    if "ModuleNotFoundError" in logs:
-                        missing_pkg = self.extract_missing_package(logs)
-                        print(f"[Docker] Missing package detected: {missing_pkg}")
-                        # Try to install the missing package and retry
-                        try:
-                            # Create a new image with the missing package
-                            retry_image_name = f"tiny-scientist-retry-{hash(missing_pkg)}"
-                            with tempfile.TemporaryDirectory() as retry_tmpdir:
-                                # Write requirements.txt with the missing package
-                                with open(os.path.join(retry_tmpdir, "requirements.txt"), "w") as f:
-                                    f.write(missing_pkg + "\n")
-                                
-                                # Write Dockerfile
-                                retry_dockerfile = f"""
+                    except Exception as log_e:
+                        print(f"[Docker] Failed to get logs: {log_e}")
+                        logs = "Failed to retrieve container logs"
+                    
+                    if result['StatusCode'] == 0:
+                        # Copy results from temp_dir/output/run_{run_num} to output_dir/run_{run_num}
+                        src = os.path.join(temp_dir, f"run_{run_num}")
+                        dst = os.path.join(output_dir, f"run_{run_num}")
+                        if os.path.exists(src):
+                            shutil.copytree(src, dst, dirs_exist_ok=True)
+                        return (0, logs)
+                    else:
+                        # Check if it's a missing package error
+                        if "ModuleNotFoundError" in logs:
+                            missing_pkg = self.extract_missing_package(logs)
+                            print(f"[Docker] Missing package detected: {missing_pkg}")
+                            # Try to install the missing package and retry
+                            try:
+                                # Create a new image with the missing package
+                                retry_image_name = f"tiny-scientist-retry-{hash(missing_pkg)}"
+                                with tempfile.TemporaryDirectory() as retry_tmpdir:
+                                    # Write requirements.txt with the missing package
+                                    with open(os.path.join(retry_tmpdir, "requirements.txt"), "w") as f:
+                                        f.write(missing_pkg + "\n")
+                                    
+                                    # Write Dockerfile
+                                    retry_dockerfile = f"""
 FROM {image_name}
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 """
-                                with open(os.path.join(retry_tmpdir, "Dockerfile"), "w") as f:
-                                    f.write(retry_dockerfile)
-                                
-                                # Build retry image
-                                self.docker_client.images.build(path=retry_tmpdir, tag=retry_image_name, rm=True)
-                                
-                                # Run with retry image
-                                retry_container = self.docker_client.containers.run(
-                                    image=retry_image_name,
-                                    command=f"python experiment.py --out_dir=run_{run_num}",
-                                    volumes={
-                                        temp_dir: {'bind': '/experiment', 'mode': 'rw'},
-                                        output_dir: {'bind': '/experiment/output', 'mode': 'rw'}
-                                    },
-                                    working_dir="/experiment",
-                                    detach=True,
-                                    remove=False,  # Don't auto-remove
-                                    mem_limit="2g",
-                                    cpu_period=100000,
-                                    cpu_quota=50000,
-                                )
-                                
-                                print(f"[Docker] Retry container {retry_container.id[:12]} started")
-                                retry_result = retry_container.wait(timeout=timeout)
-                                retry_logs = retry_container.logs().decode('utf-8')
-                                
-                                # Clean up retry container
-                                try:
-                                    retry_container.remove(force=True)
-                                except:
-                                    pass
-                                
-                                if retry_result['StatusCode'] == 0:
-                                    # Copy results
-                                    src = os.path.join(temp_dir, f"run_{run_num}")
-                                    dst = os.path.join(output_dir, f"run_{run_num}")
-                                    if os.path.exists(src):
-                                        shutil.copytree(src, dst, dirs_exist_ok=True)
-                                    return 0, retry_logs
-                                else:
-                                    return retry_result['StatusCode'], retry_logs
+                                    with open(os.path.join(retry_tmpdir, "Dockerfile"), "w") as f:
+                                        f.write(retry_dockerfile)
                                     
-                        except Exception as retry_e:
-                            print(f"[Docker] Retry failed: {retry_e}")
-                            return result['StatusCode'], logs
-                    
-                    return result['StatusCode'], logs
-                    
+                                    # Build retry image
+                                    if self.docker_client is not None:
+                                        self.docker_client.images.build(path=retry_tmpdir, tag=retry_image_name, rm=True)
+                                        
+                                        # Run with retry image
+                                        retry_container = self.docker_client.containers.run(
+                                            image=retry_image_name,
+                                            command=f"python experiment.py --out_dir=run_{run_num}",
+                                            volumes={
+                                                temp_dir: {'bind': '/experiment', 'mode': 'rw'},
+                                                output_dir: {'bind': '/experiment/output', 'mode': 'rw'}
+                                            },
+                                            working_dir="/experiment",
+                                            detach=True,
+                                            remove=False,  # Don't auto-remove
+                                            mem_limit="2g",
+                                            cpu_period=100000,
+                                            cpu_quota=50000,
+                                        )
+                                        
+                                        print(f"[Docker] Retry container {retry_container.id[:12]} started")
+                                        retry_result = retry_container.wait(timeout=timeout)
+                                        retry_logs = retry_container.logs().decode('utf-8')
+                                        
+                                        # Clean up retry container
+                                        try:
+                                            retry_container.remove(force=True)
+                                        except Exception:
+                                            pass
+                                        
+                                        if retry_result['StatusCode'] == 0:
+                                            # Copy results
+                                            src = os.path.join(temp_dir, f"run_{run_num}")
+                                            dst = os.path.join(output_dir, f"run_{run_num}")
+                                            if os.path.exists(src):
+                                                shutil.copytree(src, dst, dirs_exist_ok=True)
+                                            return (0, retry_logs)
+                                        else:
+                                            return (retry_result['StatusCode'], retry_logs)
+                                            
+                            except Exception as retry_e:
+                                print(f"[Docker] Retry failed: {retry_e}")
+                                return (result['StatusCode'], logs)
+                        
+                        return (result['StatusCode'], logs)
+                        
             except Exception as e:
                 print(f"[Docker] Experiment failed: {e}")
-                return 1, f"Docker experiment failed: {e}"
+                return (1, f"Docker experiment failed: {e}")
             finally:
                 # Clean up container
                 if container:
@@ -842,6 +842,8 @@ RUN pip install --no-cache-dir -r requirements.txt
                         print(f"[Docker] Container {container.id[:12]} cleaned up")
                     except Exception as cleanup_e:
                         print(f"[Docker] Failed to cleanup container: {cleanup_e}")
+        
+        return (1, "Docker not available")
 
     def cleanup_docker_images(self) -> None:
         """Clean up Docker images created during experiments."""

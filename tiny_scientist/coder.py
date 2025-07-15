@@ -46,9 +46,9 @@ class Coder:
         
         # Initialize Docker runner if needed
         if self.use_docker:
-            self.docker_runner = DockerExperimentRunner()
+            self.docker_runner: Optional[DockerExperimentRunner] = DockerExperimentRunner()
         else:
-            self.docker_runner = None
+            self.docker_runner: Optional[DockerExperimentRunner] = None
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt

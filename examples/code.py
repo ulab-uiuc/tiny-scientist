@@ -10,7 +10,7 @@ from tiny_scientist.budget_checker import BudgetChecker
 from tiny_scientist.coder import Coder
 
 
-def test_docker_availability():
+def test_docker_availability() -> bool:
     """Test if Docker is available."""
     try:
         from tiny_scientist.tool import DockerExperimentRunner
