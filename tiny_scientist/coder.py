@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from subprocess import TimeoutExpired
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
@@ -15,6 +15,7 @@ from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
+from .tool import DockerExperimentRunner
 from .utils.llm import create_client, get_response_from_llm
 
 
@@ -30,7 +31,8 @@ class Coder:
         chat_history: Optional[str] = None,
         auto_install: bool = True,
         cost_tracker: Optional[BudgetChecker] = None,
-    ):
+        use_docker: bool = True,
+    ) -> None:
         """Initialize the ExperimentCoder with configuration and Aider setup."""
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
@@ -40,6 +42,14 @@ class Coder:
         self.auto_install = auto_install
         self.config = Config()
         self.cost_tracker = cost_tracker or BudgetChecker()
+        self.use_docker = use_docker
+        
+        # Initialize Docker runner if needed
+        self.docker_runner: Optional[DockerExperimentRunner]
+        if self.use_docker:
+            self.docker_runner = DockerExperimentRunner()
+        else:
+            self.docker_runner = None
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
@@ -51,8 +61,16 @@ class Coder:
         # Ensure the output directory exists
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Disable chat history to avoid IO recursion issues in web environment
-        io = InputOutput(yes=True, chat_history_file=None)
+        # Set environment variables to make Aider non-interactive
+        os.environ['AIDER_YES'] = '1'
+        os.environ['AIDER_QUIET'] = '1'
+        
+        # Try to make Aider completely non-interactive
+        io = InputOutput(
+            yes=True, 
+            input_history_file=None,
+            chat_history_file=None
+        )
 
         if model == "deepseek-coder-v2-0724":
             main_model = Model("deepseek/deepseek-coder")
@@ -187,7 +205,17 @@ class Coder:
                 print("Max iterations reached")
                 return False
 
-            coder_out = self.coder.run(next_prompt)
+            try:
+                # Try to use a non-interactive approach first
+                coder_out = self._run_non_interactive_aider(next_prompt)
+            except Exception as e:
+                print(f"[System] Non-interactive Aider failed: {e}")
+                try:
+                    coder_out = self.coder.run(next_prompt)
+                except Exception as e2:
+                    print(f"[System] Interactive Aider also failed: {e2}")
+                    # If Aider fails, try to continue with what we have
+                    coder_out = "CONTINUE"
             exp_path = osp.join(self.output_dir, "experiment.py")
 
             if "ALL_COMPLETED" in coder_out:
@@ -198,9 +226,12 @@ class Coder:
                     content = f.read()
                     if "..." in content:
                         print("[System] Placeholder '...' detected. Attempting fix.")
-                        self.coder.run(
-                            "Please replace all placeholders (`...`) in experiment.py with complete runnable code."
-                        )
+                        try:
+                            self._run_non_interactive_aider(
+                                "Please replace all placeholders (`...`) in experiment.py with complete runnable code."
+                            )
+                        except Exception as e:
+                            print(f"[System] Failed to fix placeholders: {e}")
 
             return_code, message = self._run_single_experiment(run_time)
 
@@ -210,14 +241,20 @@ class Coder:
                 next_prompt = message
             else:
                 print("[System] Experiment run failed. Attempting fix with Aider...")
-                next_prompt = self.prompts.experiment_error_prompt.format(
-                    message=message,
-                    Title=idea["Title"],
-                    Experiment=idea["Experiment"],
-                    run_time=run_time,
-                    max_runs=self.max_runs,
-                )
-
+                try:
+                    next_prompt = self.prompts.experiment_error_prompt.format(
+                        message=message,
+                        Title=idea["Title"],
+                        Experiment=idea["Experiment"],
+                        run_time=run_time,
+                        max_runs=self.max_runs,
+                    )
+                    # Try to run non-interactive Aider to fix the issue
+                    self._run_non_interactive_aider(next_prompt)
+                except Exception as e:
+                    print(f"[System] Non-interactive Aider fix attempt failed: {e}")
+                    # If Aider fails, just continue to next iteration
+                
                 current_iter += 1
 
         return current_iter < self.max_iters
@@ -226,13 +263,24 @@ class Coder:
         self, run_num: int, timeout: int = 7200
     ) -> Tuple[int, str]:
         """Run a single experiment iteration."""
-
         shutil.copy(
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, f"run_{run_num}.py"),
         )
 
-        # Run experiment
+        with open(osp.join(self.output_dir, "experiment.py"), "r") as f:
+            experiment_code = f.read()
+
+        # Try Docker first if available
+        if self.use_docker and self.docker_runner and self.docker_runner.use_docker:
+            docker_result = self.docker_runner.run_experiment_in_docker(
+                experiment_code, run_num, self.output_dir, timeout
+            )
+            if docker_result is not None:
+                return_code, logs = docker_result
+                return return_code, logs
+
+        # Fallback to local execution
         command = ["python", "experiment.py", f"--out_dir=run_{run_num}"]
 
         try:
@@ -249,50 +297,31 @@ class Coder:
 
             if result.returncode != 0:
                 print(f"Run {run_num} failed with return code {result.returncode}")
-                if "ModuleNotFoundError" in result.stderr and getattr(
-                    self, "auto_install", True
-                ):
-                    missing_pkg = self._extract_missing_package(result.stderr)
-                    print(
-                        f"[System] Missing package detected: {missing_pkg}. Attempting to install..."
-                    )
-
-                    # Install package with proper wait and error handling
+                if "ModuleNotFoundError" in result.stderr and getattr(self, "auto_install", True):
+                    missing_pkg = DockerExperimentRunner.extract_missing_package(result.stderr)
+                    print(f"[System] Missing package detected: {missing_pkg}. Attempting to install...")
                     try:
                         install_result = subprocess.run(
                             [sys.executable, "-m", "pip", "install", missing_pkg],
                             capture_output=True,
                             text=True,
-                            timeout=300,  # 5 minutes timeout for installation
+                            timeout=300,
                             check=True,
                         )
                         print(f"[System] Successfully installed {missing_pkg}")
                         print(f"[System] Install output: {install_result.stdout}")
-
-                        # Small delay to ensure the package is fully available
                         time.sleep(2)
-
                         print("[System] Re-running after installing dependency...")
                         return self._run_single_experiment(run_num, timeout=timeout)
-
                     except subprocess.TimeoutExpired:
-                        print(
-                            f"[System] Package installation timed out after 5 minutes for {missing_pkg}"
-                        )
+                        print(f"[System] Package installation timed out after 5 minutes for {missing_pkg}")
                         return 1, f"Package installation timeout for {missing_pkg}"
-
                     except subprocess.CalledProcessError as e:
                         print(f"[System] Package installation failed for {missing_pkg}")
                         print(f"[System] Installation error: {e.stderr}")
-                        return (
-                            1,
-                            f"Package installation failed for {missing_pkg}: {e.stderr}",
-                        )
-
+                        return 1, f"Package installation failed for {missing_pkg}: {e.stderr}"
                     except Exception as e:
-                        print(
-                            f"[System] Unexpected error during package installation: {str(e)}"
-                        )
+                        print(f"[System] Unexpected error during package installation: {str(e)}")
                         return 1, f"Unexpected installation error: {str(e)}"
 
                 self._cleanup_failed_run(run_num)
@@ -304,10 +333,12 @@ class Coder:
                 return 1, stderr_output
 
             # Load and format results
-            with open(
-                osp.join(self.output_dir, f"run_{run_num}", "final_info.json"), "r"
-            ) as f:
-                results = json.load(f)
+            results_path = osp.join(self.output_dir, f"run_{run_num}", "final_info.json")
+            if osp.exists(results_path):
+                with open(results_path, "r") as f:
+                    results = json.load(f)
+            else:
+                results = {}
 
             if isinstance(results, dict):
                 results = {
@@ -316,6 +347,8 @@ class Coder:
                 }
             elif isinstance(results, list):
                 results = {f"entry_{i+1}": entry for i, entry in enumerate(results)}
+            else:
+                results = {}
 
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1
@@ -330,7 +363,37 @@ class Coder:
         """Update notes.txt with plot descriptions."""
         # Set files for this operation
         self.coder.fnames = [osp.join(self.output_dir, "notes.txt")]
-        self.coder.run(self.prompts.notes_prompt)
+        try:
+            # Use non-interactive approach for notes too
+            notes_path = osp.join(self.output_dir, "notes.txt")
+            current_notes = ""
+            if osp.exists(notes_path):
+                with open(notes_path, 'r') as f:
+                    current_notes = f.read()
+            
+            full_prompt = f"""
+{self.prompts.notes_prompt}
+
+Current notes:
+{current_notes}
+
+Please provide the complete updated notes content.
+"""
+            
+            response, _ = get_response_from_llm(
+                msg=full_prompt,
+                client=self.client,
+                model=self.model,
+                system_message="You are a technical writer. Provide only the notes content without any markdown formatting.",
+                cost_tracker=self.cost_tracker,
+                task_name="update_notes",
+            )
+            
+            with open(notes_path, 'w') as f:
+                f.write(response.strip())
+                
+        except Exception as e:
+            print(f"[System] Failed to update notes: {e}")
 
     def _cleanup_failed_run(self, run_num: int) -> None:
         """Clean up files from a failed run."""
@@ -338,10 +401,69 @@ class Coder:
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)
 
-    def _extract_missing_package(self, stderr: str) -> str:
-        for line in stderr.splitlines():
-            if "ModuleNotFoundError" in line:
-                parts = line.split("'")
-                if len(parts) >= 2:
-                    return parts[1]
-        return "unknown-package"
+    def _run_non_interactive_aider(self, prompt: str) -> str:
+        """Run Aider in a non-interactive mode by directly calling the LLM."""
+        try:
+            # Get the current experiment.py content
+            exp_path = osp.join(self.output_dir, "experiment.py")
+            current_content = ""
+            if osp.exists(exp_path):
+                with open(exp_path, 'r') as f:
+                    current_content = f.read()
+            
+            # Create a prompt that asks for the complete file content
+            full_prompt = f"""
+{prompt}
+
+Please provide the complete content for experiment.py. If the file already exists, please provide the corrected/improved version.
+
+Current file content:
+{current_content}
+
+Please respond with the complete file content only, no explanations or markdown formatting.
+"""
+            
+            # Call the LLM directly
+            response, _ = get_response_from_llm(
+                msg=full_prompt,
+                client=self.client,
+                model=self.model,
+                system_message="You are a Python code generator. Provide only the complete Python code without any markdown formatting or explanations.",
+                cost_tracker=self.cost_tracker,
+                task_name="non_interactive_aider",
+            )
+            
+            # Clean the response to extract just the code
+            code_content = self._extract_code_from_response(response)
+            
+            # Write the code to the file
+            with open(exp_path, 'w') as f:
+                f.write(code_content)
+            
+            return "CONTINUE"
+            
+        except Exception as e:
+            print(f"[System] Non-interactive Aider failed: {e}")
+            raise
+    
+    def _extract_code_from_response(self, response: str) -> str:
+        """Extract Python code from LLM response."""
+        # Remove markdown code blocks if present
+        if "```python" in response:
+            start = response.find("```python") + 9
+            end = response.find("```", start)
+            if end != -1:
+                return response[start:end].strip()
+        
+        if "```" in response:
+            start = response.find("```") + 3
+            end = response.find("```", start)
+            if end != -1:
+                return response[start:end].strip()
+        
+        return response.strip()
+
+    def cleanup_docker_images(self) -> None:
+        """Clean up Docker images created during experiments."""
+        if self.docker_runner:
+            self.docker_runner.cleanup_docker_images()

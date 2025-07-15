@@ -3,16 +3,41 @@ import argparse
 import os
 from typing import Any, Dict
 
+from tiny_scientist.budget_checker import BudgetChecker
+
 # Import the Coder class - assuming it's in a module called "coder"
 # You may need to adjust this import based on your actual project structure
 from tiny_scientist.coder import Coder
+
+
+def test_docker_availability() -> bool:
+    """Test if Docker is available."""
+    try:
+        from tiny_scientist.tool import DockerExperimentRunner
+        runner = DockerExperimentRunner()
+        if runner.use_docker:
+            print("✅ Docker is available and will be used")
+            return True
+        else:
+            print("⚠️  Docker is not available, will use local execution")
+            return False
+    except Exception as e:
+        print(f"❌ Error checking Docker: {e}")
+        return False
 
 
 def create_sample_idea() -> Dict[str, Any]:
     """Create a sample experiment idea for testing."""
     return {
         "Title": "Learning Rate Impact on Model Convergence",
-        "Experiment": "Investigate how different learning rates affect the convergence speed and final performance of a simple neural network on MNIST dataset.",
+        "Problem": "Investigate how different learning rates affect neural network training",
+        "NoveltyComparison": "Comprehensive analysis of learning rate effects on convergence",
+        "Approach": "Systematic evaluation of learning rates with controlled experiments",
+        "Experiment": {
+            "Model": "Neural Network",
+            "Dataset": "MNIST",
+            "Metric": "Accuracy and Convergence Speed"
+        }
     }
 
 
@@ -94,8 +119,23 @@ def main() -> None:
     parser.add_argument(
         "--prompt_template_dir", type=str, default="./configs", help="Config directory"
     )
+    parser.add_argument(
+        "--use_docker", 
+        action="store_true", 
+        default=True,
+        help="Use Docker for experiment execution (default: True)"
+    )
+    parser.add_argument(
+        "--auto_install", 
+        action="store_true", 
+        default=True,
+        help="Auto-install missing packages in local mode (default: True)"
+    )
     args = parser.parse_args()
 
+    # Test Docker availability
+    docker_available = test_docker_availability()
+    
     # Set up the experiment directory
     setup_experiment_directory(args.output_dir)
 
@@ -103,6 +143,8 @@ def main() -> None:
     print(f"Base directory: {args.output_dir}")
     print(f"Max iterations: {args.max_iters}")
     print(f"Max runs: {args.max_runs}")
+    print(f"Docker enabled: {args.use_docker}")
+    print(f"Auto-install enabled: {args.auto_install}")
 
     # Create the Coder instance
     coder = Coder(
@@ -111,6 +153,9 @@ def main() -> None:
         max_iters=args.max_iters,
         max_runs=args.max_runs,
         prompt_template_dir=args.prompt_template_dir,
+        use_docker=args.use_docker,
+        auto_install=args.auto_install,
+        cost_tracker=BudgetChecker()
     )
 
     # Create a sample idea and baseline results
@@ -120,15 +165,34 @@ def main() -> None:
     print("\nStarting experiment...")
     print(f"Idea: {idea['Title']}")
 
-    # Run the experiment
-    success = coder.run(idea, baseline_results)
+    try:
+        # Run the experiment
+        success, output_path, error = coder.run(idea, baseline_results)
 
-    if success:
-        print("\nExperiment completed successfully!")
-        print(f"Results and plots can be found in: {args.output_dir}")
-    else:
-        print("\nExperiment did not complete successfully.")
-        print("Check the logs for more information.")
+        if success:
+            print("\n✅ Experiment completed successfully!")
+            print(f"📁 Results saved to: {output_path}")
+            
+            # Check the results
+            import json
+            results_file = os.path.join(output_path, "experiment_results.txt")
+            if os.path.exists(results_file):
+                with open(results_file, 'r') as f:
+                    results = json.load(f)
+                print(f"📊 Experiment results: {results}")
+        else:
+            print(f"\n❌ Experiment failed: {error}")
+            print("Check the logs for more information.")
+            
+    except Exception as e:
+        print(f"\n💥 Error during experiment: {e}")
+        
+    finally:
+        # Clean up Docker images if Docker was used
+        if args.use_docker and docker_available:
+            print("\n🧹 Cleaning up Docker images...")
+            coder.cleanup_docker_images()
+            print("✅ Cleanup completed")
 
 
 if __name__ == "__main__":
