@@ -213,7 +213,7 @@ Be critical and realistic in your assessments."""
             return all_ideas
         elif len(all_ideas) == 1:
             self.cost_tracker.report()
-            return cast(Dict[str, Any], all_ideas[0])
+            return all_ideas[0]  # Remove redundant cast
         else:
             print("No valid ideas generated.")
             self.cost_tracker.report()

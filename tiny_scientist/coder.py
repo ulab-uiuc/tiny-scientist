@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from subprocess import TimeoutExpired
-from typing import Any, Optional, Dict, Tuple, List, Union, Set, Type, Callable
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput

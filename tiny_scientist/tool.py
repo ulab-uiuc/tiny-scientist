@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import time
 from importlib import resources
-from typing import Any, Optional, Dict, Tuple, List, Union, Set, Type, Callable, cast
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 import docker
 import fitz
@@ -486,7 +486,7 @@ class DockerExperimentRunner:
             self.use_docker = False
 
     @staticmethod
-    def detect_required_packages(pyfile: str, base_packages: Optional[set] = None) -> List[str]:
+    def detect_required_packages(pyfile: str, base_packages: Optional[Set[str]] = None) -> List[str]:
         """Detect required packages from import statements in a Python file."""
         if base_packages is None:
             base_packages = set([
@@ -615,85 +615,80 @@ class DockerExperimentRunner:
         
         return sorted(mapped_pkgs)
 
-    def get_or_build_base_image(self) -> str:
+    def get_or_build_base_image(self) -> Optional[str]:
         """Build or get the base Docker image with common ML packages."""
         if not self.use_docker:
             return None
-            
-        try:
-            self.docker_client.images.get(self.docker_image)
-            print(f"[Docker] Using existing image: {self.docker_image}")
-        except ImageNotFound:
-            print(f"[Docker] Building image: {self.docker_image}")
-            dockerfile = f"""
+        if self.docker_client is not None:
+            try:
+                self.docker_client.images.get(self.docker_image)
+                print(f"[Docker] Using existing image: {self.docker_image}")
+            except ImageNotFound:
+                print(f"[Docker] Building image: {self.docker_image}")
+                dockerfile = f"""
 FROM {self.docker_base}
 RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torch tensorflow transformers datasets evaluate wandb tqdm requests pillow
 """
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
-                    f.write(dockerfile)
-                self.docker_client.images.build(path=tmpdir, tag=self.docker_image, rm=True)
-        return self.docker_image
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
+                        f.write(dockerfile)
+                    self.docker_client.images.build(path=tmpdir, tag=self.docker_image, rm=True)
+            return self.docker_image
+        return None
 
-    def get_or_build_experiment_image(self, experiment_py_path: str) -> str:
+    def get_or_build_experiment_image(self, experiment_py_path: str) -> Optional[str]:
         """Build or get experiment-specific Docker image with required packages."""
         if not self.use_docker:
             return None
-            
         base_image = self.get_or_build_base_image()
         extra_pkgs = self.detect_required_packages(experiment_py_path)
-        
         if extra_pkgs:
             image_name = f"tiny-scientist-exp-{hash(tuple(extra_pkgs))}"
-            try:
-                self.docker_client.images.get(image_name)
-                print(f"[Docker] Using cached experiment image: {image_name}")
-                return image_name
-            except ImageNotFound:
-                print(f"[Docker] Building experiment image: {image_name} with extra packages: {extra_pkgs}")
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    # Write requirements.txt
-                    with open(os.path.join(tmpdir, "requirements.txt"), "w") as f:
-                        for pkg in extra_pkgs:
-                            f.write(pkg + "\n")
-                    
-                    # Write Dockerfile with better error handling
-                    dockerfile = f"""
+            if self.docker_client is not None:
+                try:
+                    self.docker_client.images.get(image_name)
+                    print(f"[Docker] Using cached experiment image: {image_name}")
+                    return image_name
+                except ImageNotFound:
+                    print(f"[Docker] Building experiment image: {image_name} with extra packages: {extra_pkgs}")
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        # Write requirements.txt
+                        with open(os.path.join(tmpdir, "requirements.txt"), "w") as f:
+                            for pkg in extra_pkgs:
+                                f.write(pkg + "\n")
+                        # Write Dockerfile with better error handling
+                        dockerfile = f"""
 FROM {base_image}
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt || (echo "Failed to install packages:" && cat requirements.txt && exit 1)
 COPY experiment.py .
 """
-                    with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
-                        f.write(dockerfile)
-                    
-                    # Copy experiment.py
-                    shutil.copy(experiment_py_path, os.path.join(tmpdir, "experiment.py"))
-                    
-                    try:
-                        # Build with detailed logging
-                        build_logs = self.docker_client.images.build(
-                            path=tmpdir, 
-                            tag=image_name, 
-                            rm=True,
-                            decode=True
-                        )
-                        
-                        # Check for build errors
-                        for log in build_logs:
-                            if 'error' in log:
-                                print(f"[Docker] Build error: {log['error']}")
-                                raise Exception(f"Docker build failed: {log['error']}")
-                            elif 'stream' in log:
-                                print(f"[Docker] {log['stream'].strip()}")
-                                
-                    except Exception as e:
-                        print(f"[Docker] Failed to build image {image_name}: {e}")
-                        # Fallback to base image
-                        print(f"[Docker] Falling back to base image: {base_image}")
-                        return base_image
-                        
-                return image_name
+                        with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
+                            f.write(dockerfile)
+                        # Copy experiment.py
+                        shutil.copy(experiment_py_path, os.path.join(tmpdir, "experiment.py"))
+                        try:
+                            # Build with detailed logging
+                            build_logs = self.docker_client.images.build(
+                                path=tmpdir, 
+                                tag=image_name, 
+                                rm=True,
+                                decode=True
+                            )
+                            # Check for build errors
+                            for log in build_logs:
+                                if 'error' in log:
+                                    print(f"[Docker] Build error: {log['error']}")
+                                    raise Exception(f"Docker build failed: {log['error']}")
+                                elif 'stream' in log:
+                                    print(f"[Docker] {log['stream'].strip()}")
+                        except Exception as e:
+                            print(f"[Docker] Failed to build image {image_name}: {e}")
+                            # Fallback to base image
+                            print(f"[Docker] Falling back to base image: {base_image}")
+                            return base_image
+                    return image_name
+            return base_image
         else:
             return base_image
 
@@ -852,15 +847,15 @@ RUN pip install --no-cache-dir -r requirements.txt
         """Clean up Docker images created during experiments."""
         if not self.use_docker:
             return
-            
-        try:
-            images = self.docker_client.images.list()
-            for image in images:
-                if image.tags and any("tiny-scientist" in tag for tag in image.tags):
-                    print(f"[Docker] Removing image: {image.tags[0]}")
-                    self.docker_client.images.remove(image.id, force=True)
-        except Exception as e:
-            print(f"[Docker] Failed to cleanup images: {e}")
+        if self.docker_client is not None:
+            try:
+                images = self.docker_client.images.list()
+                for image in images:
+                    if image.tags and any("tiny-scientist" in tag for tag in image.tags):
+                        print(f"[Docker] Removing image: {image.tags[0]}")
+                        self.docker_client.images.remove(image.id, force=True)
+            except Exception as e:
+                print(f"[Docker] Failed to cleanup images: {e}")
 
     @staticmethod
     def extract_missing_package(stderr: str) -> str:

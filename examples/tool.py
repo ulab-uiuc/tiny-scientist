@@ -7,20 +7,36 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from subprocess import Popen
 from textwrap import dedent
-from typing import Any, Callable, Dict, Optional, Tuple, Type, TypeVar, Union, List
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import docker
 import requests
-from websocket import create_connection
-from subprocess import Popen
-from typing import WebSocketTimeoutException
+from websocket import WebSocketTimeoutException, create_connection
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 EnvironmentProcess = Union[Popen[Any], None, docker.models.containers.Container]
 
+class HasHostPort(Protocol):
+    HOST: str
+    PORT: int
+
+C = TypeVar('C', bound=HasHostPort)
 
 @dataclass
 class Environment:
@@ -188,7 +204,7 @@ class CodeExecutor:
         """Does any auxiliary setup needed for initializing the executor."""
         raise NotImplementedError
 
-    def run_command(self, comand: str):
+    def run_command(self, comand: str) -> str:
         """Executes a command or piece of code using the internal executor.
 
         Arguments:
@@ -209,7 +225,7 @@ class CodeExecutor:
         """
         raise NotImplementedError
 
-    def __call__(self, code):
+    def __call__(self, code: str) -> str:
         return self.run_command(code)
 
 
@@ -242,7 +258,7 @@ def prepare_execute_message(code: str) -> Dict[str, Any]:
 
 def timeout_call(
     function: Callable[..., Any],
-    timeout_seconds: int = None,
+    timeout_seconds: Optional[int] = None,
     *args: tuple,
     **kwargs: Any,
 ) -> Any:
@@ -371,7 +387,7 @@ class Notebook(CodeExecutor):
         self.timed_out_unanswered = False
         self.run_command("pass")
 
-    def timed_out(self):
+    def timed_out(self) -> None:
         self.timed_out_unanswered = True
         self._intermediate_output.append(self.timeout_message)
 
@@ -384,7 +400,7 @@ class Notebook(CodeExecutor):
 
         self._intermediate_output = []
 
-    def run_command(self, command, continue_after_timeout: Optional[bool] = False):
+    def run_command(self, command: str, continue_after_timeout: Optional[bool] = False) -> str:
         """Executes a command or piece of code using the internal executor.
 
         Arguments:
@@ -469,7 +485,7 @@ class Notebook(CodeExecutor):
         return "".join(self._intermediate_output)
 
     @staticmethod
-    def _get_msg_id_from_rsp(rsp):
+    def _get_msg_id_from_rsp(rsp: Dict[str, Any]) -> int:
         return int(rsp["header"]["msg_id"].split("_")[-1])
 
 
@@ -479,7 +495,7 @@ CODING_ENVS = {
 }
 
 
-def CodingEnvironment(env_type: str, **kwargs) -> Tuple[Any, Any]:
+def CodingEnvironment(env_type: str, **kwargs) -> Tuple[Environment, CodeExecutor]:
     """Factory method for setting up code environment and launching any
     required auxiliary services.
 
