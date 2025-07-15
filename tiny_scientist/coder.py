@@ -45,10 +45,11 @@ class Coder:
         self.use_docker = use_docker
         
         # Initialize Docker runner if needed
+        self.docker_runner: Optional[DockerExperimentRunner]
         if self.use_docker:
-            self.docker_runner: Optional[DockerExperimentRunner] = DockerExperimentRunner()
+            self.docker_runner = DockerExperimentRunner()
         else:
-            self.docker_runner: Optional[DockerExperimentRunner] = None
+            self.docker_runner = None
 
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
@@ -332,18 +333,22 @@ class Coder:
                 return 1, stderr_output
 
             # Load and format results
-            with open(
-                osp.join(self.output_dir, f"run_{run_num}", "final_info.json"), "r"
-            ) as f:
-                results = json.load(f)
+            results_path = osp.join(self.output_dir, f"run_{run_num}", "final_info.json")
+            if osp.exists(results_path):
+                with open(results_path, "r") as f:
+                    results = json.load(f)
+            else:
+                results = None
 
             if isinstance(results, dict):
                 results = {
                     k: v["means"] if isinstance(v, dict) and "means" in v else v
                     for k, v in results.items()
-                }
+                } if results is not None else {}
             elif isinstance(results, list):
-                results = {f"entry_{i+1}": entry for i, entry in enumerate(results)}
+                results = {f"entry_{i+1}": entry for i, entry in enumerate(results)} if results is not None else {}
+            else:
+                results = {}
 
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1

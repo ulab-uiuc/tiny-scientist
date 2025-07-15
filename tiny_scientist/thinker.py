@@ -130,7 +130,7 @@ Be critical and realistic in your assessments."""
         idea_json = self.think(intent, pdf_content)
         idea_dict = json.loads(idea_json)
 
-        if not idea_dict:
+        if not idea_dict or not isinstance(idea_dict, dict):
             print(f"Failed to generate idea {idea_index + 1}")
             return None
 
@@ -156,6 +156,8 @@ Be critical and realistic in your assessments."""
         print(
             f"Completed refinement for idea: {current_idea_dict.get('Name', 'Unnamed')}"
         )
+        if not isinstance(current_idea_dict, dict):
+            return None
         return current_idea_dict
 
     def run(
