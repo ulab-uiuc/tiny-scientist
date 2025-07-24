@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from subprocess import TimeoutExpired
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from aider.coders import Coder as AiderCoder
 from aider.io import InputOutput
@@ -43,7 +43,7 @@ class Coder:
         self.config = Config()
         self.cost_tracker = cost_tracker or BudgetChecker()
         self.use_docker = use_docker
-        
+
         # Initialize Docker runner if needed
         self.docker_runner: Optional[DockerExperimentRunner]
         if self.use_docker:
@@ -62,15 +62,11 @@ class Coder:
         os.makedirs(self.output_dir, exist_ok=True)
 
         # Set environment variables to make Aider non-interactive
-        os.environ['AIDER_YES'] = '1'
-        os.environ['AIDER_QUIET'] = '1'
-        
+        os.environ["AIDER_YES"] = "1"
+        os.environ["AIDER_QUIET"] = "1"
+
         # Try to make Aider completely non-interactive
-        io = InputOutput(
-            yes=True, 
-            input_history_file=None,
-            chat_history_file=None
-        )
+        io = InputOutput(yes=True, input_history_file=None, chat_history_file=None)
 
         if model == "deepseek-coder-v2-0724":
             main_model = Model("deepseek/deepseek-coder")
@@ -254,7 +250,7 @@ class Coder:
                 except Exception as e:
                     print(f"[System] Non-interactive Aider fix attempt failed: {e}")
                     # If Aider fails, just continue to next iteration
-                
+
                 current_iter += 1
 
         return current_iter < self.max_iters
@@ -297,9 +293,15 @@ class Coder:
 
             if result.returncode != 0:
                 print(f"Run {run_num} failed with return code {result.returncode}")
-                if "ModuleNotFoundError" in result.stderr and getattr(self, "auto_install", True):
-                    missing_pkg = DockerExperimentRunner.extract_missing_package(result.stderr)
-                    print(f"[System] Missing package detected: {missing_pkg}. Attempting to install...")
+                if "ModuleNotFoundError" in result.stderr and getattr(
+                    self, "auto_install", True
+                ):
+                    missing_pkg = DockerExperimentRunner.extract_missing_package(
+                        result.stderr
+                    )
+                    print(
+                        f"[System] Missing package detected: {missing_pkg}. Attempting to install..."
+                    )
                     try:
                         install_result = subprocess.run(
                             [sys.executable, "-m", "pip", "install", missing_pkg],
@@ -314,14 +316,21 @@ class Coder:
                         print("[System] Re-running after installing dependency...")
                         return self._run_single_experiment(run_num, timeout=timeout)
                     except subprocess.TimeoutExpired:
-                        print(f"[System] Package installation timed out after 5 minutes for {missing_pkg}")
+                        print(
+                            f"[System] Package installation timed out after 5 minutes for {missing_pkg}"
+                        )
                         return 1, f"Package installation timeout for {missing_pkg}"
                     except subprocess.CalledProcessError as e:
                         print(f"[System] Package installation failed for {missing_pkg}")
                         print(f"[System] Installation error: {e.stderr}")
-                        return 1, f"Package installation failed for {missing_pkg}: {e.stderr}"
+                        return (
+                            1,
+                            f"Package installation failed for {missing_pkg}: {e.stderr}",
+                        )
                     except Exception as e:
-                        print(f"[System] Unexpected error during package installation: {str(e)}")
+                        print(
+                            f"[System] Unexpected error during package installation: {str(e)}"
+                        )
                         return 1, f"Unexpected installation error: {str(e)}"
 
                 self._cleanup_failed_run(run_num)
@@ -333,7 +342,9 @@ class Coder:
                 return 1, stderr_output
 
             # Load and format results
-            results_path = osp.join(self.output_dir, f"run_{run_num}", "final_info.json")
+            results_path = osp.join(
+                self.output_dir, f"run_{run_num}", "final_info.json"
+            )
             if osp.exists(results_path):
                 with open(results_path, "r") as f:
                     results = json.load(f)
@@ -368,9 +379,9 @@ class Coder:
             notes_path = osp.join(self.output_dir, "notes.txt")
             current_notes = ""
             if osp.exists(notes_path):
-                with open(notes_path, 'r') as f:
+                with open(notes_path, "r") as f:
                     current_notes = f.read()
-            
+
             full_prompt = f"""
 {self.prompts.notes_prompt}
 
@@ -379,7 +390,7 @@ Current notes:
 
 Please provide the complete updated notes content.
 """
-            
+
             response, _ = get_response_from_llm(
                 msg=full_prompt,
                 client=self.client,
@@ -388,10 +399,10 @@ Please provide the complete updated notes content.
                 cost_tracker=self.cost_tracker,
                 task_name="update_notes",
             )
-            
-            with open(notes_path, 'w') as f:
+
+            with open(notes_path, "w") as f:
                 f.write(response.strip())
-                
+
         except Exception as e:
             print(f"[System] Failed to update notes: {e}")
 
@@ -408,9 +419,9 @@ Please provide the complete updated notes content.
             exp_path = osp.join(self.output_dir, "experiment.py")
             current_content = ""
             if osp.exists(exp_path):
-                with open(exp_path, 'r') as f:
+                with open(exp_path, "r") as f:
                     current_content = f.read()
-            
+
             # Create a prompt that asks for the complete file content
             full_prompt = f"""
 {prompt}
@@ -422,7 +433,7 @@ Current file content:
 
 Please respond with the complete file content only, no explanations or markdown formatting.
 """
-            
+
             # Call the LLM directly
             response, _ = get_response_from_llm(
                 msg=full_prompt,
@@ -432,20 +443,20 @@ Please respond with the complete file content only, no explanations or markdown 
                 cost_tracker=self.cost_tracker,
                 task_name="non_interactive_aider",
             )
-            
+
             # Clean the response to extract just the code
             code_content = self._extract_code_from_response(response)
-            
+
             # Write the code to the file
-            with open(exp_path, 'w') as f:
+            with open(exp_path, "w") as f:
                 f.write(code_content)
-            
+
             return "CONTINUE"
-            
+
         except Exception as e:
             print(f"[System] Non-interactive Aider failed: {e}")
             raise
-    
+
     def _extract_code_from_response(self, response: str) -> str:
         """Extract Python code from LLM response."""
         # Remove markdown code blocks if present
@@ -454,13 +465,13 @@ Please respond with the complete file content only, no explanations or markdown 
             end = response.find("```", start)
             if end != -1:
                 return response[start:end].strip()
-        
+
         if "```" in response:
             start = response.find("```") + 3
             end = response.find("```", start)
             if end != -1:
                 return response[start:end].strip()
-        
+
         return response.strip()
 
     def cleanup_docker_images(self) -> None:

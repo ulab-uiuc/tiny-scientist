@@ -1,10 +1,13 @@
 import argparse
+
 from tiny_scientist import TinyScientist
+
 
 def test_docker_availability() -> bool:
     """Test if Docker is available."""
     try:
         from tiny_scientist.tool import DockerExperimentRunner
+
         runner = DockerExperimentRunner()
         if runner.use_docker:
             print("✅ Docker is available and will be used")
@@ -15,6 +18,7 @@ def test_docker_availability() -> bool:
     except Exception as e:
         print(f"❌ Error checking Docker: {e}")
         return False
+
 
 def create_formatted_idea(model: str, dataset: str, metric: str) -> dict:
     """Create a formatted idea dictionary that matches TinyScientist's expected structure."""
@@ -33,30 +37,54 @@ def create_formatted_idea(model: str, dataset: str, metric: str) -> dict:
         "Novelty": 4,
         "IntentAlignment": 10,
         "Score": 7,
-        "Experiment": {
-            "Model": model,
-            "Dataset": dataset,
-            "Metric": metric
-        }
+        "Experiment": {"Model": model, "Dataset": dataset, "Metric": metric},
     }
+
 
 def main():
     """
     This script uses TinyScientist to automate the process of reproducing
     a model evaluation on a given dataset for a specific task.
     """
-    parser = argparse.ArgumentParser(description="Reproduce a model evaluation using TinyScientist.")
-    parser.add_argument("--model", type=str, required=True, help="The Hugging Face model name (e.g., 'dslim/bert-base-NER').")
-    parser.add_argument("--dataset", type=str, required=True, help="The Hugging Face dataset name (e.g., 'eriktks/conll2003').")
-    parser.add_argument("--metric", type=str, required=True, help="The specific metric to evaluate (e.g., 'F1', 'accuracy', 'BLEU', 'ROUGE', 'precision', 'recall').")
-    parser.add_argument("--gpt_model", type=str, default="gpt-4o", help="The GPT model to use for TinyScientist.")
-    parser.add_argument("--use_docker", action="store_true", default=True, help="Use Docker for experiment execution (default: True)")
+    parser = argparse.ArgumentParser(
+        description="Reproduce a model evaluation using TinyScientist."
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="The Hugging Face model name (e.g., 'dslim/bert-base-NER').",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        help="The Hugging Face dataset name (e.g., 'eriktks/conll2003').",
+    )
+    parser.add_argument(
+        "--metric",
+        type=str,
+        required=True,
+        help="The specific metric to evaluate (e.g., 'F1', 'accuracy', 'BLEU', 'ROUGE', 'precision', 'recall').",
+    )
+    parser.add_argument(
+        "--gpt_model",
+        type=str,
+        default="gpt-4o",
+        help="The GPT model to use for TinyScientist.",
+    )
+    parser.add_argument(
+        "--use_docker",
+        action="store_true",
+        default=True,
+        help="Use Docker for experiment execution (default: True)",
+    )
 
     args = parser.parse_args()
 
     # Test Docker availability
     docker_available = test_docker_availability()
-    
+
     if args.use_docker and not docker_available:
         print("⚠️  Docker requested but not available, falling back to local execution")
         args.use_docker = False
@@ -77,7 +105,7 @@ def main():
         f"The script should load the model and dataset, run the evaluation, "
         f"and report the {args.metric} metric along with other relevant evaluation metrics."
     )
-    
+
     print(f"🔬 Intent: {intent}")
 
     # Step 1: Create a formatted idea directly (skipping scientist.think)
@@ -90,11 +118,11 @@ def main():
     # Step 2: Generate and run the experiment code
     print("\nStep 2: Generating and running experiment code...")
     status, experiment_dir = scientist.code(idea=idea)
-    
+
     # If the experiments run successfully, proceed to writing the paper
     if status is True:
         print(f"✅ Experiments completed successfully. Results are in: {experiment_dir}")
-        
+
         # Step 3: Write a research paper based on the findings
         print("\nStep 3: Writing a research paper...")
         pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
@@ -111,7 +139,10 @@ def main():
         print(review)
         print("--------------------")
     else:
-        print(f"❌ Experiments failed. Check the logs in the experiment directory: {experiment_dir}")
+        print(
+            f"❌ Experiments failed. Check the logs in the experiment directory: {experiment_dir}"
+        )
+
 
 if __name__ == "__main__":
     main()
