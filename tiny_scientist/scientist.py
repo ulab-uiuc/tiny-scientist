@@ -23,6 +23,7 @@ class TinyScientist:
         budget: Optional[float] = None,
         enable_safety_check: bool = True,
         budget_preference: Optional[str] = None,
+        use_docker: bool = True,
     ):
         self.model = model
         self.output_dir = output_dir
@@ -104,6 +105,7 @@ class TinyScientist:
             max_iters=4,
             max_runs=3,
             cost_tracker=BudgetChecker(budget=allocation.get("coder")),
+            use_docker=use_docker,
         )
 
         self.writer = Writer(

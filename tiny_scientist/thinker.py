@@ -1,7 +1,7 @@
 import json
 import os.path as osp
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 from rich import print
 
