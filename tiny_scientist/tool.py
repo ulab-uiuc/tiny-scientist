@@ -744,7 +744,7 @@ class DockerExperimentRunner:
                 print(f"[Docker] Building image: {self.docker_image}")
                 dockerfile = f"""
 FROM {self.docker_base}
-RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torch tensorflow transformers datasets evaluate wandb tqdm requests pillow
+RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torch tensorflow transformers datasets evaluate wandb tqdm requests pillow tf_keras keras sentencepiece
 """
                 with tempfile.TemporaryDirectory() as tmpdir:
                     with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
@@ -785,25 +785,53 @@ RUN pip install --no-cache-dir -r requirements.txt || (echo "Failed to install p
 COPY experiment.py .
 """
                         with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
-                            f.write(dockerfile)
+                           f.write(dockerfile)
                         # Copy experiment.py
                         shutil.copy(
                             experiment_py_path, os.path.join(tmpdir, "experiment.py")
                         )
                         try:
-                            # Build with detailed logging
-                            build_logs = self.docker_client.images.build(
-                                path=tmpdir, tag=image_name, rm=True, decode=True
+                            # Build with detailed logging.
+                            # The build() method can return a tuple: (image_object, logs_generator)
+                            build_result = self.docker_client.images.build(
+                                path=tmpdir, tag=image_name, rm=True, decode=False
                             )
-                            # Check for build errors
-                            for log in build_logs:
-                                if "error" in log:
-                                    print(f"[Docker] Build error: {log['error']}")
-                                    raise Exception(
-                                        f"Docker build failed: {log['error']}"
-                                    )
-                                elif "stream" in log:
-                                    print(f"[Docker] {log['stream'].strip()}")
+                            # docker-py 不同版本：
+                            #  a) 返回 (image_obj, logs_generator)
+                            #  b) 仅返回 logs_generator
+                            if isinstance(build_result, tuple):
+                                image, logs_generator = build_result
+                            else:
+                                image, logs_generator = None, build_result
+
+                            for entry in logs_generator:
+                                # entry 现在应该是 bytes，需要手动解码
+                                if isinstance(entry, (bytes, bytearray)):
+                                    text = entry.decode("utf-8", errors="ignore")
+                                    for line in text.splitlines():
+                                        if line.strip():
+                                            try:
+                                                log = json.loads(line)
+                                                if "error" in log:
+                                                    raise docker.errors.BuildError(log["error"], log)
+                                                if "stream" in log:
+                                                    print(f"[Docker] {log['stream'].strip()}")
+                                            except json.JSONDecodeError:
+                                                print(f"[Docker] {line.strip()}")
+                                else:
+                                    # 如果不是 bytes，直接转成字符串处理
+                                    line = str(entry).strip()
+                                    if line:
+                                        print(f"[Docker] {line}")
+
+                            print(f"[Docker] Build successful for image {image_name}")
+
+                        except docker.errors.BuildError as e:
+                            print(f"[Docker] Docker build failed explicitly: {e}")
+                            print(f"[Docker] Build logs: {e.build_log}")
+                            # Fallback to base image
+                            print(f"[Docker] Falling back to base image: {base_image}")
+                            return base_image
                         except Exception as e:
                             print(f"[Docker] Failed to build image {image_name}: {e}")
                             # Fallback to base image
