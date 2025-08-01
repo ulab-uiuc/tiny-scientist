@@ -114,51 +114,54 @@ MODEL README INFORMATION:
 {model_readme}
 ```
 
-CRITICAL REQUIREMENTS:
-1. Import os and use: hf_token = os.getenv('HF_TOKEN')
-2. Pass token parameter to from_pretrained(): token=hf_token (NOT use_auth_token)
-3. Use device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-4. Move model to device: model.to(device)
-5. For dataset processing, iterate through individual examples, NOT batches
-6. Process each example individually to avoid tensor conversion issues
-7. Use simple list operations for predictions and labels
-8. Handle errors with try/except and print traceback
-9. Use argparse for --out_dir parameter
-10. Process max 100 samples for speed (not 1000)
-11. Print progress every 50 samples
-12. **CRITICAL**: Save ONLY metric results to JSON - NO predictions, NO true_labels arrays
-13. **CRITICAL**: Use sklearn.metrics functions to calculate final metric value
-14. **CRITICAL**: Follow the model README guidelines for proper usage, including:
-    - Correct input preprocessing
-    - Proper label mapping (if specified in README)
-    - Recommended inference settings
-    - Any model-specific requirements
+GUIDELINES (be flexible and adapt as needed):
 
-FEW-SHOT EXAMPLE - Results saving pattern (FOLLOW THIS EXACTLY):
-```python
-# Calculate the final metric value only
-if "{metric}".lower() == "accuracy":
-    from sklearn.metrics import accuracy_score
-    metric_value = accuracy_score(true_labels, predictions)
-elif "{metric}".lower() == "f1":
-    from sklearn.metrics import f1_score
-    metric_value = f1_score(true_labels, predictions, average='weighted')
-else:
-    from sklearn.metrics import accuracy_score
-    metric_value = accuracy_score(true_labels, predictions)  # default
+**Authentication & Environment:**
+- Use HF_TOKEN from environment: hf_token = os.getenv('HF_TOKEN')
+- Pass token to model loading: token=hf_token (if needed)
+- DO NOT add --token command line argument - token comes from environment only
+- Detect CUDA availability and use appropriate device
 
-# Save ONLY the calculated metric - DO NOT save predictions or true_labels
-results = {{
-    "{metric}": metric_value,
-    "total_samples": len(true_labels)
-}}
+**Model & Dataset Loading:**
+- Load the model and tokenizer appropriately for the task type
+- Handle different dataset structures intelligently
+- Adapt to the specific dataset format (text classification, QA, etc.)
 
-os.makedirs(out_dir, exist_ok=True)
-with open(os.path.join(out_dir, "evaluation_results.json"), "w") as f:
-    json.dump(results, f, indent=2)
-```
+**Data Processing Strategy:**
+- Examine the dataset structure and adapt accordingly
+- For text tasks: intelligently combine relevant fields (question+passage, premise+hypothesis, etc.)
+- For classification: map labels correctly based on model outputs
+- Process examples efficiently - you can batch if it's more appropriate
+- Limit to around 100 samples for speed, but adjust if needed
 
-Generate the complete script with proper imports, main function, and all necessary code:
+**Inference & Evaluation:**
+- Use the model in the most appropriate way for its task type
+- Handle different output formats (logits, probabilities, text generation)
+- Calculate the requested metric correctly using sklearn or appropriate libraries
+- Be robust to different label formats (bool, int, string)
+
+**Output Requirements:**
+- Use argparse for --out_dir parameter ONLY (no other parameters needed)
+- Get HF_TOKEN from environment variable os.getenv('HF_TOKEN'), not from command line
+- Save results as JSON with the metric name and value
+- Include basic metadata (total_samples, etc.)
+- Print progress and final results
+
+**Error Handling:**
+- Be reasonably robust but don't over-engineer
+- Let the script fail fast on major issues rather than silently skipping everything
+- Print helpful error messages
+
+**Flexibility Guidelines:**
+- The model README contains the authoritative usage information - follow it
+- Adapt the code structure to what makes sense for this specific model+dataset combination  
+- Don't force a rigid pattern if the model/dataset has special requirements
+- Use your judgment on tokenization, preprocessing, and inference approach
+
+Generate a complete, working Python script that intelligently handles this specific model and dataset combination:
+
+IMPORTANT: The script will be called as: python experiment.py --out_dir=DIRECTORY
+Do not add any other command line parameters!
 """
         try:
             print("🤖 Generating experiment code with LLM...")
@@ -215,6 +218,9 @@ Generate the complete script with proper imports, main function, and all necessa
             container.exec_run("git init", workdir="/workspace")
             container.exec_run("git config user.email 'test@example.com'", workdir="/workspace")
             container.exec_run("git config user.name 'Test User'", workdir="/workspace")
+            # Configure git to work in limited environment
+            container.exec_run("git config diff.external false", workdir="/workspace")
+            container.exec_run("git config core.filemode false", workdir="/workspace")
             container.exec_run("git add .", workdir="/workspace")
             container.exec_run("git commit -m 'Initial commit' --allow-empty", workdir="/workspace")
                     
@@ -273,13 +279,30 @@ Please fix the experiment.py file to resolve this error.
 Make sure the code handles authentication, imports, and data processing correctly.
 """
                 
+                print(f"  🤖 Running Aider with prompt:")
+                print(f"  {fix_prompt.strip()}")
+                print(f"  {'='*60}")
+                
                 fix_result = container.exec_run([
                     "aider", "--yes", "--model", "gpt-4o-mini", 
+                    "--no-git",
                     "--message", fix_prompt, "experiment.py"
                 ], workdir="/workspace")
                 
+                # Export and display Aider's complete output
+                aider_output = fix_result.output.decode('utf-8') if fix_result.output else ""
+                print(f"  📋 Aider output (exit code: {fix_result.exit_code}):")
+                print(f"  {'─'*60}")
+                if aider_output.strip():
+                    # Show each line with prefix for clarity
+                    for line in aider_output.split('\n'):
+                        print(f"  │ {line}")
+                else:
+                    print(f"  │ (No output from Aider)")
+                print(f"  {'─'*60}")
+                
                 if fix_result.exit_code != 0:
-                    print(f"  ❌ Aider fix failed")
+                    print(f"  ❌ Aider fix failed (exit code: {fix_result.exit_code})")
                 else:
                     print(f"  ✅ Aider fix completed")
             elif attempt < max_fixes:

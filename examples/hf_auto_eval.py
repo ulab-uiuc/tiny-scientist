@@ -45,8 +45,8 @@ def main():
     parser.add_argument("--json-file", default=str(Path(__file__).parent / "perfect_model_dataset_metrics.json"))
     parser.add_argument("--llm-model", default="gpt-4o")
     parser.add_argument("--runs", type=int, default=1)
-    parser.add_argument("--max-fixes", type=int, default=5)
-    parser.add_argument("--limit", type=int, default=10, help="Evaluate only first N triples (0 = all)")
+    parser.add_argument("--max-fixes", type=int, default=15)
+    parser.add_argument("--limit", type=int, default=30, help="Evaluate only first N triples (0 = all)")
     args = parser.parse_args()
 
     combos = load_combinations(Path(args.json_file))
