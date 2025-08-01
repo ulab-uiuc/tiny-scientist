@@ -89,11 +89,12 @@ class Coder:
     def run(
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
     ) -> Tuple[bool, str, Optional[str]]:
-        # Ensure a clean slate for every run
-        print(f"[System] Cleaning experiment directory: {self.output_dir}")
-        if osp.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
-        os.makedirs(self.output_dir)
+        # Ensure the output directory exists.
+        # NOTE: Directory cleaning has been removed for safety.
+        # Old experiment files might persist in subsequent runs.
+        print(f"[System] Ensuring experiment directory exists: {self.output_dir}")
+        os.makedirs(self.output_dir, exist_ok=True)
+
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),
