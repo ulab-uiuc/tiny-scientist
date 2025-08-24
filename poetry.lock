@@ -3655,18 +3655,18 @@ files = [
 
 [[package]]
 name = "pymupdf4llm"
-version = "0.0.25"
+version = "0.0.27"
 description = "PyMuPDF Utilities for LLM/RAG"
 optional = false
-python-versions = "*"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pymupdf4llm-0.0.25-py3-none-any.whl", hash = "sha256:a4b4ce8680c008a27b33a14d9fbaeeeb7475e726a010e08bdf171d53eb777a6d"},
-    {file = "pymupdf4llm-0.0.25.tar.gz", hash = "sha256:deebe0f54c2d654ab175432cf015a17b33a02463f46a5ea1aeed741f6fa502de"},
+    {file = "pymupdf4llm-0.0.27-py3-none-any.whl", hash = "sha256:2eaaf9419c35520efda38f3806a276f2ec6cd29564fbb60a5c9c53a49fedb13c"},
+    {file = "pymupdf4llm-0.0.27.tar.gz", hash = "sha256:35cc8bd6e0968bc1300b1fe4500f52e47da6b570af19af6c193e5fb6ee367008"},
 ]
 
 [package.dependencies]
-pymupdf = ">=1.26.1"
+pymupdf = ">=1.26.3"
 
 [[package]]
 name = "pypandoc"
