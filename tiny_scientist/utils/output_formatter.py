@@ -382,9 +382,7 @@ class TemplateDownloader:
         os.makedirs(dest_template_dir, exist_ok=True)
 
         # GitHub repository URL for ACL
-        acl_api_url = (
-            "https://api.github.com/repos/acl-org/acl-style-files/contents/latex"
-        )
+        acl_api_url = "https://api.github.com/repos/acl-org/acl-style-files/contents/"
         response = requests.get(acl_api_url)
         response.raise_for_status()
 
