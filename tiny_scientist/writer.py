@@ -85,6 +85,15 @@ class Writer:
         self.generated_sections: Dict[str, Any] = {}
         self.references: Dict[str, Any] = {}
 
+        # First generate Related Work to provide background context
+        print("Generating Related Work section...")
+        try:
+            self._write_related_work(idea)
+        except Exception as e:
+            print(f"[WARNING] Failed to generate Related Work: {e}")
+            # Continue without Related Work if it fails
+            pass
+
         self._write_abstract(idea)
 
         # Different section structures for experimental vs non-experimental papers
@@ -109,11 +118,10 @@ class Writer:
         for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
 
-        self._write_related_work(idea)
-        self._refine_paper()
+        #self._refine_paper()
 
-        self._add_citations(idea)
-        self._generate_diagram_for_section()
+        #self._add_citations(idea)
+        #self._generate_diagram_for_section()
 
         paper_name = (
             idea.get("Title", "Research Paper")
@@ -231,6 +239,22 @@ class Writer:
         experiment = idea.get("Experiment")
         print(f"Writing section: {section}...")
 
+        # 构建前面已生成章节的上下文
+        previous_context = ""
+        if self.generated_sections:
+            context_parts = []
+            for prev_section, content in self.generated_sections.items():
+                if prev_section not in ["Abstract"]:  # Abstract 单独处理
+                    context_parts.append(f"## {prev_section}\n{content}")
+            if context_parts:
+                previous_context = "\n\n".join(context_parts)
+
+        # Abstract 内容，用于 Introduction
+        abstract_content = self.generated_sections.get("Abstract", "")
+        
+        # Related Work 内容，用于提供背景信息
+        related_work_content = self.generated_sections.get("Related_Work", "")
+
         if section in ["Introduction"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
@@ -240,11 +264,14 @@ class Writer:
                 difficulty=idea["Difficulty"],
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
+                abstract_content=abstract_content,
+                related_work_content=related_work_content,
             )
         elif section in ["Conclusion"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
+                previous_context=previous_context,
             )
         elif section in ["Method", "Experimental_Setup"]:
             section_prompt = self.prompts.section_prompt[section].format(
@@ -255,6 +282,7 @@ class Writer:
                 novelty=idea["NoveltyComparison"],
                 experiment=experiment,
                 code=code,
+                previous_context=previous_context,
             )
         elif section in ["Results", "Discussion"]:
             section_prompt = self.prompts.section_prompt[section].format(
@@ -262,6 +290,7 @@ class Writer:
                 experiment=experiment,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
+                previous_context=previous_context,
             )
         elif section == "Analysis":
             # For non-experimental papers, use the research plan content
@@ -275,6 +304,7 @@ class Writer:
                 experiment=research_plan,
                 baseline_results=baseline_result,
                 experiment_results=experiment_result,
+                previous_context=previous_context,
             )
 
         section_content, _ = get_response_from_llm(
@@ -363,7 +393,38 @@ class Writer:
         paper_source = self._search_reference(citations)
         self.references = paper_source
 
-        reference_list = "\n".join([f"- {title}" for title in paper_source.keys()])
+        # 创建包含摘要的详细引用列表
+        detailed_references = []
+        for title, paper_info in paper_source.items():
+            abstract = paper_info.get("abstract", "No abstract available")
+            authors = paper_info.get("authors", "Unknown authors")
+            venue = paper_info.get("venue", "Unknown venue")
+            year = paper_info.get("year", "Unknown year")
+            concepts = paper_info.get("concepts", [])
+            citation_count = paper_info.get("citationCount", 0)
+            
+            # 构建更丰富的描述
+            description_parts = []
+            
+            # 如果摘要太短，突出显示概念
+            if len(abstract) < 100 and concepts:
+                description_parts.append(f"Key concepts: {', '.join(concepts[:3])}")
+            
+            if abstract and len(abstract) > 10:
+                # 截断过长的摘要
+                if len(abstract) > 400:
+                    abstract = abstract[:400] + "..."
+                description_parts.append(f"Abstract: {abstract}")
+            
+            if citation_count > 0:
+                description_parts.append(f"Citations: {citation_count}")
+            
+            description = "\n  ".join(description_parts) if description_parts else "Limited information available"
+            
+            detailed_ref = f"- **{title}** ({authors}, {venue}, {year})\n  {description}"
+            detailed_references.append(detailed_ref)
+        
+        reference_list = "\n\n".join(detailed_references)
         reference_list = reference_list.replace("{", "{{").replace("}", "}}")
 
         experiment = idea.get("Experiment", "No experiment details provided")
@@ -399,6 +460,7 @@ class Writer:
                     print(f"[ERROR] Failed to replace citation for title: {title}")
                     traceback.print_exc()
 
+        breakpoint()
         self.generated_sections["Related_Work"] = relatedwork_content
 
     def _refine_section(self, section: str) -> None:

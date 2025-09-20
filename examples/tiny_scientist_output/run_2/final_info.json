@@ -1,0 +1,22 @@
+{
+    "gradient_descent": {
+        "convergence_rate": 9.292763810714338e+302,
+        "final_solution_accuracy": 2.158425263266844e+153,
+        "computational_cost": 0.1658928394317627
+    },
+    "nesterovs_accelerated_gradient": {
+        "convergence_rate": NaN,
+        "final_solution_accuracy": NaN,
+        "computational_cost": 0.015290260314941406
+    },
+    "newtons_method": {
+        "convergence_rate": -315.4969520687011,
+        "final_solution_accuracy": 1.0113230697944213e-10,
+        "computational_cost": 0.04115891456604004
+    },
+    "rmsprop": {
+        "convergence_rate": -315.4969520687011,
+        "final_solution_accuracy": 1.0113230697944213e-10,
+        "computational_cost": 2.3126602172851562e-05
+    }
+}

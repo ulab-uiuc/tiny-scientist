@@ -1,0 +1,20 @@
+Figure 1: "figure1.png" 
+This plot displays the monthly sales data of the company over the past year. The x-axis represents each month from January to December, while the y-axis indicates the total sales in dollars for each corresponding month. The trend line included in the plot illustrates a general increase in sales over the year, with noticeable peaks during the holiday season in November and December.
+
+Figure 2: "figure2.png" 
+This figure presents a bar chart comparing the sales performance across different regions. Each bar represents a distinct region, labeled on the x-axis, with the height of the bar indicating the total sales achieved in that region. This visualization highlights the region with the highest sales, which is Region A, and allows for an easy comparison of performance across regions.
+
+Figure 3: "figure3.png" 
+The third figure is a pie chart that breaks down the market share of the company among its top five competitors. Each slice of the pie represents the percentage of the total market held by each company, including ours. The legend provides quick identification of each company's market share, showing that our company holds a 25% share, making it the second largest in the market.
+
+Figure 4: "figure4.png" 
+This scatter plot demonstrates the relationship between advertising expenditure and sales revenue. Each point on the graph represents data from a different quarter, plotted with advertising spend on the x-axis and the corresponding sales revenue on the y-axis. The plot suggests a positive correlation, indicating that higher advertising expenditure tends to be associated with increased sales revenue.
+
+Figure 5: "figure5.png" 
+The fifth figure is a line graph illustrating the trend in customer satisfaction scores over the past two years. The x-axis shows the timeline in quarters, while the y-axis represents the satisfaction score on a scale from 0 to 100. This graph highlights a gradual improvement in customer satisfaction, with scores rising steadily from the low 70s to the mid-80s by the end of the period.
+
+Figure 6: "figure6.png" 
+This plot is a histogram representing the distribution of delivery times for online orders. The x-axis categorizes delivery times into intervals of 1-3 days, 4-6 days, and so forth, while the y-axis shows the frequency of orders falling within each time interval. The histogram indicates that most deliveries occur within 4-6 days, with fewer orders taking longer than that.
+
+Figure 7: "figure7.png" 
+The seventh figure is a heatmap that visualizes the correlation matrix of various factors affecting sales, such as pricing, advertising, and customer reviews. The intensity of color represents the strength of the correlation, with darker shades indicating stronger correlations. This heatmap helps identify which factors are most closely related to changes in sales figures.
