@@ -460,7 +460,6 @@ class Writer:
                     print(f"[ERROR] Failed to replace citation for title: {title}")
                     traceback.print_exc()
 
-        breakpoint()
         self.generated_sections["Related_Work"] = relatedwork_content
 
     def _refine_section(self, section: str) -> None:
