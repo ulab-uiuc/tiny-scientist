@@ -6,6 +6,8 @@ import re
 import shutil
 import subprocess
 import sys
+import io
+import zipfile
 from typing import Any, Dict, Match
 
 import requests
@@ -381,27 +383,89 @@ class TemplateDownloader:
         dest_template_dir = osp.join(output_dir, "latex")
         os.makedirs(dest_template_dir, exist_ok=True)
 
-        # GitHub repository URL for ACL
-        acl_api_url = (
-            "https://api.github.com/repos/acl-org/acl-style-files/contents/latex"
+        # Primary: use GitHub API to fetch files from the latex directory
+        try:
+            acl_api_url = (
+                "https://api.github.com/repos/acl-org/acl-style-files/contents/latex"
+            )
+            response = requests.get(acl_api_url, timeout=15)
+            response.raise_for_status()
+
+            files_data = response.json()
+            for file_info in files_data:
+                if file_info.get("type") == "file":
+                    file_url = file_info.get("download_url")
+                    filename = file_info.get("name", "")
+                    if not file_url or not filename:
+                        continue
+
+                    print(f"Downloading {filename}...")
+                    file_response = requests.get(file_url, timeout=30)
+                    file_response.raise_for_status()
+
+                    with open(osp.join(dest_template_dir, filename), "wb") as f:
+                        f.write(file_response.content)
+
+            return dest_template_dir
+        except requests.HTTPError as e:
+            print(
+                f"[Warning] ACL API path /contents/latex not available (HTTP): {e}. Falling back to repo archive."
+            )
+        except Exception as e:
+            print(
+                f"[Warning] Failed to fetch ACL template via API: {e}. Falling back to repo archive."
+            )
+
+        # Fallback: download the whole repository archive and extract the latex folder
+        last_error: Optional[Exception] = None
+        for branch in ["main", "master"]:
+            try:
+                zip_url = f"https://codeload.github.com/acl-org/acl-style-files/zip/refs/heads/{branch}"
+                print(f"Attempting ACL archive download: {zip_url}")
+                zr = requests.get(zip_url, timeout=30)
+                zr.raise_for_status()
+
+                with zipfile.ZipFile(io.BytesIO(zr.content)) as zf:
+                    extracted = 0
+                    # Prefer extracting files under any /latex/ directory
+                    for name in zf.namelist():
+                        if "/latex/" in name and not name.endswith("/"):
+                            rel = name.split("/latex/", 1)[1]
+                            # Skip empty rel (directory entries)
+                            if rel.strip():
+                                target_path = osp.join(dest_template_dir, rel)
+                                os.makedirs(osp.dirname(target_path), exist_ok=True)
+                                with zf.open(name) as src, open(target_path, "wb") as dst:
+                                    shutil.copyfileobj(src, dst)
+                                extracted += 1
+
+                    if extracted == 0:
+                        # Heuristic: copy a minimal set of known filenames if structure changed
+                        wanted = {
+                            "acl_latex.tex",
+                            "acl_natbib.bst",
+                            "acl.bst",
+                            "acl.sty",
+                            "anthology.bib",
+                        }
+                        for name in zf.namelist():
+                            base = name.rsplit("/", 1)[-1]
+                            if base in wanted and not name.endswith("/"):
+                                target_path = osp.join(dest_template_dir, base)
+                                with zf.open(name) as src, open(target_path, "wb") as dst:
+                                    shutil.copyfileobj(src, dst)
+                                extracted += 1
+
+                    if extracted > 0:
+                        print(f"Extracted {extracted} ACL template files from {branch} branch archive")
+                        return dest_template_dir
+            except Exception as e:
+                last_error = e
+                print(f"[Warning] ACL archive fallback failed for branch {branch}: {e}")
+
+        raise RuntimeError(
+            f"Failed to download ACL template via API and archive. Last error: {last_error}"
         )
-        response = requests.get(acl_api_url)
-        response.raise_for_status()
-
-        files_data = response.json()
-        for file_info in files_data:
-            if file_info["type"] == "file":
-                file_url = file_info["download_url"]
-                filename = file_info["name"]
-
-                print(f"Downloading {filename}...")
-                file_response = requests.get(file_url)
-                file_response.raise_for_status()
-
-                with open(osp.join(dest_template_dir, filename), "wb") as f:
-                    f.write(file_response.content)
-
-        return dest_template_dir
 
     @staticmethod
     def download_iclr_template(output_dir: str) -> str:

@@ -41,6 +41,7 @@ class Writer:
         self.template = template
         self.temperature = temperature
         self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
+        # self.searcher = None
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
@@ -113,7 +114,7 @@ class Writer:
         self._refine_paper()
 
         self._add_citations(idea)
-        self._generate_diagram_for_section()
+        # self._generate_diagram_for_section()
 
         paper_name = (
             idea.get("Title", "Research Paper")
@@ -246,7 +247,13 @@ class Writer:
                 section_tips=self.prompts.section_tips[section],
                 experiment=experiment,
             )
-        elif section in ["Method", "Experimental_Setup"]:
+        elif section in ["Method"]:
+            section_prompt = self.prompts.section_prompt[section].format(
+                section_tips=self.prompts.section_tips[section],
+                title=title,
+                intro=self.generated_sections["Introduction"],
+            )
+        elif section in ["Experimental_Setup"]:
             section_prompt = self.prompts.section_prompt[section].format(
                 section_tips=self.prompts.section_tips[section],
                 problem=idea["Problem"],
@@ -338,7 +345,7 @@ class Writer:
         results_dict = {}
 
         for paper_name in paper_list:
-            try:
+            try:   
                 result = self.searcher.run(paper_name)
 
                 if result:
