@@ -17,7 +17,7 @@ class TinyScientist:
     def __init__(
         self,
         model: str = "gpt-4o",
-        output_dir: str = "./",
+        output_dir: str = "./tiny_scientist_output",
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,
         budget: Optional[float] = None,
