@@ -33,16 +33,36 @@ section_tips:
     - How do we solve it (i.e. our contribution!)
     - How do we verify that we solved it (e.g. Experiments and results)
 
-    Please make sure the abstract reads smoothly and is well-motivated. This should be one continuous paragraph with no breaks between the lines.
+    Please make sure the abstract reads smoothly and is well-motivated. This should be one continuous paragraph with no breaks between the lines. Should not be too long, try to grab its important points. Each point should only have one or two sentences.
 
   Introduction: |
-    - Longer version of the Abstract, i.e. of the entire paper
-    - What are we trying to do and why is it relevant?
-    - Why is this hard?
-    - How do we solve it (i.e. our contribution!)
-    - How do we verify that we solved it (e.g. Experiments and results)
-    - New trend: specifically list your contributions as bullet points
-    - Extra space? Future work!
+    - Write 5 paragraphs for the instructions. Each paragraph should answer one question.
+    - paragraph1: What is the problem?
+      * Start broad with background and context
+      * Narrow down to the specific gap or unsolved issue
+      * End with a sharp statement of the problem
+      * probably end the paragraph with a question like: Can LLM simulate social interactions?
+
+    - paragraph2: Why is it interesting and important?
+      * Connect to research community demand
+      * Tie to trends or consensus in the field
+      * Show broader impact or urgency
+
+    - paragraph3: Why is it hard? (E.g., why do naive approaches fail?)
+      * Explain inherent difficulty of the problem
+      * Give examples of why naive approaches fail
+      * Clarify how these challenges block real progress
+
+    - paragraph4: Why hasn't it been solved before? 
+          (Or, what's wrong with previous proposed solutions? How does mine differ?)
+      * Acknowledge prior work and attempts
+      * Point out their shortcomings or gaps
+      * Clearly state how your approach differs and improves
+
+    - paragrap5: What are the key components of my approach and results? 
+      * Introduce your core approach in one sentence
+      * Break into 2–3 main components
+      * Summarize key results
 
   Related_Work: |
     - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
@@ -50,8 +70,13 @@ section_tips:
     - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
 
   Method: |
-    - What we do. Why we do it. All described using the general Formalism introduced in the Problem Setting and building on top of the concepts / foundations introduced in Background.
-    - Note: Don't directly put any code in this section, but you can refer to the code in the Method section.
+    - The first paragraph in the method should be problem definition. provide math notation and basic definition for the problem
+    - We need to use math to define and describe methods clearly
+    - You need to focus on describing different parts of your CORE method
+    - Do you mention concrete implementation details and experimental setup
+    - Need to use math to describe the whole process of your algorithm that you propose
+    - If necessary, have a pseudo code or algorithm description to describe your algorithm. But in mose cases, it is not necessary. It depends on the topic and research question you want to answer.
+    - Very important!!! You need to explain your motivation for any methodology design. Any design is not from scratch, you need to have a good reason (very brief reason) for that before you start talking about the details of each part of your methods.
 
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
@@ -60,21 +85,16 @@ section_tips:
 
   Results: |
     - Shows the results of running Method on our problem described in Experimental Setup.
-    - Includes statements on hyperparameters and other potential issues of fairness.
-    - Only includes results that have actually been run and saved in the logs. Do not hallucinate results that don't exist.
-    - If results exist: compares to baselines and includes statistics and confidence intervals.
-    - If results exist: includes ablation studies to show that specific parts of the method are relevant.
-    - Discusses limitations of the method.
-    - Make sure to include all the results from the experiments, and include all relevant figures.
+    - Statement should be emphasized and as the paragraph title
+    - You need to first describe the trends and improvement ratio and change in the Table. include all the basic information
+    - Furthermore, you need to analyze and provide reasons about why this works or not
 
   Discussion: |
     - Analyze what the experimental results reveal in the context of the original research question.
     - Reflect on whether your method outperformed the baseline — and why that might be the case.
     - Discuss any cases where your method underperformed or behaved unexpectedly.
-    - Identify the strengths and weaknesses of your approach based on the comparison to the baseline.
-    - Connect these insights to the broader literature or practical use cases (without repeating the Related Work section).
-    - Acknowledge limitations in the findings and suggest possible improvements.
-    - Offer realistic ideas for future work or applications of your method.
+    - IMPORTANT POINT: for this section, you need to try to propose points that can be potentially attacked by the review. For example, Is the training result data leakage? Is the human evaluation solid? Does the improvement come from the point you claim?
+    - each subsection should be a research question
 
   Conclusion: |
     - Brief recap of the entire paper.
@@ -144,10 +164,35 @@ abstract_prompt: |
 section_prompt:
   Introduction: |
     You are writing the Introduction section of a top-tier AI research paper.
+
+    An example for an introduction should look like:
+
+    LLMs have proved to be powerful copilots in scientific research~\citep{{AI4Science2023TheIO}}, demonstrating their great potential for accelerating scientific discovery.
+    Despite the promising finding, a more ambitious question remains: \textit{{Can we simulate the human research community with LLMs}}? Answering such a question has multiple benefits: (1) simulating the human research community helps understand the underlying process behind the discovery of existing research ideas; (2) it can further help democratize and accelerate the discovery process of new research ideas.
+
+    However, simulating the human research community is challenging, as it involves leveraging multiple LLM agents to interact with complex research data. While existing multi-agent LLM frameworks have been successfully applied to areas like social simulation~\citep{{zhou2023sotopia,Gao2023S3SS}} and game simulation~\citep{{hua2023war,xu2023language}}, they are not well-suited for simulating research communities due to the complexity of collaborative research activities like paper writing and review writing. Although recent efforts have explored research automation using LLMs, these frameworks are typically limited to specific research tasks, such as idea generation~\citep{{girotra2023ideas, baek2024researchagent}} or code experimentation~\citep{{huang2024mlagentbench}}, or focus on simulating single-agent workflows~\citep{{lu2024ai}}. These frameworks cannot simulate collaborative research activities where researchers with diverse backgrounds work together to brainstorm ideas, review papers, etc—processes that are fundamental to modern human research.
+
+    \paragraph{{Research community as graph}}
+    Our key observation is that the deeply interconnected research community can be naturally represented as graphs. Indeed, similar graph structures like citation networks~\citep{{newman2001structure}} and academic social networks~\citep{{Tang2008ArnetMinerEA}} have been extensively studied within data mining research, with proven values in applications such as citation prediction~\citep{{holm2020longitudinal}}, recommendation~\citep{{West2016ARS}}, and community detection~\citep{{Yang2012DefiningAE}}.
+    However, introducing LLMs to a graph-structured research community can extend these previous works from prediction and analysis with existing data to dynamic simulation and real-time forecasting.
+
+    \paragraph{{Novel framework for research simulation}}
+    In this work, we propose \envname, a simulator of the human research community. To bridge the gap between existing multi-agent simulation frameworks and the complexity of research activities, we propose a graph-based framework, inspired by the message-passing mechanism in Graph Neural Networks (GNNs), for multi-agent simulation.
+    Concretely, as shown in Figure \ref{{fig:community-graph}}, we propose a new concept of \textit{{agent-data graph}} with 2 generic types of nodes: (1) \textit{{agent}} nodes, suitable for entities like agents; (2) \textit{{data}} nodes, suitable for entities such as papers, reviews, and blogs. 
+    Agent-data graphs are unique from standard heterogeneous graphs; here, the key conceptual difference between agent and data nodes is that an agent node can be considered a function over data nodes.
+    To inference on agent-data graphs, we propose a \textit{{TextGNN}} framework where message-passing processes are defined based on text-form information processing with LLMs, thanks to their strong in-context learning~\citep{{wei2023larger}} and reasoning~\citep{{lee2024reasoning}} ability. 
+    We apply the proposed agent-data graph and TextGNN to the research simulation. Here, a research community can be regarded as a special form of agent-data graph, called \textit{{community graph}}, with research agents and research papers as two types of nodes, and we consider three types of edges (review, author, and cite) in the graph. Different community activities, such as paper writing and review writing, can be modeled as special message-passing processes on the community graph.
+
+    \paragraph{{Novel evaluation for research simulation}} 
+    With \envname for research simulation, a further research question is to evaluate the quality of that. Prior works primarily use human evaluation with breakdown metrics such as novelty, excitement, feasibility, and expected effectiveness~\citep{{si2024can,hu2024nova}}. These approaches inevitably suffer from subjectiveness and high costs. In our work, since \envname functions as a simulator, our primary focus is on measuring how closely its outputs align with those of the real-world research community. Community graphs naturally provide a similarity-based evaluation method by masking a given paper node in the community graph and evaluating whether a simulator can reconstruct the masked nodes. This definition focuses on simulation similarity, making it scalable and objective. Based on such a node masking prediction task, we build a benchmark called \benchname with 1,000 paper writing tasks and 200 review writing tasks requiring multi-agent collaboration.
+
+    \paragraph{{Main discoveries}} Based on the evaluation results from \benchname, we highlight three key findings: (1) \envname effectively simulates collaborative research activities, achieving an average similarity score of 0.68 for paper writing and 0.49 for review writing, as measured by the state-of-the-art text embedding model; (2) \envname demonstrates robustness and effectiveness in research simulation, showing improvement when more agents are added and maintaining performance when including unrelated papers; (3) \envname inspires interdisciplinary research, generating innovative ideas that combine insights from NLP, criminology, and astronomy and does not exist in the real-world research.
+
+
     Some tips are provided below:
     {section_tips}
 
-    The following structured context must be incorporated:
+    The following is the idea that you need to write introduction for:
 
     - Title: **{title}**
     - Research Problem: **{problem}**
@@ -156,12 +201,20 @@ section_prompt:
     - Novelty: **{novelty}**
     - Experiment Plan: **{experiment}**
 
+    **IMPORTANT**: You have access to the Abstract and Related Work sections that were already written. Make sure your Introduction builds upon and expands the Abstract naturally, while incorporating insights from the Related Work to position your contribution in the broader research context.
+
+    **Abstract content:**
+    {abstract_content}
+
+    **Related Work content (for background context):**
+    {related_work_content}
+
     **Your goal is to write a compelling, multi-paragraph introduction** that logically develops the background, motivation, and research gap. The tone should be formal, informative, and engaging.
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
-    Use at least **4 paragraphs**, and aim for **250–300 words**.
+    Use at **5 paragraphs**, and aim for **250–300 words**.
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
     In this pass, do not reference anything in later sections of the paper.
@@ -172,6 +225,52 @@ section_prompt:
 
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
+
+    An example for method writing is as follow:
+
+    \paragraph{{Definition of artifact graphs}}
+    We further define the artifact (model-data) graph as a bipartite graph $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$, where the node set $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}d$ consists of two disjoint types of nodes: model nodes and dataset nodes. The edge set $\mathcal{{E}} = \mathcal{{E}}{{md}}$ represents evaluation relationships between models and datasets. Each dataset node $v \in \mathcal{{V}}_d$ is associated with attributes such as metadata and task descriptions, while each model node $u \in \mathcal{{V}}_m$ is associated with model specifications such as architecture, parameters, and configuration.
+
+    \paragraph{{Uniqueness of artifact graphs}}
+    Unlike general bipartite graphs, the edges in a artifact graph carry rich semantic information: each edge $(u, v) \in \mathcal{{E}}_{{md}}$ is annotated with evaluation results such as accuracy, F1, perplexity, or other task-specific metrics. This allows the graph to capture fine-grained performance relationships between models and datasets. Such a structure enables downstream applications like model routing, automatic benchmarking, and meta-analysis of model generalization across diverse tasks.
+
+    \paragraph{{Edge collection}}
+    To construct the edges in our artifact graph, we extract ground-truth evaluation metrics directly from the HuggingFace model cards. Specifically, we parse the README files to identify model–dataset pairs together with their reported performance scores. After matching model and dataset names with their canonical entries on the HuggingFace platform, we obtain a clean set of evaluation edges. In total, this process yields 2,561 perfectly matched evaluation records, which serve as the edge attributes in our graph.
+
+    \paragraph{{Node collection}}
+    To construct the node set, we collect information for both models and datasets. For each model, we crawl its README and metadata fields (e.g., architecture, parameters, tags), and for each dataset, we extract its description and metadata (e.g., domain, size, license). We retain only nodes that participate in at least one evaluation edge, filtering out isolated artifacts. The resulting graph contains 2,144 nodes in total, consisting of 1,757 models and 387 datasets. On average, each model connects to 1.46 datasets, while each dataset connects to 6.62 models, indicating that the graph is relatively sparse.
+
+    \section{{Linking Scientific artifacts for automatic discovery}}
+    In this section, we first formalize the problem definition of automatic discovery using the artifact-graph formulation. We then introduce our scalable solution, which addresses this problem via a two-stage \textit{{prediction–verification}} framework.
+
+    \subsection{{Definition of Automatic Discovery}}
+    Let $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$ denote the artifact graph, where $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}_d$ consists of model nodes $\mathcal{{V}}_m$ and dataset nodes $\mathcal{{V}}_d$, and $\mathcal{{E}}_{{md}} \subseteq \mathcal{{V}}_m \times \mathcal{{V}}_d$ represents evaluation edges. Each edge $(m,d) \in \mathcal{{E}}_{{md}}$ is annotated with a performance score $s(m,d)$ (e.g., accuracy, F1). We define the automatic discovery problem as finding a missing link $(m,d) \notin \mathcal{{E}}_{{md}}$ such that the predicted score $\hat{{s}}(m,d)$ exceeds the best observed score on dataset $d$:
+
+    \begin{{equation}}
+    \hat{{s}}(m,d) > \max_{{(m', d) \in \mathcal{{E}}_{{md}}}} s(m',d).
+    \end{{equation}}
+
+    In other words, the discovery target is to identify model–dataset pairs that are not yet connected in $\mathcal{{G}}$ but are expected to outperform all existing models on the same dataset.
+
+
+    \subsection{{Scalable Link Discovery Framework}}
+    To conduct automatic link discovery in a scalable manner, we adopt a two-stage framework: (1) prediction and (2) verification. Since verification through actual model evaluation is computationally expensive, the prediction stage serves as a crucial filter to eliminate unpromising candidates and focus resources on the most likely discoveries.
+
+    \paragraph{{Prediction}}
+    In the prediction stage, the goal is not only to estimate $\hat{{s}}(m,d)$ for missing edges but also to rank all candidate links by their discovery potential. Concretely, we train a model that learns a scoring function
+
+    \begin{{equation}}
+    \hat{{s}}: \mathcal{{V}}_m \times \mathcal{{V}}_d \to \mathbb{{R}},
+    \end{{equation}}
+
+    which assigns each unseen pair $(m,d)\notin\mathcal{{E}}_{{md}}$ a predicted performance. The model is optimized to rank these candidates relative to observed edges, so that links expected to outperform existing results on the same dataset are ranked highest. The output is an ordered list of missing edges prioritized by their likelihood of being high-value discoveries.
+
+    \paragraph{{Verification}}
+    Once the ranked list is produced, we proceed to the verification stage. Given limited computational resources, we select the top-$k$ predictions for each dataset to maximize the chance of identifying true discoveries. Verification is performed by a coding agent designed for model–dataset auto-evaluation: it automatically downloads the target model and dataset from HuggingFace, loads them in the correct configuration, and executes an inference pipeline to obtain evaluation results. This design makes verification both feasible and reliable, leveraging the standardized structure of HuggingFace artifacts to enable large-scale, automated evaluation.
+
+    \paragraph{{Overall algorithm}} Based on the two stages and the overall framework is predict-then-verify.
+
+
     Some tips are provided below:
     {section_tips}
 
@@ -183,13 +282,18 @@ section_prompt:
 
     The implementation code was:
 
-    ```python
+    python
     {code}
-    ```
+    
+    **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Method section builds upon the motivation and problem definition established earlier, while introducing your technical approach clearly and coherently.
+
+    **Previous content:**
+    {previous_context}
+
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
 
-    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
+    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in. DO NOT SAY CONCRETE EXPERIMENTAL SETUP IN METHOD SECTION. JUST DESCRIBE THE ALGORITHM AND THE MAJOR COMPONENT OF YOUR METHOD.
     In this pass, do not reference anything in later sections of the paper.
 
     Begin with:
@@ -199,6 +303,14 @@ section_prompt:
   Experimental_Setup: |
     Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
 
+    An example for experimental setting is:
+
+    \paragraph{{Model settings}} We select Qwen2.5-7b-Instruct as our base LLM for the training of both the policy model and reward model. We select GPT-4o for LLM-as-the-judge in \sotopiaeval.
+
+    \paragraph{{Evaluation settings}}
+    We evaluate our method on two configurations of the \sotopia benchmark: (1) \sotopia-hard, and (2) \sotopia-all. \sotopia-hard is a subset of \sotopia-all, consisting of 14 challenging social scenarios identified as difficult among all scenarios, and we use 10 distinct agent pairings per scenario. For \sotopia-all, we evaluate on the full coverage of 90 social scenarios, using 2 agent combos per scenario to ensure diversity while maintaining scalability. More statistical information is in Appendix~\S\ref{{artifact-details}}.
+
+
     Some tips are provided below:
     {section_tips}
 
@@ -206,13 +318,18 @@ section_prompt:
     - Importance: **{importance}**
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
+    - Experiment Plan: **{experiment}**
 
     The experiments were run using the following method: **{experiment}**.
     The dataset, optimizer, and model settings are derived from the provided implementation.
 
-    ```python
+    python
     {code}
-    ```
+    
+    **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Experimental Setup section clearly connects to the method introduced earlier and provides specific implementation details that follow logically from the proposed approach.
+
+    **Previous content:**
+    {previous_context}
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
@@ -234,11 +351,34 @@ section_prompt:
   Discussion: |
     Please fill in the Discussion section of the writeup. Follow the instructions carefully.
 
+    An example for discussion is as follow:
+    
+    To assess the effectiveness of \modelname, we first ensure that its performance gains are genuine and not the result of reward hacking (RQ1). We then analyze how our improvements come from the design of the reward attribution (RQ2) and the reward combination (RQ3).
+
+    \subsection*{{RQ1: Does our improvement come from reward hacking or shortcut learning?}}  \textit{{No, \sotopia-RL learns high-quality social skills instead of overfitting on partner models or evaluator models.}}
+
+    Reward hacking occurs when performance improvements are confined to a specific partner model, a particular evaluator, or fail to generalize to human interactions. In Figure~\ref{{fig:goal-curve-b}} and Figure~\ref{{fig:goal-curve-c}}, we conduct a thorough analysis and show that the performance gains of \modelname are consistent across settings. Specifically, the improvements hold when switching between five different partner models and five different evaluator models, demonstrating strong robustness. Moreover, Table~\ref{{tab:human-eval}} confirms that these gains extend to human evaluation, further validating that the improvements are not evaluator-specific artifacts. Finally, Appendix~\S\ref{{safety-evaluation}} and \S\ref{{diversity-evaluation}} provide additional evidence from our safety and diversity evaluations. These results show that our trained policy model does not exhibit shortcut degeneration and remains safe and diverse.
+
+
+    \subsection*{{RQ2: Why does utterance-level reward attribution bring improvement?}} \textit{{The key to effective reward design lies in offline attribution, rather than in using a strong LLM.}}
+
+    Unlike standard MDP tasks, social interactions cannot be accurately evaluated based only on the preceding dialogue context—the quality of an utterance often depends on how the entire conversation unfolds. To address this, we attribute episode-level rewards to each utterance using information from the whole dialogue, making the reward attribution inherently \textit{{offline}}. We point out that offline attribution is the key to our improvement. Table~\ref{{tab:utterance-reward-comparison}} compares two settings for training utterance-level reward models: (1) online reward labels attributed using only the preceding dialogue history, and (2) offline reward labels attributed offline using the full episode. The offline approach achieves a substantially higher goal score (7.81) than the online approach, clearly demonstrating its effectiveness. Importantly, such an improvement does not rely on GPT-4o itself. As shown in Figure~\ref{{fig:reward-corr}}, replacing GPT-4o with weaker models for utterance-level reward labeling produces highly correlated reward signals ($>$0.7). This indicates that with well-designed prompts, precise offline credit assignment for utterance-level rewards can be reliably achieved even without state-of-the-art LLMs. More in-depth analysis and human evaluation results on utterance-level rewards are available in Appendix~\S\ref{{analysis-of-utterance-level-rewards}}.
+
+    \subsection*{{RQ3: Why does the reward combination bring improvement?}} \textit{{Using rewards with multiple dimensions makes RM training more robust, and a better RM helps prevent RL from overfitting.}}
+
+    To discuss why the reward combination brings improvement, we first rule out the possibility that the observed gains are merely due to reward label smoothing. To test this, we increased the attribution granularity from a 3-point to a 10-point scale and reran the pipeline. The 10-point scale did not outperform the 3-point scale on \goalcompletion\ (6.44 vs.\ 6.74), indicating that the benefits cannot be explained by finer reward scaling alone. Next, we examine whether the improvement comes from capturing complementary aspects of social interactions. As shown in Table~\ref{{tab:bc-partner-hard}}, models trained on knowledge, relationship, and goal rewards exhibit positive but only moderate correlations. This suggests that each objective captures a distinct facet, and combining them allows the model to leverage a broader range of social signals. Finally, Figure~\ref{{fig:goal-curve-a}} shows that training with combined rewards stabilizes RL and regularizes the single-dimension objective in later stages. Such regularization contributes to the consistent improvement we observe.
+
+
     Some tips for writing a strong Discussion section:
     {section_tips}
 
     - Experimental results: **{experiment_results}**
     - Baseline results** (may be empty if not available): **{baseline_results}**
+
+    **IMPORTANT**: You have access to all previous sections that were already written. Make sure your Discussion section synthesizes the results with the method, experimental setup, and broader context established earlier. Analyze the implications of your findings in relation to the original problem and methodology.
+
+    **Previous content:**
+    {previous_context}
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
@@ -253,11 +393,23 @@ section_prompt:
   Results: |
     Please fill in the Results section of the research paper. Follow the instructions carefully.
 
+    A good result section should look like this:
+
+    \paragraph{{sotopia-RL helps build state-of-the-art social agents on the {{sotopia}} benchmark}} In Table~\ref{{tab:sota-performance}}, Qwen-2.5-7B-Instruct trained with {{sotopia-RL}} reaches the highest goal completion score, achieving the 7.17 score in the {{sotopia-hard}}. It indicates that our utterance-level RM provides better guidance during the training of RL. It also indicates that for multi-turn social interactions, improving the quality of single-turn interactions with suitable single-turn rewards can effectively optimize multi-turn performance. Notably, AMPO~\citep{{wang2025think}} reaches 7.50 on {{sotopia-hard}}. But it includes an explicit reasoning process and requires more than 640 inference tokens per utterance on average. Therefore, it is unfair to compare AMPO with ours since we only utilize GRPO to generate utterances without extra tokens for reasoning. Full results are available in Appendix~\S\ref{{additional-experimental-results}}.
+
+    \paragraph{{sotopia-RL goes beyond distillation from GPT}} Our training pipeline begins with GPT-based self-play episodes and GPT-based offline reward annotations. Importantly, GPT annotations are applied \textit{{offline}}, conditioning on the entire episode, whereas during RL training, rewards are computed \textit{{online}}, conditioned only on the preceding dialogue history. As shown in Table~\ref{{tab:sota-performance}}, {{ourmodel}} not only matches but surpasses GPT-4o when used directly as a policy model (7.17 vs.\ 6.97). If {{ourmodel}} were merely a stronger form of distillation, as in behavior cloning, it could at best equal GPT-4o’s performance, not exceed it.
+
+
     Some tips for writing a strong Results section:
     {section_tips}
 
     - Experimental results: **{experiment_results}**
     - Baseline results** (may be empty if not available): **{baseline_results}**
+
+    **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Results section clearly connects the experimental outcomes to the method and setup described earlier. Reference the experimental design and evaluation criteria established in previous sections.
+
+    **Previous content:**
+    {previous_context}
 
     Ensure that all results presented have been obtained and are recorded in the logs.
     In this pass, do not reference anything in later sections of the paper.
@@ -274,6 +426,11 @@ section_prompt:
 
     The proposed experiment was **{experiment}**.
     Summarize its findings based on the results section and highlight its importance.
+
+    **IMPORTANT**: You have access to all previous sections that were already written. Make sure your Conclusion provides a coherent synthesis of the entire paper, connecting the original motivation, method, experiments, and results into a clear summary of contributions and implications.
+
+    **Previous content:**
+    {previous_context}
 
     Keep the conclusion concise and ensure it aligns with the claims made throughout the paper.
     In this pass, do not reference anything in later sections of the paper.
@@ -293,9 +450,9 @@ citation_related_work_prompt: |
 
   Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
 
-  ```json
+  json
   ["Title 1", "Title 2", "Title 3"]
-  ```
+  
 
 add_citation_prompt: |
   Given current version of the paper
@@ -322,9 +479,9 @@ add_citation_prompt: |
   All titles must be real and verifiable.
   Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
 
-  ```json
+  json
   ["Title 1", "Title 2", "Title 3"]
-  ```
+  
 
 embed_citation_prompt: |
   You are assisting with embedding citation placeholders into an academic LaTeX section.
@@ -351,6 +508,25 @@ embed_citation_prompt: |
 
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
+
+  An example for related work is:
+
+  \paragraph{{Graph Architecture Search}}
+  Architecture search techniques have been applied to GNNs \cite{{gao2019graphnas,zhou2019auto}}.
+  However, these works only focus on the design within each GNN layer instead of a general GNN design space, 
+  and only evaluate the designs on a small number of node classification tasks.
+
+  \paragraph{{Evaluation of GNN Models}}
+  Multiple works discuss approaches for making fair comparison between GNN models \cite{{dwivedi2020benchmarking,errica2019fair,shchur2018pitfalls}}.
+  However, these models only consider some specific GNN designs (\eg, GCN, GAT, GraphSAGE), while our approach extensively explores the general design space of GNNs.
+
+  \paragraph{{Other graph learning models}} We focus on message passing GNNs due to their proven performance and efficient implementation over various GNN tasks. There are alternative designs of graph learning models \cite{{maron2019provably,morris2019weisfeiler,murphy2019relational,you2019position}}, but their design spaces are different from GNNs and are less modularized.
+
+  \paragraph{{Transferable Architecture Search}}
+  The idea of transferring architecture search results across tasks has been studied in the context of computer vision tasks \cite{{you2020graph,zoph2018learning}}.
+  Meta-level architecture design has also been studied in \cite{{radosavovic2020designing,shaw2019meta,wong2018transfer,zamir2018taskonomy}}, with the assumption that different tasks follow the same distribution (\eg, variants of ImageNet dataset \cite{{deng2009imagenet}}).
+  These approaches often make an assumption that a single neural architecture may perform well on all tasks, which fits well for tasks with relatively low variety.
+  However, due to the great variety of graph learning tasks, such assumption no longer holds.
 
   Some tips for writing a strong Related Work section:
 
