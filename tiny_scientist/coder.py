@@ -91,8 +91,6 @@ class Coder:
     ) -> Tuple[bool, str, Optional[str]]:
         # Ensure a clean slate for every run
         print(f"[System] Cleaning experiment directory: {self.output_dir}")
-        if osp.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
         os.makedirs(self.output_dir)
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
