@@ -170,7 +170,7 @@ query_prompt: |
   Please generate a simple and effective search query to find the most relevant related work in the scientific literature.
 
   **CRITICAL**: Focus your query on the UNIQUE/NOVEL aspects of the research approach, not just general topics.
-  
+
   **SEARCH STRATEGY**:
   1. Identify the CORE INNOVATION or unique combination in the intent
   2. Search for papers specifically related to this novelty
@@ -189,7 +189,7 @@ query_prompt: |
   - adaptive attention AND (low-resource OR few-shot) AND translation
   - contrastive learning AND graph structure
   - meta-learning AND few-shot classification
-  
+
   **BAD EXAMPLES** (too general or complex):
   - "graph neural networks" (too general, misses the unique part)
   - "machine translation" (too broad, no novel component)
@@ -204,8 +204,8 @@ query_prompt: |
 
   In <JSON>, respond in JSON format with ONLY the following field:
   - "Query": The query you just generated (3-5 concepts, use AND/OR strategically)
-  
-  **CRITICAL JSON FORMAT**: 
+
+  **CRITICAL JSON FORMAT**:
   - Do NOT use quotes around individual terms inside the Query value
   - CORRECT: {{"Query": "causal graph AND graph neural networks"}}
   - WRONG: {{"Query": "\"causal graph\" AND \"graph neural networks\""}}
@@ -226,7 +226,7 @@ rethink_query_prompt: |
   Please generate an effective search query to find relevant literature that can help refine this idea.
 
   **CRITICAL**: Focus your query on the NOVEL/UNIQUE component of the current idea, not just general topics.
-  
+
   **SEARCH STRATEGY**:
   Search for specific papers that can make the proposed method more solid and detailed.
 
@@ -234,7 +234,7 @@ rethink_query_prompt: |
   - hierarchical attention AND dynamic weighting AND classification
   - causal intervention AND bias mitigation AND NLP
   - contrastive learning AND graph structure AND representation
-  
+
   **BAD EXAMPLES** (too general or misses novelty):
   - "deep learning" AND classification (too general)
   - meta-learning AND few-shot OR adaptation AND neural OR networks (too chaotic)
@@ -249,8 +249,8 @@ rethink_query_prompt: |
 
   In <JSON>, respond in JSON format with ONLY the following field:
   - "Query": The query you just generated 1-3 concepts, use AND/OR strategically)
-  
-  **CRITICAL JSON FORMAT**: 
+
+  **CRITICAL JSON FORMAT**:
   - Do NOT use quotes around individual terms inside the Query value
   - CORRECT: {{"Query": "hierarchical attention AND dynamic weighting"}}
   - WRONG: {{"Query": "\"hierarchical attention\" AND \"dynamic weighting\""}}
@@ -271,7 +271,7 @@ novelty_query_prompt: |
   Please generate a focused search query to specifically find literature that might challenge the novelty of this idea - papers that have already implemented similar approaches.
 
   **CRITICAL**: Focus on the CORE NOVEL ALGORITHM/MECHANISM of the idea to check if it's truly new.
-  
+
   **NOVELTY CHECK STRATEGY**:
   1. Identify the MOST UNIQUE algorithmic component (e.g., specific attention mechanism, novel loss function, unique architecture)
   2. Search for papers that may have already proposed this specific component
@@ -290,7 +290,7 @@ novelty_query_prompt: |
   - adversarial AND contrastive learning
   - hierarchical AND dynamic attention AND classification
   - meta-learning AND adapter AND transformers
-  
+
   **BAD EXAMPLES** (too general or misses core innovation):
   - "graph neural networks" (misses the "causal attention" novelty)
   - hierarchical AND attention OR mechanism AND document OR text (too chaotic)
@@ -305,8 +305,8 @@ novelty_query_prompt: |
 
   In <JSON>, respond in JSON format with ONLY the following field:
   - "Query": The query you just generated (3-5 distinctive concepts, use AND/OR strategically)
-  
-  **CRITICAL JSON FORMAT**: 
+
+  **CRITICAL JSON FORMAT**:
   - Do NOT use quotes around individual terms inside the Query value
   - CORRECT: {{"Query": "causal AND attention AND graph neural networks"}}
   - WRONG: {{"Query": "\"causal\" AND \"attention\" AND \"graph neural networks\""}}
@@ -394,7 +394,7 @@ idea_reflection_prompt: |
   3. **Importance** – Strengthen with real evidence (scale, impact, urgency).
   4. **Difficulty** – Strengthen with real evidence (scale, impact, urgency).
   5. **Novelty Comparison** – List more XYZ why ours is better
-  6. **Approach (Most Important)** – 
+  6. **Approach (Most Important)** –
     * Explain how we do XYZ that makes us novel with more details
     * Mention some key details of your methods. Not say use loss to optimize, say what loss and what weight you plan to use as the target. Not say using GNN as model, say what specific architecture you plan to use.
 
@@ -522,7 +522,7 @@ experiment_plan_prompt: |
   - "Specification": A DETAILED description with specifics (not vague descriptions)
   - "Justification / Rationale": Why this choice is appropriate, citing relevant literature
   - "Status": Leave this column EMPTY
-  
+
   **REQUIRED ROWS** (at minimum):
   1. **Model Architecture**: Specify exact architecture, layers, dimensions, parameters
   2. **Dataset**: Name, size, splits (train/val/test), preprocessing steps
@@ -530,7 +530,7 @@ experiment_plan_prompt: |
   4. **Training Setup**: Optimizer, learning rate, batch size, epochs, hardware
   5. **Evaluation Metrics**: Primary and secondary metrics with justification
   6. **Hyperparameters**: Key hyperparameters and their values/ranges
-  
+
   Each specification should be concrete and implementation-ready, not high-level or vague.
 
 non_experiment_plan_prompt: |

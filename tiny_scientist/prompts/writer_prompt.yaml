@@ -8,7 +8,7 @@ write_system_prompt: |
   - Do NOT add citations randomly or at the end of unrelated sentences
   - Only cite papers that are directly relevant to the specific content of that sentence
   - Use \cite{{}} or \citet{{}} to reference papers in references.bib
-  
+
   **CRITICAL - LaTeX Format Only (NO Markdown)**
   - NEVER mix Markdown and LaTeX syntax (e.g., **text\textbf{{ is WRONG)
   - Use \textbf{{text}} for bold, NEVER **text**
@@ -34,7 +34,7 @@ write_system_prompt: |
     \ENDFOR
     \end{{algorithmic}}
     \end{{algorithm}}
-  
+
   [Equation Length Guidelines - CRITICAL]
   - **NEVER write equations that exceed one line width**
   - For long equations, use multi-line environments:
@@ -83,13 +83,13 @@ section_tips:
       * Give examples of why naive approaches fail
       * Clarify how these challenges block real progress
 
-    - paragraph4: Why hasn't it been solved before? 
+    - paragraph4: Why hasn't it been solved before?
           (Or, what's wrong with previous proposed solutions? How does mine differ?)
       * Acknowledge prior work and attempts
       * Point out their shortcomings or gaps
       * Clearly state how your approach differs and improves
 
-    - paragrap5: What are the key components of my approach and results? 
+    - paragrap5: What are the key components of my approach and results?
       * Introduce your core approach in one sentence
       * Break into 2–3 main components
       * Summarize key results
@@ -141,13 +141,13 @@ section_tips:
     - Furthermore, you need to analyze and provide reasons about why this works or not
 
   Discussion: |
-    **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**: 
+    **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**:
     You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a question (Q) that questions the validity of your method, then provide evidence-based defense.
-    
+
     **Format for Each Challenge**:
     \subsection*{{Q#: [Challenging question that makes your method look fake/weak]?}}
     [1-3 paragraphs with concrete evidence from experiments, ablations, or additional analysis that addresses the challenge]
-    
+
     - Each subsection should be a question that challenges your method
     - Be specific and quantitative in your defense (cite figures, tables, numbers)
 
@@ -185,7 +185,7 @@ multi_round_refinement_prompt: |
 
   **Section Guidelines**:
   {section_tips}
-  
+
   **SPECIAL INSTRUCTION for Conclusion**: If this is the Conclusion section, you MUST keep it as ONE single paragraph (~100-150 words). Do NOT expand it. Do NOT add multiple paragraphs.
 
   **Full Paper Context** (all other sections for coherence check):
@@ -197,7 +197,7 @@ multi_round_refinement_prompt: |
   3. Add design rationale for key choices
   4. **CRITICAL**: Read the Full Paper Context above to ensure your refined section is coherent with other sections
   5. Ensure terminology, notation, and narrative flow are consistent across the paper
-  
+
   **CRITICAL - CITATION PRESERVATION**:
   6. **PRESERVE ALL EXISTING \\cite{{}} COMMANDS unless their supporting content is removed**
   7. If you keep content, you MUST keep its citations
@@ -205,7 +205,7 @@ multi_round_refinement_prompt: |
   9. Do NOT arbitrarily relocate citations to unrelated sentences
   10. If you add new content, add appropriate NEW citations to support it
   11. Aim to maintain or increase the total number of citations (unless removing redundant sections)
-  
+
   **MEANINGFUL CITATION PLACEMENT**:
   - Each citation must support a specific claim, statement, or finding in that sentence
   - Citations should be placed right after the claim they support
@@ -271,7 +271,7 @@ citation_system_prompt: |
 
   Do not invent or fabricate any citations.
   Do not output BibTeX, author names, or publication details.
-  
+
   **CRITICAL - LaTeX Format Only (NO Markdown)**:
   - Use \textbf{{text}} for bold, NOT **text**
   - Use \textit{{text}} for italic, NOT *text*
@@ -290,7 +290,7 @@ citation_search_query_prompt: |
   - Section Content Snippet: {snippet}
 
   **CRITICAL**: Focus queries on the UNIQUE/NOVEL aspects of this research, not just general topics.
-  
+
   **SEARCH STRATEGY**:
   1. For the given section content, identify the SPECIFIC claims, methods, or findings that need citation support
   2. Generate queries that find papers specifically related to those specific aspects
@@ -310,7 +310,7 @@ citation_search_query_prompt: |
   - contrastive learning AND graph representation
   - hierarchical reinforcement learning AND multi-agent
   - meta-learning AND domain adaptation
-  
+
   **BAD EXAMPLES** (too general):
   - graph neural networks (misses the unique aspect)
   - deep learning (too broad)
@@ -376,12 +376,12 @@ section_prompt:
 
     \paragraph{{Novel framework for research simulation}}
     In this work, we propose \envname, a simulator of the human research community. To bridge the gap between existing multi-agent simulation frameworks and the complexity of research activities, we propose a graph-based framework, inspired by the message-passing mechanism in Graph Neural Networks (GNNs), for multi-agent simulation.
-    Concretely, as shown in Figure \ref{{fig:community-graph}}, we propose a new concept of \textit{{agent-data graph}} with 2 generic types of nodes: (1) \textit{{agent}} nodes, suitable for entities like agents; (2) \textit{{data}} nodes, suitable for entities such as papers, reviews, and blogs. 
+    Concretely, as shown in Figure \ref{{fig:community-graph}}, we propose a new concept of \textit{{agent-data graph}} with 2 generic types of nodes: (1) \textit{{agent}} nodes, suitable for entities like agents; (2) \textit{{data}} nodes, suitable for entities such as papers, reviews, and blogs.
     Agent-data graphs are unique from standard heterogeneous graphs; here, the key conceptual difference between agent and data nodes is that an agent node can be considered a function over data nodes.
-    To inference on agent-data graphs, we propose a \textit{{TextGNN}} framework where message-passing processes are defined based on text-form information processing with LLMs, thanks to their strong in-context learning~\citep{{wei2023larger}} and reasoning~\citep{{lee2024reasoning}} ability. 
+    To inference on agent-data graphs, we propose a \textit{{TextGNN}} framework where message-passing processes are defined based on text-form information processing with LLMs, thanks to their strong in-context learning~\citep{{wei2023larger}} and reasoning~\citep{{lee2024reasoning}} ability.
     We apply the proposed agent-data graph and TextGNN to the research simulation. Here, a research community can be regarded as a special form of agent-data graph, called \textit{{community graph}}, with research agents and research papers as two types of nodes, and we consider three types of edges (review, author, and cite) in the graph. Different community activities, such as paper writing and review writing, can be modeled as special message-passing processes on the community graph.
 
-    \paragraph{{Novel evaluation for research simulation}} 
+    \paragraph{{Novel evaluation for research simulation}}
     With \envname for research simulation, a further research question is to evaluate the quality of that. Prior works primarily use human evaluation with breakdown metrics such as novelty, excitement, feasibility, and expected effectiveness~\citep{{si2024can,hu2024nova}}. These approaches inevitably suffer from subjectiveness and high costs. In our work, since \envname functions as a simulator, our primary focus is on measuring how closely its outputs align with those of the real-world research community. Community graphs naturally provide a similarity-based evaluation method by masking a given paper node in the community graph and evaluating whether a simulator can reconstruct the masked nodes. This definition focuses on simulation similarity, making it scalable and objective. Based on such a node masking prediction task, we build a benchmark called \benchname with 1,000 paper writing tasks and 200 review writing tasks requiring multi-agent collaboration.
 
     \paragraph{{Main discoveries}} Based on the evaluation results from \benchname, we highlight three key findings: (1) \envname effectively simulates collaborative research activities, achieving an average similarity score of 0.68 for paper writing and 0.49 for review writing, as measured by the state-of-the-art text embedding model; (2) \envname demonstrates robustness and effectiveness in research simulation, showing improvement when more agents are added and maintaining performance when including unrelated papers; (3) \envname inspires interdisciplinary research, generating innovative ideas that combine insights from NLP, criminology, and astronomy and does not exist in the real-world research.
@@ -402,7 +402,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite prior work when stating what has been done before, cite foundational work when introducing concepts).
 
     Use at **5 paragraphs**, and aim for **250–300 words**.
@@ -489,7 +489,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite papers when referencing their methods, when building upon their techniques, or when comparing approaches).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in. DO NOT SAY CONCRETE EXPERIMENTAL SETUP IN METHOD SECTION. JUST DESCRIBE THE ALGORITHM AND THE MAJOR COMPONENT OF YOUR METHOD.
@@ -520,7 +520,7 @@ section_prompt:
 
     Some tips are provided below:
     {section_tips}
-    
+
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Experimental Setup section clearly connects to the method introduced earlier and provides specific implementation details that follow logically from the proposed approach.
 
     **Previous content:**
@@ -528,7 +528,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite datasets when referencing them, cite papers when using their evaluation metrics or experimental protocols).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
@@ -551,7 +551,7 @@ section_prompt:
     {baseline_results}
 
     An example for discussion is as follow:
-    
+
     To assess the effectiveness of \modelname, we first ensure that its performance gains are genuine and not the result of reward hacking (RQ1). We then analyze how our improvements come from the design of the reward attribution (RQ2) and the reward combination (RQ3).
 
     \subsection*{{RQ1: Does our improvement come from reward hacking or shortcut learning?}}  \textit{{No, \sotopia-RL learns high-quality social skills instead of overfitting on partner models or evaluator models.}}
@@ -569,9 +569,9 @@ section_prompt:
 
 
     **CRITICAL INSTRUCTIONS FOR YOUR DISCUSSION**:
-    
+
     Following the example above, you MUST structure your Discussion to **anticipate and address reviewer challenges**. Your goal is to make the paper more convincing by proactively defending against potential attacks.
-    
+
     **Required Structure**:
     1. Write an opening paragraph that outlines what challenges you will address (like the example above)
     2. Create 3-4 subsections, each formatted as:
@@ -583,7 +583,7 @@ section_prompt:
     - Reference concrete evidence: "as shown in Table X" or "Figure Y demonstrates"
     - Compare to multiple baselines or settings when possible
     - Admit minor limitations honestly, but explain why they don't invalidate the method
-    
+
     Some additional tips for writing a strong Discussion section:
     {section_tips}
 
@@ -595,7 +595,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite papers when comparing your results to theirs, when discussing similar findings, or when referencing related analyses).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
@@ -662,7 +662,7 @@ section_prompt:
 
     Begin with:
     \section{{Conclusion}}
-    
+
     [Write one paragraph here]
 
 
@@ -670,7 +670,7 @@ section_prompt:
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
 
-  **CRITICAL STRUCTURE REQUIREMENT**: 
+  **CRITICAL STRUCTURE REQUIREMENT**:
   - Write **3 paragraphs** (at most 4 paragraphs)
   - Each paragraph should focus on a distinct category or theme of related work
   - Use \paragraph{{Category Name}} to start each paragraph
@@ -680,7 +680,7 @@ related_work_prompt: |
 
   \paragraph{{Graph Architecture Search}}
   Architecture search techniques have been applied to GNNs \cite{{gao2019graphnas,zhou2019auto}}.
-  However, these works only focus on the design within each GNN layer instead of a general GNN design space, 
+  However, these works only focus on the design within each GNN layer instead of a general GNN design space,
   and only evaluate the designs on a small number of node classification tasks.
 
   \paragraph{{Evaluation of GNN Models}}
@@ -707,10 +707,10 @@ related_work_prompt: |
 
   You must ground your discussion using **only** the following pre-selected relevant papers.
   Each paper is formatted as: **[bibtex_key]** Paper Title (authors, venue, year)
-  
+
   CRITICAL: When citing a paper, you MUST use the bibtex_key shown in square brackets [].
   For example, if you see **[gao2019graphnas]** GraphNAS..., you must write \cite{{gao2019graphnas}}
-  
+
   Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
   You must cite **all** of the following papers at least once using \cite{{...}}.
   Do not leave out any item from the list.

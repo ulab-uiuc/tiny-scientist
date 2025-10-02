@@ -667,27 +667,27 @@ def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
             # Attempt to fix common JSON issues
             try:
                 fixed_string = json_string
-                
+
                 # Fix 1: Remove invalid escape sequences
                 # Single quote doesn't need escaping in JSON
                 fixed_string = fixed_string.replace(r"\'", "'")
-                
+
                 # Fix 2: Fix common invalid escapes (only valid: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX)
                 # Remove backslash before characters that don't need escaping
                 # This pattern finds backslashes followed by characters that are NOT valid escape chars
                 # Valid escape chars: " \ / b f n r t u
                 def fix_invalid_escapes(match):
                     char = match.group(1)
-                    if char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']:
+                    if char in ['"', "\\", "/", "b", "f", "n", "r", "t", "u"]:
                         return match.group(0)  # Keep valid escapes
                     else:
                         return char  # Remove backslash for invalid escapes
-                
-                fixed_string = re.sub(r'\\(.)', fix_invalid_escapes, fixed_string)
-                
+
+                fixed_string = re.sub(r"\\(.)", fix_invalid_escapes, fixed_string)
+
                 # Fix 3: Try parsing the fixed string
                 parsed_json = cast(Dict[str, Any], json.loads(fixed_string))
-                print(f"[SUCCESS] Fixed JSON parsing errors and parsed successfully")
+                print("[SUCCESS] Fixed JSON parsing errors and parsed successfully")
                 return parsed_json
             except json.JSONDecodeError as e2:
                 # Log the error for debugging
