@@ -592,7 +592,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        """LaTeX compilation using pdflatex"""
+        """LaTeX compilation using pdflatex (no latexmk required)"""
         self._ensure_pdflatex()
 
         fname = "acl_latex.tex"
@@ -601,37 +601,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
             return
 
         try:
-            # Method 1: Try latexmk (should handle everything automatically)
-            result = subprocess.run(
-                [
-                    "latexmk",
-                    "-pdf",
-                    "-bibtex",
-                    "-interaction=nonstopmode",
-                    "-file-line-error",
-                    fname,
-                ],
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-            )
-
-            pdf_name = fname.replace(".tex", ".pdf")
-            pdf_path = osp.join(cwd, pdf_name)
-
-            # If latexmk succeeded and PDF exists, we're done
-            if osp.exists(pdf_path):
-                stdout_output = result.stdout.decode("utf-8", errors="ignore")
-                if not (
-                    "undefined" in stdout_output.lower()
-                    and "citation" in stdout_output.lower()
-                ):
-                    shutil.move(pdf_path, output_pdf_path)
-                    return
-
-            # Method 2: Manual compilation (only if latexmk failed or has citation issues)
-            # Step 1: First pdflatex run
+            # Step 1: First pdflatex run (generates .aux file)
             subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -640,19 +610,17 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 timeout=timeout,
             )
 
-            # Step 2: Run bibtex (only if .aux file exists)
-            aux_file = osp.join(cwd, fname.replace(".tex", ".aux"))
-            if osp.exists(aux_file):
-                base_name = fname.replace(".tex", "")
-                subprocess.run(
-                    ["bibtex", base_name],
-                    cwd=cwd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=timeout,
-                )
+            # Step 2: Run bibtex (generates .bbl file from .aux and .bib)
+            base_name = fname.replace(".tex", "")
+            subprocess.run(
+                ["bibtex", base_name],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
 
-            # Step 3: Second pdflatex run (to read .bbl file and update references)
+            # Step 3: Second pdflatex run (reads .bbl file and updates references)
             subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -661,7 +629,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 timeout=timeout,
             )
 
-            # Step 4: Third pdflatex run (to resolve all cross-references and citations)
+            # Step 4: Third pdflatex run (resolves all cross-references and citations)
             subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -681,7 +649,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         except Exception:
             return
 
-        # Move the PDF
+        # Move the PDF to final location
         pdf_source = osp.join(cwd, fname.replace(".tex", ".pdf"))
         if osp.exists(pdf_source):
             try:

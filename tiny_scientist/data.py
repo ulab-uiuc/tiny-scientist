@@ -19,19 +19,14 @@ class WriterPrompt(BaseModel):
     write_system_prompt_related_work: str
     section_tips: Dict[str, str]
     error_list: str
-    refinement_prompt: str
     multi_round_refinement_prompt: str  # NEW: For multi-round refinement
     add_new_citations_prompt: str  # NEW: For progressive citation enrichment
     citation_system_prompt: str
     citation_search_query_prompt: str
     abstract_prompt: str
     section_prompt: Dict[str, str]
-    citation_related_work_prompt: str
-    add_citation_prompt: str
-    embed_citation_prompt: str
     related_work_prompt: str
     title_refinement_prompt: str
-    citation_aider_format: str
 
 
 class CoderPrompt(BaseModel):

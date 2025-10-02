@@ -1,7 +1,6 @@
 write_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have already figured out the research idea and the experiments you want to run.
-  Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
 
   **IMPORTANT - Citation Principles**:
   - Each citation must support a specific claim, statement, or finding in that sentence
@@ -35,11 +34,21 @@ write_system_prompt: |
     \ENDFOR
     \end{{algorithmic}}
     \end{{algorithm}}
+  
+  [Equation Length Guidelines - CRITICAL]
+  - **NEVER write equations that exceed one line width**
+  - For long equations, use multi-line environments:
+    * \begin{{align}}...\end{{align}} for multiple aligned equations
+    * \begin{{multline}}...\end{{multline}} for single equation split across lines
+    * \begin{{split}}...\end{{split}} inside equation environment
+  - Break equations at operators (+, -, =, \cdot, etc.)
+  - Use concise notation: prefer $h_t$ over $h_{{timestep}}$
+  - Example of proper line breaking:
+    \begin{{align}}
+    \mathcal{{L}} &= \sum_{{i=1}}^N \left( f(x_i; \theta) - y_i \right)^2 \\
+                  &\quad + \lambda \|\theta\|_2^2
+    \end{{align}}
 
-  Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
-
-  Here's an example of a well-written paper draft to guide your writing style, tone, and section lengths
-  {example_paper_draft}
 
 write_system_prompt_related_work:
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
@@ -92,15 +101,33 @@ section_tips:
     - **STRUCTURE REQUIREMENT**: Write **3 paragraphs** (at most 4 paragraphs). Each paragraph should focus on a distinct category or theme of related work.
 
   Method: |
-    - The first paragraph in the method should be problem definition. provide math notation and basic definition for the problem
-    - We need to use math to define and describe methods clearly
-    - You need to focus on describing different parts of your CORE method (algorithm, architecture, key innovations)
-    - **CRITICAL**: Do NOT mention concrete implementation details or experimental setup - those belong in the Experimental Setup section
-    - Need to use math to describe the whole process of your algorithm that you propose
-    - If necessary, have a pseudo code or algorithm description to describe your algorithm. But in most cases, it is not necessary. It depends on the topic and research question you want to answer.
-    - Very important!!! You need to explain your motivation for any methodology design. Any design is not from scratch, you need to have a good reason (very brief reason) for that before you start talking about the details of each part of your methods.
-    - Focus on: What is your method? How does it work conceptually? Why is it designed this way?
-    - Leave implementation details (datasets, hyperparameters, training setup) to Experimental Setup section
+    - Start with Problem Definition (First Paragraph)
+      Clearly define the task my method aims to solve using precise mathematical notation.
+      Specify the input space, output space, and the target mapping/function.
+      Introduce any necessary notations, symbols, or assumptions upfront.
+      Keep it focused on the problem formulation, not experiments.
+
+    - Use Math to Describe the Algorithm / Model
+      Describe the entire method in a conceptual and mathematical way.
+      Define each core component of the method formally (e.g., functions, modules, transformations).
+      Use equations to explain how the method processes input and produces output step by step.
+      Keep the description general — no datasets, hyperparameters, or training tricks.
+
+    - Explain the Motivation for Each Design Choice
+      Before describing each component, give a brief, high-level motivation for why it is designed this way (e.g., address a limitation, exploit a property).
+      Do not dump design details without explaining their purpose first.
+
+    - Focus on the Core Algorithm / Architecture / Key Innovations
+      Highlight what is new in the method compared to existing approaches.
+      Structure the section around the main pipeline of the algorithm, not around implementation details.
+      If appropriate, include pseudo-code or algorithm boxes, but only if they clarify the method.
+
+    - Avoid Experimental Details
+      Do NOT include anything about dataset splits, training hyperparameters, model sizes, implementation tricks, or computational setup.
+      Those belong in the Experimental Setup section.
+
+    - End with a High-Level Summary (Optional)
+      Optionally, conclude with a short paragraph summarizing the overall workflow and emphasizing why the method is well-suited for the problem.
 
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
@@ -114,15 +141,14 @@ section_tips:
     - Furthermore, you need to analyze and provide reasons about why this works or not
 
   Discussion: |
-    
     **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**: 
-    You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a research question (RQ) that questions the validity of your method, then provide evidence-based defense.
+    You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a question (Q) that questions the validity of your method, then provide evidence-based defense.
     
     **Format for Each Challenge**:
     \subsection*{{Q#: [Challenging question that makes your method look fake/weak]?}}
     [1-3 paragraphs with concrete evidence from experiments, ablations, or additional analysis that addresses the challenge]
     
-    - Each subsection should be a research question that challenges your method
+    - Each subsection should be a question that challenges your method
     - Be specific and quantitative in your defense (cite figures, tables, numbers)
 
   Conclusion: |
@@ -147,6 +173,7 @@ error_list: |
   - Duplicate headers, e.g. duplicated \\section{{Introduction}} or \\end{{document}}
   - Unescaped symbols, e.g. shakespeare_char should be shakespeare\\_char in text
   - Incorrect closing of environments, e.g. </end{{figure}}> instead of \\end{{figure}}
+  - **Equations that exceed line width** - use \\begin{{align}} or \\begin{{multline}} for long equations
 
 multi_round_refinement_prompt: |
   You are refining the {section} section (Round {round_num}/{total_rounds}).
@@ -225,21 +252,6 @@ add_new_citations_prompt: |
 
   Output the enhanced section with all citations.
 
-refinement_prompt: |
-  Great job! Now criticize and refine only the {section} that you just wrote.
-  Make this complete in this pass, do not leave any placeholders.
-
-  Pay particular attention to fixing any errors such as:
-  {error_list}
-
-  Here is the corresponding section tips:
-  {section_tips}
-
-  Here is the section to refine:
-  """
-  {section_content}
-  """
-
 citation_system_prompt: |
   You are an academic writing assistant helping add and embed citation coverage in a research paper.
 
@@ -268,32 +280,50 @@ citation_system_prompt: |
   Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
 
 citation_search_query_prompt: |
-  You will generate short keyword search queries optimized for Semantic Scholar (and OpenAlex) search.
+  You will generate search queries to find relevant papers for citation in the {section} section.
 
-  Inputs:
+  **CONTEXT**:
   - Idea Title: {idea_title}
   - Problem: {problem}
   - Novelty: {novelty}
   - Experiment: {experiment}
-  - Section: {section}
-  - Snippet: {snippet}
+  - Section Content Snippet: {snippet}
 
-  Requirements:
-  - Return ONLY a JSON array of strings. No extra text.
-  - Each query should be 3–8 words, concise, human-readable.
-  - Use ASCII letters/numbers/spaces only. No punctuation except spaces.
-  - Do not include quotes inside items, markdown, or explanations.
-  - Focus on core entities: tasks, methods, datasets, domains, techniques.
-  - Provide 6–10 high-quality, diverse queries.
+  **CRITICAL**: Focus queries on the UNIQUE/NOVEL aspects of this research, not just general topics.
+  
+  **SEARCH STRATEGY**:
+  1. For the given section content, identify the SPECIFIC claims, methods, or findings that need citation support
+  2. Generate queries that find papers specifically related to those specific aspects
+  3. Combine the novel component with the application domain using AND
+  4. Example: If section discusses "causal graph for GNN link prediction", query should be "causal graph AND graph neural networks" or "link prediction AND graph structure"
 
-  Example output:
+  **QUERY CONSTRUCTION GUIDELINES**:
+  1. Use AND to connect the NOVEL/SPECIFIC component with the domain/task
+  2. Use OR sparingly for alternative terms of the SAME concept (e.g., "few-shot OR low-resource")
+  3. Keep multi-word phrases as simple text (no quotes needed)
+  4. Each query should be 3-8 words, focused on specific concepts
+  5. Match the granularity to the section: Related Work (broader), Method (specific techniques), Discussion (comparative analysis)
+
+  **GOOD EXAMPLES** (focused on specific aspects):
+  - causal graph AND graph neural networks
+  - adaptive attention AND low-resource translation
+  - contrastive learning AND graph representation
+  - hierarchical reinforcement learning AND multi-agent
+  - meta-learning AND domain adaptation
+  
+  **BAD EXAMPLES** (too general):
+  - graph neural networks (misses the unique aspect)
+  - deep learning (too broad)
+  - machine translation (no specific method)
+
+  **OUTPUT FORMAT**:
+  Return ONLY a JSON array of 6-10 query strings. No extra text, no markdown, no explanations.
+
+  Example:
   [
-    "graph neural network link prediction",
-    "llm reinforcement learning distillation",
-    "transformer pruning computer vision",
-    "contrastive learning medical imaging",
-    "few shot domain adaptation nlp",
-    "retrieval augmented generation evaluation"
+    "causal graph AND graph neural networks",
+    "link prediction AND graph structure",
+    "contrastive learning AND node embedding"
   ]
 
 abstract_prompt: |
@@ -395,35 +425,6 @@ section_prompt:
     {code}
     ```
 
-    CRITICAL REQUIREMENTS:
-    1. **Problem Formulation (MANDATORY)**: Start with a formal mathematical definition
-       - Define the problem space: $\mathcal{{X}}, \mathcal{{Y}}$
-       - Define the objective function with proper notation
-       - State any assumptions clearly
-    
-    2. **Multi-Level Structure (MANDATORY)**: Break down into subsections:
-       - Use \paragraph{{}} for main components (3-5 paragraphs minimum)
-       - Each paragraph should focus on ONE specific aspect
-       - Follow a logical flow: Overview → Components → Integration
-    
-    3. **Mathematical Rigor (MANDATORY)**: 
-       - Use equations for key transformations: $f(x) = ...$
-       - Number important equations: \begin{{equation}}...\end{{equation}}
-       - Define all variables and notations clearly
-    
-    4. **Algorithm Description (if applicable)**:
-       - Include pseudo-code using \begin{{algorithm}} or \begin{{algorithmic}}
-       - Or describe step-by-step process with clear enumeration
-    
-    5. **Architectural Details**:
-       - Describe model architecture with dimensions
-       - Specify layer configurations, activation functions
-       - Reference to figures if available
-    
-    6. **Design Justification**:
-       - For EACH major design choice, explain WHY (1-2 sentences)
-       - Connect to existing literature when possible
-    
     An example for method writing is as follow:
 
     \paragraph{{Definition of artifact graphs}}
@@ -444,9 +445,9 @@ section_prompt:
     \subsection{{Definition of Automatic Discovery}}
     Let $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$ denote the artifact graph, where $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}_d$ consists of model nodes $\mathcal{{V}}_m$ and dataset nodes $\mathcal{{V}}_d$, and $\mathcal{{E}}_{{md}} \subseteq \mathcal{{V}}_m \times \mathcal{{V}}_d$ represents evaluation edges. Each edge $(m,d) \in \mathcal{{E}}_{{md}}$ is annotated with a performance score $s(m,d)$ (e.g., accuracy, F1). We define the automatic discovery problem as finding a missing link $(m,d) \notin \mathcal{{E}}_{{md}}$ such that the predicted score $\hat{{s}}(m,d)$ exceeds the best observed score on dataset $d$:
 
-    \begin{{equation}}
+    \begin{{align}}
     \hat{{s}}(m,d) > \max_{{(m', d) \in \mathcal{{E}}_{{md}}}} s(m',d).
-    \end{{equation}}
+    \end{{align}}
 
     In other words, the discovery target is to identify model–dataset pairs that are not yet connected in $\mathcal{{G}}$ but are expected to outperform all existing models on the same dataset.
 
@@ -457,9 +458,9 @@ section_prompt:
     \paragraph{{Prediction}}
     In the prediction stage, the goal is not only to estimate $\hat{{s}}(m,d)$ for missing edges but also to rank all candidate links by their discovery potential. Concretely, we train a model that learns a scoring function
 
-    \begin{{equation}}
+    \begin{{align}}
     \hat{{s}}: \mathcal{{V}}_m \times \mathcal{{V}}_d \to \mathbb{{R}},
-    \end{{equation}}
+    \end{{align}}
 
     which assigns each unseen pair $(m,d)\notin\mathcal{{E}}_{{md}}$ a predicted performance. The model is optimized to rank these candidates relative to observed edges, so that links expected to outperform existing results on the same dataset are ranked highest. The output is an ordered list of missing edges prioritized by their likelihood of being high-value discoveries.
 
@@ -471,17 +472,16 @@ section_prompt:
 
     Some tips are provided below:
     {section_tips}
-    
+
     **IMPORTANT GUIDELINES**:
     1. **CRITICAL**: Base your Method section on the **Proposed Approach** described above - this is the core methodology you must explain in detail
     2. Structure your Method section with multiple \paragraph{{}} blocks (minimum 3-5)
     3. Start with formal problem definition using mathematical notation
-    4. Include equations for key transformations (use \begin{{equation}}...\end{{equation}})
+    4. Include equations for key transformations (use \begin{{align}}...\end{{align}} for long equation)
     5. For each major component, explain BOTH what it does AND why (design rationale)
-    6. If the code reveals specific architectures/hyperparameters, incorporate them with proper notation
-    7. Build upon the motivation from previous sections while introducing technical details
-    8. Ensure the Method section fully elaborates on the approach outlined in the original idea
-    
+    6. Build upon the motivation from previous sections while introducing technical details
+    7. Ensure the Method section fully elaborates on the approach outlined in the original idea
+
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Method section builds upon the motivation and problem definition established earlier, while introducing your technical approach clearly and coherently.
 
     **Previous content:**
@@ -587,11 +587,6 @@ section_prompt:
     Some additional tips for writing a strong Discussion section:
     {section_tips}
 
-    **CRITICAL**: Base your Discussion on:
-    1. **Your core approach** (algorithmic innovation described above) - explain WHY your algorithm design leads to the observed results
-    2. **Experimental results** (concrete numbers above) - reference specific improvements, ablations, comparisons
-    3. **Baseline comparisons** (if available) - explain where and why your method outperforms baselines
-    4. **Previous sections context** (below) - ensure coherence with Method, Results, and Experimental Setup
 
     **IMPORTANT**: You have access to all previous sections that were already written. Make sure your Discussion section synthesizes the results with the method, experimental setup, and broader context established earlier. Analyze the implications of your findings in relation to the original problem and methodology.
 
@@ -670,83 +665,7 @@ section_prompt:
     
     [Write one paragraph here]
 
-citation_related_work_prompt: |
-  Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
 
-  The title of the paper is: {idea_title}
-  The problem of the paper is: {problem}
-
-  This is round {round_num} out of {total_rounds}. You have already collected the following papers:
-  {collected_papers}
-
-  Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
-
-  json
-  ["Title 1", "Title 2", "Title 3"]
-  
-
-add_citation_prompt: |
-  Given current version of the paper
-
-  The title of the paper is: {idea_title}
-  The problem of the paper is: {problem}
-  The challenges of the paper are: {challenges}
-
-  You are reviewing the following section: {section}
-
-  Current content of the section:
-  """
-  {section_content}
-  """
-  Based on the type of section (e.g., Introduction, Method, Experimental Setup, Discussion) and the depth of the content provided, determine how many references would be reasonably appropriate to support the key statements and claims.
-
-  Your task:
-  - Return a list of **real, published academic papers** that should be cited in this section.
-  - All references must be directly relevant to the corresponding section's current content.
-  - Prefer widely recognized or foundational papers if possible.
-  - Do **not** fabricate or suggest speculative titles.
-
-  You **must return at least 6** real paper titles.
-  All titles must be real and verifiable.
-  Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
-
-  json
-  ["Title 1", "Title 2", "Title 3"]
-  
-
-embed_citation_prompt: |
-  You are assisting with embedding citation placeholders into an academic LaTeX section.
-
-  You are reviewing the following section: {section}
-
-  Here is the current content of the section:
-  """
-  {section_content}
-  """
-
-  You must cite **all** of the following papers using LaTeX \cite{{...}} format:
-  {references}
-
-  INSTRUCTIONS:
-  - Each paper is formatted as: **[bibtex_key]** Paper Title (authors, venue, year)
-  - When citing a paper, you MUST use the bibtex_key shown in square brackets [].
-  - For example, if you see **[chen2022cross]** Cross-lingual Transfer..., you must write \cite{{chen2022cross}}
-  - Integrate citations into the most relevant parts of the section.
-  - Use `\cite{{...}}` format strictly (no markdown, no commentary).
-  - Do not fabricate new citations.
-  - Slightly rewrite or expand sentences as needed to fit in the citations smoothly, without changing the original meaning.
-  - Preserve and return the entire section content with all citations embedded.
-  - The output must be valid, standalone LaTeX with consistent formatting.
-
-  **MEANINGFUL CITATION PLACEMENT**:
-  - Each citation must support a specific claim, statement, or finding in that exact sentence
-  - Place citations right after the claim they support (e.g., "Transformers excel at NLP tasks~\cite{{vaswani2017}}")
-  - Read the paper title and abstract to understand what it contributes, then cite it where relevant
-  - Do NOT place citations randomly or where they don't support the sentence content
-  - If a paper discusses method X, cite it in sentences about method X, not about dataset Y
-  - If no appropriate sentence exists for a paper, add a brief sentence making a claim that paper supports
-
-  FINAL OUTPUT: Return only valid LaTeX (no markdown, no explanations).
 
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
@@ -813,19 +732,3 @@ title_refinement_prompt: |
 
   Please provide a single, concise title that clearly reflects the paper's concept.
   Do not include any additional text, explanation, or formatting – output only the title.
-
-citation_aider_format: |
-  The following citations have just been added to the end of the `references.bib` file definition at the top of the file:
-  """
-  {bibtex}
-  """
-  You do not need to add them yourself.
-  ABSOLUTELY DO NOT ADD IT AGAIN!!!
-
-  Make the proposed change to the draft incorporating these new cites:
-  {description}
-
-  Use your judgment for whether these should be cited anywhere else.
-  Make sure that any citation precisely matches the name in `references.bib`. Change its name to the correct name in the bibtex if needed.
-  Ensure the citation is well-integrated into the text.
-  You must use \cite or \citet to reference papers, do not manually type out author names.

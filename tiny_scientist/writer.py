@@ -108,16 +108,7 @@ class Writer:
         self.config = Config(prompt_template_dir)
         self.prompts = self.config.prompt_template.writer_prompt
         self.cost_tracker = cost_tracker or BudgetChecker()
-
-        # Few-shot example
-        with resources.files("tiny_scientist.fewshot_sample").joinpath(
-            "automated_relational.txt"
-        ).open("r", encoding="utf-8") as f:
-            few_shot_sample_text = f.read()
-
-        self.system_prompt = self.prompts.write_system_prompt.format(
-            example_paper_draft=few_shot_sample_text
-        )
+        self.system_prompt = self.prompts.write_system_prompt.format()
 
         # Runtime state
         self.generated_sections: Dict[str, str] = {}
