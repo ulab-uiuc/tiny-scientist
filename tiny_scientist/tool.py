@@ -176,32 +176,45 @@ class CodeSearchTool(BaseTool):
 
 
 class PaperSearchTool(BaseTool):
-    def __init__(self, s2_api_key: Optional[str] = None) -> None:
+    def __init__(self, s2_api_key: Optional[str] = None, engine: Optional[str] = None, disable_fallback: bool = False) -> None:
         super().__init__()
-        self.s2_api_key = (
+        raw_key = (
             s2_api_key
             or os.environ.get("S2_API_KEY")
             or config["core"].get("s2_api_key")
         )
+        self.s2_api_key = raw_key.strip() if isinstance(raw_key, str) else raw_key
+        self.disable_fallback = disable_fallback
 
-        # Set default engine if not configured - 改为 OpenAlex 避免 Semantic Scholar 的问题
-        self.engine = config["core"].get("engine", "openalex")
-        
+        # Engine selection priority: explicit param > config file > S2 key present -> semanticscholar > openalex
+        configured_engine = config["core"].get("engine")
+        if engine:
+            self.engine = engine
+        elif configured_engine:
+            self.engine = configured_engine
+        elif self.s2_api_key:
+            self.engine = "semanticscholar"
+        else:
+            self.engine = "openalex"
+
         # Print configuration info
         print(f"[INFO] Primary search engine: {self.engine}")
+        if self.disable_fallback:
+            print(f"[INFO] Fallback to alternative search engine is DISABLED")
         
         if self.engine == "semanticscholar":
-            print("[WARNING] Semantic Scholar 经常不稳定，建议切换到 OpenAlex")
+            if not self.disable_fallback:
+                print("[INFO] Will fallback to OpenAlex if Semantic Scholar fails")
             if not self.s2_api_key:
-                print("[INFO] 没有 S2_API_KEY，限制更严重")
+                print("[INFO] No S2_API_KEY, rate limits will be stricter")
         elif self.engine == "openalex":
             mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
             if mail:
-                print(f"[INFO] OpenAlex 邮箱配置: {mail}")
+                print(f"[INFO] OpenAlex email configured: {mail}")
             else:
-                print("[INFO] 建议设置 OPENALEX_MAIL_ADDRESS 环境变量获得更好的访问权限")
+                print("[INFO] Recommend setting OPENALEX_MAIL_ADDRESS environment variable for better API access")
         
-        print("[INFO] 如果遇到搜索问题，OpenAlex 通常比 Semantic Scholar 更稳定")
+        print("[INFO] If you encounter search issues, OpenAlex is usually more stable than Semantic Scholar")
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -214,48 +227,65 @@ class PaperSearchTool(BaseTool):
                 paper_title = paper.get("title", "Unknown Title")
                 print(f"[PaperSearchTool] Processing paper {i+1}: {paper_title}")
                 
-                # 处理不同来源的论文数据
-                if "paperId" in paper:  # Semantic Scholar 数据
+                # Strategy: Prefer OpenAlex for bibtex (more reliable formatting)
+                paper_data = {
+                    "title": paper_title,
+                    "abstract": paper.get("abstract") or "",  # Handle None
+                    "authors": paper.get("authors") or "",
+                    "venue": paper.get("venue") or "",
+                    "year": paper.get("year") or "",
+                    "citationCount": paper.get("citationCount", 0),
+                    "concepts": paper.get("concepts", []),
+                    "bibtex": "",
+                }
+                
+                # Priority 1: Try OpenAlex for bibtex (best formatting)
+                if "openalex_id" in paper and paper.get("openalex_id"):
+                    openalex_id = paper["openalex_id"]
+                    bibtex = self._fetch_bibtex_from_openalex(openalex_id)
+                    if bibtex:
+                        paper_data["bibtex"] = bibtex
+                        print(f"[PaperSearchTool] ✅ Got bibtex from OpenAlex")
+                
+                # Priority 2: Try Semantic Scholar (if it's S2 data and no OA bibtex)
+                if not paper_data["bibtex"] and "paperId" in paper:
                     paper_id = paper.get("paperId")
                     if paper_id:
                         bibtex = self.fetch_bibtex(paper_id)
                         if bibtex and bibtex != "N/A":
-                            # 保存完整的论文信息，包括摘要等
-                            results[paper_title] = {
-                                "title": paper_title, 
-                                "bibtex": bibtex,
-                                "abstract": paper.get("abstract", ""),
-                                "authors": paper.get("authors", ""),
-                                "venue": paper.get("venue", ""),
-                                "year": paper.get("year", ""),
-                            }
-                            print(f"[PaperSearchTool] ✅ Got bibtex from Semantic Scholar: {paper_title}")
-                        else:
-                            print(f"[PaperSearchTool] ❌ No bibtex from Semantic Scholar: {paper_title}")
-                    else:
-                        print(f"[PaperSearchTool] ❌ No paper ID: {paper_title}")
-                        
-                else:  # OpenAlex 或其他数据源
+                            paper_data["bibtex"] = bibtex
+                            print(f"[PaperSearchTool] ✅ Got bibtex from Semantic Scholar")
+                
+                # Priority 3: Generate from metadata as fallback
+                if not paper_data["bibtex"]:
                     bibtex = self._generate_bibtex_from_metadata(paper)
                     if bibtex:
-                        # OpenAlex 数据包含完整信息，全部保存
-                        results[paper_title] = {
-                            "title": paper_title, 
-                            "bibtex": bibtex,
-                            "abstract": paper.get("abstract", ""),
-                            "authors": paper.get("authors", ""),
-                            "venue": paper.get("venue", ""),
-                            "year": paper.get("year", ""),
-                            "citationCount": paper.get("citationCount", 0),
-                            "concepts": paper.get("concepts", []),
-                        }
-                        print(f"[PaperSearchTool] ✅ Generated bibtex from metadata: {paper_title}")
-                        abstract_len = len(paper.get('abstract', ''))
-                        print(f"[PaperSearchTool] 📝 Abstract length: {abstract_len}")
-                        if abstract_len < 50:
-                            print(f"[WARNING] Abstract too short for {paper_title}: '{paper.get('abstract', '')[:100]}'")
+                        paper_data["bibtex"] = bibtex
+                        print(f"[PaperSearchTool] ⚠️ Generated bibtex from metadata (may have formatting issues)")
                     else:
-                        print(f"[PaperSearchTool] ❌ Failed to generate bibtex: {paper_title}")
+                        print(f"[PaperSearchTool] ❌ No bibtex available")
+                        continue  # Skip papers without bibtex
+                
+                # Try to enrich with OpenAlex if we got S2 data but want more info
+                abstract_text = paper_data["abstract"] or ""
+                if "paperId" in paper and len(abstract_text) < 100:
+                    try:
+                        print(f"[PaperSearchTool] Trying OpenAlex enrichment for short abstract...")
+                        openalex_papers = self._search_openalex(paper_title, result_limit=1)
+                        if openalex_papers and len(openalex_papers) > 0:
+                            oa_paper = openalex_papers[0]
+                            oa_abstract = oa_paper.get("abstract") or ""
+                            if len(oa_abstract) > len(abstract_text):
+                                paper_data["abstract"] = oa_abstract
+                                paper_data["concepts"] = oa_paper.get("concepts", [])
+                                paper_data["citationCount"] = oa_paper.get("citationCount", 0)
+                                print(f"[PaperSearchTool] ✅ Enriched with OpenAlex data")
+                    except Exception as e:
+                        print(f"[PaperSearchTool] OpenAlex enrichment failed: {e}")
+                
+                results[paper_title] = paper_data
+                abstract_len = len(paper_data.get('abstract', ''))
+                print(f"[PaperSearchTool] 📝 Final abstract length: {abstract_len}")
         else:
             print(f"[PaperSearchTool] ❌ No papers found for query: {query}")
 
@@ -264,29 +294,37 @@ class PaperSearchTool(BaseTool):
         return results
 
     def search_for_papers(
-        self, query: str, result_limit: int = 3
+        self, query: str, result_limit: int = 10
     ) -> Optional[List[Dict[str, Any]]]:
         if not query:
             return None
 
-        # 优先使用稳定的 OpenAlex，Semantic Scholar 太垃圾了
+        # Engine preference with graceful fallback
         if self.engine == "semanticscholar":
-            print("[INFO] Semantic Scholar 经常有问题，直接使用 OpenAlex...")
-            # 直接跳过 Semantic Scholar，使用 OpenAlex
+            print(f"(semantic scholar API calling) Searching for papers with query: {query}")
             try:
-                print(f"(openalex API calling) Using OpenAlex instead of Semantic Scholar with query: {query}")
+                result = self._search_semanticscholar(query, result_limit)
+                if result:
+                    return result
+                else:
+                    if self.disable_fallback:
+                        print("[WARNING] Semantic Scholar returned no results. Fallback is disabled.")
+                        return None
+                    print("[INFO] Semantic Scholar returned no results, trying OpenAlex...")
+            except Exception as e:
+                if self.disable_fallback:
+                    print(f"[ERROR] Semantic Scholar failed: {e}. Fallback is disabled.")
+                    return None
+                print(f"[WARNING] Semantic Scholar failed: {e}, trying OpenAlex as fallback...")
+
+            # Fallback to OpenAlex (only if not disabled)
+            try:
+                print(f"(openalex API calling) Fallback search with query: {query}")
                 return self._search_openalex(query, result_limit)
             except Exception as e:
-                print(f"[ERROR] OpenAlex failed: {e}")
-                # 最后才尝试 Semantic Scholar 作为备用
-                print("[INFO] 尝试 Semantic Scholar 作为最后手段...")
-                try:
-                    result = self._search_semanticscholar(query, result_limit)
-                    return result
-                except Exception as e2:
-                    print(f"[ERROR] Semantic Scholar 也失败了: {e2}")
-                    return None
-                
+                print(f"[ERROR] Both Semantic Scholar and OpenAlex failed: {e}")
+                return None
+
         elif self.engine == "openalex":
             print(f"(openalex API calling) Searching for papers with query: {query}")
             try:
@@ -294,11 +332,17 @@ class PaperSearchTool(BaseTool):
                 if result:
                     return result
                 else:
+                    if self.disable_fallback:
+                        print("[WARNING] OpenAlex returned no results. Fallback is disabled.")
+                        return None
                     print("[WARNING] OpenAlex returned no results, trying Semantic Scholar...")
             except Exception as e:
+                if self.disable_fallback:
+                    print(f"[ERROR] OpenAlex failed: {e}. Fallback is disabled.")
+                    return None
                 print(f"[WARNING] OpenAlex failed: {e}, trying Semantic Scholar as fallback...")
                 
-            # Fallback to Semantic Scholar
+            # Fallback to Semantic Scholar (only if not disabled)
             try:
                 print(f"(semantic scholar API calling) Fallback search with query: {query}")
                 return self._search_semanticscholar(query, result_limit)
@@ -318,13 +362,13 @@ class PaperSearchTool(BaseTool):
             "fields": "title,authors,venue,year,abstract,citationStyles,citationCount,paperId",
         }
 
-        # 设置更完整的 headers
+        # Set comprehensive headers
         headers = {
             "User-Agent": "TinyScientist/1.0 (https://github.com/ulab-uiuc/tiny-scientiest)",
             "Accept": "application/json",
         }
         if self.s2_api_key:
-            headers["X-API-KEY"] = self.s2_api_key
+            headers["x-api-key"] = self.s2_api_key
         
         try:
             print(f"[Semantic Scholar] Searching for: {query[:100]}...")
@@ -343,7 +387,7 @@ class PaperSearchTool(BaseTool):
                 return None
 
             print(f"[Semantic Scholar] Found {results.get('total')} papers")
-            time.sleep(2.0)  # 增加延迟避免限速
+            time.sleep(2.0)  # Add delay to avoid rate limiting
             return cast(Optional[List[Dict[str, Any]]], results.get("data"))
             
         except requests.exceptions.HTTPError as e:
@@ -355,12 +399,12 @@ class PaperSearchTool(BaseTool):
                 print(f"  3. IP restrictions")
                 if not self.s2_api_key:
                     print(f"[SUGGESTION] Get a free API key at: https://www.semanticscholar.org/product/api")
-                # 对于403错误，不要重试，直接返回None让上层切换到fallback
+                # For 403 errors, don't retry, return None to allow fallback
                 print(f"[Semantic Scholar] Skipping retries for 403 error, will try fallback engine")
                 return None
             elif rsp.status_code == 429:
                 print(f"[Semantic Scholar] 429 Rate Limited - will retry with exponential backoff")
-                # 对于429，让装饰器处理重试
+                # For 429, let decorator handle retries
                 raise
             else:
                 print(f"[Semantic Scholar] HTTP Error {rsp.status_code}: {e}")
@@ -389,22 +433,75 @@ class PaperSearchTool(BaseTool):
             return None
 
         return [self._extract_work_info(work) for work in works]
+    
+    def _fetch_bibtex_from_openalex(self, work_id: str) -> Optional[str]:
+        """Fetch BibTeX from OpenAlex by work ID (OpenAlex ID)"""
+        try:
+            import requests
+            # OpenAlex provides direct bibtex endpoint
+            # work_id should be like "W2741809807" or full URL
+            if work_id.startswith("http"):
+                bibtex_url = work_id.replace("https://openalex.org/", "https://api.openalex.org/") 
+            else:
+                bibtex_url = f"https://api.openalex.org/works/{work_id}"
+            
+            headers = {"Accept": "application/x-bibtex"}
+            mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
+            if mail:
+                headers["User-Agent"] = f"TinyScientist (mailto:{mail})"
+            
+            response = requests.get(bibtex_url, headers=headers, timeout=10)
+            if response.status_code == 200 and response.text:
+                return response.text.strip()
+            return None
+        except Exception as e:
+            print(f"[WARNING] Failed to fetch bibtex from OpenAlex: {e}")
+            return None
 
     def _generate_bibtex_from_metadata(self, paper: Dict[str, Any]) -> str:
-        """从论文元数据生成 BibTeX 条目"""
+        """Generate BibTeX entry from paper metadata with proper author formatting"""
         try:
             title = paper.get("title", "Unknown Title")
-            authors = paper.get("authors", "Unknown Author")
+            authors_raw = paper.get("authors", "Unknown Author")
             venue = paper.get("venue", "Unknown Venue")
             year = paper.get("year", "Unknown")
             
-            # 生成 bibtex key（清理特殊字符）
+            # Format authors properly
+            if isinstance(authors_raw, list):
+                # Handle list of dicts (Semantic Scholar format)
+                if authors_raw and isinstance(authors_raw[0], dict):
+                    author_names = [a.get("name", "") for a in authors_raw if a.get("name")]
+                    authors = " and ".join(author_names) if author_names else "Unknown Author"
+                # Handle list of strings
+                elif authors_raw and isinstance(authors_raw[0], str):
+                    authors = " and ".join(authors_raw)
+                else:
+                    authors = "Unknown Author"
+            elif isinstance(authors_raw, str):
+                # If it's already a string and looks like Python dict, try to extract names
+                if "[{" in authors_raw or "authorId" in authors_raw:
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(authors_raw)
+                        if isinstance(parsed, list) and parsed:
+                            author_names = [a.get("name", "") for a in parsed if isinstance(a, dict) and a.get("name")]
+                            authors = " and ".join(author_names) if author_names else "Unknown Author"
+                        else:
+                            authors = "Unknown Author"
+                    except:
+                        authors = "Unknown Author"
+                else:
+                    authors = authors_raw
+            else:
+                authors = "Unknown Author"
+            
+            # Generate bibtex key (clean special characters)
             import re
             clean_title = re.sub(r'[^\w\s]', '', title)
             first_word = clean_title.split()[0] if clean_title.split() else "paper"
             bibtex_key = f"{first_word.lower()}{year}"
             
-            # 构建 BibTeX 条目
+            # Build BibTeX entry
             bibtex = f"""@article{{{bibtex_key},
     title={{{title}}},
     author={{{authors}}},
@@ -419,7 +516,7 @@ class PaperSearchTool(BaseTool):
 
     @api_calling_error_exponential_backoff(retries=1, base_wait_time=1)
     def fetch_bibtex(self, paper_id: str) -> Any:
-        # 设置更完整的 headers
+        # Set comprehensive headers
         headers = {
             "User-Agent": "TinyScientist/1.0 (https://github.com/ulab-uiuc/tiny-scientiest)",
             "Accept": "application/json",
@@ -449,7 +546,7 @@ class PaperSearchTool(BaseTool):
         except requests.exceptions.HTTPError as e:
             if rsp.status_code == 403:
                 print(f"[Semantic Scholar] 403 Forbidden for bibtex fetch - API access denied")
-                # 对于403错误，直接返回N/A，不重试
+                # For 403 errors, return N/A directly without retry
                 return "N/A"
             elif rsp.status_code == 429:
                 print(f"[Semantic Scholar] 429 Rate Limited for bibtex - will retry")
@@ -488,15 +585,15 @@ class PaperSearchTool(BaseTool):
 
         abstract = work.get("abstract", "")
         
-        # 获取概念和关键词作为摘要的补充
+        # Get concepts and keywords as abstract supplement
         concepts = []
         if "concepts" in work and work["concepts"]:
-            # 获取前5个最相关的概念
+            # Get top 5 most relevant concepts
             top_concepts = sorted(work["concepts"], 
                                 key=lambda x: x.get("score", 0), reverse=True)[:5]
             concepts = [concept.get("display_name", "") for concept in top_concepts]
         
-        # 如果摘要太短，用概念补充
+        # If abstract is too short, supplement with concepts
         if len(abstract) < 100 and concepts:
             concept_text = "Key concepts: " + ", ".join(concepts)
             abstract = abstract + ". " + concept_text if abstract else concept_text
@@ -512,7 +609,8 @@ class PaperSearchTool(BaseTool):
             "year": work.get("publication_year", "Unknown"),
             "abstract": abstract,
             "citationCount": work.get("cited_by_count", 0),
-            "concepts": concepts,  # 新增概念信息
+            "concepts": concepts,  # Added concept information
+            "openalex_id": work.get("id", ""),  # Store OpenAlex ID for bibtex fetching
         }
 
 

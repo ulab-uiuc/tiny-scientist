@@ -115,6 +115,60 @@ error_list: |
   - Unescaped symbols, e.g. shakespeare_char should be shakespeare\\_char in text
   - Incorrect closing of environments, e.g. </end{{figure}}> instead of \\end{{figure}}
 
+multi_round_refinement_prompt: |
+  You are refining the {section} section (Round {round_num}/{total_rounds}).
+
+  **Current Focus for This Round**: {focus}
+
+  **Current Section Content**:
+  {section_content}
+
+  **Section Guidelines**:
+  {section_tips}
+
+  **Full Paper Context** (all other sections for coherence check):
+  {other_sections_context}
+
+  **Refinement Instructions**:
+  1. {method_specific_instruction}
+  2. Improve mathematical notation and formalism
+  3. Add design rationale for key choices
+  4. **CRITICAL**: Read the Full Paper Context above to ensure your refined section is coherent with other sections
+  5. Ensure terminology, notation, and narrative flow are consistent across the paper
+  
+  **CRITICAL - CITATION PRESERVATION**:
+  6. **YOU MUST PRESERVE ALL EXISTING \\cite{{}} COMMANDS EXACTLY AS THEY APPEAR**
+  7. Count all \\cite{{}} in the current content and ensure the same number (or more) in your output
+  8. Do NOT remove, modify, or relocate existing citations unless absolutely necessary
+  9. If you add new content, you may add NEW citations, but keep all existing ones
+  10. Do NOT remove any existing content unless it's redundant or contradicts other sections
+
+  **Common Errors to Avoid**:
+  {error_list}
+
+  Output the refined section directly (no explanations).
+
+add_new_citations_prompt: |
+  You are adding NEW citations to the {section} section.
+
+  **Current section content**:
+  {section_content}
+
+  **NEW papers to cite** (cite ALL of these):
+  {paper_context}
+
+  **CRITICAL INSTRUCTIONS**:
+  1. Each paper is formatted as: **[bibtex_key]** Title (authors, venue, year)
+  2. You MUST use the bibtex_key in square brackets [] when citing
+  3. Add citations using \\cite{{bibtex_key}} format
+  4. Cite ALL {num_papers} new papers provided above
+  5. Keep ALL existing citations and content
+  6. Add new citations in contextually appropriate places
+  7. If needed, expand 1-2 sentences to naturally incorporate citations
+  8. Do NOT remove or change existing citations
+
+  Output the enhanced section with all citations.
+
 refinement_prompt: |
   Great job! Now criticize and refine only the {section} that you just wrote.
   Make this complete in this pass, do not leave any placeholders.
@@ -135,12 +189,43 @@ citation_system_prompt: |
 
   Your role:
   - When asked to suggest citations, return only real, published academic paper titles that are highly relevant to the given content.
-  - When asked to embed citations, insert `\cite{{Paper Title}}` placeholders exactly where needed—only using the provided paper titles.
+  - When asked to embed citations, you will be provided with papers in the format: **[bibtex_key]** Paper Title (authors, venue, year)
+  - You MUST use the bibtex_key shown in square brackets [] when inserting `\cite{{bibtex_key}}` commands.
+  - For example, if you see **[smith2023nlp]** Natural Language Processing..., you must write \cite{{smith2023nlp}}
 
   Do not invent or fabricate any citations.
   Do not output BibTeX, author names, or publication details.
   Be thorough - missing citations is not acceptable
   Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
+
+citation_search_query_prompt: |
+  You will generate short keyword search queries optimized for Semantic Scholar (and OpenAlex) search.
+
+  Inputs:
+  - Idea Title: {idea_title}
+  - Problem: {problem}
+  - Novelty: {novelty}
+  - Experiment: {experiment}
+  - Section: {section}
+  - Snippet: {snippet}
+
+  Requirements:
+  - Return ONLY a JSON array of strings. No extra text.
+  - Each query should be 3–8 words, concise, human-readable.
+  - Use ASCII letters/numbers/spaces only. No punctuation except spaces.
+  - Do not include quotes inside items, markdown, or explanations.
+  - Focus on core entities: tasks, methods, datasets, domains, techniques.
+  - Provide 6–10 high-quality, diverse queries.
+
+  Example output:
+  [
+    "graph neural network link prediction",
+    "llm reinforcement learning distillation",
+    "transformer pruning computer vision",
+    "contrastive learning medical imaging",
+    "few shot domain adaptation nlp",
+    "retrieval augmented generation evaluation"
+  ]
 
 abstract_prompt: |
   You are writing the Abstract section of a top-tier AI research paper.
@@ -156,7 +241,21 @@ abstract_prompt: |
   - Novelty: **{novelty}**
   - Experiment Plan: **{experiment}**
 
-  In this pass, do not reference anything in later sections of the paper.
+  IMPORTANT: The full paper has already been written. Below is the complete content of all sections.
+  Your task is to write an abstract that accurately summarizes what was actually written in the paper,
+  not just the initial idea. Pay attention to the actual methods used, experiments conducted, and results obtained.
+
+  === FULL PAPER CONTENT ===
+  {full_paper_content}
+  === END OF PAPER CONTENT ===
+
+  Based on the full paper content above, write a concise abstract that:
+  1. States the problem addressed in the paper
+  2. Explains why it's important and challenging
+  3. Describes the proposed solution/method
+  4. Summarizes the key experiments and results
+  5. Highlights the main contributions
+
   The output must be pure LaTeX and enclosed with \begin{{abstract}} ... \end{{abstract}}.
   Be sure to first name the file and use *SEARCH/REPLACE* blocks to perform these edits.
 
@@ -226,6 +325,35 @@ section_prompt:
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
 
+    CRITICAL REQUIREMENTS:
+    1. **Problem Formulation (MANDATORY)**: Start with a formal mathematical definition
+       - Define the problem space: $\mathcal{{X}}, \mathcal{{Y}}$
+       - Define the objective function with proper notation
+       - State any assumptions clearly
+    
+    2. **Multi-Level Structure (MANDATORY)**: Break down into subsections:
+       - Use \paragraph{{}} for main components (3-5 paragraphs minimum)
+       - Each paragraph should focus on ONE specific aspect
+       - Follow a logical flow: Overview → Components → Integration
+    
+    3. **Mathematical Rigor (MANDATORY)**: 
+       - Use equations for key transformations: $f(x) = ...$
+       - Number important equations: \begin{{equation}}...\end{{equation}}
+       - Define all variables and notations clearly
+    
+    4. **Algorithm Description (if applicable)**:
+       - Include pseudo-code using \begin{{algorithm}} or \begin{{algorithmic}}
+       - Or describe step-by-step process with clear enumeration
+    
+    5. **Architectural Details**:
+       - Describe model architecture with dimensions
+       - Specify layer configurations, activation functions
+       - Reference to figures if available
+    
+    6. **Design Justification**:
+       - For EACH major design choice, explain WHY (1-2 sentences)
+       - Connect to existing literature when possible
+    
     An example for method writing is as follow:
 
     \paragraph{{Definition of artifact graphs}}
@@ -278,12 +406,25 @@ section_prompt:
     - Importance: **{importance}**
     - Difficulty: **{difficulty}**
     - Novelty: **{novelty}**
+    - **Proposed Approach** (from the original idea): **{approach}**
     - Experiment Plan: **{experiment}**
 
-    The implementation code was:
+    **Technical Details Extracted from Implementation:**
+    {code_method_details}
 
+    **Full Implementation Code (for reference):**
     python
     {code}
+    
+    **IMPORTANT GUIDELINES**:
+    1. **CRITICAL**: Base your Method section on the **Proposed Approach** described above - this is the core methodology you must explain in detail
+    2. Structure your Method section with multiple \paragraph{{}} blocks (minimum 3-5)
+    3. Start with formal problem definition using mathematical notation
+    4. Include equations for key transformations (use \begin{{equation}}...\end{{equation}})
+    5. For each major component, explain BOTH what it does AND why (design rationale)
+    6. If the code reveals specific architectures/hyperparameters, incorporate them with proper notation
+    7. Build upon the motivation from previous sections while introducing technical details
+    8. Ensure the Method section fully elaborates on the approach outlined in the original idea
     
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Method section builds upon the motivation and problem definition established earlier, while introducing your technical approach clearly and coherently.
 
@@ -497,6 +638,9 @@ embed_citation_prompt: |
   {references}
 
   INSTRUCTIONS:
+  - Each paper is formatted as: **[bibtex_key]** Paper Title (authors, venue, year)
+  - When citing a paper, you MUST use the bibtex_key shown in square brackets [].
+  - For example, if you see **[chen2022cross]** Cross-lingual Transfer..., you must write \cite{{chen2022cross}}
   - Integrate citations into the most relevant parts of the section.
   - Use `\cite{{...}}` format strictly (no markdown, no commentary).
   - Do not fabricate new citations.
@@ -539,6 +683,11 @@ related_work_prompt: |
   The motivation for this study is: {experiment}
 
   You must ground your discussion using **only** the following pre-selected relevant papers.
+  Each paper is formatted as: **[bibtex_key]** Paper Title (authors, venue, year)
+  
+  CRITICAL: When citing a paper, you MUST use the bibtex_key shown in square brackets [].
+  For example, if you see **[gao2019graphnas]** GraphNAS..., you must write \cite{{gao2019graphnas}}
+  
   Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
   You must cite **all** of the following papers at least once using \cite{{...}}.
   Do not leave out any item from the list.

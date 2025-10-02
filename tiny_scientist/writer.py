@@ -35,12 +35,22 @@ class Writer:
         prompt_template_dir: Optional[str] = None,
         cost_tracker: Optional[BudgetChecker] = None,
         s2_api_key: Optional[str] = None,
+        num_refinement_rounds: int = 2,  # Number of refinement rounds
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
-        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
+        self.num_refinement_rounds = num_refinement_rounds
+        # If not provided explicitly, read S2_API_KEY from environment
+        s2_api_key = s2_api_key or os.environ.get("S2_API_KEY")
+        # Use Semantic Scholar only, no fallback to OpenAlex
+        # Note: If you want to enable OpenAlex fallback, set disable_fallback=False
+        self.searcher: BaseTool = PaperSearchTool(
+            s2_api_key=s2_api_key, 
+            engine="semanticscholar",
+            disable_fallback=True  # Disable OpenAlex fallback
+        )
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
         self.formatter: BaseOutputFormatter
         self.config = Config(prompt_template_dir)
@@ -94,8 +104,6 @@ class Writer:
             # Continue without Related Work if it fails
             pass
 
-        self._write_abstract(idea)
-
         # Different section structures for experimental vs non-experimental papers
         if is_experimental:
             sections = [
@@ -115,12 +123,17 @@ class Writer:
                 "Conclusion",
             ]
 
+        # Generate all main sections
         for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
 
-        #self._refine_paper()
+        # Generate Abstract last, after all sections are complete
+        print("Generating Abstract (final summary)...")
+        self._write_abstract(idea)
 
-        #self._add_citations(idea)
+        # Multi-round refinement with progressive citation enrichment
+        self._refine_paper(num_rounds=self.num_refinement_rounds, add_citations=True)
+
         #self._generate_diagram_for_section()
 
         paper_name = (
@@ -143,16 +156,28 @@ class Writer:
         return output_pdf_path, paper_name
 
     def _write_abstract(self, idea: Dict[str, Any]) -> None:
+        """Generate abstract based on all completed sections."""
         title = idea.get("Title", "Research Paper")
+        
+        # Build full paper context from all generated sections
+        full_paper_context = ""
+        if self.generated_sections:
+            context_parts = []
+            for section, content in self.generated_sections.items():
+                if section not in ["Abstract"]:  # Skip abstract itself
+                    context_parts.append(f"## {section}\n{content}")
+            if context_parts:
+                full_paper_context = "\n\n".join(context_parts)
 
         abstract_prompt = self.prompts.abstract_prompt.format(
-            abstract_tips=self.prompts.section_tips["Abstract"],
+            abstract_tips=self.prompts.section_tips.get("Abstract", ""),
             title=title,
-            problem=idea["Problem"],
-            importance=idea["Importance"],
-            difficulty=idea["Difficulty"],
-            novelty=idea["NoveltyComparison"],
-            experiment=idea["Experiment"],
+            problem=idea.get("Problem", ""),
+            importance=idea.get("Importance", ""),
+            difficulty=idea.get("Difficulty", ""),
+            novelty=idea.get("NoveltyComparison", ""),
+            experiment=idea.get("Experiment", ""),
+            full_paper_content=full_paper_context,  # Add full paper context
         )
 
         abstract_content, _ = get_response_from_llm(
@@ -227,6 +252,75 @@ class Writer:
 
         return None
 
+    def _extract_method_details_from_code(self, code: str) -> str:
+        """Extract method-relevant details from experiment code."""
+        if not code:
+            return ""
+        
+        details = []
+        
+        # Extract class definitions (potential model architectures)
+        class_matches = re.findall(r'class\s+(\w+)\s*\([^)]*\):', code)
+        if class_matches:
+            details.append(f"Model classes: {', '.join(class_matches[:5])}")
+        
+        # Extract key hyperparameters
+        hyperparam_patterns = [
+            r'learning_rate\s*=\s*([0-9.e-]+)',
+            r'batch_size\s*=\s*(\d+)',
+            r'hidden_size\s*=\s*(\d+)',
+            r'num_layers\s*=\s*(\d+)',
+            r'dropout\s*=\s*([0-9.]+)',
+            r'epochs?\s*=\s*(\d+)',
+        ]
+        for pattern in hyperparam_patterns:
+            matches = re.findall(pattern, code, re.IGNORECASE)
+            if matches:
+                param_name = pattern.split(r'\s*=')[0].replace(r'\\s*', '').strip(r'\\')
+                details.append(f"{param_name}: {matches[0]}")
+        
+        # Extract optimizer info
+        optimizer_match = re.search(r'(\w*Adam\w*|SGD|RMSprop)', code)
+        if optimizer_match:
+            details.append(f"Optimizer: {optimizer_match.group(1)}")
+        
+        return "\n".join(details) if details else ""
+    
+    def _build_section_context(self, idea: Dict[str, Any], code: str, 
+                                experiment_result: str, baseline_result: str) -> Dict[str, Any]:
+        """Build all possible context variables for section prompts."""
+        # Build previous context from all generated sections (except Abstract)
+        previous_context = ""
+        if self.generated_sections:
+            context_parts = []
+            for prev_section, content in self.generated_sections.items():
+                if prev_section not in ["Abstract"]:
+                    context_parts.append(f"## {prev_section}\n{content}")
+            if context_parts:
+                previous_context = "\n\n".join(context_parts)
+
+        # Extract method details from code
+        code_method_details = self._extract_method_details_from_code(code)
+
+        # Prepare all possible variables that any section might need
+        return {
+            "title": idea.get("Title", "Research Paper"),
+            "problem": idea.get("Problem", ""),
+            "importance": idea.get("Importance", ""),
+            "difficulty": idea.get("Difficulty", ""),
+            "novelty": idea.get("NoveltyComparison", ""),
+            "approach": idea.get("Approach", ""),  # IMPORTANT: Proposed approach from thinker
+            "experiment": idea.get("Experiment", idea.get("ResearchPlan", "")),
+            "code": code,
+            "code_method_details": code_method_details,  # NEW: Extracted method details
+            "experiment_results": experiment_result,
+            "baseline_results": baseline_result,
+            "previous_context": previous_context,
+            # Abstract will be empty during main section generation (it's generated last)
+            "abstract_content": self.generated_sections.get("Abstract", ""),
+            "related_work_content": self.generated_sections.get("Related_Work", ""),
+        }
+
     def _write_section(
         self,
         idea: Dict[str, Any],
@@ -235,78 +329,24 @@ class Writer:
         section: str,
         baseline_result: Optional[str] = "",
     ) -> None:
-        title = idea.get("Title", "Research Paper")
-        experiment = idea.get("Experiment")
         print(f"Writing section: {section}...")
 
-        # 构建前面已生成章节的上下文
-        previous_context = ""
-        if self.generated_sections:
-            context_parts = []
-            for prev_section, content in self.generated_sections.items():
-                if prev_section not in ["Abstract"]:  # Abstract 单独处理
-                    context_parts.append(f"## {prev_section}\n{content}")
-            if context_parts:
-                previous_context = "\n\n".join(context_parts)
+        # Build all context variables
+        context = self._build_section_context(idea, code, experiment_result, baseline_result or "")
 
-        # Abstract 内容，用于 Introduction
-        abstract_content = self.generated_sections.get("Abstract", "")
-        
-        # Related Work 内容，用于提供背景信息
-        related_work_content = self.generated_sections.get("Related_Work", "")
+        # Add section-specific tips
+        context["section_tips"] = self.prompts.section_tips.get(section, "")
 
-        if section in ["Introduction"]:
-            section_prompt = self.prompts.section_prompt[section].format(
-                section_tips=self.prompts.section_tips[section],
-                title=title,
-                problem=idea["Problem"],
-                importance=idea["Importance"],
-                difficulty=idea["Difficulty"],
-                novelty=idea["NoveltyComparison"],
-                experiment=experiment,
-                abstract_content=abstract_content,
-                related_work_content=related_work_content,
-            )
-        elif section in ["Conclusion"]:
-            section_prompt = self.prompts.section_prompt[section].format(
-                section_tips=self.prompts.section_tips[section],
-                experiment=experiment,
-                previous_context=previous_context,
-            )
-        elif section in ["Method", "Experimental_Setup"]:
-            section_prompt = self.prompts.section_prompt[section].format(
-                section_tips=self.prompts.section_tips[section],
-                problem=idea["Problem"],
-                importance=idea["Importance"],
-                difficulty=idea["Difficulty"],
-                novelty=idea["NoveltyComparison"],
-                experiment=experiment,
-                code=code,
-                previous_context=previous_context,
-            )
-        elif section in ["Results", "Discussion"]:
-            section_prompt = self.prompts.section_prompt[section].format(
-                section_tips=self.prompts.section_tips[section],
-                experiment=experiment,
-                baseline_results=baseline_result,
-                experiment_results=experiment_result,
-                previous_context=previous_context,
-            )
-        elif section == "Analysis":
-            # For non-experimental papers, use the research plan content
-            research_plan = idea.get("ResearchPlan", experiment)
-            section_prompt = self.prompts.section_prompt.get(
-                section, self.prompts.section_prompt.get("Results", "")
-            ).format(
-                section_tips=self.prompts.section_tips.get(
-                    section, self.prompts.section_tips.get("Results", "")
-                ),
-                experiment=research_plan,
-                baseline_results=baseline_result,
-                experiment_results=experiment_result,
-                previous_context=previous_context,
-            )
+        # Get section prompt template and format with all context
+        section_prompt_template = self.prompts.section_prompt.get(section)
+        if not section_prompt_template:
+            print(f"[WARNING] No prompt template for section: {section}")
+            return
 
+        # Format prompt with all available context (template will use what it needs)
+        section_prompt = section_prompt_template.format(**context)
+
+        # Generate section content
         section_content, _ = get_response_from_llm(
             msg=section_prompt,
             client=self.client,
@@ -318,121 +358,338 @@ class Writer:
 
         self.generated_sections[section] = section_content
 
-    def _get_citations_related_work(
-        self, idea: Dict[str, Any], num_cite_rounds: int, total_num_papers: int
-    ) -> List[str]:
-        idea_title = idea.get("Title", "Research Paper")
+        # Enrich section with citations
+        try:
+            enriched = self._enrich_section_with_citations(section, idea)
+            if enriched:
+                self.generated_sections[section] = enriched
+        except Exception as e:
+            print(f"[WARNING] Failed to enrich citations for section {section}: {e}")
+            traceback.print_exc()
 
-        num_papers = (
-            total_num_papers // num_cite_rounds
-            if num_cite_rounds > 0
-            else total_num_papers
-        )
-        collected_papers: List[str] = []
+    def _convert_to_text(self, value: Any, max_len: Optional[int] = None) -> str:
+        """Convert arbitrary value (dict/list/None/str/other) to a clean string.
 
-        for round_num in range(num_cite_rounds):
-            prompt = self.prompts.citation_related_work_prompt.format(
-                idea_title=idea_title,
-                problem=idea["Problem"],
-                num_papers=num_papers,
-                round_num=round_num + 1,
-                collected_papers=collected_papers,
-                total_rounds=num_cite_rounds,
-            )
-            response, _ = get_response_from_llm(
-                msg=prompt,
-                client=self.client,
-                model=self.model,
-                system_message=self.prompts.citation_system_prompt,
-                cost_tracker=self.cost_tracker,
-                task_name="Related Work",
-            )
-
-            try:
-                new_titles = json.loads(response)
-            except json.JSONDecodeError:
-                new_titles = extract_json_between_markers(response)
-
-            if new_titles and isinstance(new_titles, list):
-                collected_papers.extend(new_titles)
+        - dict/list -> JSON string
+        - None -> ""
+        - truncate to max_len if provided
+        """
+        try:
+            if isinstance(value, str):
+                s = value
+            elif isinstance(value, (dict, list)):
+                s = json.dumps(value, ensure_ascii=False)
+            elif value is None:
+                s = ""
             else:
-                print(f"Round {round_num+1}: No valid titles returned.")
+                s = str(value)
+        except Exception:
+            s = ""
+        s = s.strip()
+        if max_len is not None and len(s) > max_len:
+            s = s[:max_len]
+        return s
 
-            if len(collected_papers) >= total_num_papers:
-                break
-            time.sleep(1)
+    def _generate_search_queries(
+        self, idea: Dict[str, Any], section: str = "", content_snippet: str = "", max_queries: int = 6
+    ) -> List[str]:
+        """Generate search queries using LLM from idea/section content."""
+        title = self._convert_to_text(idea.get("Title", ""))
+        problem = self._convert_to_text(idea.get("Problem", ""))
+        novelty = self._convert_to_text(idea.get("NoveltyComparison", ""))
+        experiment = self._convert_to_text(idea.get("Experiment", ""))
 
-        return collected_papers
+        prompt = self.prompts.citation_search_query_prompt.format(
+            idea_title=title or "Research Paper",
+            problem=problem or "",
+            novelty=novelty or "",
+            experiment=experiment or "",
+            section=section or "General",
+            snippet=content_snippet or "",
+        )
 
-    def _search_reference(self, paper_list: List[str]) -> Dict[str, Any]:
-        results_dict = {}
+        response, _ = get_response_from_llm(
+            msg=prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.citation_system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name=f"generate_queries_{section or 'general'}",
+        )
 
-        for paper_name in paper_list:
+        queries: List[str] = []
+        try:
+            parsed = json.loads(response)
+            if isinstance(parsed, list):
+                queries = [self._convert_to_text(q) for q in parsed if self._convert_to_text(q)]
+        except json.JSONDecodeError:
+            parsed = extract_json_between_markers(response)
+            if isinstance(parsed, list):
+                queries = [self._convert_to_text(q) for q in parsed if self._convert_to_text(q)]
+
+        return queries[:max_queries]
+
+    def _search_papers_by_queries(self, queries: List[str]) -> Dict[str, Any]:
+        """Search papers by multiple queries and merge results (abstract + bibtex)."""
+        merged_papers: Dict[str, Any] = {}
+        for query in queries:
             try:
-                result = self.searcher.run(paper_name)
-
-                if result:
-                    if paper_name in result:
-                        results_dict[paper_name] = result[paper_name]
-                    else:
-                        first_key = next(iter(result))
-                        results_dict[first_key] = result[first_key]
-
-                time.sleep(1.0)
+                results = self.searcher.run(query)
+                if results:
+                    for title, paper_data in results.items():
+                        if title not in merged_papers:
+                            merged_papers[title] = paper_data
+                time.sleep(0.8)
             except Exception as e:
-                print(f"[ERROR] While processing '{paper_name}': {e}")
+                print(f"[ERROR] Search failed for query '{query}': {e}")
                 traceback.print_exc()
+        return merged_papers
 
-        return results_dict
+    def _format_paper_context(self, papers: Dict[str, Any]) -> str:
+        """Format papers into context string with abstracts AND bibtex keys for LLM prompt."""
+        paper_entries = []
+        for title, paper_data in papers.items():
+            authors = self._format_authors(paper_data.get("authors", ""))
+            abstract = paper_data.get("abstract", "")[:400]  # Truncate long abstracts
+            year = paper_data.get("year", "")
+            venue = paper_data.get("venue", "")
+            
+            # Extract bibtex key
+            bibtex = paper_data.get("bibtex", "")
+            bibtex_key = "UNKNOWN"
+            if bibtex:
+                match = re.search(r"@\w+\{(.+?),", bibtex)
+                if match:
+                    bibtex_key = match.group(1).strip()
+            
+            # Include bibtex key in the context so LLM uses correct citation
+            entry = f"- **[{bibtex_key}]** {title} ({authors}, {venue}, {year})\n  Abstract: {abstract}"
+            paper_entries.append(entry)
+        
+        context = "\n\n".join(paper_entries)
+        # Escape for format strings
+        return context.replace("{", "{{").replace("}", "}}")
+
+    def _replace_titles_with_bibtex_keys(self, content: str, papers: Dict[str, Any]) -> str:
+        """Replace \\cite{Paper Title} with \\cite{bibtex_key} in content."""
+        updated = content
+        for title, paper_data in papers.items():
+            bibtex = paper_data.get("bibtex", "")
+            match = re.search(r"@\w+\{(.+?),", bibtex)
+            if match:
+                bibtex_key = match.group(1)
+                # Use literal string matching instead of regex to avoid escape issues
+                cite_pattern = f"\\cite{{{title}}}"
+                # Also try with whitespace variations
+                patterns_to_try = [
+                    f"\\cite{{{title}}}",
+                    f"\\cite{{ {title} }}",
+                    f"\\cite{{ {title}}}",
+                    f"\\cite{{{title} }}",
+                ]
+                
+                for pattern in patterns_to_try:
+                    if pattern in updated:
+                        updated = updated.replace(pattern, f"\\cite{{{bibtex_key}}}")
+                        break
+        return updated
+
+    def _enrich_section_with_citations_v2(
+        self, 
+        section: str, 
+        max_queries: int = 3,
+        max_papers_per_query: int = 2
+    ) -> Optional[str]:
+        """
+        Enhanced citation enrichment with control over search volume.
+        Avoids re-searching for papers we already have.
+        """
+        original_content = self.generated_sections.get(section, "")
+        if not original_content or len(original_content) < 50:
+            return None
+
+        # Extract existing citations to avoid duplication
+        existing_citations = set(re.findall(r'\\cite\{([^\}]+)\}', original_content))
+        existing_keys = set()
+        for cite in existing_citations:
+            existing_keys.update([k.strip() for k in cite.split(',')])
+        
+        print(f"[Citation] Section {section} already has {len(existing_keys)} citations")
+
+        # Generate focused queries based on section content
+        idea_proxy = {
+            "Title": self.generated_sections.get("Title", ""),
+            "Problem": section,  # Use section name as focus
+            "Experiment": original_content[:300],  # Use section content
+        }
+        
+        queries = self._generate_search_queries(
+            idea_proxy, 
+            section=section, 
+            content_snippet=original_content[:600], 
+            max_queries=max_queries
+        )
+        
+        # Search papers with limited results
+        new_papers = {}
+        for query in queries[:max_queries]:
+            try:
+                results = self.searcher.run(query)
+                if results:
+                    # Only take limited papers per query
+                    for title, paper_data in list(results.items())[:max_papers_per_query]:
+                        # Check if we already have this paper (by comparing bibtex keys)
+                        bibtex = paper_data.get("bibtex", "")
+                        match = re.search(r"@\w+\{(.+?),", bibtex)
+                        if match:
+                            bibtex_key = match.group(1).strip()
+                            if bibtex_key not in existing_keys and title not in new_papers:
+                                new_papers[title] = paper_data
+                time.sleep(0.8)
+            except Exception as e:
+                print(f"[ERROR] Search failed for query '{query}': {e}")
+        
+        if not new_papers:
+            print(f"[INFO] No new papers found for {section}")
+            return None
+
+        print(f"[Citation] Found {len(new_papers)} new papers for {section}")
+
+        # Add new papers to global references
+        for title, paper_data in new_papers.items():
+            if title not in self.references:
+                self.references[title] = paper_data
+
+        # Format paper context
+        paper_context = self._format_paper_context(new_papers)
+        
+        # Use prompt from YAML
+        embed_prompt = self.prompts.add_new_citations_prompt.format(
+            section=section,
+            section_content=original_content,
+            paper_context=paper_context,
+            num_papers=len(new_papers),
+        )
+
+        enriched_content, _ = get_response_from_llm(
+            msg=embed_prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.citation_system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name=f"Add_Citations_{section}",
+        )
+
+        # Verify new citations were added
+        new_citations = set(re.findall(r'\\cite\{([^\}]+)\}', enriched_content))
+        new_keys = set()
+        for cite in new_citations:
+            new_keys.update([k.strip() for k in cite.split(',')])
+        
+        added_count = len(new_keys - existing_keys)
+        print(f"[Citation] Added {added_count} new citation(s) to {section}")
+        
+        return enriched_content
+    
+    def _enrich_section_with_citations(self, section: str, idea: Dict[str, Any]) -> Optional[str]:
+        """
+        Enrich section with citations:
+        1. Generate queries → search papers (get abstract + bibtex)
+        2. Use paper abstracts to guide LLM to add citations
+        3. Replace paper titles with bibtex keys
+        """
+        original_content = self.generated_sections.get(section, "")
+        if not original_content or len(original_content) < 50:
+            return None
+
+        # 1) Generate queries and search papers
+        queries = self._generate_search_queries(
+            idea, section=section, content_snippet=original_content[:600], max_queries=4
+        )
+        papers = self._search_papers_by_queries(queries)
+        
+        if not papers:
+            print(f"[INFO] No papers found for {section}, skipping citation enrichment")
+            return None
+
+        # 2) Add papers to global references
+        for title, paper_data in papers.items():
+            if title not in self.references:
+                self.references[title] = paper_data
+
+        # 3) Format paper context with abstracts
+        paper_context = self._format_paper_context(papers)
+        
+        # 4) Ask LLM to embed citations using paper titles
+        embed_prompt = self.prompts.embed_citation_prompt.format(
+            section=section,
+            section_content=original_content,
+            references=paper_context,
+        )
+
+        enriched_content, _ = get_response_from_llm(
+            msg=embed_prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.citation_system_prompt,
+            cost_tracker=self.cost_tracker,
+            task_name=f"Embed_Citation_{section}",
+        )
+
+        # 5) Replace paper titles with bibtex keys
+        final_content = self._replace_titles_with_bibtex_keys(enriched_content, papers)
+        
+        return final_content
+
+    def _format_authors(self, authors: Any) -> str:
+        """Format authors field which can be a string, list of dicts, or list of strings."""
+        if isinstance(authors, str):
+            return authors
+        elif isinstance(authors, list):
+            if not authors:
+                return "Unknown authors"
+            # Check if it's a list of dicts (Semantic Scholar format)
+            if isinstance(authors[0], dict):
+                author_names = [a.get("name", "") for a in authors if a.get("name")]
+                if len(author_names) <= 3:
+                    return " and ".join(author_names)
+                else:
+                    return f"{author_names[0]} et al."
+            # List of strings
+            elif isinstance(authors[0], str):
+                if len(authors) <= 3:
+                    return " and ".join(authors)
+                else:
+                    return f"{authors[0]} et al."
+        return "Unknown authors"
 
     def _write_related_work(self, idea: Dict[str, Any]) -> None:
-        citations = self._get_citations_related_work(
-            idea, num_cite_rounds=2, total_num_papers=10
-        )
-
-        paper_source = self._search_reference(citations)
-        self.references = paper_source
-
-        # 创建包含摘要的详细引用列表
-        detailed_references = []
-        for title, paper_info in paper_source.items():
-            abstract = paper_info.get("abstract", "No abstract available")
-            authors = paper_info.get("authors", "Unknown authors")
-            venue = paper_info.get("venue", "Unknown venue")
-            year = paper_info.get("year", "Unknown year")
-            concepts = paper_info.get("concepts", [])
-            citation_count = paper_info.get("citationCount", 0)
-            
-            # 构建更丰富的描述
-            description_parts = []
-            
-            # 如果摘要太短，突出显示概念
-            if len(abstract) < 100 and concepts:
-                description_parts.append(f"Key concepts: {', '.join(concepts[:3])}")
-            
-            if abstract and len(abstract) > 10:
-                # 截断过长的摘要
-                if len(abstract) > 400:
-                    abstract = abstract[:400] + "..."
-                description_parts.append(f"Abstract: {abstract}")
-            
-            if citation_count > 0:
-                description_parts.append(f"Citations: {citation_count}")
-            
-            description = "\n  ".join(description_parts) if description_parts else "Limited information available"
-            
-            detailed_ref = f"- **{title}** ({authors}, {venue}, {year})\n  {description}"
-            detailed_references.append(detailed_ref)
+        """
+        Generate Related Work section:
+        1. Generate queries from idea → search papers (get abstract + bibtex)
+        2. Use paper abstracts to write Related Work
+        3. Replace paper titles with bibtex keys
+        """
+        # 1) Generate queries and search papers
+        queries = self._generate_search_queries(idea, section="Related_Work", max_queries=6)
+        papers = self._search_papers_by_queries(queries)
         
-        reference_list = "\n\n".join(detailed_references)
-        reference_list = reference_list.replace("{", "{{").replace("}", "}}")
+        if not papers:
+            print("[WARNING] No papers found for Related Work")
+            return
 
+        # 2) Store papers in global references
+        self.references = papers
+        
+        # 3) Format paper context with abstracts for LLM
+        paper_context = self._format_paper_context(papers)
+        
+        # 4) Generate Related Work content using paper abstracts
         experiment = idea.get("Experiment", "No experiment details provided")
-
         related_work_prompt = self.prompts.related_work_prompt.format(
             related_work_tips=self.prompts.section_tips["Related_Work"],
             experiment=experiment,
-            references=reference_list,
+            references=paper_context,
         )
 
         relatedwork_content, _ = get_response_from_llm(
@@ -441,25 +698,30 @@ class Writer:
             model=self.model,
             system_message=self.prompts.write_system_prompt_related_work,
             cost_tracker=self.cost_tracker,
-            task_name="Related Work",
+            task_name="Related_Work",
         )
 
-        for title, meta in paper_source.items():
-            match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
-            if match:
-                try:
-                    bibtex_key = match.group(1)
-                    escaped_title = re.escape(title)
-                    pattern = r"\\cite\{\s*" + escaped_title + r"\s*\}"
-                    relatedwork_content = re.sub(
-                        pattern,
-                        lambda _: f"\\cite{{{bibtex_key}}}",
-                        relatedwork_content,
-                    )
-                except Exception:
-                    print(f"[ERROR] Failed to replace citation for title: {title}")
-                    traceback.print_exc()
-
+        # Debug: Print citations to verify LLM used correct keys
+        import re as debug_re
+        citations = debug_re.findall(r'\\cite\{([^\}]+)\}', relatedwork_content)
+        print(f"[DEBUG] Related Work citations found: {citations}")
+        print(f"[DEBUG] Number of papers in references: {len(papers)}")
+        
+        # Extract expected bibtex keys from papers
+        expected_keys = []
+        for title, paper_data in papers.items():
+            bibtex = paper_data.get("bibtex", "")
+            bibtex_key_match = debug_re.search(r"@\w+\{(.+?),", bibtex)
+            if bibtex_key_match:
+                expected_keys.append(bibtex_key_match.group(1).strip())
+        print(f"[DEBUG] Expected bibtex keys: {expected_keys[:6]}")
+        
+        # Check if all citations match expected keys
+        citation_keys = [k.strip() for cite in citations for k in cite.split(',')]
+        unmatched = [k for k in citation_keys if k not in expected_keys]
+        if unmatched:
+            print(f"[WARNING] Unmatched citation keys (may be removed later): {unmatched}")
+        
         self.generated_sections["Related_Work"] = relatedwork_content
 
     def _refine_section(self, section: str) -> None:
@@ -486,7 +748,13 @@ class Writer:
 
         self.generated_sections[section] = refined_section
 
-    def _refine_paper(self) -> None:
+    def _refine_paper(self, num_rounds: int = 2, add_citations: bool = True) -> None:
+        """Multi-round refinement with progressive citation enrichment."""
+        print(f"\n{'='*60}")
+        print(f"Starting {num_rounds}-round refinement with citation enrichment")
+        print(f"{'='*60}\n")
+        
+        # First refine the title based on full draft
         full_draft = "\n\n".join(
             [
                 f"\\section{{{section}}}\n\n{content}"
@@ -502,118 +770,140 @@ class Writer:
             cost_tracker=self.cost_tracker,
             task_name="Title Refinement",
         )
-
         self.generated_sections["Title"] = refined_title
 
-        for section in [
+        # Define refinement priority (most important sections first)
+        refinement_sections = [
+            "Method",           # Highest priority - needs most detail
             "Introduction",
-            "Background",
-            "Method",
             "Experimental_Setup",
             "Results",
+            "Discussion",
             "Conclusion",
-        ]:
-            if section in self.generated_sections.keys():
-                print(f"Refining section: {section}...")
-                refinement_prompt = (
-                    self.prompts.refinement_prompt.format(
-                        section=section,
-                        section_tips=self.prompts.section_tips[section],
-                        section_content=self.generated_sections[section],
-                        error_list=self.prompts.error_list,
-                    )
-                    .replace(r"{{", "{")
-                    .replace(r"}}", "}")
+        ]
+        
+        # Multi-round refinement
+        for round_num in range(1, num_rounds + 1):
+            print(f"\n{'─'*60}")
+            print(f"REFINEMENT ROUND {round_num}/{num_rounds}")
+            print(f"{'─'*60}\n")
+            
+            for section in refinement_sections:
+                if section not in self.generated_sections:
+                    continue
+                    
+                print(f"[Round {round_num}] Refining {section}...")
+                
+                # Build FULL paper context (all sections)
+                full_paper_sections = []
+                section_order = ["Abstract", "Related_Work", "Introduction", "Method", 
+                                "Experimental_Setup", "Results", "Discussion", "Conclusion"]
+                
+                for sec_name in section_order:
+                    if sec_name in self.generated_sections and sec_name != section:
+                        content = self.generated_sections[sec_name]
+                        # Truncate very long sections but keep substantial context
+                        if len(content) > 2000:
+                            content = content[:2000] + "\n[...truncated for brevity...]"
+                        full_paper_sections.append(f"## {sec_name}\n{content}")
+                
+                other_sections_context = "\n\n".join(full_paper_sections)
+                
+                # Round-specific refinement goals
+                if round_num == 1:
+                    focus = "Add mathematical rigor, expand technical details, improve structure"
+                elif round_num == 2:
+                    focus = "Deepen analysis, add design rationale, enhance clarity"
+                else:
+                    focus = "Polish writing, ensure coherence, strengthen arguments"
+                
+                # Method-specific instruction
+                method_specific_instruction = (
+                    'For Method: Add more \\paragraph{{}} blocks, equations, and technical depth' 
+                    if section == 'Method' 
+                    else 'Enhance technical detail and clarity'
+                )
+                
+                # Use prompt from YAML
+                refinement_prompt = self.prompts.multi_round_refinement_prompt.format(
+                    section=section,
+                    round_num=round_num,
+                    total_rounds=num_rounds,
+                    focus=focus,
+                    section_content=self.generated_sections[section],
+                    section_tips=self.prompts.section_tips.get(section, ""),
+                    other_sections_context=other_sections_context,  # Full context now
+                    method_specific_instruction=method_specific_instruction,
+                    error_list=self.prompts.error_list,
                 )
 
-                refined_section_content, _ = get_response_from_llm(
+                # Count citations before refinement
+                import re as citation_re
+                original_citations = set(citation_re.findall(r'\\cite\{([^\}]+)\}', self.generated_sections[section]))
+                original_keys = set()
+                for cite in original_citations:
+                    original_keys.update([k.strip() for k in cite.split(',')])
+                
+                refined_content, _ = get_response_from_llm(
                     msg=refinement_prompt,
                     client=self.client,
                     model=self.model,
-                    system_message="",
+                    system_message=self.system_prompt,
                     cost_tracker=self.cost_tracker,
-                    task_name=f"Second Refine {section}",
+                    task_name=f"Refine_R{round_num}_{section}",
                 )
+                
+                # Check if citations were lost during refinement
+                refined_citations = set(citation_re.findall(r'\\cite\{([^\}]+)\}', refined_content))
+                refined_keys = set()
+                for cite in refined_citations:
+                    refined_keys.update([k.strip() for k in cite.split(',')])
+                
+                # Report citation changes
+                gained_keys = refined_keys - original_keys
+                lost_keys = original_keys - refined_keys
+                
+                if lost_keys or gained_keys:
+                    print(f"[Round {round_num}] Citation changes in {section}:")
+                    print(f"  Before: {len(original_keys)} citations")
+                    print(f"  After:  {len(refined_keys)} citations")
+                    if gained_keys:
+                        print(f"  ✅ Gained: {len(gained_keys)} ({list(gained_keys)[:3]}{'...' if len(gained_keys) > 3 else ''})")
+                    if lost_keys:
+                        print(f"  ❌ Lost:   {len(lost_keys)} ({list(lost_keys)[:3]}{'...' if len(lost_keys) > 3 else ''})")
+                
+                if lost_keys:
+                    # Strategy: Keep original content if too many citations lost
+                    loss_percentage = len(lost_keys) / len(original_keys) if original_keys else 0
+                    if loss_percentage > 0.3:  # If >30% citations lost, revert
+                        print(f"[Round {round_num}] ❌ REVERTING: Too many citations lost ({loss_percentage:.1%})")
+                        refined_content = self.generated_sections[section]  # Revert
+                    else:
+                        print(f"[Round {round_num}] ⚠️ Accepting refined content (loss acceptable: {loss_percentage:.1%})")
+                
+                self.generated_sections[section] = refined_content
 
-                self.generated_sections[section] = refined_section_content
-
-    def _add_citations(self, idea: Dict[str, Any]) -> None:
-        idea_title = idea.get("Title", "Research Paper")
-
-        for section in ["Introduction", "Method", "Experimental_Setup", "Discussion"]:
-            if section in self.generated_sections.keys():
-                try:
-                    original_content = self.generated_sections[section]
-                    collected_papers = []
-
-                    add_citation_prompt = self.prompts.add_citation_prompt.format(
-                        idea_title=idea_title,
-                        problem=idea["Problem"],
-                        importance=idea["Importance"],
-                        challenges=idea["Difficulty"],
-                        section=section,
-                        section_content=original_content,
-                    )
-
-                    response, _ = get_response_from_llm(
-                        msg=add_citation_prompt,
-                        client=self.client,
-                        model=self.model,
-                        system_message=self.prompts.citation_system_prompt,
-                        cost_tracker=self.cost_tracker,
-                        task_name=f"Add Citation to {section}",
-                    )
-
+                # Add citations after each refinement (if enabled)
+                if add_citations and round_num <= num_rounds:
                     try:
-                        new_titles = json.loads(response)
-                    except json.JSONDecodeError:
-                        new_titles = extract_json_between_markers(response)
+                        print(f"[Round {round_num}] Adding citations to {section}...")
+                        enriched = self._enrich_section_with_citations_v2(
+                            section, 
+                            max_queries=3 if round_num == 1 else 2,  # Fewer queries in later rounds
+                            max_papers_per_query=2  # Fewer papers to avoid overwhelming
+                        )
+                        if enriched:
+                            self.generated_sections[section] = enriched
+                            print(f"[Round {round_num}] ✅ Citations added to {section}")
+                        else:
+                            print(f"[Round {round_num}] ⚠️ No new citations for {section}")
+                    except Exception as e:
+                        print(f"[Round {round_num}] ❌ Citation enrichment failed for {section}: {e}")
+                        traceback.print_exc()
+                
+                time.sleep(0.5)  # Rate limiting
+        
+        print(f"\n{'='*60}")
+        print(f"Refinement completed!")
+        print(f"{'='*60}\n")
 
-                    collected_papers.extend(new_titles)
-                    paper_source = self._search_reference(collected_papers)
-
-                    if not paper_source:
-                        continue
-
-                    for title, entry in paper_source.items():
-                        if title not in self.references:
-                            self.references[title] = entry
-
-                    reference_list = "\n".join(
-                        [f"- {title}" for title in paper_source.keys()]
-                    )
-                    reference_list = reference_list.replace("{", "{{").replace(
-                        "}", "}}"
-                    )
-
-                    embed_citation_prompt = self.prompts.embed_citation_prompt.format(
-                        section=section,
-                        section_content=original_content,
-                        references=reference_list,
-                    )
-
-                    refined_section, _ = get_response_from_llm(
-                        msg=embed_citation_prompt,
-                        client=self.client,
-                        model=self.model,
-                        system_message=self.prompts.citation_system_prompt,
-                        cost_tracker=self.cost_tracker,
-                        task_name=f"Embed Citation in {section}",
-                    )
-
-                    for title, meta in paper_source.items():
-                        match = re.search(r"@\w+\{(.+?),", meta.get("bibtex", ""))
-                        if match:
-                            bibtex_key = match.group(1)
-                            escaped_title = re.escape(title)
-                            pattern = r"\\cite\{\s*" + escaped_title + r"\s*\}"
-                            refined_section = re.sub(
-                                pattern,
-                                lambda _: f"\\cite{{{bibtex_key}}}",
-                                refined_section,
-                            )
-                    self.generated_sections[section] = refined_section
-
-                except Exception:
-                    print(f"[ERROR] Failed to add citations to section: {section}")
-                    traceback.print_exc()

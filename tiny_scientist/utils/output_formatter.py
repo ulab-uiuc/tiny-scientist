@@ -332,6 +332,28 @@ class BaseOutputFormatter(abc.ABC):
         if not begin_doc_match:
             raise ValueError("Template is missing \\begin{document}.")
 
+        # Inject essential math and algorithm packages before \begin{document}
+        math_packages = (
+            "\n% Essential math packages (auto-injected by tiny_scientist)\n"
+            "\\usepackage{amsmath}   % For advanced math environments and \\text{}\n"
+            "\\usepackage{amssymb}   % For additional math symbols\n"
+            "\\usepackage{amsthm}    % For theorem environments\n"
+            "\\usepackage{mathtools} % Enhanced math support\n"
+            "\\usepackage{bm}        % For bold math symbols\n\n"
+            "% Algorithm packages\n"
+            "\\usepackage{algorithm}  % For algorithm environment\n"
+            "\\usepackage{algpseudocode} % For algorithmic environment (modern)\n"
+            "\\usepackage{algorithmicx}  % Enhanced algorithm support\n\n"
+        )
+        
+        # Check if amsmath is already present (avoid duplicate injection)
+        if "amsmath" not in template_text:
+            # Inject before \begin{document}
+            template_text = template_text[:begin_doc_match.start()] + math_packages + template_text[begin_doc_match.start():]
+            # Update match after injection
+            begin_doc_match = re.search(r"(\\begin{document})", template_text)
+            print("[INFO] Injected essential packages: math (amsmath, amssymb, amsthm, mathtools, bm) + algorithms (algorithm, algpseudocode, algorithmicx)")
+
         maketitle_match = re.search(r"(\\maketitle)", template_text)
         ending_match = re.search(r"(\\end{document})", template_text)
         if not ending_match:
@@ -355,12 +377,20 @@ class BaseOutputFormatter(abc.ABC):
 
         with open(bib_path, "r") as f:
             bib_content = f.read()
+        
         valid_keys = set(
             re.findall(
-                r"@(?:Article|Conference|InProceedings|Misc|Book|TechReport)\{([\w\-]+),",
+                r"@\w+\{([^,]+),",
                 bib_content,
+                re.IGNORECASE
             )
         )
+        
+        valid_keys = {k.strip() for k in valid_keys}
+        
+        print(f"[DEBUG] Found {len(valid_keys)} valid bibtex keys in custom.bib")
+        if valid_keys:
+            print(f"[DEBUG] Sample keys: {list(valid_keys)[:5]}")
 
         def citation_replacer(match: Match[str]) -> str:
             raw_keys = match.group(1)
@@ -369,6 +399,7 @@ class BaseOutputFormatter(abc.ABC):
             if valid:
                 return f"\\cite{{{','.join(valid)}}}"
             else:
+                print(f"[WARNING] Removing invalid citation keys: {keys}")
                 return ""
 
         return re.sub(r"\\cite\{([^\}]+)\}", citation_replacer, content)
@@ -472,7 +503,6 @@ class ACLOutputFormatter(BaseOutputFormatter):
             final_content = f.read()
 
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
-        # 暂时禁用水印功能以避免 PDF 损坏问题
         try:
             self.watermarker._add_watermark(
                 output_pdf_path,
@@ -561,7 +591,16 @@ class ACLOutputFormatter(BaseOutputFormatter):
                     timeout=timeout,
                 )
 
-            # Step 3: Final lualatex run (only one more needed)
+            # Step 3: Second lualatex run (to read .bbl file and update references)
+            subprocess.run(
+                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+
+            # Step 4: Third lualatex run (to resolve all cross-references and citations)
             subprocess.run(
                 ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -714,7 +753,16 @@ class ICLROutputFormatter(BaseOutputFormatter):
                     timeout=timeout,
                 )
 
-            # Step 3: Final lualatex run (only one more needed)
+            # Step 3: Second lualatex run (to read .bbl file and update references)
+            subprocess.run(
+                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+
+            # Step 4: Third lualatex run (to resolve all cross-references and citations)
             subprocess.run(
                 ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
