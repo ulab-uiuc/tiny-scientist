@@ -176,7 +176,12 @@ class CodeSearchTool(BaseTool):
 
 
 class PaperSearchTool(BaseTool):
-    def __init__(self, s2_api_key: Optional[str] = None, engine: Optional[str] = None, disable_fallback: bool = False) -> None:
+    def __init__(
+        self,
+        s2_api_key: Optional[str] = None,
+        engine: Optional[str] = None,
+        disable_fallback: bool = False,
+    ) -> None:
         super().__init__()
         raw_key = (
             s2_api_key
@@ -200,11 +205,13 @@ class PaperSearchTool(BaseTool):
         # Print configuration info
         print(f"[INFO] Primary search engine: {self.engine}")
         if self.disable_fallback:
-            print(f"[INFO] Fallback to alternative search engine is DISABLED")
-        
+            print("[INFO] Fallback to alternative search engine is DISABLED")
+
         if self.engine == "semanticscholar":
             if not self.disable_fallback:
-                print("[INFO] Will fallback to arXiv → OpenAlex if Semantic Scholar fails")
+                print(
+                    "[INFO] Will fallback to arXiv → OpenAlex if Semantic Scholar fails"
+                )
             if not self.s2_api_key:
                 print("[INFO] No S2_API_KEY, rate limits will be stricter")
         elif self.engine == "openalex":
@@ -212,9 +219,13 @@ class PaperSearchTool(BaseTool):
             if mail:
                 print(f"[INFO] OpenAlex email configured: {mail}")
             else:
-                print("[INFO] Recommend setting OPENALEX_MAIL_ADDRESS environment variable for better API access")
-        
-        print("[INFO] If you encounter search issues, OpenAlex is usually more stable than Semantic Scholar")
+                print(
+                    "[INFO] Recommend setting OPENALEX_MAIL_ADDRESS environment variable for better API access"
+                )
+
+        print(
+            "[INFO] If you encounter search issues, OpenAlex is usually more stable than Semantic Scholar"
+        )
 
     def run(self, query: str) -> Dict[str, Dict[str, str]]:
         results = {}
@@ -226,7 +237,7 @@ class PaperSearchTool(BaseTool):
             for i, paper in enumerate(papers):
                 paper_title = paper.get("title", "Unknown Title")
                 print(f"[PaperSearchTool] Processing paper {i+1}: {paper_title}")
-                
+
                 # Strategy: Prefer OpenAlex for bibtex (more reliable formatting)
                 paper_data = {
                     "title": paper_title,
@@ -238,7 +249,7 @@ class PaperSearchTool(BaseTool):
                     "concepts": paper.get("concepts", []),
                     "bibtex": "",
                 }
-                
+
                 # Priority 1: Try OpenAlex for bibtex (best formatting)
                 # First try if we have openalex_id
                 if "openalex_id" in paper and paper.get("openalex_id"):
@@ -246,12 +257,12 @@ class PaperSearchTool(BaseTool):
                     bibtex = self._fetch_bibtex_from_openalex(openalex_id)
                     if bibtex:
                         paper_data["bibtex"] = bibtex
-                        print(f"[PaperSearchTool] ✅ Got bibtex from OpenAlex (via ID)")
-                
+                        print("[PaperSearchTool] ✅ Got bibtex from OpenAlex (via ID)")
+
                 # If no bibtex yet, try searching OpenAlex by title
                 if not paper_data["bibtex"]:
                     try:
-                        print(f"[PaperSearchTool] No OpenAlex ID, searching by title...")
+                        print("[PaperSearchTool] No OpenAlex ID, searching by title...")
                         oa_papers = self._search_openalex(paper_title, result_limit=1)
                         if oa_papers and len(oa_papers) > 0:
                             oa_work_id = oa_papers[0].get("openalex_id")
@@ -259,36 +270,46 @@ class PaperSearchTool(BaseTool):
                                 bibtex = self._fetch_bibtex_from_openalex(oa_work_id)
                                 if bibtex:
                                     paper_data["bibtex"] = bibtex
-                                    print(f"[PaperSearchTool] ✅ Got bibtex from OpenAlex (via title search)")
+                                    print(
+                                        "[PaperSearchTool] ✅ Got bibtex from OpenAlex (via title search)"
+                                    )
                     except Exception as e:
                         print(f"[PaperSearchTool] OpenAlex title search failed: {e}")
-                
+
                 # Priority 2: Generate from metadata as fallback (NO Semantic Scholar bibtex)
                 if not paper_data["bibtex"]:
                     bibtex = self._generate_bibtex_from_metadata(paper)
                     if bibtex:
                         paper_data["bibtex"] = bibtex
-                        print(f"[PaperSearchTool] ⚠️ Generated bibtex from metadata (may have formatting issues)")
+                        print(
+                            "[PaperSearchTool] ⚠️ Generated bibtex from metadata (may have formatting issues)"
+                        )
                     else:
-                        print(f"[PaperSearchTool] ❌ No bibtex available")
+                        print("[PaperSearchTool] ❌ No bibtex available")
                         continue  # Skip papers without bibtex
-                
+
                 # Try to enrich with arXiv if abstract is missing or too short
                 abstract_text = paper_data["abstract"] or ""
                 if len(abstract_text) < 100:
                     try:
-                        print(f"[PaperSearchTool] Abstract too short ({len(abstract_text)} chars), trying arXiv...")
+                        print(
+                            f"[PaperSearchTool] Abstract too short ({len(abstract_text)} chars), trying arXiv..."
+                        )
                         arxiv_abstract = self._fetch_abstract_from_arxiv(paper_title)
                         if arxiv_abstract and len(arxiv_abstract) > len(abstract_text):
                             paper_data["abstract"] = arxiv_abstract
-                            print(f"[PaperSearchTool] ✅ Enriched with arXiv abstract ({len(arxiv_abstract)} chars)")
+                            print(
+                                f"[PaperSearchTool] ✅ Enriched with arXiv abstract ({len(arxiv_abstract)} chars)"
+                            )
                         else:
-                            print(f"[PaperSearchTool] ⚠️ arXiv enrichment failed or no improvement")
+                            print(
+                                "[PaperSearchTool] ⚠️ arXiv enrichment failed or no improvement"
+                            )
                     except Exception as e:
                         print(f"[PaperSearchTool] arXiv enrichment failed: {e}")
-                
+
                 results[paper_title] = paper_data
-                abstract_len = len(paper_data.get('abstract', ''))
+                abstract_len = len(paper_data.get("abstract", ""))
                 print(f"[PaperSearchTool] 📝 Final abstract length: {abstract_len}")
         else:
             print(f"[PaperSearchTool] ❌ No papers found for query: {query}")
@@ -305,21 +326,31 @@ class PaperSearchTool(BaseTool):
 
         # Engine preference with graceful fallback
         if self.engine == "semanticscholar":
-            print(f"(semantic scholar API calling) Searching for papers with query: {query}")
+            print(
+                f"(semantic scholar API calling) Searching for papers with query: {query}"
+            )
             try:
                 result = self._search_semanticscholar(query, result_limit)
                 if result:
                     return result
                 else:
                     if self.disable_fallback:
-                        print("[WARNING] Semantic Scholar returned no results. Fallback is disabled.")
+                        print(
+                            "[WARNING] Semantic Scholar returned no results. Fallback is disabled."
+                        )
                         return None
-                    print("[INFO] Semantic Scholar returned no results, trying arXiv...")
+                    print(
+                        "[INFO] Semantic Scholar returned no results, trying arXiv..."
+                    )
             except Exception as e:
                 if self.disable_fallback:
-                    print(f"[ERROR] Semantic Scholar failed: {e}. Fallback is disabled.")
+                    print(
+                        f"[ERROR] Semantic Scholar failed: {e}. Fallback is disabled."
+                    )
                     return None
-                print(f"[WARNING] Semantic Scholar failed: {e}, trying arXiv as fallback...")
+                print(
+                    f"[WARNING] Semantic Scholar failed: {e}, trying arXiv as fallback..."
+                )
 
             # Fallback to arXiv (only if not disabled)
             try:
@@ -328,10 +359,14 @@ class PaperSearchTool(BaseTool):
                 if arxiv_result:
                     return arxiv_result
                 # If arXiv also fails, try OpenAlex as last resort
-                print(f"[INFO] arXiv also returned no results, trying OpenAlex as last resort...")
+                print(
+                    "[INFO] arXiv also returned no results, trying OpenAlex as last resort..."
+                )
                 return self._search_openalex(query, result_limit)
             except Exception as e:
-                print(f"[ERROR] All search engines failed (Semantic Scholar → arXiv → OpenAlex): {e}")
+                print(
+                    f"[ERROR] All search engines failed (Semantic Scholar → arXiv → OpenAlex): {e}"
+                )
                 return None
 
         elif self.engine == "openalex":
@@ -342,18 +377,26 @@ class PaperSearchTool(BaseTool):
                     return result
                 else:
                     if self.disable_fallback:
-                        print("[WARNING] OpenAlex returned no results. Fallback is disabled.")
+                        print(
+                            "[WARNING] OpenAlex returned no results. Fallback is disabled."
+                        )
                         return None
-                    print("[WARNING] OpenAlex returned no results, trying Semantic Scholar...")
+                    print(
+                        "[WARNING] OpenAlex returned no results, trying Semantic Scholar..."
+                    )
             except Exception as e:
                 if self.disable_fallback:
                     print(f"[ERROR] OpenAlex failed: {e}. Fallback is disabled.")
                     return None
-                print(f"[WARNING] OpenAlex failed: {e}, trying Semantic Scholar as fallback...")
-                
+                print(
+                    f"[WARNING] OpenAlex failed: {e}, trying Semantic Scholar as fallback..."
+                )
+
             # Fallback to Semantic Scholar (only if not disabled)
             try:
-                print(f"(semantic scholar API calling) Fallback search with query: {query}")
+                print(
+                    f"(semantic scholar API calling) Fallback search with query: {query}"
+                )
                 return self._search_semanticscholar(query, result_limit)
             except Exception as e:
                 print(f"[ERROR] Both OpenAlex and Semantic Scholar failed: {e}")
@@ -378,7 +421,7 @@ class PaperSearchTool(BaseTool):
         }
         if self.s2_api_key:
             headers["x-api-key"] = self.s2_api_key
-        
+
         try:
             print(f"[Semantic Scholar] Searching for: {query[:100]}...")
             rsp = requests.get(
@@ -398,21 +441,27 @@ class PaperSearchTool(BaseTool):
             print(f"[Semantic Scholar] Found {results.get('total')} papers")
             time.sleep(2.0)  # Add delay to avoid rate limiting
             return cast(Optional[List[Dict[str, Any]]], results.get("data"))
-            
+
         except requests.exceptions.HTTPError as e:
             if rsp.status_code == 403:
-                print(f"[Semantic Scholar] 403 Forbidden - API access denied")
-                print(f"[INFO] This could be due to:")
-                print(f"  1. Missing or invalid API key")
-                print(f"  2. Rate limiting")
-                print(f"  3. IP restrictions")
+                print("[Semantic Scholar] 403 Forbidden - API access denied")
+                print("[INFO] This could be due to:")
+                print("  1. Missing or invalid API key")
+                print("  2. Rate limiting")
+                print("  3. IP restrictions")
                 if not self.s2_api_key:
-                    print(f"[SUGGESTION] Get a free API key at: https://www.semanticscholar.org/product/api")
+                    print(
+                        "[SUGGESTION] Get a free API key at: https://www.semanticscholar.org/product/api"
+                    )
                 # For 403 errors, don't retry, return None to allow fallback
-                print(f"[Semantic Scholar] Skipping retries for 403 error, will try fallback engine")
+                print(
+                    "[Semantic Scholar] Skipping retries for 403 error, will try fallback engine"
+                )
                 return None
             elif rsp.status_code == 429:
-                print(f"[Semantic Scholar] 429 Rate Limited - will retry with exponential backoff")
+                print(
+                    "[Semantic Scholar] 429 Rate Limited - will retry with exponential backoff"
+                )
                 # For 429, let decorator handle retries
                 raise
             else:
@@ -442,23 +491,26 @@ class PaperSearchTool(BaseTool):
             return None
 
         return [self._extract_work_info(work) for work in works]
-    
+
     def _fetch_bibtex_from_openalex(self, work_id: str) -> Optional[str]:
         """Fetch BibTeX from OpenAlex by work ID (OpenAlex ID)"""
         try:
             import requests
+
             # OpenAlex provides direct bibtex endpoint
             # work_id should be like "W2741809807" or full URL
             if work_id.startswith("http"):
-                bibtex_url = work_id.replace("https://openalex.org/", "https://api.openalex.org/") 
+                bibtex_url = work_id.replace(
+                    "https://openalex.org/", "https://api.openalex.org/"
+                )
             else:
                 bibtex_url = f"https://api.openalex.org/works/{work_id}"
-            
+
             headers = {"Accept": "application/x-bibtex"}
             mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
             if mail:
                 headers["User-Agent"] = f"TinyScientist (mailto:{mail})"
-            
+
             response = requests.get(bibtex_url, headers=headers, timeout=10)
             if response.status_code == 200 and response.text:
                 return response.text.strip()
@@ -474,13 +526,17 @@ class PaperSearchTool(BaseTool):
             authors_raw = paper.get("authors", "Unknown Author")
             venue = paper.get("venue", "Unknown Venue")
             year = paper.get("year", "Unknown")
-            
+
             # Format authors properly
             if isinstance(authors_raw, list):
                 # Handle list of dicts (Semantic Scholar format)
                 if authors_raw and isinstance(authors_raw[0], dict):
-                    author_names = [a.get("name", "") for a in authors_raw if a.get("name")]
-                    authors = " and ".join(author_names) if author_names else "Unknown Author"
+                    author_names = [
+                        a.get("name", "") for a in authors_raw if a.get("name")
+                    ]
+                    authors = (
+                        " and ".join(author_names) if author_names else "Unknown Author"
+                    )
                 # Handle list of strings
                 elif authors_raw and isinstance(authors_raw[0], str):
                     authors = " and ".join(authors_raw)
@@ -491,10 +547,19 @@ class PaperSearchTool(BaseTool):
                 if "[{" in authors_raw or "authorId" in authors_raw:
                     try:
                         import ast
+
                         parsed = ast.literal_eval(authors_raw)
                         if isinstance(parsed, list) and parsed:
-                            author_names = [a.get("name", "") for a in parsed if isinstance(a, dict) and a.get("name")]
-                            authors = " and ".join(author_names) if author_names else "Unknown Author"
+                            author_names = [
+                                a.get("name", "")
+                                for a in parsed
+                                if isinstance(a, dict) and a.get("name")
+                            ]
+                            authors = (
+                                " and ".join(author_names)
+                                if author_names
+                                else "Unknown Author"
+                            )
                         else:
                             authors = "Unknown Author"
                     except:
@@ -503,13 +568,14 @@ class PaperSearchTool(BaseTool):
                     authors = authors_raw
             else:
                 authors = "Unknown Author"
-            
+
             # Generate bibtex key (clean special characters)
             import re
-            clean_title = re.sub(r'[^\w\s]', '', title)
+
+            clean_title = re.sub(r"[^\w\s]", "", title)
             first_word = clean_title.split()[0] if clean_title.split() else "paper"
             bibtex_key = f"{first_word.lower()}{year}"
-            
+
             # Build BibTeX entry
             bibtex = f"""@article{{{bibtex_key},
     title={{{title}}},
@@ -518,7 +584,7 @@ class PaperSearchTool(BaseTool):
     year={{{year}}}
 }}"""
             return bibtex
-            
+
         except Exception as e:
             print(f"[ERROR] Failed to generate bibtex: {e}")
             return ""
@@ -532,7 +598,7 @@ class PaperSearchTool(BaseTool):
         }
         if self.s2_api_key:
             headers["X-API-KEY"] = self.s2_api_key
-        
+
         try:
             print(f"[Semantic Scholar] Fetching bibtex for paper: {paper_id}")
             rsp = requests.get(
@@ -543,25 +609,29 @@ class PaperSearchTool(BaseTool):
             )
             print(f"[Semantic Scholar] Bibtex fetch status: {rsp.status_code}")
             rsp.raise_for_status()
-            
+
             citation_styles = rsp.json().get("citationStyles", {})
             bibtex = citation_styles.get("bibtex", "N/A")
-            
+
             if bibtex == "N/A":
                 print(f"[WARNING] No bibtex found for paper {paper_id}")
-            
+
             return bibtex
-            
+
         except requests.exceptions.HTTPError as e:
             if rsp.status_code == 403:
-                print(f"[Semantic Scholar] 403 Forbidden for bibtex fetch - API access denied")
+                print(
+                    "[Semantic Scholar] 403 Forbidden for bibtex fetch - API access denied"
+                )
                 # For 403 errors, return N/A directly without retry
                 return "N/A"
             elif rsp.status_code == 429:
-                print(f"[Semantic Scholar] 429 Rate Limited for bibtex - will retry")
+                print("[Semantic Scholar] 429 Rate Limited for bibtex - will retry")
                 raise
             else:
-                print(f"[Semantic Scholar] HTTP Error {rsp.status_code} for bibtex: {e}")
+                print(
+                    f"[Semantic Scholar] HTTP Error {rsp.status_code} for bibtex: {e}"
+                )
                 raise
         except requests.exceptions.RequestException as e:
             print(f"[Semantic Scholar] Bibtex fetch failed: {e}")
@@ -570,72 +640,80 @@ class PaperSearchTool(BaseTool):
             print(f"[Semantic Scholar] Unexpected bibtex error: {e}")
             raise
 
-    def _search_arxiv(self, query: str, result_limit: int = 10) -> Optional[List[Dict[str, Any]]]:
+    def _search_arxiv(
+        self, query: str, result_limit: int = 10
+    ) -> Optional[List[Dict[str, Any]]]:
         """
         Search arXiv for papers matching the query.
-        
+
         Args:
             query: Search query
             result_limit: Maximum number of results
-            
+
         Returns:
             List of paper dictionaries with title, abstract, authors, venue, year
         """
         try:
             import urllib.parse
             import xml.etree.ElementTree as ET
-            
+
             # Clean and encode the query
             search_query = urllib.parse.quote(query)
             # Search in title and abstract
             arxiv_api_url = f"http://export.arxiv.org/api/query?search_query=all:{search_query}&max_results={result_limit}&sortBy=relevance"
-            
+
             print(f"[arXiv] Searching for: {query[:60]}...")
             response = requests.get(arxiv_api_url, timeout=15)
-            
+
             if response.status_code != 200:
                 print(f"[arXiv] API returned status code: {response.status_code}")
                 return None
-            
+
             # Parse XML response
             root = ET.fromstring(response.content)
-            
+
             # arXiv API uses Atom namespace
-            namespace = {'atom': 'http://www.w3.org/2005/Atom'}
-            entries = root.findall('atom:entry', namespace)
-            
+            namespace = {"atom": "http://www.w3.org/2005/Atom"}
+            entries = root.findall("atom:entry", namespace)
+
             if not entries:
-                print(f"[arXiv] No entries found")
+                print("[arXiv] No entries found")
                 return None
-            
+
             results = []
             for entry in entries:
                 # Extract title
-                title_elem = entry.find('atom:title', namespace)
-                title = title_elem.text.strip().replace('\n', ' ') if title_elem is not None else "Unknown"
-                
+                title_elem = entry.find("atom:title", namespace)
+                title = (
+                    title_elem.text.strip().replace("\n", " ")
+                    if title_elem is not None
+                    else "Unknown"
+                )
+
                 # Extract abstract
-                summary_elem = entry.find('atom:summary', namespace)
+                summary_elem = entry.find("atom:summary", namespace)
                 abstract = summary_elem.text.strip() if summary_elem is not None else ""
-                
+
                 # Extract authors
-                author_elems = entry.findall('atom:author/atom:name', namespace)
-                authors = [author.text.strip() for author in author_elems if author.text]
+                author_elems = entry.findall("atom:author/atom:name", namespace)
+                authors = [
+                    author.text.strip() for author in author_elems if author.text
+                ]
                 authors_str = " and ".join(authors) if authors else "Unknown"
-                
+
                 # Extract publication date
-                published_elem = entry.find('atom:published', namespace)
+                published_elem = entry.find("atom:published", namespace)
                 year = "Unknown"
                 if published_elem is not None and published_elem.text:
                     # Date format: 2024-01-15T12:00:00Z
                     year = published_elem.text[:4]
-                
+
                 # Extract arXiv ID for potential future use
-                id_elem = entry.find('atom:id', namespace)
+                id_elem = entry.find("atom:id", namespace)
                 arxiv_id = ""
                 if id_elem is not None and id_elem.text:
-                    arxiv_id = id_elem.text.split('/abs/')[-1]
-                
+                    arxiv_id = id_elem.text.split("/abs/")[-1]
+
                 paper = {
                     "title": title,
                     "abstract": abstract,
@@ -647,10 +725,10 @@ class PaperSearchTool(BaseTool):
                     "arxiv_id": arxiv_id,
                 }
                 results.append(paper)
-            
+
             print(f"[arXiv] Found {len(results)} papers")
             return results
-                
+
         except Exception as e:
             print(f"[arXiv] Search error: {e}")
             return None
@@ -658,58 +736,58 @@ class PaperSearchTool(BaseTool):
     def _fetch_abstract_from_arxiv(self, paper_title: str) -> Optional[str]:
         """
         Fetch abstract from arXiv by searching for paper title.
-        
+
         Args:
             paper_title: Title of the paper to search for
-            
+
         Returns:
             Abstract text if found, None otherwise
         """
         try:
             import urllib.parse
             import xml.etree.ElementTree as ET
-            
+
             # Clean and encode the title for search
             search_query = urllib.parse.quote(paper_title)
             arxiv_api_url = f"http://export.arxiv.org/api/query?search_query=ti:{search_query}&max_results=1"
-            
+
             print(f"[arXiv] Searching for: {paper_title[:60]}...")
             response = requests.get(arxiv_api_url, timeout=10)
-            
+
             if response.status_code != 200:
                 print(f"[arXiv] API returned status code: {response.status_code}")
                 return None
-            
+
             # Parse XML response
             root = ET.fromstring(response.content)
-            
+
             # arXiv API uses Atom namespace
-            namespace = {'atom': 'http://www.w3.org/2005/Atom'}
-            entries = root.findall('atom:entry', namespace)
-            
+            namespace = {"atom": "http://www.w3.org/2005/Atom"}
+            entries = root.findall("atom:entry", namespace)
+
             if not entries:
-                print(f"[arXiv] No entries found")
+                print("[arXiv] No entries found")
                 return None
-            
+
             # Get the first (best match) entry
             entry = entries[0]
-            
+
             # Extract title to verify it's a good match
-            entry_title = entry.find('atom:title', namespace)
+            entry_title = entry.find("atom:title", namespace)
             if entry_title is not None:
-                entry_title_text = entry_title.text.strip().replace('\n', ' ')
+                entry_title_text = entry_title.text.strip().replace("\n", " ")
                 print(f"[arXiv] Found: {entry_title_text[:60]}...")
-            
+
             # Extract abstract
-            summary = entry.find('atom:summary', namespace)
+            summary = entry.find("atom:summary", namespace)
             if summary is not None:
                 abstract = summary.text.strip()
                 print(f"[arXiv] Abstract length: {len(abstract)} chars")
                 return abstract
             else:
-                print(f"[arXiv] No abstract found in entry")
+                print("[arXiv] No abstract found in entry")
                 return None
-                
+
         except Exception as e:
             print(f"[arXiv] Error fetching abstract: {e}")
             return None
@@ -737,20 +815,21 @@ class PaperSearchTool(BaseTool):
         )
 
         abstract = work.get("abstract", "")
-        
+
         # Get concepts and keywords as abstract supplement
         concepts = []
         if "concepts" in work and work["concepts"]:
             # Get top 5 most relevant concepts
-            top_concepts = sorted(work["concepts"], 
-                                key=lambda x: x.get("score", 0), reverse=True)[:5]
+            top_concepts = sorted(
+                work["concepts"], key=lambda x: x.get("score", 0), reverse=True
+            )[:5]
             concepts = [concept.get("display_name", "") for concept in top_concepts]
-        
+
         # If abstract is too short, supplement with concepts
         if len(abstract) < 100 and concepts:
             concept_text = "Key concepts: " + ", ".join(concepts)
             abstract = abstract + ". " + concept_text if abstract else concept_text
-        
+
         if len(abstract) > max_abstract_length:
             print(f"[WARNING] {work['title']}: Abstract is too long, truncating.")
             abstract = abstract[:max_abstract_length]

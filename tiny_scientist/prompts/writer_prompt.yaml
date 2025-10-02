@@ -1,7 +1,6 @@
 write_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have already figured out the research idea and the experiments you want to run.
-  Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
 
   **IMPORTANT - Citation Principles**:
   - Each citation must support a specific claim, statement, or finding in that sentence
@@ -9,7 +8,7 @@ write_system_prompt: |
   - Do NOT add citations randomly or at the end of unrelated sentences
   - Only cite papers that are directly relevant to the specific content of that sentence
   - Use \cite{{}} or \citet{{}} to reference papers in references.bib
-  
+
   **CRITICAL - LaTeX Format Only (NO Markdown)**
   - NEVER mix Markdown and LaTeX syntax (e.g., **text\textbf{{ is WRONG)
   - Use \textbf{{text}} for bold, NEVER **text**
@@ -36,10 +35,20 @@ write_system_prompt: |
     \end{{algorithmic}}
     \end{{algorithm}}
 
-  Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
+  [Equation Length Guidelines - CRITICAL]
+  - **NEVER write equations that exceed one line width**
+  - For long equations, use multi-line environments:
+    * \begin{{align}}...\end{{align}} for multiple aligned equations
+    * \begin{{multline}}...\end{{multline}} for single equation split across lines
+    * \begin{{split}}...\end{{split}} inside equation environment
+  - Break equations at operators (+, -, =, \cdot, etc.)
+  - Use concise notation: prefer $h_t$ over $h_{{timestep}}$
+  - Example of proper line breaking:
+    \begin{{align}}
+    \mathcal{{L}} &= \sum_{{i=1}}^N \left( f(x_i; \theta) - y_i \right)^2 \\
+                  &\quad + \lambda \|\theta\|_2^2
+    \end{{align}}
 
-  Here's an example of a well-written paper draft to guide your writing style, tone, and section lengths
-  {example_paper_draft}
 
 write_system_prompt_related_work:
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
@@ -74,13 +83,13 @@ section_tips:
       * Give examples of why naive approaches fail
       * Clarify how these challenges block real progress
 
-    - paragraph4: Why hasn't it been solved before? 
+    - paragraph4: Why hasn't it been solved before?
           (Or, what's wrong with previous proposed solutions? How does mine differ?)
       * Acknowledge prior work and attempts
       * Point out their shortcomings or gaps
       * Clearly state how your approach differs and improves
 
-    - paragrap5: What are the key components of my approach and results? 
+    - paragrap5: What are the key components of my approach and results?
       * Introduce your core approach in one sentence
       * Break into 2–3 main components
       * Summarize key results
@@ -92,15 +101,33 @@ section_tips:
     - **STRUCTURE REQUIREMENT**: Write **3 paragraphs** (at most 4 paragraphs). Each paragraph should focus on a distinct category or theme of related work.
 
   Method: |
-    - The first paragraph in the method should be problem definition. provide math notation and basic definition for the problem
-    - We need to use math to define and describe methods clearly
-    - You need to focus on describing different parts of your CORE method (algorithm, architecture, key innovations)
-    - **CRITICAL**: Do NOT mention concrete implementation details or experimental setup - those belong in the Experimental Setup section
-    - Need to use math to describe the whole process of your algorithm that you propose
-    - If necessary, have a pseudo code or algorithm description to describe your algorithm. But in most cases, it is not necessary. It depends on the topic and research question you want to answer.
-    - Very important!!! You need to explain your motivation for any methodology design. Any design is not from scratch, you need to have a good reason (very brief reason) for that before you start talking about the details of each part of your methods.
-    - Focus on: What is your method? How does it work conceptually? Why is it designed this way?
-    - Leave implementation details (datasets, hyperparameters, training setup) to Experimental Setup section
+    - Start with Problem Definition (First Paragraph)
+      Clearly define the task my method aims to solve using precise mathematical notation.
+      Specify the input space, output space, and the target mapping/function.
+      Introduce any necessary notations, symbols, or assumptions upfront.
+      Keep it focused on the problem formulation, not experiments.
+
+    - Use Math to Describe the Algorithm / Model
+      Describe the entire method in a conceptual and mathematical way.
+      Define each core component of the method formally (e.g., functions, modules, transformations).
+      Use equations to explain how the method processes input and produces output step by step.
+      Keep the description general — no datasets, hyperparameters, or training tricks.
+
+    - Explain the Motivation for Each Design Choice
+      Before describing each component, give a brief, high-level motivation for why it is designed this way (e.g., address a limitation, exploit a property).
+      Do not dump design details without explaining their purpose first.
+
+    - Focus on the Core Algorithm / Architecture / Key Innovations
+      Highlight what is new in the method compared to existing approaches.
+      Structure the section around the main pipeline of the algorithm, not around implementation details.
+      If appropriate, include pseudo-code or algorithm boxes, but only if they clarify the method.
+
+    - Avoid Experimental Details
+      Do NOT include anything about dataset splits, training hyperparameters, model sizes, implementation tricks, or computational setup.
+      Those belong in the Experimental Setup section.
+
+    - End with a High-Level Summary (Optional)
+      Optionally, conclude with a short paragraph summarizing the overall workflow and emphasizing why the method is well-suited for the problem.
 
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
@@ -114,15 +141,14 @@ section_tips:
     - Furthermore, you need to analyze and provide reasons about why this works or not
 
   Discussion: |
-    
-    **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**: 
-    You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a research question (RQ) that questions the validity of your method, then provide evidence-based defense.
-    
+    **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**:
+    You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a question (Q) that questions the validity of your method, then provide evidence-based defense.
+
     **Format for Each Challenge**:
     \subsection*{{Q#: [Challenging question that makes your method look fake/weak]?}}
     [1-3 paragraphs with concrete evidence from experiments, ablations, or additional analysis that addresses the challenge]
-    
-    - Each subsection should be a research question that challenges your method
+
+    - Each subsection should be a question that challenges your method
     - Be specific and quantitative in your defense (cite figures, tables, numbers)
 
   Conclusion: |
@@ -147,6 +173,7 @@ error_list: |
   - Duplicate headers, e.g. duplicated \\section{{Introduction}} or \\end{{document}}
   - Unescaped symbols, e.g. shakespeare_char should be shakespeare\\_char in text
   - Incorrect closing of environments, e.g. </end{{figure}}> instead of \\end{{figure}}
+  - **Equations that exceed line width** - use \\begin{{align}} or \\begin{{multline}} for long equations
 
 multi_round_refinement_prompt: |
   You are refining the {section} section (Round {round_num}/{total_rounds}).
@@ -158,7 +185,7 @@ multi_round_refinement_prompt: |
 
   **Section Guidelines**:
   {section_tips}
-  
+
   **SPECIAL INSTRUCTION for Conclusion**: If this is the Conclusion section, you MUST keep it as ONE single paragraph (~100-150 words). Do NOT expand it. Do NOT add multiple paragraphs.
 
   **Full Paper Context** (all other sections for coherence check):
@@ -170,7 +197,7 @@ multi_round_refinement_prompt: |
   3. Add design rationale for key choices
   4. **CRITICAL**: Read the Full Paper Context above to ensure your refined section is coherent with other sections
   5. Ensure terminology, notation, and narrative flow are consistent across the paper
-  
+
   **CRITICAL - CITATION PRESERVATION**:
   6. **PRESERVE ALL EXISTING \\cite{{}} COMMANDS unless their supporting content is removed**
   7. If you keep content, you MUST keep its citations
@@ -178,7 +205,7 @@ multi_round_refinement_prompt: |
   9. Do NOT arbitrarily relocate citations to unrelated sentences
   10. If you add new content, add appropriate NEW citations to support it
   11. Aim to maintain or increase the total number of citations (unless removing redundant sections)
-  
+
   **MEANINGFUL CITATION PLACEMENT**:
   - Each citation must support a specific claim, statement, or finding in that sentence
   - Citations should be placed right after the claim they support
@@ -225,21 +252,6 @@ add_new_citations_prompt: |
 
   Output the enhanced section with all citations.
 
-refinement_prompt: |
-  Great job! Now criticize and refine only the {section} that you just wrote.
-  Make this complete in this pass, do not leave any placeholders.
-
-  Pay particular attention to fixing any errors such as:
-  {error_list}
-
-  Here is the corresponding section tips:
-  {section_tips}
-
-  Here is the section to refine:
-  """
-  {section_content}
-  """
-
 citation_system_prompt: |
   You are an academic writing assistant helping add and embed citation coverage in a research paper.
 
@@ -259,7 +271,7 @@ citation_system_prompt: |
 
   Do not invent or fabricate any citations.
   Do not output BibTeX, author names, or publication details.
-  
+
   **CRITICAL - LaTeX Format Only (NO Markdown)**:
   - Use \textbf{{text}} for bold, NOT **text**
   - Use \textit{{text}} for italic, NOT *text*
@@ -268,32 +280,50 @@ citation_system_prompt: |
   Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
 
 citation_search_query_prompt: |
-  You will generate short keyword search queries optimized for Semantic Scholar (and OpenAlex) search.
+  You will generate search queries to find relevant papers for citation in the {section} section.
 
-  Inputs:
+  **CONTEXT**:
   - Idea Title: {idea_title}
   - Problem: {problem}
   - Novelty: {novelty}
   - Experiment: {experiment}
-  - Section: {section}
-  - Snippet: {snippet}
+  - Section Content Snippet: {snippet}
 
-  Requirements:
-  - Return ONLY a JSON array of strings. No extra text.
-  - Each query should be 3–8 words, concise, human-readable.
-  - Use ASCII letters/numbers/spaces only. No punctuation except spaces.
-  - Do not include quotes inside items, markdown, or explanations.
-  - Focus on core entities: tasks, methods, datasets, domains, techniques.
-  - Provide 6–10 high-quality, diverse queries.
+  **CRITICAL**: Focus queries on the UNIQUE/NOVEL aspects of this research, not just general topics.
 
-  Example output:
+  **SEARCH STRATEGY**:
+  1. For the given section content, identify the SPECIFIC claims, methods, or findings that need citation support
+  2. Generate queries that find papers specifically related to those specific aspects
+  3. Combine the novel component with the application domain using AND
+  4. Example: If section discusses "causal graph for GNN link prediction", query should be "causal graph AND graph neural networks" or "link prediction AND graph structure"
+
+  **QUERY CONSTRUCTION GUIDELINES**:
+  1. Use AND to connect the NOVEL/SPECIFIC component with the domain/task
+  2. Use OR sparingly for alternative terms of the SAME concept (e.g., "few-shot OR low-resource")
+  3. Keep multi-word phrases as simple text (no quotes needed)
+  4. Each query should be 3-8 words, focused on specific concepts
+  5. Match the granularity to the section: Related Work (broader), Method (specific techniques), Discussion (comparative analysis)
+
+  **GOOD EXAMPLES** (focused on specific aspects):
+  - causal graph AND graph neural networks
+  - adaptive attention AND low-resource translation
+  - contrastive learning AND graph representation
+  - hierarchical reinforcement learning AND multi-agent
+  - meta-learning AND domain adaptation
+
+  **BAD EXAMPLES** (too general):
+  - graph neural networks (misses the unique aspect)
+  - deep learning (too broad)
+  - machine translation (no specific method)
+
+  **OUTPUT FORMAT**:
+  Return ONLY a JSON array of 6-10 query strings. No extra text, no markdown, no explanations.
+
+  Example:
   [
-    "graph neural network link prediction",
-    "llm reinforcement learning distillation",
-    "transformer pruning computer vision",
-    "contrastive learning medical imaging",
-    "few shot domain adaptation nlp",
-    "retrieval augmented generation evaluation"
+    "causal graph AND graph neural networks",
+    "link prediction AND graph structure",
+    "contrastive learning AND node embedding"
   ]
 
 abstract_prompt: |
@@ -346,12 +376,12 @@ section_prompt:
 
     \paragraph{{Novel framework for research simulation}}
     In this work, we propose \envname, a simulator of the human research community. To bridge the gap between existing multi-agent simulation frameworks and the complexity of research activities, we propose a graph-based framework, inspired by the message-passing mechanism in Graph Neural Networks (GNNs), for multi-agent simulation.
-    Concretely, as shown in Figure \ref{{fig:community-graph}}, we propose a new concept of \textit{{agent-data graph}} with 2 generic types of nodes: (1) \textit{{agent}} nodes, suitable for entities like agents; (2) \textit{{data}} nodes, suitable for entities such as papers, reviews, and blogs. 
+    Concretely, as shown in Figure \ref{{fig:community-graph}}, we propose a new concept of \textit{{agent-data graph}} with 2 generic types of nodes: (1) \textit{{agent}} nodes, suitable for entities like agents; (2) \textit{{data}} nodes, suitable for entities such as papers, reviews, and blogs.
     Agent-data graphs are unique from standard heterogeneous graphs; here, the key conceptual difference between agent and data nodes is that an agent node can be considered a function over data nodes.
-    To inference on agent-data graphs, we propose a \textit{{TextGNN}} framework where message-passing processes are defined based on text-form information processing with LLMs, thanks to their strong in-context learning~\citep{{wei2023larger}} and reasoning~\citep{{lee2024reasoning}} ability. 
+    To inference on agent-data graphs, we propose a \textit{{TextGNN}} framework where message-passing processes are defined based on text-form information processing with LLMs, thanks to their strong in-context learning~\citep{{wei2023larger}} and reasoning~\citep{{lee2024reasoning}} ability.
     We apply the proposed agent-data graph and TextGNN to the research simulation. Here, a research community can be regarded as a special form of agent-data graph, called \textit{{community graph}}, with research agents and research papers as two types of nodes, and we consider three types of edges (review, author, and cite) in the graph. Different community activities, such as paper writing and review writing, can be modeled as special message-passing processes on the community graph.
 
-    \paragraph{{Novel evaluation for research simulation}} 
+    \paragraph{{Novel evaluation for research simulation}}
     With \envname for research simulation, a further research question is to evaluate the quality of that. Prior works primarily use human evaluation with breakdown metrics such as novelty, excitement, feasibility, and expected effectiveness~\citep{{si2024can,hu2024nova}}. These approaches inevitably suffer from subjectiveness and high costs. In our work, since \envname functions as a simulator, our primary focus is on measuring how closely its outputs align with those of the real-world research community. Community graphs naturally provide a similarity-based evaluation method by masking a given paper node in the community graph and evaluating whether a simulator can reconstruct the masked nodes. This definition focuses on simulation similarity, making it scalable and objective. Based on such a node masking prediction task, we build a benchmark called \benchname with 1,000 paper writing tasks and 200 review writing tasks requiring multi-agent collaboration.
 
     \paragraph{{Main discoveries}} Based on the evaluation results from \benchname, we highlight three key findings: (1) \envname effectively simulates collaborative research activities, achieving an average similarity score of 0.68 for paper writing and 0.49 for review writing, as measured by the state-of-the-art text embedding model; (2) \envname demonstrates robustness and effectiveness in research simulation, showing improvement when more agents are added and maintaining performance when including unrelated papers; (3) \envname inspires interdisciplinary research, generating innovative ideas that combine insights from NLP, criminology, and astronomy and does not exist in the real-world research.
@@ -372,7 +402,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite prior work when stating what has been done before, cite foundational work when introducing concepts).
 
     Use at **5 paragraphs**, and aim for **250–300 words**.
@@ -395,93 +425,79 @@ section_prompt:
     {code}
     ```
 
-    CRITICAL REQUIREMENTS:
-    1. **Problem Formulation (MANDATORY)**: Start with a formal mathematical definition
-       - Define the problem space: $\mathcal{{X}}, \mathcal{{Y}}$
-       - Define the objective function with proper notation
-       - State any assumptions clearly
-    
-    2. **Multi-Level Structure (MANDATORY)**: Break down into subsections:
-       - Use \paragraph{{}} for main components (3-5 paragraphs minimum)
-       - Each paragraph should focus on ONE specific aspect
-       - Follow a logical flow: Overview → Components → Integration
-    
-    3. **Mathematical Rigor (MANDATORY)**: 
-       - Use equations for key transformations: $f(x) = ...$
-       - Number important equations: \begin{{equation}}...\end{{equation}}
-       - Define all variables and notations clearly
-    
-    4. **Algorithm Description (if applicable)**:
-       - Include pseudo-code using \begin{{algorithm}} or \begin{{algorithmic}}
-       - Or describe step-by-step process with clear enumeration
-    
-    5. **Architectural Details**:
-       - Describe model architecture with dimensions
-       - Specify layer configurations, activation functions
-       - Reference to figures if available
-    
-    6. **Design Justification**:
-       - For EACH major design choice, explain WHY (1-2 sentences)
-       - Connect to existing literature when possible
-    
     An example for method writing is as follow:
 
-    \paragraph{{Definition of artifact graphs}}
-    We further define the artifact (model-data) graph as a bipartite graph $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$, where the node set $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}d$ consists of two disjoint types of nodes: model nodes and dataset nodes. The edge set $\mathcal{{E}} = \mathcal{{E}}{{md}}$ represents evaluation relationships between models and datasets. Each dataset node $v \in \mathcal{{V}}_d$ is associated with attributes such as metadata and task descriptions, while each model node $u \in \mathcal{{V}}_m$ is associated with model specifications such as architecture, parameters, and configuration.
+    To describe the overall pipeline of {{\modelname}}, we first formalize the problem definition of automatic discovery using the artifact-graph formulation. We then introduce our scalable solution, which addresses this problem via a two-stage \textit{{prediction–verification}} framework.
 
-    \paragraph{{Uniqueness of artifact graphs}}
-    Unlike general bipartite graphs, the edges in a artifact graph carry rich semantic information: each edge $(u, v) \in \mathcal{{E}}_{{md}}$ is annotated with evaluation results such as accuracy, F1, perplexity, or other task-specific metrics. This allows the graph to capture fine-grained performance relationships between models and datasets. Such a structure enables downstream applications like model routing, automatic benchmarking, and meta-analysis of model generalization across diverse tasks.
-
-    \paragraph{{Edge collection}}
-    To construct the edges in our artifact graph, we extract ground-truth evaluation metrics directly from the HuggingFace model cards. Specifically, we parse the README files to identify model–dataset pairs together with their reported performance scores. After matching model and dataset names with their canonical entries on the HuggingFace platform, we obtain a clean set of evaluation edges. In total, this process yields 2,561 perfectly matched evaluation records, which serve as the edge attributes in our graph.
-
-    \paragraph{{Node collection}}
-    To construct the node set, we collect information for both models and datasets. For each model, we crawl its README and metadata fields (e.g., architecture, parameters, tags), and for each dataset, we extract its description and metadata (e.g., domain, size, license). We retain only nodes that participate in at least one evaluation edge, filtering out isolated artifacts. The resulting graph contains 2,144 nodes in total, consisting of 1,757 models and 387 datasets. On average, each model connects to 1.46 datasets, while each dataset connects to 6.62 models, indicating that the graph is relatively sparse.
-
-    \section{{Linking Scientific artifacts for automatic discovery}}
-    In this section, we first formalize the problem definition of automatic discovery using the artifact-graph formulation. We then introduce our scalable solution, which addresses this problem via a two-stage \textit{{prediction–verification}} framework.
-
-    \subsection{{Definition of Automatic Discovery}}
-    Let $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$ denote the artifact graph, where $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}_d$ consists of model nodes $\mathcal{{V}}_m$ and dataset nodes $\mathcal{{V}}_d$, and $\mathcal{{E}}_{{md}} \subseteq \mathcal{{V}}_m \times \mathcal{{V}}_d$ represents evaluation edges. Each edge $(m,d) \in \mathcal{{E}}_{{md}}$ is annotated with a performance score $s(m,d)$ (e.g., accuracy, F1). We define the automatic discovery problem as finding a missing link $(m,d) \notin \mathcal{{E}}_{{md}}$ such that the predicted score $\hat{{s}}(m,d)$ exceeds the best observed score on dataset $d$:
-
+    \subsection{{Definition of Automatic SOTA Discovery}}
+    Building on the artifact graph {{\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})}} defined in the previous section, each observed edge {{(m,d) \in \mathcal{{E}}}} is annotated with a performance score given by the metric function {{\phi: \mathcal{{V}}_m \times \mathcal{{V}}_d \rightarrow \mathcal{{K}}}}, with realized score denoted as {{\phi(m,d)}}. The ultimate goal of automatic discovery is to identify a missing link {{(m,d) \notin \mathcal{{E}},\; m \in \mathcal{{V}}_m,\; d \in \mathcal{{V}}_d}} such that the predicted score under the same evaluation function {{\phi(m,d)}} exceeds the best known performance on dataset {{d}}:
     \begin{{equation}}
-    \hat{{s}}(m,d) > \max_{{(m', d) \in \mathcal{{E}}_{{md}}}} s(m',d).
+    \phi(m,d) > \max_{{(m',d) \in \mathcal{{E}}}} \phi(m',d)
     \end{{equation}}
-
-    In other words, the discovery target is to identify model–dataset pairs that are not yet connected in $\mathcal{{G}}$ but are expected to outperform all existing models on the same dataset.
-
+    In other words, automatic SOTA discovery seeks model–benchmark pairs not yet connected in {{\mathcal{{G}}}} but expected to advance the state of the art on {{d}}. The input of our proposed {{\modelname}} framework is the artifact graph {{\mathcal{{G}}}}, while the target output is these state-of-the-art {{(m,d)}} pairs.
 
     \subsection{{Scalable Link Discovery Framework}}
-    To conduct automatic link discovery in a scalable manner, we adopt a two-stage framework: (1) prediction and (2) verification. Since verification through actual model evaluation is computationally expensive, the prediction stage serves as a crucial filter to eliminate unpromising candidates and focus resources on the most likely discoveries.
+    Because verification through actual model evaluation is computationally expensive, scalability requires a mechanism to reduce the number of candidates before evaluation. To this end, we design a two-stage framework that factors the problem into two sub-problems: (1) \emph{{prediction}} and (2) \emph{{verification}}. In the prediction stage, we first produce a ranked set of candidate pairs {{(m,d)}} by modeling the score function {{s(m,d)}}. From this ranking we derive the candidate set {{\mathcal{{C}}}}, which contains those pairs whose predicted scores are close to or surpass the current state of the art. In the verification stage, each candidate in {{\mathcal{{C}}}} is executed and evaluated in practice, yielding the refined set {{\mathcal{{C}}^\ast}} of validated state-of-the-art discoveries. This design focuses computational resources on the most promising candidates while ensuring correctness through real evaluation.
 
-    \paragraph{{Prediction}}
-    In the prediction stage, the goal is not only to estimate $\hat{{s}}(m,d)$ for missing edges but also to rank all candidate links by their discovery potential. Concretely, we train a model that learns a scoring function
-
+    \subsubsection{{Prediction Stage with score function modeling}}
+    The goal of prediction is not only to estimate {{\hat\phi(m,d)}} for missing edges but also to rank all candidate links by their discovery potential. Concretely, each prediction model defines a scoring function {{s: \mathcal{{V}}_m \times \mathcal{{V}}_d \to \mathbb{{R}}}}, which assigns each unseen pair {{(m,d) \notin \mathcal{{E}}}} a predicted performance. For each model the objective is to approximate the score function {{\hat\phi(m,d)}} and produce rankings consistent with observed edges. Since all of our prediction models utilize graph information, we formulate them using a general GNN-style notation. Formally, each score function is defined as:
     \begin{{equation}}
-    \hat{{s}}: \mathcal{{V}}_m \times \mathcal{{V}}_d \to \mathbb{{R}},
+    \mathbf{{h}}_v^{{(k+1)}} = \textsc{{AGG}}^{{(k)}}\!\left(\mathbf{{h}}_v^{{(k)}}, \{{\,\mathbf{{h}}_u^{{(k)}}, e_{{uv}} : u \in \mathcal{{N}}(v)\}}\right),
+    \quad
+    s(m,d) = \psi\big(\mathbf{{h}}_m^{{(L)}}, \mathbf{{h}}_d^{{(L)}}\big)
     \end{{equation}}
+    where {{\mathbf{{h}}_v^{{(k)}}}} is a model's internal representation of node {{v}} after {{k}} iterations aggregated over all representations {{\mathbf{{h}}_u^{{(k)}}}} constructed from neighboring nodes {{u \in \mathcal{{N}}(v)}}. The final score {{s(m,d)}} is then defined over the final node representations {{\mathbf{{h}}_m^{{(L)}}}} and {{\mathbf{{h}}_d^{{(L)}}}} transformed via some function {{\psi}}. As we detail below, different instantiations of {{\textsc{{AGG}}}} and {{\psi}} lead to different modeling strategies.
 
-    which assigns each unseen pair $(m,d)\notin\mathcal{{E}}_{{md}}$ a predicted performance. The model is optimized to rank these candidates relative to observed edges, so that links expected to outperform existing results on the same dataset are ranked highest. The output is an ordered list of missing edges prioritized by their likelihood of being high-value discoveries.
+    \paragraph{{LLM-based modeling}}
+    These models are based on ordinary prompt-based frozen LLMs. Following the TextGNN formulation presented in \citet{{yu2024researchtown}}, we represent each {{\mathbf{{h}}_v^{{(k)}}}} directly with text instead of embeddings. The aggregation function {{\textsc{{AGG}}}} is instantiated as a one-layer \emph{{concat}} operator that serializes neighborhood information into a textual prompt:
+    \begin{{equation}}
+    \mathbf{{h}}_v^{{(k+1)}} = \textsc{{Concat}}\!\left(\mathbf{{h}}_v^{{(k)}}, \{{\,\mathbf{{h}}_u^{{(k)}}, e_{{uv}} : u \in \mathcal{{N}}(v)\}}\right),
+    \quad
+    s(m,d) = \textsc{{LLM}}\big(\mathbf{{h}}_m^{{(L)}}, \mathbf{{h}}_d^{{(L)}}\big)
+    \end{{equation}}
+    Here, {{\mathbf{{h}}_v^{{(0)}} = \mathbf{{x}}_v}} corresponds to the textual description of node {{v}}. The {{\textsc{{Concat}}}} function converts all neighbor attributes into natural language and concatenates them into a serialized context. The LLM then consumes these prompts for {{m}} and {{d}}, jointly reasoning over their neighborhoods to predict {{s(m,d)}}. We typically adopt a single TextGNN layer due to the limited context window size of LLMs.
 
-    \paragraph{{Verification}}
-    Once the ranked list is produced, we proceed to the verification stage. Given limited computational resources, we select the top-$k$ predictions for each dataset to maximize the chance of identifying true discoveries. Verification is performed by a coding agent designed for model–dataset auto-evaluation: it automatically downloads the target model and dataset from HuggingFace, loads them in the correct configuration, and executes an inference pipeline to obtain evaluation results. This design makes verification both feasible and reliable, leveraging the standardized structure of HuggingFace artifacts to enable large-scale, automated evaluation.
+    \paragraph{{GNN-based modeling}}
+    Alternatively, we instantiate {{\textsc{{AGG}}}} using standard message passing in Graph Neural Networks. In this setting, node features are initialized as {{\mathbf{{h}}_v^{{(0)}} = \textsc{{Embed}}(\mathbf{{x}}_v)}} from the textual description {{\mathbf{{x}}_v}}, and representations are updated by:
+    \begin{{equation}}
+    \mathbf{{h}}_v^{{(k+1)}} = \sigma\!\left(W^{{(k)}} \mathbf{{h}}_v^{{(k)}} +
+    \textsc{{Agg}}^{{(k)}}\big(\{{\,W^{{(k)}} \mathbf{{h}}_u^{{(k)}}, e_{{uv}} : u \in \mathcal{{N}}(v)\}}\big)\right),
+    \quad
+    s(m,d) = \textsc{{MLP}}\!\left([\mathbf{{h}}_m^{{(L)}} \,\|\, \mathbf{{h}}_d^{{(L)}}]\right)
+    \end{{equation}}
+    Here, {{\textsc{{Agg}}^{{(k)}}(\cdot)}} can be implemented with classical GNN operators such as {{\textsc{{GATv2Conv}}}}~\citep{{brody2021attentive}}. The edge scoring function {{s(m,d)}} is then computed by an MLP over the concatenation of the final node embeddings {{\mathbf{{h}}_m^{{(L)}}}} and {{\mathbf{{h}}_d^{{(L)}}}}. In contrast to the LLM models above, this model is tuned using a training set of positive and negative links mined from the original artifact graph (see full details in Appendix~\ref{{app:gnn-details}}).
 
-    \paragraph{{Overall algorithm}} Based on the two stages and the overall framework is predict-then-verify.
+    \paragraph{{Ranking with score function}}
+    Given different modeling choices of {{s(m,d)}}, the prediction stage first produces a ranked list of all unseen pairs {{(m,d) \notin \mathcal{{E}}}}, ordered by their predicted score {{s(m,d)}}. This ranking reflects the discovery potential of each candidate, with higher scores indicating stronger likelihood of advancing the state of the art.
+
+    From this ranked list, we further define the set of promising candidates as
+    \begin{{equation}}
+    \mathcal{{C}} = \left\{{(m,d) \,\middle|\,
+    (m,d) \notin \mathcal{{E}},\; m \in \mathcal{{V}}_m,\; d \in \mathcal{{V}}_d,\;
+    s(m,d) \geq \max_{{(m',d)\in\mathcal{{E}}}} \phi(m',d) - \delta
+    }}\right\}}
+    \end{{equation}}
+    where {{\delta \geq 0}} is a tolerance parameter and {{\phi(m',d)}} is the observed evaluation score of model {{m'}} on dataset {{d}}. In other words, the score function {{s(m,d)}} serves a dual purpose: it provides a global ranking over all candidates, and it defines a thresholded subset {{\mathcal{{C}}}} to guide the verification stage by focusing computation on the most promising discoveries.
+
+    \subsubsection{{Verification Stage with multi-stage planning}}
+    Given the candidate set {{\mathcal{{C}}}} with a relatively small size, the goal of verification is to execute and collect the concrete evaluation results. We verify each pair {{(m,d)}} with an agentic workflow, {{\textsc{{ReActLinker}}}}, that plans, generates, executes, and refines code for automatic benchmarking at scale. {{\textsc{{ReActLinker}}}} performs \emph{{node-first}} validation before any edge-level run via three sub-components: (1) \textit{{benchmark checker}} {{\mathrm{{check}}_d}} (resolve dataset on HuggingFace, validate version/splits, load a shard, and materialize examples), (2) \textit{{model checker}} {{\mathrm{{check}}_m}} (resolve model, verify dependencies/device, and dry-forward to confirm I/O contracts), and (3) \textit{{metric checker}} {{\mathrm{{check}}_k}} (instantiate the evaluation metric and sanity-check on synthetic {{(\hat{{y}},y)}}). Each stage within {{\textsc{{ReActLinker}}}} is a ReAct loop~\citep{{yao2023react}}. Only if all three checks pass does {{\textsc{{ReActLinker}}}} compose the pipeline (model {{\rightarrow}} dataset {{\rightarrow}} metric) and run the edge evaluation to obtain a real score:
+    \[
+    s^\ast(m,d) = \textsc{{ReActLinker}}\big(\mathbf{{x}}_m,\mathbf{{x}}_d\big)
+    \]
 
 
     Some tips are provided below:
     {section_tips}
-    
+
     **IMPORTANT GUIDELINES**:
     1. **CRITICAL**: Base your Method section on the **Proposed Approach** described above - this is the core methodology you must explain in detail
     2. Structure your Method section with multiple \paragraph{{}} blocks (minimum 3-5)
     3. Start with formal problem definition using mathematical notation
-    4. Include equations for key transformations (use \begin{{equation}}...\end{{equation}})
+    4. Include equations for key transformations (use \begin{{align}}...\end{{align}} for long equation)
     5. For each major component, explain BOTH what it does AND why (design rationale)
-    6. If the code reveals specific architectures/hyperparameters, incorporate them with proper notation
-    7. Build upon the motivation from previous sections while introducing technical details
-    8. Ensure the Method section fully elaborates on the approach outlined in the original idea
-    
+    6. Build upon the motivation from previous sections while introducing technical details
+    7. Ensure the Method section fully elaborates on the approach outlined in the original idea
+
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Method section builds upon the motivation and problem definition established earlier, while introducing your technical approach clearly and coherently.
 
     **Previous content:**
@@ -489,7 +505,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite papers when referencing their methods, when building upon their techniques, or when comparing approaches).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in. DO NOT SAY CONCRETE EXPERIMENTAL SETUP IN METHOD SECTION. JUST DESCRIBE THE ALGORITHM AND THE MAJOR COMPONENT OF YOUR METHOD.
@@ -520,7 +536,7 @@ section_prompt:
 
     Some tips are provided below:
     {section_tips}
-    
+
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Experimental Setup section clearly connects to the method introduced earlier and provides specific implementation details that follow logically from the proposed approach.
 
     **Previous content:**
@@ -528,7 +544,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite datasets when referencing them, cite papers when using their evaluation metrics or experimental protocols).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
@@ -551,7 +567,7 @@ section_prompt:
     {baseline_results}
 
     An example for discussion is as follow:
-    
+
     To assess the effectiveness of \modelname, we first ensure that its performance gains are genuine and not the result of reward hacking (RQ1). We then analyze how our improvements come from the design of the reward attribution (RQ2) and the reward combination (RQ3).
 
     \subsection*{{RQ1: Does our improvement come from reward hacking or shortcut learning?}}  \textit{{No, \sotopia-RL learns high-quality social skills instead of overfitting on partner models or evaluator models.}}
@@ -569,9 +585,9 @@ section_prompt:
 
 
     **CRITICAL INSTRUCTIONS FOR YOUR DISCUSSION**:
-    
+
     Following the example above, you MUST structure your Discussion to **anticipate and address reviewer challenges**. Your goal is to make the paper more convincing by proactively defending against potential attacks.
-    
+
     **Required Structure**:
     1. Write an opening paragraph that outlines what challenges you will address (like the example above)
     2. Create 3-4 subsections, each formatted as:
@@ -583,15 +599,10 @@ section_prompt:
     - Reference concrete evidence: "as shown in Table X" or "Figure Y demonstrates"
     - Compare to multiple baselines or settings when possible
     - Admit minor limitations honestly, but explain why they don't invalidate the method
-    
+
     Some additional tips for writing a strong Discussion section:
     {section_tips}
 
-    **CRITICAL**: Base your Discussion on:
-    1. **Your core approach** (algorithmic innovation described above) - explain WHY your algorithm design leads to the observed results
-    2. **Experimental results** (concrete numbers above) - reference specific improvements, ablations, comparisons
-    3. **Baseline comparisons** (if available) - explain where and why your method outperforms baselines
-    4. **Previous sections context** (below) - ensure coherence with Method, Results, and Experimental Setup
 
     **IMPORTANT**: You have access to all previous sections that were already written. Make sure your Discussion section synthesizes the results with the method, experimental setup, and broader context established earlier. Analyze the implications of your findings in relation to the original problem and methodology.
 
@@ -600,7 +611,7 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-    
+
     **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite papers when comparing your results to theirs, when discussing similar findings, or when referencing related analyses).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
@@ -667,91 +678,15 @@ section_prompt:
 
     Begin with:
     \section{{Conclusion}}
-    
+
     [Write one paragraph here]
 
-citation_related_work_prompt: |
-  Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
 
-  The title of the paper is: {idea_title}
-  The problem of the paper is: {problem}
-
-  This is round {round_num} out of {total_rounds}. You have already collected the following papers:
-  {collected_papers}
-
-  Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
-
-  json
-  ["Title 1", "Title 2", "Title 3"]
-  
-
-add_citation_prompt: |
-  Given current version of the paper
-
-  The title of the paper is: {idea_title}
-  The problem of the paper is: {problem}
-  The challenges of the paper are: {challenges}
-
-  You are reviewing the following section: {section}
-
-  Current content of the section:
-  """
-  {section_content}
-  """
-  Based on the type of section (e.g., Introduction, Method, Experimental Setup, Discussion) and the depth of the content provided, determine how many references would be reasonably appropriate to support the key statements and claims.
-
-  Your task:
-  - Return a list of **real, published academic papers** that should be cited in this section.
-  - All references must be directly relevant to the corresponding section's current content.
-  - Prefer widely recognized or foundational papers if possible.
-  - Do **not** fabricate or suggest speculative titles.
-
-  You **must return at least 6** real paper titles.
-  All titles must be real and verifiable.
-  Please return only a JSON array (strictly valid) of new paper titles. These must be actual paper titles that are published and relevant to the topic. Example:
-
-  json
-  ["Title 1", "Title 2", "Title 3"]
-  
-
-embed_citation_prompt: |
-  You are assisting with embedding citation placeholders into an academic LaTeX section.
-
-  You are reviewing the following section: {section}
-
-  Here is the current content of the section:
-  """
-  {section_content}
-  """
-
-  You must cite **all** of the following papers using LaTeX \cite{{...}} format:
-  {references}
-
-  INSTRUCTIONS:
-  - Each paper is formatted as: **[bibtex_key]** Paper Title (authors, venue, year)
-  - When citing a paper, you MUST use the bibtex_key shown in square brackets [].
-  - For example, if you see **[chen2022cross]** Cross-lingual Transfer..., you must write \cite{{chen2022cross}}
-  - Integrate citations into the most relevant parts of the section.
-  - Use `\cite{{...}}` format strictly (no markdown, no commentary).
-  - Do not fabricate new citations.
-  - Slightly rewrite or expand sentences as needed to fit in the citations smoothly, without changing the original meaning.
-  - Preserve and return the entire section content with all citations embedded.
-  - The output must be valid, standalone LaTeX with consistent formatting.
-
-  **MEANINGFUL CITATION PLACEMENT**:
-  - Each citation must support a specific claim, statement, or finding in that exact sentence
-  - Place citations right after the claim they support (e.g., "Transformers excel at NLP tasks~\cite{{vaswani2017}}")
-  - Read the paper title and abstract to understand what it contributes, then cite it where relevant
-  - Do NOT place citations randomly or where they don't support the sentence content
-  - If a paper discusses method X, cite it in sentences about method X, not about dataset Y
-  - If no appropriate sentence exists for a paper, add a brief sentence making a claim that paper supports
-
-  FINAL OUTPUT: Return only valid LaTeX (no markdown, no explanations).
 
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
 
-  **CRITICAL STRUCTURE REQUIREMENT**: 
+  **CRITICAL STRUCTURE REQUIREMENT**:
   - Write **3 paragraphs** (at most 4 paragraphs)
   - Each paragraph should focus on a distinct category or theme of related work
   - Use \paragraph{{Category Name}} to start each paragraph
@@ -761,7 +696,7 @@ related_work_prompt: |
 
   \paragraph{{Graph Architecture Search}}
   Architecture search techniques have been applied to GNNs \cite{{gao2019graphnas,zhou2019auto}}.
-  However, these works only focus on the design within each GNN layer instead of a general GNN design space, 
+  However, these works only focus on the design within each GNN layer instead of a general GNN design space,
   and only evaluate the designs on a small number of node classification tasks.
 
   \paragraph{{Evaluation of GNN Models}}
@@ -788,10 +723,10 @@ related_work_prompt: |
 
   You must ground your discussion using **only** the following pre-selected relevant papers.
   Each paper is formatted as: **[bibtex_key]** Paper Title (authors, venue, year)
-  
+
   CRITICAL: When citing a paper, you MUST use the bibtex_key shown in square brackets [].
   For example, if you see **[gao2019graphnas]** GraphNAS..., you must write \cite{{gao2019graphnas}}
-  
+
   Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
   You must cite **all** of the following papers at least once using \cite{{...}}.
   Do not leave out any item from the list.
@@ -813,19 +748,3 @@ title_refinement_prompt: |
 
   Please provide a single, concise title that clearly reflects the paper's concept.
   Do not include any additional text, explanation, or formatting – output only the title.
-
-citation_aider_format: |
-  The following citations have just been added to the end of the `references.bib` file definition at the top of the file:
-  """
-  {bibtex}
-  """
-  You do not need to add them yourself.
-  ABSOLUTELY DO NOT ADD IT AGAIN!!!
-
-  Make the proposed change to the draft incorporating these new cites:
-  {description}
-
-  Use your judgment for whether these should be cited anywhere else.
-  Make sure that any citation precisely matches the name in `references.bib`. Change its name to the correct name in the bibtex if needed.
-  Ensure the citation is well-integrated into the text.
-  You must use \cite or \citet to reference papers, do not manually type out author names.

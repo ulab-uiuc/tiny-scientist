@@ -663,7 +663,7 @@ Be critical and realistic in your assessments."""
             cost_tracker=self.cost_tracker,
             task_name="generate_idea",
         )
-        
+
         print(f"[DEBUG] Idea generation response length: {len(text)} chars")
         idea = extract_json_between_markers(text)
         if isinstance(idea, list) and idea:
@@ -751,9 +751,9 @@ Be critical and realistic in your assessments."""
 
         paper_strings = []
         for i, paper in enumerate(papers):
-            title = paper.get('title', 'No title')
-            abstract = paper.get('abstract', '')
-            
+            title = paper.get("title", "No title")
+            abstract = paper.get("abstract", "")
+
             # Format: Title. Authors. Venue.\nAbstract: ...
             paper_str = f"{i}: {title}."
             if abstract and len(abstract.strip()) > 0:
@@ -762,7 +762,7 @@ Be critical and realistic in your assessments."""
                 if len(abstract_text) > 500:
                     abstract_text = abstract_text[:2000] + "..."
                 paper_str += f"\nAbstract: {abstract_text}"
-            
+
             paper_strings.append(paper_str)
 
         return "\n\n".join(paper_strings)

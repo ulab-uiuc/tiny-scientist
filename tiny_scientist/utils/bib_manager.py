@@ -35,8 +35,10 @@ class BibManager:
         with open(bib_path, "w", encoding="utf-8") as f:
             f.write("\n\n".join(bib_entries))
 
-        print(f"[INFO] custom.bib created with {len(bib_entries)} entries at {bib_path}")
-        
+        print(
+            f"[INFO] custom.bib created with {len(bib_entries)} entries at {bib_path}"
+        )
+
         # Debug: Print first entry
         if bib_entries:
             print(f"[DEBUG] First bibtex entry:\n{bib_entries[0][:200]}...")

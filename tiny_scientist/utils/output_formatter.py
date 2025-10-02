@@ -87,54 +87,58 @@ class BaseOutputFormatter(abc.ABC):
 
     def _convert_markdown_to_latex(self, content: str) -> str:
         """Convert common Markdown syntax to LaTeX equivalents"""
-        
+
         # STEP 1: Fix mixed Markdown+LaTeX (e.g., **text\textbf{more** -> \textbf{text more})
         # Remove cases where ** and \textbf{ are mixed together
-        content = re.sub(r'\*\*([^\*]*?)\\textbf\{([^\}]*?)\*\*', r'\\textbf{\1\2}', content)
-        content = re.sub(r'\\textbf\{([^\}]*?)\*\*', r'\\textbf{\1}', content)
-        content = re.sub(r'\*\*([^\*]*?)\\textbf\{', r'\\textbf{\1', content)
-        
+        content = re.sub(
+            r"\*\*([^\*]*?)\\textbf\{([^\}]*?)\*\*", r"\\textbf{\1\2}", content
+        )
+        content = re.sub(r"\\textbf\{([^\}]*?)\*\*", r"\\textbf{\1}", content)
+        content = re.sub(r"\*\*([^\*]*?)\\textbf\{", r"\\textbf{\1", content)
+
         # STEP 2: **bold** -> \textbf{bold}
         def replace_bold(match):
             text = match.group(1)
             # Don't convert if it looks like it's already LaTeX or in math mode
-            if '\\' in text or '$' in text:
+            if "\\" in text or "$" in text:
                 return match.group(0)
             return f"\\textbf{{{text}}}"
-        
+
         # Match **text** but not inside $...$ or \[...\]
-        content = re.sub(r'\*\*([^\*]+?)\*\*', replace_bold, content)
-        
+        content = re.sub(r"\*\*([^\*]+?)\*\*", replace_bold, content)
+
         # *italic* -> \textit{italic} (single asterisk)
         def replace_italic(match):
             text = match.group(1)
-            if '\\' in text or '$' in text:
+            if "\\" in text or "$" in text:
                 return match.group(0)
             return f"\\textit{{{text}}}"
-        
+
         # Match *text* but not ** (already handled) and not inside math
         # Use word boundaries to avoid matching math multiplication
-        content = re.sub(r'(?<!\*)\*([^\*\s][^\*]*?[^\*\s])\*(?!\*)', replace_italic, content)
-        
+        content = re.sub(
+            r"(?<!\*)\*([^\*\s][^\*]*?[^\*\s])\*(?!\*)", replace_italic, content
+        )
+
         # `code` -> \texttt{code} (but avoid if already in verbatim or math)
         def replace_code(match):
             text = match.group(1)
-            if '\\' in text:
+            if "\\" in text:
                 return match.group(0)
             # Escape special LaTeX characters in code
-            text = text.replace('_', '\\_').replace('#', '\\#').replace('%', '\\%')
+            text = text.replace("_", "\\_").replace("#", "\\#").replace("%", "\\%")
             return f"\\texttt{{{text}}}"
-        
-        content = re.sub(r'`([^`]+?)`', replace_code, content)
-        
+
+        content = re.sub(r"`([^`]+?)`", replace_code, content)
+
         # Normalize algorithm commands (support both old and new style)
         # The 'algorithmic' package uses uppercase (\STATE, \FOR, \IF, etc.)
         # The 'algpseudocode' package uses mixed case (\State, \For, \If, etc.)
         # We keep uppercase as-is since we load the 'algorithmic' package
         # But also ensure common variants work
-        
+
         return content
-    
+
     def _clean_body_content(self, body_content: str) -> str:
         patterns_to_remove = [
             r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",  # matches \documentclass[...]{...}
@@ -399,14 +403,20 @@ class BaseOutputFormatter(abc.ABC):
             "\\usepackage{algpseudocode}  % New-style commands (\\State, \\For, etc.)\n"
             "\\usepackage{algorithmicx}   % Enhanced algorithm support\n\n"
         )
-        
+
         # Check if amsmath is already present (avoid duplicate injection)
         if "amsmath" not in template_text:
             # Inject before \begin{document}
-            template_text = template_text[:begin_doc_match.start()] + math_packages + template_text[begin_doc_match.start():]
+            template_text = (
+                template_text[: begin_doc_match.start()]
+                + math_packages
+                + template_text[begin_doc_match.start() :]
+            )
             # Update match after injection
             begin_doc_match = re.search(r"(\\begin{document})", template_text)
-            print("[INFO] Injected essential packages: math (amsmath, amssymb, amsthm, mathtools, bm) + algorithms (algorithm, algorithmic, algpseudocode, algorithmicx)")
+            print(
+                "[INFO] Injected essential packages: math (amsmath, amssymb, amsthm, mathtools, bm) + algorithms (algorithm, algorithmic, algpseudocode, algorithmicx)"
+            )
 
         maketitle_match = re.search(r"(\\maketitle)", template_text)
         ending_match = re.search(r"(\\end{document})", template_text)
@@ -431,17 +441,11 @@ class BaseOutputFormatter(abc.ABC):
 
         with open(bib_path, "r") as f:
             bib_content = f.read()
-        
-        valid_keys = set(
-            re.findall(
-                r"@\w+\{([^,]+),",
-                bib_content,
-                re.IGNORECASE
-            )
-        )
-        
+
+        valid_keys = set(re.findall(r"@\w+\{([^,]+),", bib_content, re.IGNORECASE))
+
         valid_keys = {k.strip() for k in valid_keys}
-        
+
         print(f"[DEBUG] Found {len(valid_keys)} valid bibtex keys in custom.bib")
         if valid_keys:
             print(f"[DEBUG] Sample keys: {list(valid_keys)[:5]}")
@@ -451,10 +455,10 @@ class BaseOutputFormatter(abc.ABC):
             # Clean each key: remove extra braces and whitespace
             keys = []
             for k in raw_keys.split(","):
-                cleaned = k.strip().lstrip('{').rstrip('}').strip()
+                cleaned = k.strip().lstrip("{").rstrip("}").strip()
                 if cleaned:
                     keys.append(cleaned)
-            
+
             # Filter valid keys
             valid = [k for k in keys if k in valid_keys]
             if valid:
@@ -592,7 +596,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        """LaTeX compilation using pdflatex"""
+        """LaTeX compilation using pdflatex (no latexmk required)"""
         self._ensure_pdflatex()
 
         fname = "acl_latex.tex"
@@ -601,37 +605,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
             return
 
         try:
-            # Method 1: Try latexmk (should handle everything automatically)
-            result = subprocess.run(
-                [
-                    "latexmk",
-                    "-pdf",
-                    "-bibtex",
-                    "-interaction=nonstopmode",
-                    "-file-line-error",
-                    fname,
-                ],
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-            )
-
-            pdf_name = fname.replace(".tex", ".pdf")
-            pdf_path = osp.join(cwd, pdf_name)
-
-            # If latexmk succeeded and PDF exists, we're done
-            if osp.exists(pdf_path):
-                stdout_output = result.stdout.decode("utf-8", errors="ignore")
-                if not (
-                    "undefined" in stdout_output.lower()
-                    and "citation" in stdout_output.lower()
-                ):
-                    shutil.move(pdf_path, output_pdf_path)
-                    return
-
-            # Method 2: Manual compilation (only if latexmk failed or has citation issues)
-            # Step 1: First pdflatex run
+            # Step 1: First pdflatex run (generates .aux file)
             subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -640,19 +614,17 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 timeout=timeout,
             )
 
-            # Step 2: Run bibtex (only if .aux file exists)
-            aux_file = osp.join(cwd, fname.replace(".tex", ".aux"))
-            if osp.exists(aux_file):
-                base_name = fname.replace(".tex", "")
-                subprocess.run(
-                    ["bibtex", base_name],
-                    cwd=cwd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=timeout,
-                )
+            # Step 2: Run bibtex (generates .bbl file from .aux and .bib)
+            base_name = fname.replace(".tex", "")
+            subprocess.run(
+                ["bibtex", base_name],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
 
-            # Step 3: Second pdflatex run (to read .bbl file and update references)
+            # Step 3: Second pdflatex run (reads .bbl file and updates references)
             subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -661,7 +633,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
                 timeout=timeout,
             )
 
-            # Step 4: Third pdflatex run (to resolve all cross-references and citations)
+            # Step 4: Third pdflatex run (resolves all cross-references and citations)
             subprocess.run(
                 ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
@@ -681,7 +653,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         except Exception:
             return
 
-        # Move the PDF
+        # Move the PDF to final location
         pdf_source = osp.join(cwd, fname.replace(".tex", ".pdf"))
         if osp.exists(pdf_source):
             try:

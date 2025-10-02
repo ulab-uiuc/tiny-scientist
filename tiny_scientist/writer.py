@@ -4,7 +4,6 @@ import os.path as osp
 import re
 import time
 import traceback
-from importlib import resources
 from typing import Any, Dict, List, Optional, Tuple
 
 from rich import print
@@ -22,7 +21,6 @@ from .utils.output_formatter import (
     BaseOutputFormatter,
     ICLROutputFormatter,
 )
-
 
 # ---- Constants --------------------------------------------------------------
 
@@ -98,7 +96,9 @@ class Writer:
 
         # Formatter selection
         if self.template == "acl":
-            self.formatter: BaseOutputFormatter = ACLOutputFormatter(model=self.model, client=self.client)
+            self.formatter: BaseOutputFormatter = ACLOutputFormatter(
+                model=self.model, client=self.client
+            )
         elif self.template == "iclr":
             self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
         else:
@@ -108,16 +108,7 @@ class Writer:
         self.config = Config(prompt_template_dir)
         self.prompts = self.config.prompt_template.writer_prompt
         self.cost_tracker = cost_tracker or BudgetChecker()
-
-        # Few-shot example
-        with resources.files("tiny_scientist.fewshot_sample").joinpath(
-            "automated_relational.txt"
-        ).open("r", encoding="utf-8") as f:
-            few_shot_sample_text = f.read()
-
-        self.system_prompt = self.prompts.write_system_prompt.format(
-            example_paper_draft=few_shot_sample_text
-        )
+        self.system_prompt = self.prompts.write_system_prompt.format()
 
         # Runtime state
         self.generated_sections: Dict[str, str] = {}
@@ -125,7 +116,9 @@ class Writer:
 
     # ---- Public API ---------------------------------------------------------
 
-    def run(self, idea: Dict[str, Any], experiment_dir: Optional[str] = None) -> Tuple[str, str]:
+    def run(
+        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
+    ) -> Tuple[str, str]:
         """
         Generate a full paper and export a PDF.
 
@@ -140,7 +133,11 @@ class Writer:
         print("[step] Generating Related Work…")
         self._write_related_work(idea)  # non-fatal if it fails
 
-        sections = REFINEMENT_SECTIONS_EXPERIMENTAL if is_experimental else REFINEMENT_SECTIONS_NONEXP
+        sections = (
+            REFINEMENT_SECTIONS_EXPERIMENTAL
+            if is_experimental
+            else REFINEMENT_SECTIONS_NONEXP
+        )
         for section in sections:
             self._write_section(idea, code, experiment_result, section, baseline_result)
 
@@ -198,7 +195,9 @@ class Writer:
         baseline_result: str = "",
     ) -> None:
         print(f"[section] {section}")
-        ctx = self._build_section_context(idea, code, experiment_result, baseline_result)
+        ctx = self._build_section_context(
+            idea, code, experiment_result, baseline_result
+        )
         ctx["section_tips"] = self.prompts.section_tips.get(section, "")
 
         template = self.prompts.section_prompt.get(section)
@@ -219,7 +218,9 @@ class Writer:
 
         # Try citation enrichment (non-fatal)
         try:
-            enriched = self._enrich_section_with_citations(section=section, idea=idea, max_queries=5)
+            enriched = self._enrich_section_with_citations(
+                section=section, idea=idea, max_queries=5
+            )
             if enriched:
                 self.generated_sections[section] = enriched
         except Exception as e:
@@ -266,9 +267,9 @@ class Writer:
                     else "Polish writing, ensure coherence, strengthen arguments"
                 )
                 method_hint = (
-                    'For Method: Add more \\paragraph{} blocks, equations, and technical depth'
+                    "For Method: Add more \\paragraph{} blocks, equations, and technical depth"
                     if section == "Method"
-                    else 'Enhance technical detail and clarity'
+                    else "Enhance technical detail and clarity"
                 )
 
                 prompt = self.prompts.multi_round_refinement_prompt.format(
@@ -295,11 +296,15 @@ class Writer:
                 if add_citations:
                     try:
                         idea_proxy = {"Title": self.generated_sections.get("Title", "")}
-                        enriched = self._enrich_section_with_citations(section, idea_proxy, max_queries=2)
+                        enriched = self._enrich_section_with_citations(
+                            section, idea_proxy, max_queries=2
+                        )
                         if enriched:
                             self.generated_sections[section] = enriched
                     except Exception as e:
-                        print(f"[warn] Citation add failed in round {r} for {section}: {e}")
+                        print(
+                            f"[warn] Citation add failed in round {r} for {section}: {e}"
+                        )
                         traceback.print_exc()
 
                 time.sleep(SLEEP_REFINE)
@@ -316,7 +321,10 @@ class Writer:
             return None
 
         queries = self._generate_search_queries(
-            idea, section=section, content_snippet=original[:600], max_queries=max_queries
+            idea,
+            section=section,
+            content_snippet=original[:600],
+            max_queries=max_queries,
         )
         papers = self._search_papers_by_queries(queries)
         if not papers:
@@ -350,7 +358,9 @@ class Writer:
     def _write_related_work(self, idea: Dict[str, Any]) -> None:
         """Write Related Work from paper searches; store bibtex/abstracts as references."""
         try:
-            queries = self._generate_search_queries(idea, section="Related_Work", max_queries=6)
+            queries = self._generate_search_queries(
+                idea, section="Related_Work", max_queries=6
+            )
             papers = self._search_papers_by_queries(queries)
             if not papers:
                 print("[warn] No papers found for Related Work")
@@ -493,20 +503,22 @@ class Writer:
         """Assemble all variables used by section prompt templates."""
         # Format the entire idea as a structured string
         idea_str = self._format_idea_as_string(idea)
-        
+
         return {
             "idea": idea_str,  # Complete idea in formatted string
             "title": idea.get("Title", "Research Paper"),  # Keep for specific use
             "code": code,
             "experiment_results": experiment_result,
             "baseline_results": baseline_result,
-            "previous_context": self._sections_as_markdown(exclude=set()),  # All previous sections
+            "previous_context": self._sections_as_markdown(
+                exclude=set()
+            ),  # All previous sections
         }
-    
+
     def _format_idea_as_string(self, idea: Dict[str, Any]) -> str:
         """Format the complete idea as a readable string."""
         parts = []
-        
+
         if idea.get("Title"):
             parts.append(f"**Title**: {idea['Title']}")
         if idea.get("Problem"):
@@ -522,7 +534,7 @@ class Writer:
         if idea.get("Experiment") or idea.get("ResearchPlan"):
             exp = idea.get("Experiment", idea.get("ResearchPlan", ""))
             parts.append(f"\n**Experiment Plan**: {exp}")
-        
+
         return "".join(parts)
 
     def _other_sections_context(self, exclude: set) -> str:
@@ -550,7 +562,12 @@ class Writer:
 
     def _sections_as_latex(self) -> str:
         """Render all sections roughly as LaTeX for title refinement."""
-        return "\n\n".join([f"\\section{{{sec}}}\n\n{cnt}" for sec, cnt in self.generated_sections.items()])
+        return "\n\n".join(
+            [
+                f"\\section{{{sec}}}\n\n{cnt}"
+                for sec, cnt in self.generated_sections.items()
+            ]
+        )
 
     # ---- I/O & small utilities --------------------------------------------
 
@@ -565,7 +582,9 @@ class Writer:
 
         code = self._read_text(osp.join(experiment_dir, "experiment.py"))
         exp = self._read_text(osp.join(experiment_dir, "experiment_results.txt"))
-        base = self._read_text(osp.join(experiment_dir, "baseline_results.txt"), missing_ok=True)
+        base = self._read_text(
+            osp.join(experiment_dir, "baseline_results.txt"), missing_ok=True
+        )
         return code, exp, base
 
     @staticmethod
