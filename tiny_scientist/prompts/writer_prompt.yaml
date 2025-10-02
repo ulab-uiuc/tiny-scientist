@@ -1,18 +1,42 @@
-write_system_prompt:
+write_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
   You have already figured out the research idea and the experiments you want to run.
   Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
 
   ⚠️ Do not include any citations or \cite{{}} commands in the content.
   Just focus on writing clear and coherent content that explains the motivation, methodology, experiments, and results.
-  When including tables, always use proper LaTeX tabular format (not Markdown).
-  Avoid using Markdown-style tables (e.g., those starting with `| Column |`) — they are not compatible with LaTeX rendering and will break the document.
+  
+  **IMPORTANT - Citation Principles** (when citations are added later):
+  - Each citation must support a specific claim, statement, or finding in that sentence
+  - Citations should be placed right after the claim they support
+  - Do NOT add citations randomly or at the end of unrelated sentences
+  - Only cite papers that are directly relevant to the specific content of that sentence
+  
+  **CRITICAL - LaTeX Format Only (NO Markdown)**
+  - NEVER mix Markdown and LaTeX syntax (e.g., **text\textbf{{ is WRONG)
+  - Use \textbf{{text}} for bold, NEVER **text**
+  - Use \textit{{text}} for italic, NEVER *text*
+  - Use \texttt{{text}} for code/monospace, NEVER `text`
+  - Example: \textbf{{Data Collection}}: not **Data Collection**: or **Data Collection\textbf{{
+  - When including tables, always use proper LaTeX tabular format (not Markdown)
+  - Avoid using Markdown-style tables (e.g., those starting with `| Column |`) — they are not compatible with LaTeX rendering and will break the document
+  - For algorithms, use \begin{{algorithmic}}...\end{{algorithmic}} with \STATE, \FOR{{...}}, \IF{{...}}, \WHILE{{...}}, \ENDFOR, \ENDIF, \ENDWHILE (uppercase commands)
 
   [LaTeX Formatting Reminder]
   - Use `\%` to indicate percentage values (e.g., 93\%)
   - Do not escape comment `%` symbols (e.g., `% comment`)
   - Wrap math expressions with `$...$`
   - Escape special characters, `_` as `\_`, `&` as `\&`, `#` as `\#`, etc.
+  - For algorithms, use uppercase commands like:
+    \begin{{algorithm}}
+    \caption{{Algorithm Name}}
+    \begin{{algorithmic}}
+    \STATE Initialize parameters $\theta$
+    \FOR{{each iteration $t = 1$ to $T$}}
+        \STATE Update $\theta$ using gradient
+    \ENDFOR
+    \end{{algorithmic}}
+    \end{{algorithm}}
 
   The purpose of this draft is to flesh out the content. Citations will be added later during the refinement process.
   Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
@@ -66,8 +90,9 @@ section_tips:
 
   Related_Work: |
     - Academic siblings of our work, i.e. alternative attempts in literature at trying to solve the same problem.
-    - Goal is to “Compare and contrast” - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
+    - Goal is to "Compare and contrast" - how does their approach differ in either assumptions or method? If their method is applicable to our Problem Setting I expect a comparison in the experimental section. If not, there needs to be a clear statement why a given method is not applicable.
     - Note: Just describing what another paper is doing is not enough. We need to compare and contrast.
+    - **STRUCTURE REQUIREMENT**: Write **3 paragraphs** (at most 4 paragraphs). Each paragraph should focus on a distinct category or theme of related work.
 
   Method: |
     - The first paragraph in the method should be problem definition. provide math notation and basic definition for the problem
@@ -90,15 +115,36 @@ section_tips:
     - Furthermore, you need to analyze and provide reasons about why this works or not
 
   Discussion: |
-    - Analyze what the experimental results reveal in the context of the original research question.
-    - Reflect on whether your method outperformed the baseline — and why that might be the case.
-    - Discuss any cases where your method underperformed or behaved unexpectedly.
-    - IMPORTANT POINT: for this section, you need to try to propose points that can be potentially attacked by the review. For example, Is the training result data leakage? Is the human evaluation solid? Does the improvement come from the point you claim?
-    - each subsection should be a research question
+    
+    **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**: 
+    You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a research question (RQ) that questions the validity of your method, then provide evidence-based defense.
+    
+    **Required Challenge Categories** (address at least 3-4):
+    1. **Data Integrity**: Could the results be due to data leakage, train-test overlap, or contamination?
+    2. **Baseline Fairness**: Are baselines implemented fairly? Could they be stronger with better hyperparameters?
+    3. **Ablation Validity**: Does the improvement really come from your claimed innovation, or from other factors (e.g., more parameters, longer training, different data preprocessing)?
+    4. **Generalization**: Do results hold across different datasets, domains, or settings? Or only in cherry-picked scenarios?
+    5. **Statistical Significance**: Are improvements statistically significant? Could they be due to random variance?
+    6. **Evaluation Metrics**: Are the evaluation metrics appropriate? Could they be gamed or misleading?
+    7. **Implementation Details**: Are there hidden implementation tricks that aren't disclosed?
+    8. **Computational Cost**: Is the improvement worth the added complexity/cost?
+    
+    **Format for Each Challenge**:
+    \subsection*{{RQ#: [Challenging question that makes your method look fake/weak]?}}
+    \textit{{[Short answer defending your method]}}
+    
+    [2-3 paragraphs with concrete evidence from experiments, ablations, or additional analysis that addresses the challenge]
+    
+    - Each subsection should be a research question that challenges your method
+    - Be specific and quantitative in your defense (cite figures, tables, numbers)
 
   Conclusion: |
-    - Brief recap of the entire paper.
-    - To keep going with the analogy, you can think of future work as (potential) academic offspring.
+    - **KEEP IT SHORT**: ONE single paragraph only (~100-150 words)
+    - Briefly restate the problem and key contribution (1-2 sentences)
+    - Summarize main findings (1-2 sentences)
+    - Mention one limitation or future direction (1 sentence)
+    - Do NOT repeat detailed content from Discussion or Results
+    - Academic papers favor concise, single-paragraph conclusions
 
 error_list: |
   - Unenclosed math symbols
@@ -125,6 +171,8 @@ multi_round_refinement_prompt: |
 
   **Section Guidelines**:
   {section_tips}
+  
+  **SPECIAL INSTRUCTION for Conclusion**: If this is the Conclusion section, you MUST keep it as ONE single paragraph (~100-150 words). Do NOT expand it. Do NOT add multiple paragraphs.
 
   **Full Paper Context** (all other sections for coherence check):
   {other_sections_context}
@@ -142,9 +190,20 @@ multi_round_refinement_prompt: |
   8. Do NOT remove, modify, or relocate existing citations unless absolutely necessary
   9. If you add new content, you may add NEW citations, but keep all existing ones
   10. Do NOT remove any existing content unless it's redundant or contradicts other sections
+  
+  **MEANINGFUL CITATION PLACEMENT**:
+  - Each citation must support a specific claim, statement, or finding in that sentence
+  - Citations should be placed right after the claim they support
+  - Do NOT add citations randomly or where they don't support the sentence content
 
   **Common Errors to Avoid**:
   {error_list}
+
+  **CRITICAL - LaTeX Format Only (NO Markdown)**:
+  - Use \textbf{{text}} for bold, NOT **text**
+  - Use \textit{{text}} for italic, NOT *text*
+  - Use \texttt{{text}} for code/monospace, NOT `text`
+  - For algorithms, use \STATE, \FOR{{...}}, \ENDFOR, \IF{{...}}, \ENDIF (uppercase)
 
   Output the refined section directly (no explanations).
 
@@ -158,14 +217,23 @@ add_new_citations_prompt: |
   {paper_context}
 
   **CRITICAL INSTRUCTIONS**:
-  1. Each paper is formatted as: **[bibtex_key]** Title (authors, venue, year)
-  2. You MUST use the bibtex_key in square brackets [] when citing
-  3. Add citations using \\cite{{bibtex_key}} format
+  1. Each paper is formatted as: [CITE_KEY: bibtex_key] Title (authors, venue, year)
+  2. You MUST extract the bibtex_key from [CITE_KEY: bibtex_key] and use it for citations
+  3. Add citations using \\cite{{bibtex_key}} format (use EXACTLY the bibtex_key shown)
   4. Cite ALL {num_papers} new papers provided above
-  5. Keep ALL existing citations and content
+  5. Keep ALL existing citations and content intact
   6. Add new citations in contextually appropriate places
   7. If needed, expand 1-2 sentences to naturally incorporate citations
   8. Do NOT remove or change existing citations
+  9. Example: If you see [CITE_KEY: Smith2024], cite it as \\cite{{Smith2024}}
+
+  **MEANINGFUL CITATION PLACEMENT**:
+  - Each citation MUST directly support the specific claim or statement in that sentence
+  - Place citations immediately after the claim they support (e.g., "Recent work shows improvement~\\cite{{Smith2024}}.")
+  - Read each paper's abstract to understand what it claims, then cite it where that claim is relevant
+  - Do NOT add citations randomly or at the end of unrelated sentences
+  - If you need to cite a paper but no suitable sentence exists, add a new sentence that makes a claim the paper supports
+  - Example: If a paper proposes a new architecture, cite it when discussing that architecture, NOT when discussing datasets
 
   Output the enhanced section with all citations.
 
@@ -189,12 +257,25 @@ citation_system_prompt: |
 
   Your role:
   - When asked to suggest citations, return only real, published academic paper titles that are highly relevant to the given content.
-  - When asked to embed citations, you will be provided with papers in the format: **[bibtex_key]** Paper Title (authors, venue, year)
-  - You MUST use the bibtex_key shown in square brackets [] when inserting `\cite{{bibtex_key}}` commands.
-  - For example, if you see **[smith2023nlp]** Natural Language Processing..., you must write \cite{{smith2023nlp}}
+  - When asked to embed citations, you will be provided with papers in the format: [CITE_KEY: bibtex_key] Paper Title (authors, venue, year)
+  - You MUST extract and use the EXACT bibtex_key from [CITE_KEY: bibtex_key] when inserting `\cite{{bibtex_key}}` commands.
+  - For example, if you see [CITE_KEY: smith2023nlp] Natural Language Processing..., you must write \cite{{smith2023nlp}}
+  - NEVER invent citation keys - only use the keys explicitly provided in [CITE_KEY: ...]
+
+  **CRITICAL - MEANINGFUL CITATION PLACEMENT**:
+  - Each citation MUST support a specific claim, method, finding, or statement in that sentence
+  - Citations should be placed immediately after the claim they support
+  - Do NOT randomly insert citations without clear relevance to the sentence content
+  - If a paper is not directly relevant to a specific claim, do NOT force it into that sentence
+  - Each citation should have a clear purpose: supporting a claim, referencing a method, citing prior work, etc.
 
   Do not invent or fabricate any citations.
   Do not output BibTeX, author names, or publication details.
+  
+  **CRITICAL - LaTeX Format Only (NO Markdown)**:
+  - Use \textbf{{text}} for bold, NOT **text**
+  - Use \textit{{text}} for italic, NOT *text*
+  - Use \texttt{{text}} for code/monospace, NOT `text`
   Be thorough - missing citations is not acceptable
   Always follow the expected output format (JSON array or updated LaTeX content), with no extra commentary or explanation.
 
@@ -312,6 +393,8 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+    
+    **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite prior work when stating what has been done before, cite foundational work when introducing concepts).
 
     Use at **5 paragraphs**, and aim for **250–300 words**.
 
@@ -324,6 +407,9 @@ section_prompt:
 
   Method: |
     Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
+
+    **EXPERIMENT DESIGN REFERENCE** (Use this to inform your writing, do NOT copy the table directly):
+    {experiment_table}
 
     CRITICAL REQUIREMENTS:
     1. **Problem Formulation (MANDATORY)**: Start with a formal mathematical definition
@@ -433,6 +519,8 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+    
+    **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite papers when referencing their methods, when building upon their techniques, or when comparing approaches).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in. DO NOT SAY CONCRETE EXPERIMENTAL SETUP IN METHOD SECTION. JUST DESCRIBE THE ALGORITHM AND THE MAJOR COMPONENT OF YOUR METHOD.
     In this pass, do not reference anything in later sections of the paper.
@@ -443,6 +531,9 @@ section_prompt:
 
   Experimental_Setup: |
     Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
+
+    **EXPERIMENT DESIGN REFERENCE** (Use this to guide your writing, do NOT copy the table directly):
+    {experiment_table}
 
     An example for experimental setting is:
 
@@ -474,23 +565,21 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
-
-    Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
-    In this pass, do not reference anything in later sections of the paper.
-
-
-    Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
-    Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+    
+    **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite datasets when referencing them, cite papers when using their evaluation metrics or experimental protocols).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
     In this pass, do not reference anything in later sections of the paper.
 
     Begin with:
-    \section{{Experiemtnal Setup}}
+    \section{{Experimental Setup}}
     ...
 
   Discussion: |
     Please fill in the Discussion section of the writeup. Follow the instructions carefully.
+
+    **EXPERIMENT DESIGN REFERENCE** (Use this to understand the experimental design and rationale):
+    {experiment_table}
 
     An example for discussion is as follow:
     
@@ -510,7 +599,34 @@ section_prompt:
     To discuss why the reward combination brings improvement, we first rule out the possibility that the observed gains are merely due to reward label smoothing. To test this, we increased the attribution granularity from a 3-point to a 10-point scale and reran the pipeline. The 10-point scale did not outperform the 3-point scale on \goalcompletion\ (6.44 vs.\ 6.74), indicating that the benefits cannot be explained by finer reward scaling alone. Next, we examine whether the improvement comes from capturing complementary aspects of social interactions. As shown in Table~\ref{{tab:bc-partner-hard}}, models trained on knowledge, relationship, and goal rewards exhibit positive but only moderate correlations. This suggests that each objective captures a distinct facet, and combining them allows the model to leverage a broader range of social signals. Finally, Figure~\ref{{fig:goal-curve-a}} shows that training with combined rewards stabilizes RL and regularizes the single-dimension objective in later stages. Such regularization contributes to the consistent improvement we observe.
 
 
-    Some tips for writing a strong Discussion section:
+    **CRITICAL INSTRUCTIONS FOR YOUR DISCUSSION**:
+    
+    Following the example above, you MUST structure your Discussion to **anticipate and address reviewer challenges**. Your goal is to make the paper more convincing by proactively defending against potential attacks.
+    
+    **Required Structure**:
+    1. Write an opening paragraph that outlines what challenges you will address (like the example above)
+    2. Create 3-4 subsections, each formatted as:
+       - \subsection*{{RQ#: [Question that challenges your method's validity]?}}
+       - \textit{{[One-sentence answer defending your method]}}
+       - 2-3 paragraphs with concrete evidence (cite specific experiments, figures, tables, numbers)
+    
+    **What Challenges to Address** (pick 3-4 most relevant to your method):
+    - **Data Leakage/Contamination**: "Could the improvement be due to data leakage or train-test contamination?" → Show evidence of proper data splits, cross-validation, etc.
+    - **Unfair Baseline Comparison**: "Are the baselines implemented fairly, or are they artificially weak?" → Show you used same hyperparameters, fair comparison, or cite baseline papers
+    - **Source of Improvement**: "Does the gain come from your claimed innovation, or from other factors?" → Provide ablation studies showing your specific component is responsible
+    - **Cherry-Picking/Generalization**: "Do results only work on this specific dataset/setting?" → Show results on multiple datasets or different configurations
+    - **Statistical Significance**: "Could the improvement be due to random variance?" → Provide error bars, significance tests, or multiple runs
+    - **Evaluation Metric Gaming**: "Could the metric be misleading or easily gamed?" → Show additional metrics or human evaluation
+    - **Hidden Implementation Tricks**: "Are there undisclosed tricks making it work?" → Explicitly state you follow standard practices
+    - **Overfitting to Test Set**: "Did you tune on test data?" → Show proper validation methodology
+    
+    **Tips for Strong Defense**:
+    - Be specific with numbers: "improves by 15.3% (p<0.01)" not "improves significantly"
+    - Reference concrete evidence: "as shown in Table X" or "Figure Y demonstrates"
+    - Compare to multiple baselines or settings when possible
+    - Admit minor limitations honestly, but explain why they don't invalidate the method
+    
+    Some additional tips for writing a strong Discussion section:
     {section_tips}
 
     - Experimental results: **{experiment_results}**
@@ -523,6 +639,8 @@ section_prompt:
 
     Be sure to use \cite or \citet where relevant, referring to the works provided in the file.
     Do not cite anything that is not already in `references.bib`. Do not add any new entries to this.
+    
+    **Citation Usage**: Each citation must support a specific claim in that sentence (e.g., cite papers when comparing your results to theirs, when discussing similar findings, or when referencing related analyses).
 
     Keep the experimental results (figures and tables) only in the Results section, and make sure that any captions are filled in.
     In this pass, do not reference anything in later sections of the paper.
@@ -533,6 +651,9 @@ section_prompt:
 
   Results: |
     Please fill in the Results section of the research paper. Follow the instructions carefully.
+
+    **EXPERIMENT DESIGN REFERENCE** (Use this to understand evaluation metrics and baselines, do NOT copy):
+    {experiment_table}
 
     A good result section should look like this:
 
@@ -552,6 +673,8 @@ section_prompt:
     **Previous content:**
     {previous_context}
 
+    **Citation Usage**: If citing prior work (e.g., for baselines or comparisons), each citation must support a specific claim in that sentence (e.g., cite papers when reporting their baseline results or when comparing performance).
+
     Ensure that all results presented have been obtained and are recorded in the logs.
     In this pass, do not reference anything in later sections of the paper.
 
@@ -560,25 +683,27 @@ section_prompt:
     ...
 
   Conclusion: |
-    Please fill in the Conclusion section of the research paper. Follow the instructions carefully.
+    Please write a **BRIEF and CONCISE** Conclusion section as **ONE single paragraph** (~100-150 words).
 
-    Some tips for writing a strong Conclusion section:
     {section_tips}
-
-    The proposed experiment was **{experiment}**.
-    Summarize its findings based on the results section and highlight its importance.
-
-    **IMPORTANT**: You have access to all previous sections that were already written. Make sure your Conclusion provides a coherent synthesis of the entire paper, connecting the original motivation, method, experiments, and results into a clear summary of contributions and implications.
 
     **Previous content:**
     {previous_context}
 
-    Keep the conclusion concise and ensure it aligns with the claims made throughout the paper.
-    In this pass, do not reference anything in later sections of the paper.
+    **CRITICAL REQUIREMENTS**:
+    1. Write ONLY ONE paragraph (no paragraph breaks)
+    2. Structure: Problem → Contribution → Key findings → Future direction
+    3. Total length: 4-6 sentences maximum (~100-150 words)
+    4. NO new information, NO detailed explanations
+    5. Do NOT repeat content from Discussion or Results in detail
+    6. Keep it concise and high-level
+
+    The proposed experiment was: {experiment}
 
     Begin with:
     \section{{Conclusion}}
-    ...
+    
+    [Write one paragraph here]
 
 citation_related_work_prompt: |
   Please search and collect a paper list which contains at least {num_papers} unique, relevant published paper titles that would be appropriate for inclusion in the Related Work section of a research paper with following topic.
@@ -648,10 +773,24 @@ embed_citation_prompt: |
   - Preserve and return the entire section content with all citations embedded.
   - The output must be valid, standalone LaTeX with consistent formatting.
 
+  **MEANINGFUL CITATION PLACEMENT**:
+  - Each citation must support a specific claim, statement, or finding in that exact sentence
+  - Place citations right after the claim they support (e.g., "Transformers excel at NLP tasks~\cite{{vaswani2017}}")
+  - Read the paper title and abstract to understand what it contributes, then cite it where relevant
+  - Do NOT place citations randomly or where they don't support the sentence content
+  - If a paper discusses method X, cite it in sentences about method X, not about dataset Y
+  - If no appropriate sentence exists for a paper, add a brief sentence making a claim that paper supports
+
   FINAL OUTPUT: Return only valid LaTeX (no markdown, no explanations).
 
 related_work_prompt: |
   Please write the Related Work section of the research paper. Follow the instructions and structure strictly.
+
+  **CRITICAL STRUCTURE REQUIREMENT**: 
+  - Write **3 paragraphs** (at most 4 paragraphs)
+  - Each paragraph should focus on a distinct category or theme of related work
+  - Use \paragraph{{Category Name}} to start each paragraph
+  - Group related papers together within each paragraph
 
   An example for related work is:
 
@@ -691,6 +830,13 @@ related_work_prompt: |
   Use LaTeX `\cite{{...}}` format **strictly** to reference these works. Do not add any new citations.
   You must cite **all** of the following papers at least once using \cite{{...}}.
   Do not leave out any item from the list.
+
+  **MEANINGFUL CITATION USAGE**:
+  - Each citation must support a specific claim about that paper's contribution or approach
+  - Cite papers when discussing their methods, findings, or limitations
+  - Group related papers together and cite them when making comparative statements
+  - Do NOT just list papers with citations at the end - integrate them into your arguments
+  - Example: "Prior work has explored X~\cite{{paper1,paper2}}, but these approaches suffer from Y."
 
   {references}
 

@@ -88,6 +88,15 @@ modify_idea_prompt: |
 
   For each modification request, adjust the corresponding aspect (Novelty, Feasibility, or Impact) by emphasizing or de-emphasizing relevant characteristics.
 
+  **CRITICAL**: When modifying the idea:
+  - Keep the "Approach" field focused on the CORE NOVEL ALGORITHM (not basic preprocessing)
+  - The "Approach" should describe YOUR algorithmic innovation with mathematical/technical detail
+  - If increasing Novelty, add more distinctive technical innovations to the CORE ALGORITHM
+  - If increasing Feasibility, provide implementation details for the NOVEL component specifically
+  - Maintain detailed comparison with existing work in "NoveltyComparison"
+  - AVOID filling "Approach" with standard data processing, tokenization, or routine training procedures
+  - AVOID ethical considerations, societal impact, or bias discussions in "Approach" - focus ONLY on the technical algorithm
+
   Respond in the following format:
 
   THOUGHT:
@@ -158,13 +167,33 @@ query_prompt: |
   ```
   {intent}
   ```
-  Please generate an optimized search query to find the most relevant related work in the scientific literature. The query should:
+  Please generate a simple and effective search query to find the most relevant related work in the scientific literature.
 
-  1. Include key terms from the research intent
-  2. Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
-  3. Be specific enough to find closely related work but not so narrow that it misses important papers
-  4. Be formatted for academic search engines
-  5. Ensure the search will find papers that would help generate ideas relevant to the intent
+  **CRITICAL**: Focus your query on the UNIQUE/NOVEL aspects of the research approach, not just general topics.
+  
+  **SEARCH STRATEGY**:
+  1. Identify the CORE INNOVATION or unique combination in the intent
+  2. Search for papers specifically related to this novelty
+  3. Example: If using "causal graphs for GNN", search for "causal graph" AND "graph neural networks", NOT just "GNN"
+  4. Example: If proposing "adaptive attention for low-resource translation", search for "adaptive attention" AND "low-resource translation"
+
+  **QUERY CONSTRUCTION GUIDELINES**:
+  1. Use AND to connect the NOVEL component with the application domain
+  2. Use OR sparingly for alternative terms of the SAME concept
+  3. Keep multi-word phrases as simple text (e.g., causal graph, not "causal graph")
+  4. Keep it simple: 3-5 main concepts, avoid nested parentheses
+  5. Focus on what makes the idea UNIQUE, not general background
+
+  **GOOD EXAMPLES** (focused on novelty):
+  - causal graph AND graph neural networks
+  - adaptive attention AND (low-resource OR few-shot) AND translation
+  - contrastive learning AND graph structure
+  - meta-learning AND few-shot classification
+  
+  **BAD EXAMPLES** (too general or complex):
+  - "graph neural networks" (too general, misses the unique part)
+  - "machine translation" (too broad, no novel component)
+  - ((A OR B) AND (C OR D)) OR ((E AND F) OR G) (too complex)
 
   Respond in the following format:
 
@@ -174,7 +203,12 @@ query_prompt: |
   ```
 
   In <JSON>, respond in JSON format with ONLY the following field:
-  - "Query": The query you just generated
+  - "Query": The query you just generated (3-5 concepts, use AND/OR strategically)
+  
+  **CRITICAL JSON FORMAT**: 
+  - Do NOT use quotes around individual terms inside the Query value
+  - CORRECT: {{"Query": "causal graph AND graph neural networks"}}
+  - WRONG: {{"Query": "\"causal graph\" AND \"graph neural networks\""}}
 
 rethink_query_prompt: |
   Based on the following research idea and the original intent:
@@ -189,13 +223,32 @@ rethink_query_prompt: |
   {idea}
   ```
 
-  Please generate an optimized search query to find relevant literature that can help refine this idea. The query should:
+  Please generate an effective search query to find relevant literature that can help refine this idea.
 
-  1. Include key terms from BOTH the original intent AND the current research idea
-  2. Focus particularly on finding papers that can address current limitations or gaps in the idea
-  3. Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
-  4. Be specific enough to find closely related work but not so narrow that it misses important papers
-  5. Be formatted for academic search engines
+  **CRITICAL**: Focus your query on the NOVEL/UNIQUE component of the current idea, not just general topics.
+  
+  **SEARCH STRATEGY**:
+  1. Extract the CORE INNOVATION from the current idea (e.g., the specific algorithm, mechanism, or unique combination)
+  2. Search for papers specifically addressing this novel aspect
+  3. Example: If idea uses "hierarchical attention with dynamic weighting", search for "hierarchical attention" AND "dynamic weighting"
+  4. Example: If idea proposes "causal intervention for bias mitigation", search for "causal intervention" AND "bias mitigation"
+
+  **QUERY CONSTRUCTION GUIDELINES**:
+  1. Use AND to connect the NOVEL MECHANISM with the problem domain
+  2. Identify and search for the specific technical contribution, not general background
+  3. Keep multi-word phrases as simple text (e.g., causal intervention, not "causal intervention")
+  4. Keep it simple: 3-5 main concepts, avoid nested parentheses
+  5. Focus on what makes this idea UNIQUE compared to standard approaches
+
+  **GOOD EXAMPLES** (focused on the unique component):
+  - hierarchical attention AND dynamic weighting AND classification
+  - causal intervention AND bias mitigation AND NLP
+  - contrastive learning AND graph structure AND representation
+  
+  **BAD EXAMPLES** (too general or misses novelty):
+  - "deep learning" AND classification (too general)
+  - meta-learning AND few-shot OR adaptation AND neural OR networks (too chaotic)
+  - "machine translation" (misses the unique mechanism)
 
   Respond in the following format:
 
@@ -205,7 +258,12 @@ rethink_query_prompt: |
   ```
 
   In <JSON>, respond in JSON format with ONLY the following field:
-  - "Query": The query you just generated
+  - "Query": The query you just generated (3-5 concepts, use AND/OR strategically)
+  
+  **CRITICAL JSON FORMAT**: 
+  - Do NOT use quotes around individual terms inside the Query value
+  - CORRECT: {{"Query": "hierarchical attention AND dynamic weighting"}}
+  - WRONG: {{"Query": "\"hierarchical attention\" AND \"dynamic weighting\""}}
 
 novelty_query_prompt: |
   Based on the following research idea and the original intent:
@@ -220,13 +278,33 @@ novelty_query_prompt: |
   {idea}
   ```
 
-  Please generate an optimized search query to specifically find literature that might challenge the novelty of this idea. The query should:
+  Please generate a focused search query to specifically find literature that might challenge the novelty of this idea - papers that have already implemented similar approaches.
 
-  1. Target papers that might have already implemented similar approaches to address the original intent
-  2. Include key terms from both the idea and intent, focusing on the most distinctive aspects of the approach
-  3. Use appropriate Boolean operators (AND, OR) and quotation marks for phrases
-  4. Be formatted for academic search engines
-  5. Aim to find the most similar existing work to determine if this idea is truly novel
+  **CRITICAL**: Focus on the CORE NOVEL ALGORITHM/MECHANISM of the idea to check if it's truly new.
+  
+  **NOVELTY CHECK STRATEGY**:
+  1. Identify the MOST UNIQUE algorithmic component (e.g., specific attention mechanism, novel loss function, unique architecture)
+  2. Search for papers that may have already proposed this specific component
+  3. Example: If idea proposes "causal graph attention for GNN", search for "causal" AND "attention" AND "graph neural networks"
+  4. Example: If idea uses "adversarial contrastive learning", search for "adversarial" AND "contrastive learning"
+
+  **QUERY CONSTRUCTION GUIDELINES**:
+  1. Target the CORE INNOVATION: the specific algorithm, mechanism, or unique technical contribution
+  2. Use AND to connect the novel component with the application area
+  3. Keep multi-word phrases as simple text (no quotes needed)
+  4. Keep it simple: 3-5 main distinctive concepts
+  5. Focus on finding papers with the SAME algorithmic innovation
+
+  **GOOD EXAMPLES** (focused on core novelty):
+  - causal AND attention AND graph neural networks
+  - adversarial AND contrastive learning
+  - hierarchical AND dynamic attention AND classification
+  - meta-learning AND adapter AND transformers
+  
+  **BAD EXAMPLES** (too general or misses core innovation):
+  - "graph neural networks" (misses the "causal attention" novelty)
+  - hierarchical AND attention OR mechanism AND document OR text (too chaotic)
+  - "deep learning" AND classification (too general)
 
   Respond in the following format:
 
@@ -236,7 +314,12 @@ novelty_query_prompt: |
   ```
 
   In <JSON>, respond in JSON format with ONLY the following field:
-  - "Query": The query you just generated
+  - "Query": The query you just generated (3-5 distinctive concepts, use AND/OR strategically)
+  
+  **CRITICAL JSON FORMAT**: 
+  - Do NOT use quotes around individual terms inside the Query value
+  - CORRECT: {{"Query": "causal AND attention AND graph neural networks"}}
+  - WRONG: {{"Query": "\"causal\" AND \"attention\" AND \"graph neural networks\""}}
 
 # Complete prompts that combine all necessary information
 idea_first_prompt: |
@@ -256,6 +339,26 @@ idea_first_prompt: |
   {related_works_string}
   ```
 
+  **CRITICAL REQUIREMENTS**:
+  Your research idea must be:
+  1. **CONCRETE**: Specific CORE ALGORITHM with exact mathematical or algorithmic specification
+  2. **DETAILED**: Full technical depth focused on YOUR NOVEL MECHANISM, not standard procedures
+  3. **NOVEL**: Clear, explicit differentiation from 4-6 existing works by name
+  4. **TECHNICALLY SOLID**: Every algorithmic design choice justified with clear rationale
+  5. **IMPLEMENTABLE**: Sufficient detail about the NOVEL COMPONENT to start coding immediately
+  
+  You MUST include in the "Approach" field:
+  - **PRIMARY FOCUS (80%+)**: Your core algorithmic innovation
+  - Specific algorithm steps or mathematical formulation of YOUR contribution
+  - Design rationale: WHY your algorithm is designed this way
+  - Technical differentiation: HOW it differs from existing algorithms
+  - Input/output specifications and key computations
+  - Implementation details of the NOVEL component
+  - **MINIMIZE (<20%)**: Basic preprocessing, tokenization, standard training - mention only if essential
+  - **EXCLUDE**: Ethical considerations, societal impact, bias discussions - NOT part of the core algorithm
+  - Explicit comparison with 4-6 named existing works in "NoveltyComparison"
+  - Clear statement of your UNIQUE algorithmic/technical contribution
+
   Based on the above, come up with the next impactful and creative research idea that addresses the following questions:
   1. What is the problem?
     - Provide a comprehensive description of the research problem, including background, current challenges, and why the issue persists.
@@ -268,11 +371,22 @@ idea_first_prompt: |
     - Analyze the inherent challenges of the problem and explain why naive approaches have failed, citing previous studies.
     - Discuss why this problem remains difficult in the context of the original intent.
   4. Why hasn't it been solved before?
-    - Provide a textual summary explaining how your idea differs from existing solutions and why they don't fully address the intent. This will be the main content for the "NoveltyComparison" field.
-    - You will also provide a separate comparison table after the JSON.
-  5. What are the key components of my approach and results?
-    - Outline your proposed methodology.
-    - Explain how your approach specifically addresses the original intent.
+    - Provide a DETAILED textual summary (at least 150 words) explaining how your idea differs from existing solutions
+    - Cite at least 3-5 specific related works and explain their limitations
+    - Clearly articulate what makes your approach novel and different
+    - Explain why previous approaches don't fully address the intent
+    - This will be the main content for the "NoveltyComparison" field
+    - You will also provide a separate detailed comparison table after the JSON
+  5. What is the CORE NOVEL ALGORITHM of my approach?
+    - **CRITICAL**: Focus on describing the CORE ALGORITHM/MECHANISM that is your novel contribution
+    - DO NOT waste space on basic preprocessing, tokenization, or standard training procedures
+    - EMPHASIZE: The specific algorithmic innovation (e.g., new attention mechanism, novel loss function, unique architectural component)
+    - Explain the MATHEMATICAL FORMULATION or ALGORITHMIC STEPS of your core contribution
+    - Describe WHY this core algorithm is designed this way and what problem it solves
+    - Explain HOW this core algorithm differs from existing methods algorithmically
+    - Provide implementation-level details: What are the inputs/outputs? What computations are performed? What are the key equations?
+    - Be concrete enough that someone could implement YOUR NOVEL ALGORITHM from this description
+    - Basic information (data loading, standard tokenization, etc.) should be mentioned only briefly if necessary
 
   Note that you will not have access to any additional resources or datasets.
   Make sure any idea is not overfit to the specific training dataset or model, and has wider significance.
@@ -295,17 +409,36 @@ idea_first_prompt: |
 
   In <THOUGHT>, first briefly discuss your intuitions and motivations for the idea. Detail your high-level plan, necessary design choices and ideal outcomes of the experiments. Justify how the idea is different from the existing ones.
 
-  In <COMPARISON_TABLE>, provide a Markdown table comparing your idea to existing work. List each existing work on its own row. You MUST autonomously decide on the most relevant columns for this comparison. The final row MUST be your proposed idea, clearly marked (e.g., in bold as "**Our Approach**").
+  In <COMPARISON_TABLE>, provide a detailed Markdown table comparing your idea to existing work (minimum 4-6 prior works). The table MUST include these columns:
+  - **Work/Approach**: Name of the paper/method (with citation year)
+  - **Core Method**: Brief description of their approach
+  - **Key Innovation**: What was novel in that work
+  - **Limitations**: What gaps or issues remain
+  - **Differences from Our Work**: How your approach differs and improves
+  
+  You may add 1-2 additional relevant columns based on the specific research area (e.g., "Dataset Used", "Performance", "Computational Cost").
+  List at least 4-6 existing works, each on its own row with detailed comparisons.
+  The final row MUST be your proposed approach, clearly marked (e.g., "**Our Approach**") with all columns filled to show how it addresses the limitations.
 
   In <JSON>, provide the new idea in JSON format with the following fields:
   - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
   - "Title": A title for the idea, will be used for the report writing.
   - "Description": A concise, one or two-sentence summary that combines the core problem and the key insight of your proposed approach. This should provide a clear and immediate understanding of the research idea.
-  - "Problem": Answer to question 1.
-  - "Importance": Answer to question 2.
-  - "Difficulty": Answer to question 3.
-  - "NoveltyComparison": Answer to question 4.
-  - "Approach": Answer to question 5.
+  - "Problem": Answer to question 1. (Should be comprehensive with background, citations, and clear connection to intent)
+  - "Importance": Answer to question 2. (Should explain significance with literature references)
+  - "Difficulty": Answer to question 3. (Should analyze challenges and why naive approaches fail)
+  - "NoveltyComparison": Answer to question 4. (Should clearly differentiate from existing work with specific comparisons)
+  - "Approach": Answer to question 5. **CRITICAL**: This must focus on YOUR CORE NOVEL ALGORITHM (200-300 words) including:
+    * **PRIMARY FOCUS**: The specific algorithm/mechanism that is your novel contribution
+    * Mathematical formulation or algorithmic steps of the core innovation
+    * Why this algorithm is designed this way (design rationale)
+    * How it differs from existing algorithms at the technical level
+    * Input/output specifications and key computations
+    * Implementation-level details of the NOVEL component
+    * **AVOID**: Long descriptions of basic preprocessing, standard tokenization, or routine training procedures
+    * **AVOID**: Ethical considerations, societal impact, or bias discussions (these are NOT part of the core algorithm)
+    * **BRIEFLY mention** standard components only if necessary for context
+    * Focus ONLY on the technical algorithm, not on its broader implications
   - "is_experimental": A boolean (true or false). Set to true if the idea requires a computational experiment (like training a model). Set to false if it is a theoretical, qualitative, or historical study.
   - "Interestingness": A rating from 1 to 10 (lowest to highest).
   - "Feasibility": A rating from 1 to 10 (lowest to highest).
@@ -314,7 +447,14 @@ idea_first_prompt: |
   - "Score": Your assessment of this idea on the standard 1-10 ML conference scale.
 
   Be cautious and realistic on your ratings.
-  This JSON will be automatically parsed, so ensure the format is precise.
+  
+  **CRITICAL JSON FORMAT REQUIREMENTS**:
+  - This JSON will be automatically parsed, so ensure the format is precise
+  - Do NOT escape single quotes (') in strings - use them as-is (e.g., "node's features", not "node\'s features")
+  - Only escape double quotes (\"), backslashes (\\), and standard JSON escapes (\n, \t, etc.)
+  - Example CORRECT: "updating each node's representation"
+  - Example WRONG: "updating each node\'s representation"
+  
   You will have {num_reflections} rounds to iterate on the idea, but do not need to use them all.
 
   Completed ideas have an additional "Score" field which indicates the assessment by an expert ML reviewer.
@@ -329,26 +469,77 @@ idea_reflection_prompt: |
   {intent}
   ```
 
-  In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea you just created, then reevaluate your research idea with a focus on the following aspects:
-    - Intent Alignment: Does your idea directly address the original intent? If not, how can you refocus it?
-    - Problem: Is the research problem described in sufficient detail with proper background and citations?
-    - Importance: Does your explanation convincingly demonstrate the significance of the problem with literature references?
-    - Difficulty: Are the challenges and limitations clearly articulated with supporting citations?
-    - NoveltyComparison: Have you clearly differentiated your idea from existing work, with appropriate references?
-    - Approach: Is your proposed methodology described in detail and well-justified with citations?
+  CURRENT IDEA TO REFLECT ON:
+  ```
+  {current_idea}
+  ```
+
+  **YOUR GOAL**: Transform this idea into a **CONCRETE, DETAILED, NOVEL, and TECHNICALLY SOLID** research proposal that could be immediately implemented and published.
+
+  In your thoughts, first carefully consider the quality, novelty, and feasibility of the idea above, then reevaluate your research idea with a focus on the following aspects:
+  
+    - **Intent Alignment**: Does your idea directly address the original intent? If not, how can you refocus it?
+    
+    - **Problem**: Is the research problem described in sufficient detail with proper background and citations?
+      * Provide specific examples and concrete scenarios
+      * Include quantitative statements where possible
+    
+    - **Importance**: Does your explanation convincingly demonstrate the significance of the problem with literature references?
+      * Add concrete evidence of the problem's impact
+      * Cite recent work showing the urgency
+    
+    - **Difficulty**: Are the challenges and limitations clearly articulated with supporting citations?
+      * Explain WHY naive approaches fail with specific technical reasons
+      * Provide concrete failure cases or bottlenecks
+    
+    - **NoveltyComparison**: **CRITICAL** - Have you clearly differentiated your idea from existing work?
+      * Compare with at least 3-5 specific recent papers
+      * For EACH paper, explicitly state: (1) What they do, (2) Their limitation, (3) How your approach differs
+      * Identify the UNIQUE technical contribution that makes your work publishable
+      * Be specific about what combination of techniques/insights is novel
+      * If the novelty is incremental, make it clear what specific advancement you're making
+    
+    - **Approach**: **MOST CRITICAL** - Does it focus on the CORE NOVEL ALGORITHM/MECHANISM?
+      * **Focus Check**: Does 80%+ of the description focus on YOUR algorithmic innovation, not basic preprocessing?
+      * **Algorithm Detail**: Is the core algorithm described with mathematical formulation or algorithmic steps?
+      * **Design Rationale**: Is it clear WHY this algorithm is designed this way?
+      * **Technical Depth**: Are the key computations, inputs/outputs, and equations specified?
+      * **Differentiation**: Is it clear HOW your algorithm differs from existing ones at the technical level?
+      * **Implementation-ready**: Can someone implement YOUR NOVEL ALGORITHM from this description?
+      * **NO FLUFF**: Remove or minimize descriptions of standard tokenization, data loading, basic training loops
+      * **NO ETHICS**: Remove any discussion of ethical considerations, societal impact, or bias - these are NOT part of the core algorithm
+      * **Example Good**: "Our core contribution is a Dynamic Attention Pooling mechanism: Given input tokens X ∈ R^(n×d), we compute attention weights α_i = softmax(W_q X_i^T · W_k X / √d) where W_q and W_k are learnable projection matrices..."
+      * **Example Bad**: "We first tokenize the input using standard tokenization, then feed it into a transformer model with several layers, train it with Adam optimizer..."
+      * **Example Bad**: "We also consider ethical implications and ensure fairness..." (Save this for a separate ethics section, NOT in Approach)
+      * If the approach describes standard procedures or ethical considerations instead of the novel algorithm, you MUST rewrite it
 
   Refer to the following related works from recent literature that might help inform your reflection:
 
   ```
   {related_works_string}
   ```
+  **REFINEMENT PRIORITIES** (in order of importance):
+  1. **Core Algorithm Focus**: Ensure "Approach" focuses 80%+ on YOUR novel algorithm, not standard procedures
+  2. **Mathematical/Algorithmic Depth**: Add formulations, algorithm steps, and implementation details of the NOVEL component
+  3. **Novelty Clarity**: Explicitly state what's algorithmically new compared to 3-5 specific existing works
+  4. **Design Rationale**: Justify WHY your algorithm is designed this way
+  5. **Remove Fluff**: Eliminate lengthy descriptions of standard preprocessing, tokenization, basic training
+  6. **Remove Ethics**: Eliminate any discussion of ethical considerations, societal impact, or bias from "Approach"
+
+  **CRITICAL REQUIREMENTS FOR REFINED IDEA**:
+  - Approach section: MUST focus on CORE NOVEL ALGORITHM (200-300 words)
+  - 80%+ of "Approach" describes YOUR algorithmic innovation, not basic procedures
+  - Include mathematical formulation OR algorithmic steps of your novel component
+  - NoveltyComparison: MUST compare against at least 3-5 specific papers by name
+  - Every algorithmic design choice MUST have a technical justification
+  - Minimize descriptions of standard tokenization, data loading, routine training
+  - NO ethical considerations, societal impact, or bias discussions in "Approach"
+
   IMPORTANT: Your refined idea MUST maintain strong alignment with the original intent. If the current idea has drifted away from the original intent, you must realign it.
 
-  Include any other factors that you think are important in evaluating the idea.
-  Ensure the idea is clear and concise, and the JSON is the correct format.
-  Do not make things overly complicated.
-  In the next attempt, try and refine and improve your idea.
-  Stick to the spirit of the original idea unless there are glaring issues.
+  Do not make things overly complicated, but DO make them technically precise and detailed.
+  In the next attempt, significantly improve the technical depth, novelty clarity, and implementation details.
+  If the current idea is vague or lacks technical substance, this is a MAJOR issue that must be fixed.
 
   Respond in the same format as before:
   THOUGHT:
@@ -361,16 +552,50 @@ idea_reflection_prompt: |
   In <JSON>, provide the reflected idea in JSON format with the following fields:
   - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
   - "Title": A title for the idea, will be used for the report writing.
-  - "Problem": Answer to question 1.
-  - "Importance": Answer to question 2.
-  - "Difficulty": Answer to question 3.
-  - "NoveltyComparison": Answer to question 4.
-  - "Approach": Answer to question 5.
+  
+  - "Problem": **CONCRETE and SPECIFIC** problem statement with:
+    * Background context with quantitative evidence
+    * Specific examples or scenarios
+    * Citations to support claims
+  
+  - "Importance": **COMPELLING justification** with:
+    * Concrete evidence of impact (numbers, scale, real-world consequences)
+    * Citations to recent work showing urgency
+    * Clear connection to research/practical needs
+  
+  - "Difficulty": **TECHNICAL analysis** of challenges:
+    * Specific technical reasons why this is hard
+    * Concrete failure modes of naive approaches
+    * Bottlenecks or fundamental limitations
+  
+  - "NoveltyComparison": **EXPLICIT differentiation** from existing work:
+    * Name at least 3-5 specific recent papers/methods
+    * For EACH: (1) What they do, (2) Their limitation, (3) How yours differs
+    * Clear statement of your UNIQUE contribution
+    * Must be 150-250 words with specific comparisons
+  
+  - "Approach": **MOST CRITICAL** - Must describe the CORE NOVEL ALGORITHM (200-300 words):
+    * **PRIMARY FOCUS (80%+)**: YOUR specific algorithmic innovation/mechanism
+    * Mathematical formulation or algorithmic steps of the novel component
+    * Design rationale: WHY this algorithm solves the problem better
+    * Technical differentiation: HOW it differs from existing algorithms
+    * Input/output specs and key computations
+    * Implementation details of the NOVEL part only
+    * **MINIMIZE (<20%)**: Standard preprocessing, tokenization, basic training - mention only if essential
+    * **EXCLUDE**: Ethical considerations, societal impact, bias discussions - NOT part of the core algorithm
+    * Example: Focus on "novel attention mechanism with adaptive gating" NOT "tokenize text, train transformer with Adam"
+    * Example: Do NOT include "we also consider ethical implications" or "ensure fairness"
+  
   - "Interestingness": A rating from 1 to 10 (lowest to highest).
   - "Feasibility": A rating from 1 to 10 (lowest to highest).
-  - "Novelty": A rating from 1 to 10 (lowest to highest).
+  - "Novelty": A rating from 1 to 10 (lowest to highest). **Only rate high (8-10) if truly novel contribution**
   - "IntentAlignment": A rating from 1 to 10 indicating how well the idea addresses the original intent.
   - "Score": Your assessment of this idea on the standard 1-10 ML conference scale.
+
+  **CRITICAL JSON FORMAT REQUIREMENTS**:
+  - This JSON will be automatically parsed, so ensure the format is precise
+  - Do NOT escape single quotes (') in strings - use them as-is (e.g., "node's features", not "node\'s features")
+  - Only escape double quotes (\"), backslashes (\\), and standard JSON escapes (\n, \t, etc.)
 
   If there is nothing to improve, simply repeat the previous JSON EXACTLY after the thought and include "I am done" at the end of the thoughts but before the JSON.
   ONLY INCLUDE "I am done" IF YOU ARE MAKING NO MORE CHANGES.
@@ -446,15 +671,25 @@ experiment_plan_prompt: |
   In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
 
   In <JSON>, provide the plan in JSON format with these fields:
-  - "Model": Description of model architecture
-  - "Dataset": Description of dataset
-  - "Metric": Description of evaluation metric
+  - "Model": Detailed description of model architecture with specific components
+  - "Dataset": Detailed description of dataset including size, split, preprocessing
+  - "Metric": Description of evaluation metrics with justification
 
-  In <MARKDOWN_TABLE>, provide a more detailed plan as a Markdown table. This table MUST include the following columns:
-  - "Component": The part of the experiment (e.g., Model, Dataset, Baselines, Evaluation Metric).
-  - "Specification": A detailed description of the chosen approach.
-  - "Justification / Rationale": Why this choice is appropriate, citing relevant literature.
-  - "Status": Leave this column EMPTY.
+  In <MARKDOWN_TABLE>, provide a DETAILED experimental plan as a Markdown table. This table MUST include the following columns and rows:
+  - "Component": The part of the experiment
+  - "Specification": A DETAILED description with specifics (not vague descriptions)
+  - "Justification / Rationale": Why this choice is appropriate, citing relevant literature
+  - "Status": Leave this column EMPTY
+  
+  **REQUIRED ROWS** (at minimum):
+  1. **Model Architecture**: Specify exact architecture, layers, dimensions, parameters
+  2. **Dataset**: Name, size, splits (train/val/test), preprocessing steps
+  3. **Baselines**: List 3-5 specific baseline methods to compare against (with citations)
+  4. **Training Setup**: Optimizer, learning rate, batch size, epochs, hardware
+  5. **Evaluation Metrics**: Primary and secondary metrics with justification
+  6. **Hyperparameters**: Key hyperparameters and their values/ranges
+  
+  Each specification should be concrete and implementation-ready, not high-level or vague.
 
 non_experiment_plan_prompt: |
   Given the following non-experimental research idea:

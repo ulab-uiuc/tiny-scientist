@@ -352,7 +352,7 @@ class PaperSearchTool(BaseTool):
         else:
             raise NotImplementedError(f"{self.engine=} not supported!")
 
-    @api_calling_error_exponential_backoff(retries=1, base_wait_time=1)
+    @api_calling_error_exponential_backoff(retries=3, base_wait_time=2)
     def _search_semanticscholar(
         self, query: str, result_limit: int
     ) -> Optional[List[Dict[str, Any]]]:
