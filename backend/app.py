@@ -739,15 +739,23 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
             # Remove /api/files/ prefix
             relative_path = pdf_path[len("/api/files/") :]
             generated_base = os.path.join(project_root, "generated")
-            absolute_pdf_path = os.path.abspath(os.path.join(generated_base, relative_path))
-            
+            absolute_pdf_path = os.path.abspath(
+                os.path.join(generated_base, relative_path)
+            )
+
             # Security check: ensure the file is within the allowed directory
             if not absolute_pdf_path.startswith(os.path.abspath(generated_base)):
-                return jsonify({"error": "Access denied - path traversal not allowed"}), 403
+                return (
+                    jsonify({"error": "Access denied - path traversal not allowed"}),
+                    403,
+                )
         else:
             # For security, only allow paths that start with /api/files/
             # This prevents arbitrary file access on the server
-            return jsonify({"error": "Invalid path - only /api/files/ paths are allowed"}), 403
+            return (
+                jsonify({"error": "Invalid path - only /api/files/ paths are allowed"}),
+                403,
+            )
 
         print(f"Reviewing paper at: {absolute_pdf_path}")
 

@@ -427,47 +427,63 @@ section_prompt:
 
     An example for method writing is as follow:
 
-    \paragraph{{Definition of artifact graphs}}
-    We further define the artifact (model-data) graph as a bipartite graph $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$, where the node set $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}d$ consists of two disjoint types of nodes: model nodes and dataset nodes. The edge set $\mathcal{{E}} = \mathcal{{E}}{{md}}$ represents evaluation relationships between models and datasets. Each dataset node $v \in \mathcal{{V}}_d$ is associated with attributes such as metadata and task descriptions, while each model node $u \in \mathcal{{V}}_m$ is associated with model specifications such as architecture, parameters, and configuration.
+    To describe the overall pipeline of {{\modelname}}, we first formalize the problem definition of automatic discovery using the artifact-graph formulation. We then introduce our scalable solution, which addresses this problem via a two-stage \textit{{prediction–verification}} framework.
 
-    \paragraph{{Uniqueness of artifact graphs}}
-    Unlike general bipartite graphs, the edges in a artifact graph carry rich semantic information: each edge $(u, v) \in \mathcal{{E}}_{{md}}$ is annotated with evaluation results such as accuracy, F1, perplexity, or other task-specific metrics. This allows the graph to capture fine-grained performance relationships between models and datasets. Such a structure enables downstream applications like model routing, automatic benchmarking, and meta-analysis of model generalization across diverse tasks.
-
-    \paragraph{{Edge collection}}
-    To construct the edges in our artifact graph, we extract ground-truth evaluation metrics directly from the HuggingFace model cards. Specifically, we parse the README files to identify model–dataset pairs together with their reported performance scores. After matching model and dataset names with their canonical entries on the HuggingFace platform, we obtain a clean set of evaluation edges. In total, this process yields 2,561 perfectly matched evaluation records, which serve as the edge attributes in our graph.
-
-    \paragraph{{Node collection}}
-    To construct the node set, we collect information for both models and datasets. For each model, we crawl its README and metadata fields (e.g., architecture, parameters, tags), and for each dataset, we extract its description and metadata (e.g., domain, size, license). We retain only nodes that participate in at least one evaluation edge, filtering out isolated artifacts. The resulting graph contains 2,144 nodes in total, consisting of 1,757 models and 387 datasets. On average, each model connects to 1.46 datasets, while each dataset connects to 6.62 models, indicating that the graph is relatively sparse.
-
-    \section{{Linking Scientific artifacts for automatic discovery}}
-    In this section, we first formalize the problem definition of automatic discovery using the artifact-graph formulation. We then introduce our scalable solution, which addresses this problem via a two-stage \textit{{prediction–verification}} framework.
-
-    \subsection{{Definition of Automatic Discovery}}
-    Let $\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})$ denote the artifact graph, where $\mathcal{{V}} = \mathcal{{V}}_m \cup \mathcal{{V}}_d$ consists of model nodes $\mathcal{{V}}_m$ and dataset nodes $\mathcal{{V}}_d$, and $\mathcal{{E}}_{{md}} \subseteq \mathcal{{V}}_m \times \mathcal{{V}}_d$ represents evaluation edges. Each edge $(m,d) \in \mathcal{{E}}_{{md}}$ is annotated with a performance score $s(m,d)$ (e.g., accuracy, F1). We define the automatic discovery problem as finding a missing link $(m,d) \notin \mathcal{{E}}_{{md}}$ such that the predicted score $\hat{{s}}(m,d)$ exceeds the best observed score on dataset $d$:
-
-    \begin{{align}}
-    \hat{{s}}(m,d) > \max_{{(m', d) \in \mathcal{{E}}_{{md}}}} s(m',d).
-    \end{{align}}
-
-    In other words, the discovery target is to identify model–dataset pairs that are not yet connected in $\mathcal{{G}}$ but are expected to outperform all existing models on the same dataset.
-
+    \subsection{{Definition of Automatic SOTA Discovery}}
+    Building on the artifact graph {{\mathcal{{G}} = (\mathcal{{V}}, \mathcal{{E}})}} defined in the previous section, each observed edge {{(m,d) \in \mathcal{{E}}}} is annotated with a performance score given by the metric function {{\phi: \mathcal{{V}}_m \times \mathcal{{V}}_d \rightarrow \mathcal{{K}}}}, with realized score denoted as {{\phi(m,d)}}. The ultimate goal of automatic discovery is to identify a missing link {{(m,d) \notin \mathcal{{E}},\; m \in \mathcal{{V}}_m,\; d \in \mathcal{{V}}_d}} such that the predicted score under the same evaluation function {{\phi(m,d)}} exceeds the best known performance on dataset {{d}}:
+    \begin{{equation}}
+    \phi(m,d) > \max_{{(m',d) \in \mathcal{{E}}}} \phi(m',d)
+    \end{{equation}}
+    In other words, automatic SOTA discovery seeks model–benchmark pairs not yet connected in {{\mathcal{{G}}}} but expected to advance the state of the art on {{d}}. The input of our proposed {{\modelname}} framework is the artifact graph {{\mathcal{{G}}}}, while the target output is these state-of-the-art {{(m,d)}} pairs.
 
     \subsection{{Scalable Link Discovery Framework}}
-    To conduct automatic link discovery in a scalable manner, we adopt a two-stage framework: (1) prediction and (2) verification. Since verification through actual model evaluation is computationally expensive, the prediction stage serves as a crucial filter to eliminate unpromising candidates and focus resources on the most likely discoveries.
+    Because verification through actual model evaluation is computationally expensive, scalability requires a mechanism to reduce the number of candidates before evaluation. To this end, we design a two-stage framework that factors the problem into two sub-problems: (1) \emph{{prediction}} and (2) \emph{{verification}}. In the prediction stage, we first produce a ranked set of candidate pairs {{(m,d)}} by modeling the score function {{s(m,d)}}. From this ranking we derive the candidate set {{\mathcal{{C}}}}, which contains those pairs whose predicted scores are close to or surpass the current state of the art. In the verification stage, each candidate in {{\mathcal{{C}}}} is executed and evaluated in practice, yielding the refined set {{\mathcal{{C}}^\ast}} of validated state-of-the-art discoveries. This design focuses computational resources on the most promising candidates while ensuring correctness through real evaluation.
 
-    \paragraph{{Prediction}}
-    In the prediction stage, the goal is not only to estimate $\hat{{s}}(m,d)$ for missing edges but also to rank all candidate links by their discovery potential. Concretely, we train a model that learns a scoring function
+    \subsubsection{{Prediction Stage with score function modeling}}
+    The goal of prediction is not only to estimate {{\hat\phi(m,d)}} for missing edges but also to rank all candidate links by their discovery potential. Concretely, each prediction model defines a scoring function {{s: \mathcal{{V}}_m \times \mathcal{{V}}_d \to \mathbb{{R}}}}, which assigns each unseen pair {{(m,d) \notin \mathcal{{E}}}} a predicted performance. For each model the objective is to approximate the score function {{\hat\phi(m,d)}} and produce rankings consistent with observed edges. Since all of our prediction models utilize graph information, we formulate them using a general GNN-style notation. Formally, each score function is defined as:
+    \begin{{equation}}
+    \mathbf{{h}}_v^{{(k+1)}} = \textsc{{AGG}}^{{(k)}}\!\left(\mathbf{{h}}_v^{{(k)}}, \{{\,\mathbf{{h}}_u^{{(k)}}, e_{{uv}} : u \in \mathcal{{N}}(v)\}}\right),
+    \quad
+    s(m,d) = \psi\big(\mathbf{{h}}_m^{{(L)}}, \mathbf{{h}}_d^{{(L)}}\big)
+    \end{{equation}}
+    where {{\mathbf{{h}}_v^{{(k)}}}} is a model's internal representation of node {{v}} after {{k}} iterations aggregated over all representations {{\mathbf{{h}}_u^{{(k)}}}} constructed from neighboring nodes {{u \in \mathcal{{N}}(v)}}. The final score {{s(m,d)}} is then defined over the final node representations {{\mathbf{{h}}_m^{{(L)}}}} and {{\mathbf{{h}}_d^{{(L)}}}} transformed via some function {{\psi}}. As we detail below, different instantiations of {{\textsc{{AGG}}}} and {{\psi}} lead to different modeling strategies.
 
-    \begin{{align}}
-    \hat{{s}}: \mathcal{{V}}_m \times \mathcal{{V}}_d \to \mathbb{{R}},
-    \end{{align}}
+    \paragraph{{LLM-based modeling}}
+    These models are based on ordinary prompt-based frozen LLMs. Following the TextGNN formulation presented in \citet{{yu2024researchtown}}, we represent each {{\mathbf{{h}}_v^{{(k)}}}} directly with text instead of embeddings. The aggregation function {{\textsc{{AGG}}}} is instantiated as a one-layer \emph{{concat}} operator that serializes neighborhood information into a textual prompt:
+    \begin{{equation}}
+    \mathbf{{h}}_v^{{(k+1)}} = \textsc{{Concat}}\!\left(\mathbf{{h}}_v^{{(k)}}, \{{\,\mathbf{{h}}_u^{{(k)}}, e_{{uv}} : u \in \mathcal{{N}}(v)\}}\right),
+    \quad
+    s(m,d) = \textsc{{LLM}}\big(\mathbf{{h}}_m^{{(L)}}, \mathbf{{h}}_d^{{(L)}}\big)
+    \end{{equation}}
+    Here, {{\mathbf{{h}}_v^{{(0)}} = \mathbf{{x}}_v}} corresponds to the textual description of node {{v}}. The {{\textsc{{Concat}}}} function converts all neighbor attributes into natural language and concatenates them into a serialized context. The LLM then consumes these prompts for {{m}} and {{d}}, jointly reasoning over their neighborhoods to predict {{s(m,d)}}. We typically adopt a single TextGNN layer due to the limited context window size of LLMs.
 
-    which assigns each unseen pair $(m,d)\notin\mathcal{{E}}_{{md}}$ a predicted performance. The model is optimized to rank these candidates relative to observed edges, so that links expected to outperform existing results on the same dataset are ranked highest. The output is an ordered list of missing edges prioritized by their likelihood of being high-value discoveries.
+    \paragraph{{GNN-based modeling}}
+    Alternatively, we instantiate {{\textsc{{AGG}}}} using standard message passing in Graph Neural Networks. In this setting, node features are initialized as {{\mathbf{{h}}_v^{{(0)}} = \textsc{{Embed}}(\mathbf{{x}}_v)}} from the textual description {{\mathbf{{x}}_v}}, and representations are updated by:
+    \begin{{equation}}
+    \mathbf{{h}}_v^{{(k+1)}} = \sigma\!\left(W^{{(k)}} \mathbf{{h}}_v^{{(k)}} +
+    \textsc{{Agg}}^{{(k)}}\big(\{{\,W^{{(k)}} \mathbf{{h}}_u^{{(k)}}, e_{{uv}} : u \in \mathcal{{N}}(v)\}}\big)\right),
+    \quad
+    s(m,d) = \textsc{{MLP}}\!\left([\mathbf{{h}}_m^{{(L)}} \,\|\, \mathbf{{h}}_d^{{(L)}}]\right)
+    \end{{equation}}
+    Here, {{\textsc{{Agg}}^{{(k)}}(\cdot)}} can be implemented with classical GNN operators such as {{\textsc{{GATv2Conv}}}}~\citep{{brody2021attentive}}. The edge scoring function {{s(m,d)}} is then computed by an MLP over the concatenation of the final node embeddings {{\mathbf{{h}}_m^{{(L)}}}} and {{\mathbf{{h}}_d^{{(L)}}}}. In contrast to the LLM models above, this model is tuned using a training set of positive and negative links mined from the original artifact graph (see full details in Appendix~\ref{{app:gnn-details}}).
 
-    \paragraph{{Verification}}
-    Once the ranked list is produced, we proceed to the verification stage. Given limited computational resources, we select the top-$k$ predictions for each dataset to maximize the chance of identifying true discoveries. Verification is performed by a coding agent designed for model–dataset auto-evaluation: it automatically downloads the target model and dataset from HuggingFace, loads them in the correct configuration, and executes an inference pipeline to obtain evaluation results. This design makes verification both feasible and reliable, leveraging the standardized structure of HuggingFace artifacts to enable large-scale, automated evaluation.
+    \paragraph{{Ranking with score function}}
+    Given different modeling choices of {{s(m,d)}}, the prediction stage first produces a ranked list of all unseen pairs {{(m,d) \notin \mathcal{{E}}}}, ordered by their predicted score {{s(m,d)}}. This ranking reflects the discovery potential of each candidate, with higher scores indicating stronger likelihood of advancing the state of the art.
 
-    \paragraph{{Overall algorithm}} Based on the two stages and the overall framework is predict-then-verify.
+    From this ranked list, we further define the set of promising candidates as
+    \begin{{equation}}
+    \mathcal{{C}} = \left\{{(m,d) \,\middle|\,
+    (m,d) \notin \mathcal{{E}},\; m \in \mathcal{{V}}_m,\; d \in \mathcal{{V}}_d,\;
+    s(m,d) \geq \max_{{(m',d)\in\mathcal{{E}}}} \phi(m',d) - \delta
+    }}\right\}}
+    \end{{equation}}
+    where {{\delta \geq 0}} is a tolerance parameter and {{\phi(m',d)}} is the observed evaluation score of model {{m'}} on dataset {{d}}. In other words, the score function {{s(m,d)}} serves a dual purpose: it provides a global ranking over all candidates, and it defines a thresholded subset {{\mathcal{{C}}}} to guide the verification stage by focusing computation on the most promising discoveries.
+
+    \subsubsection{{Verification Stage with multi-stage planning}}
+    Given the candidate set {{\mathcal{{C}}}} with a relatively small size, the goal of verification is to execute and collect the concrete evaluation results. We verify each pair {{(m,d)}} with an agentic workflow, {{\textsc{{ReActLinker}}}}, that plans, generates, executes, and refines code for automatic benchmarking at scale. {{\textsc{{ReActLinker}}}} performs \emph{{node-first}} validation before any edge-level run via three sub-components: (1) \textit{{benchmark checker}} {{\mathrm{{check}}_d}} (resolve dataset on HuggingFace, validate version/splits, load a shard, and materialize examples), (2) \textit{{model checker}} {{\mathrm{{check}}_m}} (resolve model, verify dependencies/device, and dry-forward to confirm I/O contracts), and (3) \textit{{metric checker}} {{\mathrm{{check}}_k}} (instantiate the evaluation metric and sanity-check on synthetic {{(\hat{{y}},y)}}). Each stage within {{\textsc{{ReActLinker}}}} is a ReAct loop~\citep{{yao2023react}}. Only if all three checks pass does {{\textsc{{ReActLinker}}}} compose the pipeline (model {{\rightarrow}} dataset {{\rightarrow}} metric) and run the edge evaluation to obtain a real score:
+    \[
+    s^\ast(m,d) = \textsc{{ReActLinker}}\big(\mathbf{{x}}_m,\mathbf{{x}}_d\big)
+    \]
 
 
     Some tips are provided below:
