@@ -621,7 +621,6 @@ Be critical and realistic in your assessments."""
             cost_tracker=self.cost_tracker,
             task_name="reflect_idea",
         )
-
         new_idea = extract_json_between_markers(text)
         if isinstance(new_idea, list) and new_idea:
             new_idea = new_idea[0]
@@ -664,7 +663,8 @@ Be critical and realistic in your assessments."""
             cost_tracker=self.cost_tracker,
             task_name="generate_idea",
         )
-
+        
+        print(f"[DEBUG] Idea generation response length: {len(text)} chars")
         idea = extract_json_between_markers(text)
         if isinstance(idea, list) and idea:
             idea = idea[0]
@@ -752,17 +752,15 @@ Be critical and realistic in your assessments."""
         paper_strings = []
         for i, paper in enumerate(papers):
             title = paper.get('title', 'No title')
-            source = paper.get('source', 'No authors')
-            info = paper.get('info', 'No venue')
             abstract = paper.get('abstract', '')
             
             # Format: Title. Authors. Venue.\nAbstract: ...
-            paper_str = f"{i}: {title}. {source}. {info}"
+            paper_str = f"{i}: {title}."
             if abstract and len(abstract.strip()) > 0:
                 # Truncate very long abstracts
                 abstract_text = abstract.strip()
                 if len(abstract_text) > 500:
-                    abstract_text = abstract_text[:500] + "..."
+                    abstract_text = abstract_text[:2000] + "..."
                 paper_str += f"\nAbstract: {abstract_text}"
             
             paper_strings.append(paper_str)

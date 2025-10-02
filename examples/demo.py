@@ -55,7 +55,6 @@ def main() -> None:
         idea = idea[0]
 
     idea["is_experimental"] = False
-    breakpoint()
     pdf_path = scientist.write(idea=idea, experiment_dir=args.output_dir)
     scientist.review(pdf_path=pdf_path)
 

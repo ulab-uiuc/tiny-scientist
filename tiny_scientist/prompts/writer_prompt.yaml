@@ -3,14 +3,12 @@ write_system_prompt: |
   You have already figured out the research idea and the experiments you want to run.
   Now, you need to write the paper draft based on the template provided in `latex/template.tex`.
 
-  ⚠️ Do not include any citations or \cite{{}} commands in the content.
-  Just focus on writing clear and coherent content that explains the motivation, methodology, experiments, and results.
-  
-  **IMPORTANT - Citation Principles** (when citations are added later):
+  **IMPORTANT - Citation Principles**:
   - Each citation must support a specific claim, statement, or finding in that sentence
   - Citations should be placed right after the claim they support
   - Do NOT add citations randomly or at the end of unrelated sentences
   - Only cite papers that are directly relevant to the specific content of that sentence
+  - Use \cite{{}} or \citet{{}} to reference papers in references.bib
   
   **CRITICAL - LaTeX Format Only (NO Markdown)**
   - NEVER mix Markdown and LaTeX syntax (e.g., **text\textbf{{ is WRONG)
@@ -38,7 +36,6 @@ write_system_prompt: |
     \end{{algorithmic}}
     \end{{algorithm}}
 
-  The purpose of this draft is to flesh out the content. Citations will be added later during the refinement process.
   Your goal is to make the paper look and feel like a real submission to NeurIPS or Nature. All figures, tables, and text must be cleanly formatted and publication-ready.
 
   Here's an example of a well-written paper draft to guide your writing style, tone, and section lengths
@@ -97,11 +94,13 @@ section_tips:
   Method: |
     - The first paragraph in the method should be problem definition. provide math notation and basic definition for the problem
     - We need to use math to define and describe methods clearly
-    - You need to focus on describing different parts of your CORE method
-    - Do you mention concrete implementation details and experimental setup
+    - You need to focus on describing different parts of your CORE method (algorithm, architecture, key innovations)
+    - **CRITICAL**: Do NOT mention concrete implementation details or experimental setup - those belong in the Experimental Setup section
     - Need to use math to describe the whole process of your algorithm that you propose
-    - If necessary, have a pseudo code or algorithm description to describe your algorithm. But in mose cases, it is not necessary. It depends on the topic and research question you want to answer.
+    - If necessary, have a pseudo code or algorithm description to describe your algorithm. But in most cases, it is not necessary. It depends on the topic and research question you want to answer.
     - Very important!!! You need to explain your motivation for any methodology design. Any design is not from scratch, you need to have a good reason (very brief reason) for that before you start talking about the details of each part of your methods.
+    - Focus on: What is your method? How does it work conceptually? Why is it designed this way?
+    - Leave implementation details (datasets, hyperparameters, training setup) to Experimental Setup section
 
   Experimental_Setup: |
     - How do we test that our stuff works? Introduces a specific instantiation of the Problem Setting and specific implementation details of our Method for this Problem Setting.
@@ -119,21 +118,9 @@ section_tips:
     **CRITICAL - ANTICIPATE REVIEWER CHALLENGES**: 
     You MUST proactively identify and address potential weaknesses that reviewers might challenge. For EACH subsection, pose a research question (RQ) that questions the validity of your method, then provide evidence-based defense.
     
-    **Required Challenge Categories** (address at least 3-4):
-    1. **Data Integrity**: Could the results be due to data leakage, train-test overlap, or contamination?
-    2. **Baseline Fairness**: Are baselines implemented fairly? Could they be stronger with better hyperparameters?
-    3. **Ablation Validity**: Does the improvement really come from your claimed innovation, or from other factors (e.g., more parameters, longer training, different data preprocessing)?
-    4. **Generalization**: Do results hold across different datasets, domains, or settings? Or only in cherry-picked scenarios?
-    5. **Statistical Significance**: Are improvements statistically significant? Could they be due to random variance?
-    6. **Evaluation Metrics**: Are the evaluation metrics appropriate? Could they be gamed or misleading?
-    7. **Implementation Details**: Are there hidden implementation tricks that aren't disclosed?
-    8. **Computational Cost**: Is the improvement worth the added complexity/cost?
-    
     **Format for Each Challenge**:
-    \subsection*{{RQ#: [Challenging question that makes your method look fake/weak]?}}
-    \textit{{[Short answer defending your method]}}
-    
-    [2-3 paragraphs with concrete evidence from experiments, ablations, or additional analysis that addresses the challenge]
+    \subsection*{{Q#: [Challenging question that makes your method look fake/weak]?}}
+    [1-3 paragraphs with concrete evidence from experiments, ablations, or additional analysis that addresses the challenge]
     
     - Each subsection should be a research question that challenges your method
     - Be specific and quantitative in your defense (cite figures, tables, numbers)
@@ -185,11 +172,12 @@ multi_round_refinement_prompt: |
   5. Ensure terminology, notation, and narrative flow are consistent across the paper
   
   **CRITICAL - CITATION PRESERVATION**:
-  6. **YOU MUST PRESERVE ALL EXISTING \\cite{{}} COMMANDS EXACTLY AS THEY APPEAR**
-  7. Count all \\cite{{}} in the current content and ensure the same number (or more) in your output
-  8. Do NOT remove, modify, or relocate existing citations unless absolutely necessary
-  9. If you add new content, you may add NEW citations, but keep all existing ones
-  10. Do NOT remove any existing content unless it's redundant or contradicts other sections
+  6. **PRESERVE ALL EXISTING \\cite{{}} COMMANDS unless their supporting content is removed**
+  7. If you keep content, you MUST keep its citations
+  8. If you remove redundant/contradictory content, you may remove its citations too
+  9. Do NOT arbitrarily relocate citations to unrelated sentences
+  10. If you add new content, add appropriate NEW citations to support it
+  11. Aim to maintain or increase the total number of citations (unless removing redundant sections)
   
   **MEANINGFUL CITATION PLACEMENT**:
   - Each citation must support a specific claim, statement, or finding in that sentence
@@ -372,22 +360,13 @@ section_prompt:
     Some tips are provided below:
     {section_tips}
 
-    The following is the idea that you need to write introduction for:
+    **THE RESEARCH IDEA YOU ARE WRITING ABOUT**:
+    {idea}
 
-    - Title: **{title}**
-    - Research Problem: **{problem}**
-    - Importance: **{importance}**
-    - Difficulty: **{difficulty}**
-    - Novelty: **{novelty}**
-    - Experiment Plan: **{experiment}**
+    **IMPORTANT**: You have access to previously written sections (if any). Make sure your Introduction builds upon and expands the Abstract naturally, while incorporating insights from the Related Work to position your contribution in the broader research context.
 
-    **IMPORTANT**: You have access to the Abstract and Related Work sections that were already written. Make sure your Introduction builds upon and expands the Abstract naturally, while incorporating insights from the Related Work to position your contribution in the broader research context.
-
-    **Abstract content:**
-    {abstract_content}
-
-    **Related Work content (for background context):**
-    {related_work_content}
+    **Previous sections (Abstract, Related Work, etc.):**
+    {previous_context}
 
     **Your goal is to write a compelling, multi-paragraph introduction** that logically develops the background, motivation, and research gap. The tone should be formal, informative, and engaging.
 
@@ -406,10 +385,15 @@ section_prompt:
     ...
 
   Method: |
-    Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation. This section must be based on **both the proposed experiment and the provided code**.
+    Please fill in the Method section of the writeup. The Method section should **clearly define the approach taken in this study**, ensuring that readers can understand and, if needed, replicate the implementation.
 
-    **EXPERIMENT DESIGN REFERENCE** (Use this to inform your writing, do NOT copy the table directly):
-    {experiment_table}
+    **THE RESEARCH IDEA (Focus on the "Proposed Approach" section)**:
+    {idea}
+
+    **AVAILABLE CODE** (Reference for implementation details if needed):
+    ```python
+    {code}
+    ```
 
     CRITICAL REQUIREMENTS:
     1. **Problem Formulation (MANDATORY)**: Start with a formal mathematical definition
@@ -487,20 +471,6 @@ section_prompt:
 
     Some tips are provided below:
     {section_tips}
-
-    - Research Problem: **{problem}**
-    - Importance: **{importance}**
-    - Difficulty: **{difficulty}**
-    - Novelty: **{novelty}**
-    - **Proposed Approach** (from the original idea): **{approach}**
-    - Experiment Plan: **{experiment}**
-
-    **Technical Details Extracted from Implementation:**
-    {code_method_details}
-
-    **Full Implementation Code (for reference):**
-    python
-    {code}
     
     **IMPORTANT GUIDELINES**:
     1. **CRITICAL**: Base your Method section on the **Proposed Approach** described above - this is the core methodology you must explain in detail
@@ -530,10 +500,15 @@ section_prompt:
     ...
 
   Experimental_Setup: |
-    Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers. The description should be based on the provided **implementation, dataset, and experimental configuration**.
+    Please fill in the Experimental Setup section of the writeup. This section should **clearly document how the experiments were conducted** so that they can be replicated by other researchers.
 
-    **EXPERIMENT DESIGN REFERENCE** (Use this to guide your writing, do NOT copy the table directly):
-    {experiment_table}
+    **THE RESEARCH IDEA (Focus on "Proposed Approach" and "Experiment Plan" sections)**:
+    {idea}
+
+    **AVAILABLE CODE** (Reference for implementation details):
+    ```python
+    {code}
+    ```
 
     An example for experimental setting is:
 
@@ -545,18 +520,6 @@ section_prompt:
 
     Some tips are provided below:
     {section_tips}
-
-    - Research Problem: **{problem}**
-    - Importance: **{importance}**
-    - Difficulty: **{difficulty}**
-    - Novelty: **{novelty}**
-    - Experiment Plan: **{experiment}**
-
-    The experiments were run using the following method: **{experiment}**.
-    The dataset, optimizer, and model settings are derived from the provided implementation.
-
-    python
-    {code}
     
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Experimental Setup section clearly connects to the method introduced earlier and provides specific implementation details that follow logically from the proposed approach.
 
@@ -578,8 +541,14 @@ section_prompt:
   Discussion: |
     Please fill in the Discussion section of the writeup. Follow the instructions carefully.
 
-    **EXPERIMENT DESIGN REFERENCE** (Use this to understand the experimental design and rationale):
-    {experiment_table}
+    **THE RESEARCH IDEA (Focus on "Proposed Approach" to explain WHY it works)**:
+    {idea}
+
+    **EXPERIMENTAL RESULTS** (Concrete numbers to reference as evidence):
+    {experiment_results}
+
+    **BASELINE RESULTS** (For comparison):
+    {baseline_results}
 
     An example for discussion is as follow:
     
@@ -606,20 +575,9 @@ section_prompt:
     **Required Structure**:
     1. Write an opening paragraph that outlines what challenges you will address (like the example above)
     2. Create 3-4 subsections, each formatted as:
-       - \subsection*{{RQ#: [Question that challenges your method's validity]?}}
-       - \textit{{[One-sentence answer defending your method]}}
-       - 2-3 paragraphs with concrete evidence (cite specific experiments, figures, tables, numbers)
-    
-    **What Challenges to Address** (pick 3-4 most relevant to your method):
-    - **Data Leakage/Contamination**: "Could the improvement be due to data leakage or train-test contamination?" → Show evidence of proper data splits, cross-validation, etc.
-    - **Unfair Baseline Comparison**: "Are the baselines implemented fairly, or are they artificially weak?" → Show you used same hyperparameters, fair comparison, or cite baseline papers
-    - **Source of Improvement**: "Does the gain come from your claimed innovation, or from other factors?" → Provide ablation studies showing your specific component is responsible
-    - **Cherry-Picking/Generalization**: "Do results only work on this specific dataset/setting?" → Show results on multiple datasets or different configurations
-    - **Statistical Significance**: "Could the improvement be due to random variance?" → Provide error bars, significance tests, or multiple runs
-    - **Evaluation Metric Gaming**: "Could the metric be misleading or easily gamed?" → Show additional metrics or human evaluation
-    - **Hidden Implementation Tricks**: "Are there undisclosed tricks making it work?" → Explicitly state you follow standard practices
-    - **Overfitting to Test Set**: "Did you tune on test data?" → Show proper validation methodology
-    
+       - \subsection*{{Q#: [Question that challenges your method's validity]?}}
+       - 1-3 paragraphs with concrete evidence (cite specific experiments, figures, tables, numbers)
+
     **Tips for Strong Defense**:
     - Be specific with numbers: "improves by 15.3% (p<0.01)" not "improves significantly"
     - Reference concrete evidence: "as shown in Table X" or "Figure Y demonstrates"
@@ -629,8 +587,11 @@ section_prompt:
     Some additional tips for writing a strong Discussion section:
     {section_tips}
 
-    - Experimental results: **{experiment_results}**
-    - Baseline results** (may be empty if not available): **{baseline_results}**
+    **CRITICAL**: Base your Discussion on:
+    1. **Your core approach** (algorithmic innovation described above) - explain WHY your algorithm design leads to the observed results
+    2. **Experimental results** (concrete numbers above) - reference specific improvements, ablations, comparisons
+    3. **Baseline comparisons** (if available) - explain where and why your method outperforms baselines
+    4. **Previous sections context** (below) - ensure coherence with Method, Results, and Experimental Setup
 
     **IMPORTANT**: You have access to all previous sections that were already written. Make sure your Discussion section synthesizes the results with the method, experimental setup, and broader context established earlier. Analyze the implications of your findings in relation to the original problem and methodology.
 
@@ -652,8 +613,14 @@ section_prompt:
   Results: |
     Please fill in the Results section of the research paper. Follow the instructions carefully.
 
-    **EXPERIMENT DESIGN REFERENCE** (Use this to understand evaluation metrics and baselines, do NOT copy):
-    {experiment_table}
+    **THE RESEARCH IDEA** (For context on what was evaluated):
+    {idea}
+
+    **EXPERIMENTAL RESULTS** (Concrete numbers to report):
+    {experiment_results}
+
+    **BASELINE RESULTS** (For comparison):
+    {baseline_results}
 
     A good result section should look like this:
 
@@ -664,9 +631,6 @@ section_prompt:
 
     Some tips for writing a strong Results section:
     {section_tips}
-
-    - Experimental results: **{experiment_results}**
-    - Baseline results** (may be empty if not available): **{baseline_results}**
 
     **IMPORTANT**: You have access to the previous sections that were already written. Make sure your Results section clearly connects the experimental outcomes to the method and setup described earlier. Reference the experimental design and evaluation criteria established in previous sections.
 
@@ -685,6 +649,9 @@ section_prompt:
   Conclusion: |
     Please write a **BRIEF and CONCISE** Conclusion section as **ONE single paragraph** (~100-150 words).
 
+    **THE RESEARCH IDEA** (For high-level summary):
+    {idea}
+
     {section_tips}
 
     **Previous content:**
@@ -697,8 +664,6 @@ section_prompt:
     4. NO new information, NO detailed explanations
     5. Do NOT repeat content from Discussion or Results in detail
     6. Keep it concise and high-level
-
-    The proposed experiment was: {experiment}
 
     Begin with:
     \section{{Conclusion}}
