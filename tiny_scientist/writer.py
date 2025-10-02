@@ -93,7 +93,6 @@ class Writer:
         self.searcher: BaseTool = PaperSearchTool(
             s2_api_key=s2_api_key,
             engine="semanticscholar",
-            disable_fallback=True,
         )
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
 
@@ -492,60 +491,39 @@ class Writer:
         baseline_result: str,
     ) -> Dict[str, Any]:
         """Assemble all variables used by section prompt templates."""
-        # Get ExperimentTable as context (but don't convert to LaTeX - just use as reference)
-        experiment_table = idea.get("ExperimentTable", "")
-        if experiment_table and isinstance(experiment_table, str):
-            experiment_table = experiment_table.strip()
-        else:
-            experiment_table = ""
+        # Format the entire idea as a structured string
+        idea_str = self._format_idea_as_string(idea)
         
         return {
-            "title": idea.get("Title", "Research Paper"),
-            "problem": idea.get("Problem", ""),
-            "importance": idea.get("Importance", ""),
-            "difficulty": idea.get("Difficulty", ""),
-            "novelty": idea.get("NoveltyComparison", ""),
-            "approach": idea.get("Approach", ""),
-            "experiment": idea.get("Experiment", idea.get("ResearchPlan", "")),
-            "experiment_table": experiment_table,  # As context for writing
+            "idea": idea_str,  # Complete idea in formatted string
+            "title": idea.get("Title", "Research Paper"),  # Keep for specific use
             "code": code,
-            "code_method_details": self._extract_method_details_from_code(code),
             "experiment_results": experiment_result,
             "baseline_results": baseline_result,
-            "previous_context": self._sections_as_markdown(exclude={"Abstract"}),
-            "abstract_content": self.generated_sections.get("Abstract", ""),
-            "related_work_content": self.generated_sections.get("Related_Work", ""),
+            "previous_context": self._sections_as_markdown(exclude=set()),  # All previous sections
         }
-
-    def _extract_method_details_from_code(self, code: str) -> str:
-        """Heuristic scrape of classes/params/optimizer from experiment code."""
-        if not code:
-            return ""
-
-        details: List[str] = []
-
-        classes = re.findall(r"class\s+(\w+)\s*\([^)]*\):", code)
-        if classes:
-            details.append(f"Model classes: {', '.join(classes[:5])}")
-
-        patterns = {
-            "learning_rate": r"learning_rate\s*=\s*([0-9.e-]+)",
-            "batch_size": r"batch_size\s*=\s*(\d+)",
-            "hidden_size": r"hidden_size\s*=\s*(\d+)",
-            "num_layers": r"num_layers\s*=\s*(\d+)",
-            "dropout": r"dropout\s*=\s*([0-9.]+)",
-            "epochs": r"epochs?\s*=\s*(\d+)",
-        }
-        for name, pat in patterns.items():
-            m = re.search(pat, code, re.IGNORECASE)
-            if m:
-                details.append(f"{name}: {m.group(1)}")
-
-        opt = re.search(r"\b(\w*Adam\w*|SGD|RMSprop)\b", code)
-        if opt:
-            details.append(f"Optimizer: {opt.group(1)}")
-
-        return "\n".join(details)
+    
+    def _format_idea_as_string(self, idea: Dict[str, Any]) -> str:
+        """Format the complete idea as a readable string."""
+        parts = []
+        
+        if idea.get("Title"):
+            parts.append(f"**Title**: {idea['Title']}")
+        if idea.get("Problem"):
+            parts.append(f"\n**Research Problem**: {idea['Problem']}")
+        if idea.get("Importance"):
+            parts.append(f"\n**Importance**: {idea['Importance']}")
+        if idea.get("Difficulty"):
+            parts.append(f"\n**Difficulty**: {idea['Difficulty']}")
+        if idea.get("NoveltyComparison"):
+            parts.append(f"\n**Novelty Comparison**: {idea['NoveltyComparison']}")
+        if idea.get("Approach"):
+            parts.append(f"\n**Proposed Approach**: {idea['Approach']}")
+        if idea.get("Experiment") or idea.get("ResearchPlan"):
+            exp = idea.get("Experiment", idea.get("ResearchPlan", ""))
+            parts.append(f"\n**Experiment Plan**: {exp}")
+        
+        return "".join(parts)
 
     def _other_sections_context(self, exclude: set) -> str:
         """Join other sections (truncated) for refinement prompts."""
