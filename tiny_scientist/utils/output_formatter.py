@@ -726,7 +726,6 @@ class ICLROutputFormatter(BaseOutputFormatter):
             final_content = f.read()
 
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
-        # 暂时禁用水印功能以避免 PDF 损坏问题
         try:
             self.watermarker._add_watermark(
                 output_pdf_path,
