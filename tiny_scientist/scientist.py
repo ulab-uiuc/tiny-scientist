@@ -33,6 +33,7 @@ class TinyScientist:
         self.enable_safety_check = enable_safety_check
 
         self.cost = 0.0
+        self.global_cost_tracker = BudgetChecker(budget=budget)
 
         # Naive budget split
         modules = ["safety_checker", "thinker", "coder", "writer", "reviewer"]
@@ -50,24 +51,33 @@ class TinyScientist:
                 budget_preference = "balanced"
 
         weights = {
-            "balanced": {"thinker": 0.3, "writer": 0.3, "reviewer": 0.3, "coder": 0.1},
+            "balanced": {
+                "safety_checker": 0.1,
+                "thinker": 0.25,
+                "writer": 0.25,
+                "reviewer": 0.25,
+                "coder": 0.15,
+            },
             "write-heavy": {
-                "thinker": 0.2,
+                "safety_checker": 0.05,
+                "thinker": 0.15,
                 "writer": 0.5,
                 "reviewer": 0.2,
                 "coder": 0.1,
             },
             "think-heavy": {
+                "safety_checker": 0.05,
                 "thinker": 0.5,
-                "writer": 0.2,
+                "writer": 0.15,
                 "reviewer": 0.2,
                 "coder": 0.1,
             },
             "review-heavy": {
-                "thinker": 0.2,
-                "writer": 0.2,
+                "safety_checker": 0.05,
+                "thinker": 0.15,
+                "writer": 0.15,
                 "reviewer": 0.5,
-                "coder": 0.1,
+                "coder": 0.15,
             },
         }
         if budget_preference not in weights:
@@ -176,3 +186,30 @@ class TinyScientist:
         print(review)
         print("✅ Review complete.")
         return review
+
+    def get_total_cost(self) -> float:
+        """Get the total cost across all modules."""
+        total_cost = 0.0
+        modules = [
+            ("Safety Checker", self.safety_checker),
+            ("Thinker", self.thinker),
+            ("Coder", self.coder),
+            ("Writer", self.writer),
+            ("Reviewer", self.reviewer),
+        ]
+
+        print("\n" + "=" * 50)
+        print("📊 COST SUMMARY")
+        print("=" * 50)
+
+        for module_name, module in modules:
+            if module and hasattr(module, "cost_tracker"):
+                cost = module.cost_tracker.get_total_cost()
+                total_cost += cost
+                print(f"{module_name:15}: ${cost:.4f}")
+
+        print("-" * 50)
+        print(f"{'TOTAL COST':15}: ${total_cost:.4f}")
+        print("=" * 50)
+
+        return total_cost

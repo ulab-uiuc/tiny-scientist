@@ -79,6 +79,9 @@ def main() -> None:
     pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
     scientist.review(pdf_path=pdf_path)
 
+    # Display total cost summary
+    scientist.get_total_cost()
+
 
 if __name__ == "__main__":
     main()

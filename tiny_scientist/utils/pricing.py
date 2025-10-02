@@ -19,7 +19,7 @@ MODEL_PRICING = {
     "claude-3-haiku-v1": (0.25, 1.25),
     "claude-3-haiku": (0.25, 1.25),
     "claude-3-opus-v1": (15, 75),
-    "claude-3-opus": (0.8, 4),
+    "claude-3-opus": (15, 75),
     # DeepSeek models
     "deepseek-chat": (0.07, 0.27),
     "deepseek-reasoner": (0.14, 0.55),
