@@ -23,6 +23,7 @@ from .utils.output_formatter import (
     BaseOutputFormatter,
     ICLROutputFormatter,
 )
+from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
 
 
 class Writer:
@@ -401,17 +402,22 @@ class Writer:
 
         self.generated_sections["Related_Work"] = relatedwork_content
 
-    def _refine_section(self, section: str) -> None:
-        """Refine a section of the paper."""
-        refinement_prompt = (
+    def _build_refinement_prompt(self, section: str, section_content: str) -> str:
+        return (
             self.prompts.refinement_prompt.format(
                 section=section,
                 section_tips=self.prompts.section_tips[section],
-                section_content=self.generated_sections[section],
+                section_content=section_content,
                 error_list=self.prompts.error_list,
             )
             .replace(r"{{", "{")
             .replace(r"}}", "}")
+        )
+
+    def _refine_section(self, section: str) -> None:
+        """Refine a section of the paper."""
+        refinement_prompt = self._build_refinement_prompt(
+            section, self.generated_sections[section]
         )
 
         refined_section, _ = get_response_from_llm(
@@ -432,9 +438,75 @@ class Writer:
                 for section, content in self.generated_sections.items()
             ]
         )
+        title_prompt = self.prompts.title_refinement_prompt.format(
+            full_draft=full_draft
+        )
+
+        section_order = [
+            "Introduction",
+            "Background",
+            "Method",
+            "Experimental_Setup",
+            "Results",
+            "Conclusion",
+        ]
+        available_sections = [
+            section for section in section_order if section in self.generated_sections
+        ]
+
+        section_prompts = {
+            section: self._build_refinement_prompt(
+                section, self.generated_sections[section]
+            )
+            for section in available_sections
+        }
+
+        remaining_budget = self._effective_remaining_budget()
+        sections_to_refine = available_sections
+
+        if remaining_budget is not None:
+            title_cost = estimate_prompt_cost(
+                self.model,
+                [self.system_prompt, title_prompt],
+                expected_output_tokens=estimate_tokens_from_text(
+                    self.generated_sections.get("Title", "")
+                ),
+            )
+
+            if title_cost is not None and title_cost > 0:
+                if remaining_budget < title_cost:
+                    print(
+                        "[Writer] Skipping refinement stage due to estimated budget constraints."
+                    )
+                    return
+                remaining_budget -= title_cost
+
+            affordable_sections: List[str] = []
+            for section in sections_to_refine:
+                estimated_cost = estimate_prompt_cost(
+                    self.model,
+                    ["", section_prompts[section]],
+                    expected_output_tokens=estimate_tokens_from_text(
+                        self.generated_sections[section]
+                    ),
+                )
+
+                if estimated_cost is None or estimated_cost <= 0:
+                    affordable_sections.append(section)
+                    continue
+
+                if remaining_budget >= estimated_cost:
+                    affordable_sections.append(section)
+                    remaining_budget -= estimated_cost
+                else:
+                    print(
+                        f"[Writer] Skipping refinement for {section} due to estimated budget constraints."
+                    )
+
+            sections_to_refine = affordable_sections
 
         refined_title, _ = get_response_from_llm(
-            msg=self.prompts.title_refinement_prompt.format(full_draft=full_draft),
+            msg=title_prompt,
             client=self.client,
             model=self.model,
             system_message=self.system_prompt,
@@ -444,37 +516,25 @@ class Writer:
 
         self.generated_sections["Title"] = refined_title
 
-        for section in [
-            "Introduction",
-            "Background",
-            "Method",
-            "Experimental_Setup",
-            "Results",
-            "Conclusion",
-        ]:
-            if section in self.generated_sections.keys():
-                print(f"Refining section: {section}...")
-                refinement_prompt = (
-                    self.prompts.refinement_prompt.format(
-                        section=section,
-                        section_tips=self.prompts.section_tips[section],
-                        section_content=self.generated_sections[section],
-                        error_list=self.prompts.error_list,
-                    )
-                    .replace(r"{{", "{")
-                    .replace(r"}}", "}")
-                )
+        for section in sections_to_refine:
+            print(f"Refining section: {section}...")
+            refinement_prompt = section_prompts[section]
 
-                refined_section_content, _ = get_response_from_llm(
-                    msg=refinement_prompt,
-                    client=self.client,
-                    model=self.model,
-                    system_message="",
-                    cost_tracker=self.cost_tracker,
-                    task_name=f"Second Refine {section}",
-                )
+            refined_section_content, _ = get_response_from_llm(
+                msg=refinement_prompt,
+                client=self.client,
+                model=self.model,
+                system_message="",
+                cost_tracker=self.cost_tracker,
+                task_name=f"Second Refine {section}",
+            )
 
-                self.generated_sections[section] = refined_section_content
+            self.generated_sections[section] = refined_section_content
+
+    def _effective_remaining_budget(self) -> Optional[float]:
+        if hasattr(self.cost_tracker, "get_effective_remaining_budget"):
+            return self.cost_tracker.get_effective_remaining_budget()
+        return self.cost_tracker.get_remaining_budget()
 
     def _add_citations(self, idea: Dict[str, Any]) -> None:
         idea_title = idea.get("Title", "Research Paper")

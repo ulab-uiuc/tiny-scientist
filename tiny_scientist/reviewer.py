@@ -13,6 +13,7 @@ from .utils.llm import (
     extract_json_between_markers,
     get_response_from_llm,
 )
+from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
 
 
 class Reviewer:
@@ -109,6 +110,17 @@ class Reviewer:
                 print("[Reviewer] Skipping review reflections due to budget limit.")
             else:
                 max_rounds = self.num_reflections
+                estimated_rounds = self._estimate_usable_reflection_rounds(
+                    current_review
+                )
+                if estimated_rounds is not None:
+                    if estimated_rounds <= 0:
+                        print(
+                            "[Reviewer] Estimated remaining budget insufficient for review reflections."
+                        )
+                        all_reviews.append(json.loads(current_review))
+                        continue
+                    max_rounds = min(max_rounds, estimated_rounds)
                 rounds_done = 0
                 per_round_cost = None
                 while rounds_done < max_rounds:
@@ -134,6 +146,62 @@ class Reviewer:
 
         self.cost_tracker.report()
         return self._write_meta_review(all_reviews)
+
+    def _estimate_usable_reflection_rounds(self, current_review: str) -> Optional[int]:
+        remaining_budget = self._reflection_remaining_budget()
+        if remaining_budget is None:
+            return None
+
+        if remaining_budget <= 0:
+            return 0
+
+        estimated_cost = self._estimate_reflection_cost(current_review)
+        if estimated_cost is None or estimated_cost <= 0:
+            return None
+
+        return int(remaining_budget // estimated_cost)
+
+    def _reflection_remaining_budget(self) -> Optional[float]:
+        candidates: List[float] = []
+
+        module_budget = self.cost_tracker.get_budget()
+        if module_budget is not None:
+            allowed = module_budget * self.post_reflection_threshold
+            remaining = allowed - self.cost_tracker.get_total_cost()
+            candidates.append(max(0.0, remaining))
+
+        parent_tracker = getattr(self.cost_tracker, "parent", None)
+        if parent_tracker is not None:
+            parent_remaining = parent_tracker.get_effective_remaining_budget()
+            if parent_remaining is not None:
+                candidates.append(max(0.0, parent_remaining))
+
+        if not candidates:
+            return None
+
+        return max(0.0, min(candidates))
+
+    def _estimate_reflection_cost(self, current_review: str) -> Optional[float]:
+        try:
+            prompt_preview = (
+                f"Previous review: {current_review}\n"
+                + self.prompts.reviewer_reflection_prompt.format(
+                    related_works_string="Summaries of related work (estimated)"
+                )
+            )
+        except Exception:
+            prompt_preview = current_review
+
+        expected_output_tokens = max(
+            estimate_tokens_from_text(current_review),
+            256,
+        )
+
+        return estimate_prompt_cost(
+            self.model,
+            [self.prompts.reviewer_system_prompt_neg, prompt_preview],
+            expected_output_tokens=expected_output_tokens,
+        )
 
     def _get_related_works(self, query: str) -> str:
         if query in self._query_cache:

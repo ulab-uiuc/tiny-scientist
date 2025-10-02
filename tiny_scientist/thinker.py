@@ -15,6 +15,7 @@ from .utils.llm import (
     extract_json_between_markers,
     get_response_from_llm,
 )
+from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
 
 
 class Thinker:
@@ -437,7 +438,19 @@ Be critical and realistic in your assessments."""
             self.cost_tracker.report()
             return current_idea_json
 
+        pre_estimated_rounds = self._estimate_usable_reflection_rounds(
+            current_idea_json
+        )
+
         max_rounds = self.iter_num
+        if pre_estimated_rounds is not None:
+            if pre_estimated_rounds <= 0:
+                print(
+                    "[Thinker] Estimated remaining budget insufficient for additional reflections."
+                )
+                self.cost_tracker.report()
+                return current_idea_json
+            max_rounds = min(max_rounds, pre_estimated_rounds)
         rounds_done = 0
         per_round_cost = None
 
@@ -475,6 +488,62 @@ Be critical and realistic in your assessments."""
 
         self.cost_tracker.report()
         return current_idea_json
+
+    def _estimate_usable_reflection_rounds(self, idea_json: str) -> Optional[int]:
+        remaining_budget = self._reflection_remaining_budget()
+        if remaining_budget is None:
+            return None
+
+        if remaining_budget <= 0:
+            return 0
+
+        estimated_cost = self._estimate_reflection_cost(idea_json)
+        if estimated_cost is None or estimated_cost <= 0:
+            return None
+
+        return int(remaining_budget // estimated_cost)
+
+    def _reflection_remaining_budget(self) -> Optional[float]:
+        candidates: List[float] = []
+
+        module_budget = self.cost_tracker.get_budget()
+        if module_budget is not None:
+            allowed = module_budget * self.post_reflection_threshold
+            remaining = allowed - self.cost_tracker.get_total_cost()
+            candidates.append(max(0.0, remaining))
+
+        parent_tracker = getattr(self.cost_tracker, "parent", None)
+        if parent_tracker is not None:
+            parent_remaining = parent_tracker.get_effective_remaining_budget()
+            if parent_remaining is not None:
+                candidates.append(max(0.0, parent_remaining))
+
+        if not candidates:
+            return None
+
+        return max(0.0, min(candidates))
+
+    def _estimate_reflection_cost(self, idea_json: str) -> Optional[float]:
+        try:
+            prompt_preview = self.prompts.idea_reflection_prompt.format(
+                intent=self.intent,
+                current_round=1,
+                num_reflections=max(1, self.iter_num),
+                related_works_string="Summaries of related work (estimated)",
+            )
+        except Exception:
+            prompt_preview = ""
+
+        expected_output_tokens = max(
+            estimate_tokens_from_text(idea_json),
+            256,
+        )
+
+        return estimate_prompt_cost(
+            self.model,
+            [self.prompts.idea_system_prompt, prompt_preview],
+            expected_output_tokens=expected_output_tokens,
+        )
 
     def _get_idea_evaluation(
         self, ideas_json: str, intent: str, custom_criteria: Optional[str] = None

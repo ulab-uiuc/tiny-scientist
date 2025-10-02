@@ -92,3 +92,21 @@ class BudgetChecker:
     def get_budget(self) -> Optional[float]:
         """Return the configured budget."""
         return self.budget
+
+    def get_effective_remaining_budget(self) -> Optional[float]:
+        """Return the minimum remaining budget considering parent trackers."""
+
+        remaining_candidates = []
+        local_remaining = self.get_remaining_budget()
+        if local_remaining is not None:
+            remaining_candidates.append(local_remaining)
+
+        if self.parent is not None:
+            parent_remaining = self.parent.get_effective_remaining_budget()
+            if parent_remaining is not None:
+                remaining_candidates.append(parent_remaining)
+
+        if not remaining_candidates:
+            return None
+
+        return max(0.0, min(remaining_candidates))

@@ -1,4 +1,7 @@
 # Pricing data for each model (prices are in dollars per million (1,000,000) tokens)
+import math
+from typing import Iterable, Optional
+
 MODEL_PRICING = {
     # OpenAI models
     "gpt-3.5-turbo": (0.5, 1.5),
@@ -54,3 +57,34 @@ def calculate_pricing(model: str, input_tokens: int, output_tokens: int) -> floa
 
     total_cost = input_cost + output_cost
     return total_cost
+
+
+def estimate_tokens_from_text(text: Optional[str]) -> int:
+    """Roughly estimate token count from text length."""
+    if not text:
+        return 0
+    # Empirical rule: ~4 characters per token
+    return max(1, math.ceil(len(text) / 4))
+
+
+def estimate_prompt_cost(
+    model: str,
+    input_texts: Iterable[Optional[str]],
+    expected_output_tokens: Optional[int] = None,
+) -> Optional[float]:
+    """Estimate the price of a single LLM call given textual inputs."""
+
+    texts = [text for text in input_texts if text]
+    if not texts and expected_output_tokens is None:
+        return None
+
+    input_tokens = sum(estimate_tokens_from_text(text) for text in texts)
+
+    if expected_output_tokens is None:
+        longest_text = max(texts, key=len, default="")
+        expected_output_tokens = max(estimate_tokens_from_text(longest_text), 256)
+
+    try:
+        return calculate_pricing(model, input_tokens, expected_output_tokens)
+    except ValueError:
+        return None
