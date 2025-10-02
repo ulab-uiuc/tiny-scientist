@@ -20,20 +20,26 @@ class BibManager:
             bib_path = osp.join(dest_template_dir, "custom.bib")
 
         bib_entries = []
-        for meta in references.values():
+        for title, meta in references.items():
             bibtex = meta.get("bibtex", "").strip()
             if bibtex:
                 bib_entries.append(bibtex)
+            else:
+                print(f"[WARNING] No bibtex found for paper: {title[:50]}...")
 
         if not bib_entries:
-            print("No BibTeX entries to write.")
+            print("[ERROR] No BibTeX entries to write.")
             return
 
         # Write all entries to the bib file
         with open(bib_path, "w", encoding="utf-8") as f:
             f.write("\n\n".join(bib_entries))
 
-        print(f"custom.bib created with {len(bib_entries)} entries.")
+        print(f"[INFO] custom.bib created with {len(bib_entries)} entries at {bib_path}")
+        
+        # Debug: Print first entry
+        if bib_entries:
+            print(f"[DEBUG] First bibtex entry:\n{bib_entries[0][:200]}...")
 
     def _get_bibtex_for_key(self, key: str) -> Optional[str]:
         prompt = f"Provide the bibtex entry for the paper with citation key '{key}'. Output only the bibtex entry."

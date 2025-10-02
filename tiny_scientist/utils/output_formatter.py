@@ -85,6 +85,56 @@ class BaseOutputFormatter(abc.ABC):
 
         return latex_text
 
+    def _convert_markdown_to_latex(self, content: str) -> str:
+        """Convert common Markdown syntax to LaTeX equivalents"""
+        
+        # STEP 1: Fix mixed Markdown+LaTeX (e.g., **text\textbf{more** -> \textbf{text more})
+        # Remove cases where ** and \textbf{ are mixed together
+        content = re.sub(r'\*\*([^\*]*?)\\textbf\{([^\}]*?)\*\*', r'\\textbf{\1\2}', content)
+        content = re.sub(r'\\textbf\{([^\}]*?)\*\*', r'\\textbf{\1}', content)
+        content = re.sub(r'\*\*([^\*]*?)\\textbf\{', r'\\textbf{\1', content)
+        
+        # STEP 2: **bold** -> \textbf{bold}
+        def replace_bold(match):
+            text = match.group(1)
+            # Don't convert if it looks like it's already LaTeX or in math mode
+            if '\\' in text or '$' in text:
+                return match.group(0)
+            return f"\\textbf{{{text}}}"
+        
+        # Match **text** but not inside $...$ or \[...\]
+        content = re.sub(r'\*\*([^\*]+?)\*\*', replace_bold, content)
+        
+        # *italic* -> \textit{italic} (single asterisk)
+        def replace_italic(match):
+            text = match.group(1)
+            if '\\' in text or '$' in text:
+                return match.group(0)
+            return f"\\textit{{{text}}}"
+        
+        # Match *text* but not ** (already handled) and not inside math
+        # Use word boundaries to avoid matching math multiplication
+        content = re.sub(r'(?<!\*)\*([^\*\s][^\*]*?[^\*\s])\*(?!\*)', replace_italic, content)
+        
+        # `code` -> \texttt{code} (but avoid if already in verbatim or math)
+        def replace_code(match):
+            text = match.group(1)
+            if '\\' in text:
+                return match.group(0)
+            # Escape special LaTeX characters in code
+            text = text.replace('_', '\\_').replace('#', '\\#').replace('%', '\\%')
+            return f"\\texttt{{{text}}}"
+        
+        content = re.sub(r'`([^`]+?)`', replace_code, content)
+        
+        # Normalize algorithm commands (support both old and new style)
+        # The 'algorithmic' package uses uppercase (\STATE, \FOR, \IF, etc.)
+        # The 'algpseudocode' package uses mixed case (\State, \For, \If, etc.)
+        # We keep uppercase as-is since we load the 'algorithmic' package
+        # But also ensure common variants work
+        
+        return content
+    
     def _clean_body_content(self, body_content: str) -> str:
         patterns_to_remove = [
             r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",  # matches \documentclass[...]{...}
@@ -96,6 +146,9 @@ class BaseOutputFormatter(abc.ABC):
 
         for pattern in patterns_to_remove:
             body_content = re.sub(pattern, "", body_content, flags=re.DOTALL)
+
+        # Convert Markdown syntax to LaTeX
+        body_content = self._convert_markdown_to_latex(body_content)
 
         return body_content.strip()
 
@@ -332,6 +385,29 @@ class BaseOutputFormatter(abc.ABC):
         if not begin_doc_match:
             raise ValueError("Template is missing \\begin{document}.")
 
+        # Inject essential math and algorithm packages before \begin{document}
+        math_packages = (
+            "\n% Essential math packages (auto-injected by tiny_scientist)\n"
+            "\\usepackage{amsmath}   % For advanced math environments and \\text{}\n"
+            "\\usepackage{amssymb}   % For additional math symbols\n"
+            "\\usepackage{amsthm}    % For theorem environments\n"
+            "\\usepackage{mathtools} % Enhanced math support\n"
+            "\\usepackage{bm}        % For bold math symbols\n\n"
+            "% Algorithm packages (supporting both old and new syntax)\n"
+            "\\usepackage{algorithm}      % For algorithm floating environment\n"
+            "\\usepackage{algorithmic}    % Old-style commands (\\STATE, \\FOR, etc.)\n"
+            "\\usepackage{algpseudocode}  % New-style commands (\\State, \\For, etc.)\n"
+            "\\usepackage{algorithmicx}   % Enhanced algorithm support\n\n"
+        )
+        
+        # Check if amsmath is already present (avoid duplicate injection)
+        if "amsmath" not in template_text:
+            # Inject before \begin{document}
+            template_text = template_text[:begin_doc_match.start()] + math_packages + template_text[begin_doc_match.start():]
+            # Update match after injection
+            begin_doc_match = re.search(r"(\\begin{document})", template_text)
+            print("[INFO] Injected essential packages: math (amsmath, amssymb, amsthm, mathtools, bm) + algorithms (algorithm, algorithmic, algpseudocode, algorithmicx)")
+
         maketitle_match = re.search(r"(\\maketitle)", template_text)
         ending_match = re.search(r"(\\end{document})", template_text)
         if not ending_match:
@@ -355,23 +431,39 @@ class BaseOutputFormatter(abc.ABC):
 
         with open(bib_path, "r") as f:
             bib_content = f.read()
+        
         valid_keys = set(
             re.findall(
-                r"@(?:Article|Conference|InProceedings|Misc|Book|TechReport)\{([\w\-]+),",
+                r"@\w+\{([^,]+),",
                 bib_content,
+                re.IGNORECASE
             )
         )
+        
+        valid_keys = {k.strip() for k in valid_keys}
+        
+        print(f"[DEBUG] Found {len(valid_keys)} valid bibtex keys in custom.bib")
+        if valid_keys:
+            print(f"[DEBUG] Sample keys: {list(valid_keys)[:5]}")
 
         def citation_replacer(match: Match[str]) -> str:
             raw_keys = match.group(1)
-            keys = [k.strip() for k in raw_keys.split(",")]
+            # Clean each key: remove extra braces and whitespace
+            keys = []
+            for k in raw_keys.split(","):
+                cleaned = k.strip().lstrip('{').rstrip('}').strip()
+                if cleaned:
+                    keys.append(cleaned)
+            
+            # Filter valid keys
             valid = [k for k in keys if k in valid_keys]
             if valid:
                 return f"\\cite{{{','.join(valid)}}}"
             else:
+                print(f"[WARNING] Removing invalid citation keys: {keys}")
                 return ""
 
-        return re.sub(r"\\cite\{([^\}]+)\}", citation_replacer, content)
+        return re.sub(r"\\cite\{+([^\}]+)\}+", citation_replacer, content)
 
 
 class TemplateDownloader:
@@ -472,11 +564,16 @@ class ACLOutputFormatter(BaseOutputFormatter):
             final_content = f.read()
 
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
-        self.watermarker._add_watermark(
-            output_pdf_path,
-            watermark_text="THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
-            output_pdf_path=output_pdf_path,
-        )
+        try:
+            self.watermarker._add_watermark(
+                output_pdf_path,
+                watermark_text="THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
+                output_pdf_path=output_pdf_path,
+            )
+            print("[INFO] Watermark added successfully")
+        except Exception as e:
+            print(f"[WARNING] Failed to add watermark: {e}")
+            print("[INFO] Continuing without watermark to avoid PDF corruption")
 
     def _set_output_dir(self, output_dir: str) -> str:
         script_dir = osp.dirname(__file__)
@@ -495,8 +592,8 @@ class ACLOutputFormatter(BaseOutputFormatter):
         return dest_template_dir
 
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        """Corrected LaTeX compilation using LuaLaTeX (for Overleaf compatibility)"""
-        self._ensure_pdflatex()  # This also ensures lualatex is available
+        """LaTeX compilation using pdflatex"""
+        self._ensure_pdflatex()
 
         fname = "acl_latex.tex"
         if not osp.exists(osp.join(cwd, fname)):
@@ -508,7 +605,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
             result = subprocess.run(
                 [
                     "latexmk",
-                    "-lualatex",
+                    "-pdf",
                     "-bibtex",
                     "-interaction=nonstopmode",
                     "-file-line-error",
@@ -534,9 +631,9 @@ class ACLOutputFormatter(BaseOutputFormatter):
                     return
 
             # Method 2: Manual compilation (only if latexmk failed or has citation issues)
-            # Step 1: First lualatex run
+            # Step 1: First pdflatex run
             subprocess.run(
-                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -555,9 +652,18 @@ class ACLOutputFormatter(BaseOutputFormatter):
                     timeout=timeout,
                 )
 
-            # Step 3: Final lualatex run (only one more needed)
+            # Step 3: Second pdflatex run (to read .bbl file and update references)
             subprocess.run(
-                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+
+            # Step 4: Third pdflatex run (to resolve all cross-references and citations)
+            subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -569,7 +675,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
             return
         except FileNotFoundError:
             print(
-                "LaTeX commands not found. Make sure lualatex and bibtex are installed."
+                "LaTeX commands not found. Make sure pdflatex and bibtex are installed."
             )
             return
         except Exception:
@@ -620,11 +726,16 @@ class ICLROutputFormatter(BaseOutputFormatter):
             final_content = f.read()
 
         self._compile_latex(dest_template_dir, output_pdf_path, timeout)
-        self.watermarker._add_watermark(
-            output_pdf_path,
-            watermark_text="THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
-            output_pdf_path=output_pdf_path,
-        )
+        try:
+            self.watermarker._add_watermark(
+                output_pdf_path,
+                watermark_text="THIS PAPER WAS AUTONOMOUSLY GENERATED BY THE TINY_SCIENTIST",
+                output_pdf_path=output_pdf_path,
+            )
+            print("[INFO] Watermark added successfully")
+        except Exception as e:
+            print(f"[WARNING] Failed to add watermark: {e}")
+            print("[INFO] Continuing without watermark to avoid PDF corruption")
 
     def _set_output_dir(self, output_dir: str) -> str:
         script_dir = osp.dirname(__file__)
@@ -655,7 +766,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
             result = subprocess.run(
                 [
                     "latexmk",
-                    "-lualatex",
+                    "-pdf",
                     "-bibtex",
                     "-interaction=nonstopmode",
                     "-file-line-error",
@@ -681,9 +792,9 @@ class ICLROutputFormatter(BaseOutputFormatter):
                     return
 
             # Method 2: Manual compilation (only if latexmk failed or has citation issues)
-            # Step 1: First lualatex run
+            # Step 1: First pdflatex run
             subprocess.run(
-                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -702,9 +813,18 @@ class ICLROutputFormatter(BaseOutputFormatter):
                     timeout=timeout,
                 )
 
-            # Step 3: Final lualatex run (only one more needed)
+            # Step 3: Second pdflatex run (to read .bbl file and update references)
             subprocess.run(
-                ["lualatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+            )
+
+            # Step 4: Third pdflatex run (to resolve all cross-references and citations)
+            subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -716,7 +836,7 @@ class ICLROutputFormatter(BaseOutputFormatter):
             return
         except FileNotFoundError:
             print(
-                "LaTeX commands not found. Make sure lualatex and bibtex are installed."
+                "LaTeX commands not found. Make sure pdflatex and bibtex are installed."
             )
             return
         except Exception:

@@ -39,7 +39,7 @@ class Thinker:
         self.output_dir = output_dir
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
-        self.searcher = PaperSearchTool()
+        self.searcher = PaperSearchTool(engine="semanticscholar")
         self.search_papers = search_papers
         self.generate_exp_plan = generate_exp_plan
         self.prompts = self.config.prompt_template.thinker_prompt
@@ -607,6 +607,7 @@ Be critical and realistic in your assessments."""
             intent=self.intent,
             current_round=current_round,
             num_reflections=self.iter_num,
+            current_idea=idea_json,  # add current idea to the prompt
             related_works_string=related_works_string,
         )
 
@@ -744,16 +745,27 @@ Be critical and realistic in your assessments."""
 
     @staticmethod
     def _format_paper_results(papers: List[Dict[str, Any]]) -> str:
-        """Format paper results exactly like Reviewer class"""
+        """Format paper results with title, authors, venue, and abstract"""
         if not papers:
             return "No papers found."
 
         paper_strings = []
         for i, paper in enumerate(papers):
-            paper_strings.append(
-                f"{i}: {paper.get('title', 'No title')}. {paper.get('source', 'No authors')}. "
-                f"{paper.get('info', 'No venue')}"
-            )
+            title = paper.get('title', 'No title')
+            source = paper.get('source', 'No authors')
+            info = paper.get('info', 'No venue')
+            abstract = paper.get('abstract', '')
+            
+            # Format: Title. Authors. Venue.\nAbstract: ...
+            paper_str = f"{i}: {title}. {source}. {info}"
+            if abstract and len(abstract.strip()) > 0:
+                # Truncate very long abstracts
+                abstract_text = abstract.strip()
+                if len(abstract_text) > 500:
+                    abstract_text = abstract_text[:500] + "..."
+                paper_str += f"\nAbstract: {abstract_text}"
+            
+            paper_strings.append(paper_str)
 
         return "\n\n".join(paper_strings)
 
@@ -783,18 +795,10 @@ Be critical and realistic in your assessments."""
 
             # Check if the idea passed all safety checks
             if safety_result["overall_safety"]["is_safe"]:
-                # If there's an enhanced idea from ethics evaluation, use it
-                if safety_result.get("idea_ethics") and safety_result[
-                    "idea_ethics"
-                ].get("ethics_evaluation", {}).get("enhanced_idea"):
-                    enhanced_idea = safety_result["idea_ethics"]["ethics_evaluation"][
-                        "enhanced_idea"
-                    ]
-                    print("✅ Safety check passed with enhancements")
-                    return json.dumps(enhanced_idea, indent=2)
-                else:
-                    print("✅ Safety check passed")
-                    return idea_json
+                # Safety check passed, but do NOT use enhanced_idea
+                # We only want to validate, not modify the idea
+                print("✅ Safety check passed")
+                return idea_json
             else:
                 print(
                     f"⚠️ Safety check warning: {safety_result['overall_safety']['recommendation']}"
