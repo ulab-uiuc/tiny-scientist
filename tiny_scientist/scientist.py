@@ -14,6 +14,103 @@ from .writer import Writer
 
 
 class TinyScientist:
+    MODULE_KEYS = (
+        "safety_checker",
+        "thinker",
+        "coder",
+        "writer",
+        "reviewer",
+    )
+    DEFAULT_BUDGET_PREFERENCE = "balanced"
+    BUDGET_WEIGHTS = {
+        "balanced": {
+            "safety_checker": 0.1,
+            "thinker": 0.25,
+            "writer": 0.25,
+            "reviewer": 0.25,
+            "coder": 0.15,
+        },
+        "write-heavy": {
+            "safety_checker": 0.05,
+            "thinker": 0.15,
+            "writer": 0.5,
+            "reviewer": 0.2,
+            "coder": 0.1,
+        },
+        "think-heavy": {
+            "safety_checker": 0.05,
+            "thinker": 0.5,
+            "writer": 0.15,
+            "reviewer": 0.2,
+            "coder": 0.1,
+        },
+        "review-heavy": {
+            "safety_checker": 0.05,
+            "thinker": 0.15,
+            "writer": 0.15,
+            "reviewer": 0.5,
+            "coder": 0.15,
+        },
+    }
+
+    @staticmethod
+    def _coerce_budget(raw_budget: Optional[Union[float, int, str]]) -> Optional[float]:
+        if raw_budget is None:
+            return None
+        try:
+            budget_value = float(raw_budget)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Budget must be a number if provided.") from exc
+        if budget_value < 0:
+            raise ValueError("Budget must be non-negative.")
+        return budget_value
+
+    @classmethod
+    def _normalize_budget_preference(cls, preference: Optional[str]) -> str:
+        if not preference:
+            preference = cls.DEFAULT_BUDGET_PREFERENCE
+        normalized = preference.lower()
+        if normalized not in cls.BUDGET_WEIGHTS:
+            raise ValueError(f"Unknown budget preference: {preference}")
+        return normalized
+
+    @classmethod
+    def _resolve_budget_inputs(
+        cls,
+        budget: Optional[Union[float, int, str]],
+        budget_preference: Optional[str],
+    ) -> Tuple[Optional[float], str]:
+        normalized_budget = cls._coerce_budget(budget)
+        normalized_preference = cls._normalize_budget_preference(budget_preference)
+        return normalized_budget, normalized_preference
+
+    @classmethod
+    def resolve_budget_settings(
+        cls,
+        budget: Optional[Union[float, int, str]],
+        budget_preference: Optional[str] = None,
+    ) -> Tuple[Optional[float], str, Dict[str, Optional[float]]]:
+        normalized_budget, normalized_preference = cls._resolve_budget_inputs(
+            budget, budget_preference
+        )
+        if normalized_budget is None:
+            allocation = {key: None for key in cls.MODULE_KEYS}
+        else:
+            weights = cls.BUDGET_WEIGHTS[normalized_preference]
+            allocation = {
+                key: normalized_budget * weights[key] for key in cls.MODULE_KEYS
+            }
+        return normalized_budget, normalized_preference, allocation
+
+    @classmethod
+    def compute_budget_alloca·tion(
+        cls,
+        budget: Optional[Union[float, int, str]],
+        budget_preference: Optional[str] = None,
+    ) -> Dict[str, Optional[float]]:
+        _, _, allocation = cls.resolve_budget_settings(budget, budget_preference)
+        return allocation
+
     def __init__(
         self,
         model: str = "gpt-4o",
@@ -32,65 +129,42 @@ class TinyScientist:
         self.input_formatter = InputFormatter()
         self.enable_safety_check = enable_safety_check
 
-        self.cost = 0.0
-        self.global_cost_tracker = BudgetChecker(budget=budget)
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "config.toml"
+        )
+        config_core: Dict[str, Any] = {}
+        if os.path.exists(config_path):
+            cfg = toml.load(config_path)
+            config_core = cfg.get("core", {})
 
-        # Naive budget split
-        modules = ["safety_checker", "thinker", "coder", "writer", "reviewer"]
-        per_module_budget = budget / len(modules) if budget else None
-        if budget_preference is None:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "config.toml"
+        resolved_budget = budget
+        if resolved_budget is None and "budget" in config_core:
+            resolved_budget = config_core.get("budget")
+        resolved_preference = budget_preference
+        if resolved_preference is None:
+            resolved_preference = config_core.get(
+                "budget_preference", self.DEFAULT_BUDGET_PREFERENCE
             )
-            if os.path.exists(config_path):
-                cfg = toml.load(config_path)
-                budget_preference = cfg.get("core", {}).get(
-                    "budget_preference", "balanced"
-                )
-            else:
-                budget_preference = "balanced"
 
-        weights = {
-            "balanced": {
-                "safety_checker": 0.1,
-                "thinker": 0.25,
-                "writer": 0.25,
-                "reviewer": 0.25,
-                "coder": 0.15,
-            },
-            "write-heavy": {
-                "safety_checker": 0.05,
-                "thinker": 0.15,
-                "writer": 0.5,
-                "reviewer": 0.2,
-                "coder": 0.1,
-            },
-            "think-heavy": {
-                "safety_checker": 0.05,
-                "thinker": 0.5,
-                "writer": 0.15,
-                "reviewer": 0.2,
-                "coder": 0.1,
-            },
-            "review-heavy": {
-                "safety_checker": 0.05,
-                "thinker": 0.15,
-                "writer": 0.15,
-                "reviewer": 0.5,
-                "coder": 0.15,
-            },
-        }
-        if budget_preference not in weights:
-            raise ValueError(f"Unknown budget preference: {budget_preference}")
+        (
+            normalized_budget,
+            normalized_preference,
+            allocation,
+        ) = self.resolve_budget_settings(resolved_budget, resolved_preference)
 
-        allocation = {
-            k: (budget * w if budget is not None else None)
-            for k, w in weights[budget_preference].items()
-        }
+        self.cost = 0.0
+        self.budget = normalized_budget
+        self.budget_preference = normalized_preference
+        self.global_cost_tracker = BudgetChecker(budget=normalized_budget)
+        self.budget_allocation = allocation
 
         self.safety_checker = (
             SafetyChecker(
-                model=model, cost_tracker=BudgetChecker(budget=per_module_budget)
+                model=model,
+                cost_tracker=BudgetChecker(
+                    budget=allocation.get("safety_checker"),
+                    parent=self.global_cost_tracker,
+                ),
             )
             if enable_safety_check
             else None
@@ -105,7 +179,10 @@ class TinyScientist:
             search_papers=True,
             generate_exp_plan=True,
             enable_safety_check=enable_safety_check,
-            cost_tracker=BudgetChecker(budget=allocation.get("thinker")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("thinker"),
+                parent=self.global_cost_tracker,
+            ),
         )
 
         self.coder = Coder(
@@ -114,7 +191,10 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
-            cost_tracker=BudgetChecker(budget=allocation.get("coder")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("coder"),
+                parent=self.global_cost_tracker,
+            ),
             use_docker=use_docker,
         )
 
@@ -123,14 +203,20 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
-            cost_tracker=BudgetChecker(budget=allocation.get("writer")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("writer"),
+                parent=self.global_cost_tracker,
+            ),
         )
 
         self.reviewer = Reviewer(
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            cost_tracker=BudgetChecker(budget=allocation.get("reviewer")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("reviewer"),
+                parent=self.global_cost_tracker,
+            ),
         )
 
     def think(

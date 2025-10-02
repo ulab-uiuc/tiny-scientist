@@ -32,6 +32,12 @@ def main() -> None:
         default=True,
         help="Enable safety check for input prompts (True/False)",
     )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=1.0,
+        help="Maximum USD budget for the entire run",
+    )
     args = parser.parse_args()
 
     if os.path.exists(args.output_dir):
@@ -62,6 +68,7 @@ def main() -> None:
         prompt_template_dir=args.prompt_template_dir,
         template=args.template,
         enable_safety_check=args.enable_safety_check,
+        budget=args.budget,
     )
 
     idea = scientist.think(

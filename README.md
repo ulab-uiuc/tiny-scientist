@@ -104,7 +104,7 @@ Now you can use Tiny-Scientist in Python with only a few lines of code:
 ```python
 from tiny_scientist import TinyScientist
 
-scientist = TinyScientist(model="gpt-4o")
+scientist = TinyScientist(model="gpt-4o", budget=1.0)
 
 # Step 1: Generate a json-format research idea
 idea = scientist.think(intent="Benchmarking adaptive step size strategies using a convex quadratic optimization function")

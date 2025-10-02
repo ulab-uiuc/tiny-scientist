@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, Optional
 
 from rich import print
@@ -12,11 +14,16 @@ class BudgetExceededError(Exception):
 class BudgetChecker:
     """Track API usage cost and enforce a spending budget."""
 
-    def __init__(self, budget: Optional[float] = None) -> None:
+    def __init__(
+        self,
+        budget: Optional[float] = None,
+        parent: Optional["BudgetChecker"] = None,
+    ) -> None:
         self.total_cost = 0.0
         self.per_task_cost: Dict[str, float] = {}
         self.current_task: Optional[str] = None
         self.budget = budget  # in dollars
+        self.parent = parent
 
     def start_task(self, task_name: str) -> None:
         self.current_task = task_name
@@ -36,11 +43,26 @@ class BudgetChecker:
         task_name: Optional[str] = None,
     ) -> float:
         cost = calculate_pricing(model, input_tokens, output_tokens)
-        if self.budget is not None and self.total_cost + cost > self.budget:
+        projected_total = self.total_cost + cost
+
+        enforce_locally = (
+            self.parent is None or self.parent.budget is None
+        ) and self.budget is not None
+
+        if enforce_locally and projected_total > self.budget:
             raise BudgetExceededError(
                 f"Budget exceeded! Attempted to add ${cost:.4f}, "
-                f"which would bring total to ${self.total_cost + cost:.4f} (budget: ${self.budget:.4f})"
+                f"which would bring total to ${projected_total:.4f} (budget: ${self.budget:.4f})"
             )
+
+        if self.parent is not None:
+            self.parent.add_cost(
+                model,
+                input_tokens,
+                output_tokens,
+                task_name,
+            )
+
         self.total_cost += cost
         if task_name is None:
             task_name = self.current_task
