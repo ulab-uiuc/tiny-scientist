@@ -10,79 +10,20 @@ from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
+from .utils.pricing import BUDGET_MODULE_KEYS as PRICING_BUDGET_MODULE_KEYS
+from .utils.pricing import (
+    DEFAULT_BUDGET_PREFERENCE as PRICING_DEFAULT_BUDGET_PREFERENCE,
+)
+from .utils.pricing import (
+    compute_budget_allocation as pricing_compute_budget_allocation,
+)
+from .utils.pricing import resolve_budget_settings as pricing_resolve_budget_settings
 from .writer import Writer
 
 
 class TinyScientist:
-    MODULE_KEYS = (
-        "safety_checker",
-        "thinker",
-        "coder",
-        "writer",
-        "reviewer",
-    )
-    DEFAULT_BUDGET_PREFERENCE = "balanced"
-    BUDGET_WEIGHTS = {
-        "balanced": {
-            "safety_checker": 0.1,
-            "thinker": 0.25,
-            "writer": 0.25,
-            "reviewer": 0.25,
-            "coder": 0.15,
-        },
-        "write-heavy": {
-            "safety_checker": 0.05,
-            "thinker": 0.15,
-            "writer": 0.5,
-            "reviewer": 0.2,
-            "coder": 0.1,
-        },
-        "think-heavy": {
-            "safety_checker": 0.05,
-            "thinker": 0.5,
-            "writer": 0.15,
-            "reviewer": 0.2,
-            "coder": 0.1,
-        },
-        "review-heavy": {
-            "safety_checker": 0.05,
-            "thinker": 0.15,
-            "writer": 0.15,
-            "reviewer": 0.5,
-            "coder": 0.15,
-        },
-    }
-
-    @staticmethod
-    def _coerce_budget(raw_budget: Optional[Union[float, int, str]]) -> Optional[float]:
-        if raw_budget is None:
-            return None
-        try:
-            budget_value = float(raw_budget)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("Budget must be a number if provided.") from exc
-        if budget_value < 0:
-            raise ValueError("Budget must be non-negative.")
-        return budget_value
-
-    @classmethod
-    def _normalize_budget_preference(cls, preference: Optional[str]) -> str:
-        if not preference:
-            preference = cls.DEFAULT_BUDGET_PREFERENCE
-        normalized = preference.lower()
-        if normalized not in cls.BUDGET_WEIGHTS:
-            raise ValueError(f"Unknown budget preference: {preference}")
-        return normalized
-
-    @classmethod
-    def _resolve_budget_inputs(
-        cls,
-        budget: Optional[Union[float, int, str]],
-        budget_preference: Optional[str],
-    ) -> Tuple[Optional[float], str]:
-        normalized_budget = cls._coerce_budget(budget)
-        normalized_preference = cls._normalize_budget_preference(budget_preference)
-        return normalized_budget, normalized_preference
+    MODULE_KEYS = PRICING_BUDGET_MODULE_KEYS
+    DEFAULT_BUDGET_PREFERENCE = PRICING_DEFAULT_BUDGET_PREFERENCE
 
     @classmethod
     def resolve_budget_settings(
@@ -90,26 +31,15 @@ class TinyScientist:
         budget: Optional[Union[float, int, str]],
         budget_preference: Optional[str] = None,
     ) -> Tuple[Optional[float], str, Dict[str, Optional[float]]]:
-        normalized_budget, normalized_preference = cls._resolve_budget_inputs(
-            budget, budget_preference
-        )
-        if normalized_budget is None:
-            allocation = {key: None for key in cls.MODULE_KEYS}
-        else:
-            weights = cls.BUDGET_WEIGHTS[normalized_preference]
-            allocation = {
-                key: normalized_budget * weights[key] for key in cls.MODULE_KEYS
-            }
-        return normalized_budget, normalized_preference, allocation
+        return pricing_resolve_budget_settings(budget, budget_preference)
 
     @classmethod
-    def compute_budget_alloca·tion(
+    def compute_budget_allocation(
         cls,
         budget: Optional[Union[float, int, str]],
         budget_preference: Optional[str] = None,
     ) -> Dict[str, Optional[float]]:
-        _, _, allocation = cls.resolve_budget_settings(budget, budget_preference)
-        return allocation
+        return pricing_compute_budget_allocation(budget, budget_preference)
 
     def __init__(
         self,
@@ -137,14 +67,12 @@ class TinyScientist:
             cfg = toml.load(config_path)
             config_core = cfg.get("core", {})
 
-        resolved_budget = budget
-        if resolved_budget is None and "budget" in config_core:
-            resolved_budget = config_core.get("budget")
-        resolved_preference = budget_preference
-        if resolved_preference is None:
-            resolved_preference = config_core.get(
-                "budget_preference", self.DEFAULT_BUDGET_PREFERENCE
-            )
+        resolved_budget = budget if budget is not None else config_core.get("budget")
+        resolved_preference = (
+            budget_preference
+            if budget_preference is not None
+            else config_core.get("budget_preference")
+        )
 
         (
             normalized_budget,
