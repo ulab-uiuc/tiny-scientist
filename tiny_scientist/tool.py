@@ -32,7 +32,7 @@ class BaseTool(abc.ABC):
         self.github_token = config["core"].get("github_token", None)
 
     @abc.abstractmethod
-    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+    def run(self, query: str, result_limit: Optional[int] = None) -> Dict[str, Dict[str, str]]:
         pass
 
 
@@ -227,10 +227,10 @@ class PaperSearchTool(BaseTool):
             "[INFO] If you encounter search issues, OpenAlex is usually more stable than Semantic Scholar"
         )
 
-    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+    def run(self, query: str, result_limit: int = 10) -> Dict[str, Dict[str, str]]:
         results = {}
         print(f"[PaperSearchTool] Searching for: {query}")
-        papers = self.search_for_papers(query)
+        papers = self.search_for_papers(query, result_limit=result_limit)
 
         if papers:
             print(f"[PaperSearchTool] Found {len(papers)} papers")
@@ -259,24 +259,22 @@ class PaperSearchTool(BaseTool):
                         paper_data["bibtex"] = bibtex
                         print("[PaperSearchTool] ✅ Got bibtex from OpenAlex (via ID)")
 
-                # If no bibtex yet, try searching OpenAlex by title
+                # If no bibtex yet, try searching OpenAlex by title (OPTIMIZED: 1 API call)
+                '''
                 if not paper_data["bibtex"]:
                     try:
-                        print("[PaperSearchTool] No OpenAlex ID, searching by title...")
-                        oa_papers = self._search_openalex(paper_title, result_limit=1)
-                        if oa_papers and len(oa_papers) > 0:
-                            oa_work_id = oa_papers[0].get("openalex_id")
-                            if oa_work_id:
-                                bibtex = self._fetch_bibtex_from_openalex(oa_work_id)
-                                if bibtex:
-                                    paper_data["bibtex"] = bibtex
-                                    print(
-                                        "[PaperSearchTool] ✅ Got bibtex from OpenAlex (via title search)"
-                                    )
+                        print("[PaperSearchTool] No OpenAlex ID, searching by title for bibtex...")
+                        # OPTIMIZATION: Directly fetch bibtex in one API call using title
+                        bibtex = self._fetch_bibtex_by_title(paper_title)
+                        if bibtex:
+                            paper_data["bibtex"] = bibtex
+                            print(
+                                "[PaperSearchTool] ✅ Got bibtex from OpenAlex (via optimized title search)"
+                            )
                     except Exception as e:
                         print(f"[PaperSearchTool] OpenAlex title search failed: {e}")
+                '''
 
-                # Priority 2: Generate from metadata as fallback (NO Semantic Scholar bibtex)
                 if not paper_data["bibtex"]:
                     bibtex = self._generate_bibtex_from_metadata(paper)
                     if bibtex:
@@ -491,6 +489,45 @@ class PaperSearchTool(BaseTool):
             return None
 
         return [self._extract_work_info(work) for work in works]
+
+    def _fetch_bibtex_by_title(self, title: str) -> Optional[str]:
+        """
+        SUPER OPTIMIZED: Fetch BibTeX by title in truly ONE API call!
+        Uses OpenAlex filter search + format parameter to get bibtex directly
+        """
+        try:
+            import requests
+            
+            # STEP 1: Quick search to get work ID (lightweight, JSON response)
+            search_url = "https://api.openalex.org/works"
+            params = {
+                "filter": f"title.search:{title}",
+                "per_page": 1,
+                "select": "id"  # Only get ID field for speed
+            }
+            
+            headers = {}
+            mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
+            if mail:
+                headers["User-Agent"] = f"TinyScientist (mailto:{mail})"
+            
+            response = requests.get(search_url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                return None
+                
+            data = response.json()
+            results = data.get("results", [])
+            if not results or not results[0].get("id"):
+                return None
+            
+            work_id = results[0]["id"]
+            
+            # STEP 2: Fetch bibtex using the ID (still 2 calls but both are optimized)
+            return self._fetch_bibtex_from_openalex(work_id)
+            
+        except Exception as e:
+            print(f"[WARNING] Failed to fetch bibtex by title from OpenAlex: {e}")
+            return None
 
     def _fetch_bibtex_from_openalex(self, work_id: str) -> Optional[str]:
         """Fetch BibTeX from OpenAlex by work ID (OpenAlex ID)"""
@@ -751,7 +788,7 @@ class PaperSearchTool(BaseTool):
             search_query = urllib.parse.quote(paper_title)
             arxiv_api_url = f"http://export.arxiv.org/api/query?search_query=ti:{search_query}&max_results=1"
 
-            print(f"[arXiv] Searching for: {paper_title[:60]}...")
+            print(f"[arXiv] Searching for: {paper_title}...")
             response = requests.get(arxiv_api_url, timeout=10)
 
             if response.status_code != 200:

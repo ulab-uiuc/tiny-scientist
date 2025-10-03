@@ -9,7 +9,7 @@ def main() -> None:
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="experiments/demo_2",
+        default="experiments/demo_3",
         help="Base output directory",
     )
     parser.add_argument(
@@ -47,14 +47,13 @@ def main() -> None:
     )
 
     idea = scientist.think(
-        intent="Graph Neural Networks for Natural Language Processing"
+        intent="latent reasoning for large language models"
     )
 
     if isinstance(idea, list):
         idea = idea[0]
 
     idea["is_experimental"] = False
-    breakpoint()
     pdf_path = scientist.write(idea=idea, experiment_dir=args.output_dir)
     scientist.review(pdf_path=pdf_path)
 

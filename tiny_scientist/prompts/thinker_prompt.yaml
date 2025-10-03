@@ -167,33 +167,36 @@ query_prompt: |
   ```
   {intent}
   ```
-  Please generate a simple and effective search query to find the most relevant related work in the scientific literature.
 
-  **CRITICAL**: Focus your query on the UNIQUE/NOVEL aspects of the research approach, not just general topics.
+  **YOUR TASK**: Read the intent above and extract 2-4 SPECIFIC technical terms FROM THE INTENT to create a search query.
 
-  **SEARCH STRATEGY**:
-  1. Identify the CORE INNOVATION or unique combination in the intent
-  2. Search for papers specifically related to this novelty
-  3. Example: If using "causal graphs for GNN", search for "causal graph" AND "graph neural networks", NOT just "GNN"
-  4. Example: If proposing "adaptive attention for low-resource translation", search for "adaptive attention" AND "low-resource translation"
+  **CRITICAL STEP-BY-STEP**:
+  1. READ the intent carefully
+  2. IDENTIFY the specific technique/algorithm mentioned (e.g., "latent reasoning", "graph attention", "knowledge distillation")
+  3. IDENTIFY the specific model/domain mentioned (e.g., "BERT", "transformers", "large language models")
+  4. COMBINE them with AND: "technique AND model/domain"
+  5. DO NOT use examples below - they are just to show the FORMAT, not content to copy!
 
-  **QUERY CONSTRUCTION GUIDELINES**:
-  1. Use AND to connect the NOVEL component with the application domain
-  2. Use OR sparingly for alternative terms of the SAME concept
-  3. Keep multi-word phrases as simple text (e.g., causal graph, not "causal graph")
-  4. Keep it simple: 3-5 main concepts, avoid nested parentheses
-  5. Focus on what makes the idea UNIQUE, not general background
+  **TYPES OF SPECIFIC TECHNICAL TERMS TO EXTRACT FROM INTENT**:
+  ✅ Specific algorithms: "graph attention network", "knowledge distillation", "contrastive learning"
+  ✅ Specific mechanisms: "tree-based reasoning", "causal intervention", "hierarchical attention"
+  ✅ Specific models: "BERT", "GPT", "transformer", "large language models"
+  ✅ Specific architectures: "encoder-decoder", "autoregressive", "diffusion model"
+  ✅ Specific tasks: "link prediction", "question answering", "sentiment analysis"
 
-  **GOOD EXAMPLES** (focused on novelty):
-  - causal graph AND graph neural networks
-  - adaptive attention AND (low-resource OR few-shot) AND translation
-  - contrastive learning AND graph structure
-  - meta-learning AND few-shot classification
+  **WHAT TO AVOID** (general/vague terms):
+  ❌ "machine learning", "deep learning", "AI"
+  ❌ "neural networks" (too general - specify which type!)
+  ❌ "NLP", "computer vision" (too broad)
+  ❌ "improve performance", "better results"
 
-  **BAD EXAMPLES** (too general or complex):
-  - "graph neural networks" (too general, misses the unique part)
-  - "machine translation" (too broad, no novel component)
-  - ((A OR B) AND (C OR D)) OR ((E AND F) OR G) (too complex)
+  **FORMAT EXAMPLES** (showing query structure, NOT content to copy):
+  - If intent mentions "causal graphs for GNN link prediction" → query: "causal graph AND graph neural network AND link prediction"
+  - If intent mentions "knowledge distillation for BERT" → query: "knowledge distillation AND BERT"
+  - If intent mentions "latent reasoning in LLMs" → query: "latent reasoning AND large language models"
+  - If intent mentions "contrastive learning on graphs" → query: "contrastive learning AND graph representation"
+
+  **REMEMBER**: Extract terms FROM THE INTENT above, not from these examples!
 
   Respond in the following format:
 
@@ -223,22 +226,31 @@ rethink_query_prompt: |
   {idea}
   ```
 
-  Please generate an effective search query to find relevant literature that can help refine this idea.
+  **YOUR TASK**: Read the CURRENT IDEA above and extract 2-3 SPECIFIC technical terms FROM IT to create a search query.
 
-  **CRITICAL**: Focus your query on the NOVEL/UNIQUE component of the current idea, not just general topics.
+  **CRITICAL STEP-BY-STEP**:
+  1. READ the current idea's "Approach" section carefully
+  2. IDENTIFY the specific technique/algorithm in the approach (e.g., "hierarchical attention", "causal intervention")
+  3. IDENTIFY the specific task/application (e.g., "text classification", "bias mitigation")
+  4. COMBINE them with AND: "technique AND task"
+  5. DO NOT copy from examples - extract from the IDEA above!
 
-  **SEARCH STRATEGY**:
-  Search for specific papers that can make the proposed method more solid and detailed.
+  **TYPES OF TERMS TO EXTRACT FROM THE IDEA**:
+  ✅ Specific techniques in the approach: "hierarchical attention", "knowledge distillation", "causal intervention"
+  ✅ Specific models mentioned: "BERT", "GPT", "transformer"
+  ✅ Specific tasks: "text classification", "question answering", "node classification"
 
-  **GOOD EXAMPLES** (focused on the unique component):
-  - hierarchical attention AND dynamic weighting AND classification
-  - causal intervention AND bias mitigation AND NLP
-  - contrastive learning AND graph structure AND representation
+  **WHAT TO AVOID**:
+  ❌ Generic terms: "deep learning", "machine learning"
+  ❌ Vague terms: "neural networks" (specify which!)
+  ❌ Abbreviations without context: "RL", "NLP"
 
-  **BAD EXAMPLES** (too general or misses novelty):
-  - "deep learning" AND classification (too general)
-  - meta-learning AND few-shot OR adaptation AND neural OR networks (too chaotic)
-  - "machine translation" (misses the unique mechanism)
+  **FORMAT EXAMPLES** (showing structure only, NOT content to copy):
+  - If idea uses "hierarchical attention for text classification" → query: "hierarchical attention AND text classification"
+  - If idea uses "causal intervention for bias mitigation" → query: "causal intervention AND bias mitigation"
+  - If idea uses "knowledge distillation on BERT" → query: "knowledge distillation AND BERT"
+
+  **REMEMBER**: Extract terms FROM THE CURRENT IDEA above!
 
   Respond in the following format:
 
@@ -268,33 +280,32 @@ novelty_query_prompt: |
   {idea}
   ```
 
-  Please generate a focused search query to specifically find literature that might challenge the novelty of this idea - papers that have already implemented similar approaches.
+  **YOUR TASK**: Read the CURRENT IDEA's "Approach" and extract the MOST SPECIFIC technical terms of the CORE NOVEL ALGORITHM to check if it already exists.
 
-  **CRITICAL**: Focus on the CORE NOVEL ALGORITHM/MECHANISM of the idea to check if it's truly new.
+  **CRITICAL STEP-BY-STEP FOR NOVELTY CHECK**:
+  1. READ the "Approach" section in the CURRENT IDEA
+  2. IDENTIFY what makes it novel (e.g., "causal" + "graph attention", "adversarial" + "contrastive learning")
+  3. EXTRACT all distinctive modifiers + the base technique (e.g., "causal graph attention", not just "attention")
+  4. COMBINE all novel components with AND
+  5. Goal: Find papers with the EXACT SAME combination
+  6. DO NOT use examples below - extract from the IDEA!
 
-  **NOVELTY CHECK STRATEGY**:
-  1. Identify the MOST UNIQUE algorithmic component (e.g., specific attention mechanism, novel loss function, unique architecture)
-  2. Search for papers that may have already proposed this specific component
-  3. Example: If idea proposes "causal graph attention for GNN", search for "causal" AND "attention" AND "graph neural networks"
-  4. Example: If idea uses "adversarial contrastive learning", search for "adversarial" AND "contrastive learning"
+  **HOW TO EXTRACT THE NOVEL COMPONENTS FROM THE IDEA**:
+  ✅ If idea uses "causal graph attention" → extract: "causal AND graph attention network"
+  ✅ If idea uses "adversarial contrastive learning" → extract: "adversarial AND contrastive learning"
+  ✅ If idea uses "hierarchical policy gradient for dialogue" → extract: "hierarchical AND policy gradient AND dialogue"
+  ✅ If idea uses "tree-based reasoning with transformers" → extract: "tree-based AND reasoning AND transformer"
 
-  **QUERY CONSTRUCTION GUIDELINES**:
-  1. Target the CORE INNOVATION: the specific algorithm, mechanism, or unique technical contribution
-  2. Use AND to connect the novel component with the application area
-  3. Keep multi-word phrases as simple text (no quotes needed)
-  4. Keep it simple: 3-5 main distinctive concepts
-  5. Focus on finding papers with the SAME algorithmic innovation
+  **KEY PRINCIPLE**: 
+  - Include ALL distinctive modifiers that make it novel (e.g., "causal", "adversarial", "hierarchical")
+  - Use complete technical phrases (e.g., "graph attention network", not just "attention")
+  - Be as specific as the idea describes
 
-  **GOOD EXAMPLES** (focused on core novelty):
-  - causal AND attention AND graph neural networks
-  - adversarial AND contrastive learning
-  - hierarchical AND dynamic attention AND classification
-  - meta-learning AND adapter AND transformers
+  **FORMAT EXAMPLES** (structure only, extract YOUR content from idea above):
+  - If idea's novelty is "X + Y technique for Z" → query: "X AND Y technique AND Z"
+  - If idea combines "A method with B architecture" → query: "A method AND B architecture"
 
-  **BAD EXAMPLES** (too general or misses core innovation):
-  - "graph neural networks" (misses the "causal attention" novelty)
-  - hierarchical AND attention OR mechanism AND document OR text (too chaotic)
-  - "deep learning" AND classification (too general)
+  **REMEMBER**: Extract the EXACT novel combination FROM THE IDEA's "Approach" above!
 
   Respond in the following format:
 
@@ -343,8 +354,8 @@ idea_first_prompt: |
     * Explain why past methods don’t fully solve the problem and what’s new about yours.
     * Prove your novelty. No one has solved XYZ, but we did. These limitations can be perfectly solved after our paper.
   5. **Approach**
-    * Describe the **core algorithm/mechanism** of your proposed method (≈200–300 words).
-    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for (1) (2) (3) in the difficulty
+    * Describe the **core algorithm/mechanism** of your proposed method.
+    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for each point in the difficulty
     * Focus on your novel component, not standard preprocessing or ethics.
     * IMPORTANT! You need to make sure that your proposed method can solve the problem you propose. Need to include the reason why such method can solve.
 
@@ -393,11 +404,9 @@ idea_reflection_prompt: |
   1. **Intent Alignment** – Make sure the idea directly solves the original intent. If not, refocus.
   2. **Problem** – Add concrete examples, numbers, and proper citations. Show clearly why this problem matters and persists.
   3. **Importance** – Strengthen with real evidence (scale, impact, urgency).
-  4. **Difficulty** – Strengthen with real evidence (scale, impact, urgency).
-  5. **Novelty Comparison** – List more XYZ why ours is better
-  6. **Approach (Most Important)** –
-    * Explain how we do XYZ that makes us novel with more details
-    * Mention some key details of your methods. Not say use loss to optimize, say what loss and what weight you plan to use as the target. Not say using GNN as model, say what specific architecture you plan to use.
+  4. **Difficulty** – List more bullet points why ours is better
+  5. **Novelty Comparison** – Include more papers for comparison
+  6. **Approach (Most Important)** List more bullet points corresponding to Difficulty and check how to design methods that ours is better
 
   Please make sure the following requirements are kept:
   1. **Problem**
@@ -419,8 +428,8 @@ idea_reflection_prompt: |
     * Explain why past methods don’t fully solve the problem and what’s new about yours.
     * Prove your novelty. No one has solved XYZ, but we did. These limitations can be perfectly solved after our paper.
   5. **Approach**
-    * Describe the **core algorithm/mechanism** of your proposed method (≈200–300 words).
-    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for (1) (2) (3) in the difficulty
+    * Describe the **core algorithm/mechanism** of your proposed method.
+    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for each in the difficulty
     * Focus on your novel component, not standard preprocessing or ethics.
     * IMPORTANT! You need to make sure that your proposed method can solve the problem you propose. Need to include the reason why such method can solve.
 

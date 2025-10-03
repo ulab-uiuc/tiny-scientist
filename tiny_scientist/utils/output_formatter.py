@@ -612,6 +612,7 @@ class ACLOutputFormatter(BaseOutputFormatter):
         fatal_patterns = [
             (r"! Undefined control sequence\.\n.*\n.*\\(\w+)", "undefined_command"),
             (r"! LaTeX Error: (.*)", "latex_error"),
+            (r"! LaTeX Warning: (.*)", "latex_warning"),
             (r"! Package (\w+) Error: (.*)", "package_error"),
             (r"Runaway argument\?", "runaway_argument"),
             (r"! File ended while scanning use of (\\.*)\.", "unclosed_environment"),
