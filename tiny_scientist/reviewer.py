@@ -36,7 +36,9 @@ class Reviewer:
         self.client, self.model = create_client(model)
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
-        self.searcher: BaseTool = PaperSearchTool(s2_api_key=s2_api_key)
+        self.searcher: BaseTool = PaperSearchTool(
+            s2_api_key=s2_api_key, engine="semanticscholar"
+        )
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
         self.cost_tracker = cost_tracker or BudgetChecker()
@@ -364,14 +366,26 @@ class Reviewer:
 
     @staticmethod
     def _format_paper_results(papers: List[Dict[str, Any]]) -> str:
+        """Format paper results with title, authors, venue, and abstract"""
         if not papers:
             return "No papers found."
 
         paper_strings = []
         for i, paper in enumerate(papers):
-            paper_strings.append(
-                f"{i}: {paper.get('title', 'No title')}. {paper.get('source', 'No authors')}. "
-                f"{paper.get('info', 'No venue')}"
-            )
+            title = paper.get("title", "No title")
+            source = paper.get("source", "No authors")
+            info = paper.get("info", "No venue")
+            abstract = paper.get("abstract", "")
+
+            # Format: Title. Authors. Venue.\nAbstract: ...
+            paper_str = f"{i}: {title}. {source}. {info}"
+            if abstract and len(abstract.strip()) > 0:
+                # Truncate very long abstracts
+                abstract_text = abstract.strip()
+                if len(abstract_text) > 500:
+                    abstract_text = abstract_text[:500] + "..."
+                paper_str += f"\nAbstract: {abstract_text}"
+
+            paper_strings.append(paper_str)
 
         return "\n\n".join(paper_strings)

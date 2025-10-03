@@ -663,12 +663,38 @@ def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
         try:
             parsed_json = cast(Dict[str, Any], json.loads(json_string))
             return parsed_json
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # Attempt to fix common JSON issues
             try:
-                parsed_json = cast(Dict[str, Any], json.loads(json_string))
+                fixed_string = json_string
+
+                # Fix 1: Remove invalid escape sequences
+                # Single quote doesn't need escaping in JSON
+                fixed_string = fixed_string.replace(r"\'", "'")
+
+                # Fix 2: Fix common invalid escapes (only valid: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX)
+                # Remove backslash before characters that don't need escaping
+                # This pattern finds backslashes followed by characters that are NOT valid escape chars
+                # Valid escape chars: " \ / b f n r t u
+                def fix_invalid_escapes(match):
+                    char = match.group(1)
+                    if char in ['"', "\\", "/", "b", "f", "n", "r", "t", "u"]:
+                        return match.group(0)  # Keep valid escapes
+                    else:
+                        return char  # Remove backslash for invalid escapes
+
+                fixed_string = re.sub(r"\\(.)", fix_invalid_escapes, fixed_string)
+
+                # Fix 3: Try parsing the fixed string
+                parsed_json = cast(Dict[str, Any], json.loads(fixed_string))
+                print("[SUCCESS] Fixed JSON parsing errors and parsed successfully")
                 return parsed_json
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e2:
+                # Log the error for debugging
+                print(f"[ERROR] JSON parse error: {e}")
+                print(f"[ERROR] After fixes, still failed: {e2}")
+                print(f"[DEBUG] Original JSON (first 500 chars): {json_string[:500]}")
+                print(f"[DEBUG] Fixed JSON (first 500 chars): {fixed_string[:500]}")
                 continue  # Try next match
 
     return None  # No valid JSON found
