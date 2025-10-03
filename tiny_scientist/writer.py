@@ -95,19 +95,25 @@ class Writer:
         )
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
 
-        # Formatter selection
-        if self.template == "acl":
-            self.formatter: BaseOutputFormatter = ACLOutputFormatter(
-                model=self.model, client=self.client
-            )
-        elif self.template == "iclr":
-            self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
-        else:
-            raise ValueError(f"Unknown template: {self.template!r}")
-
-        # Prompts & config
+        # Prompts & config (load first)
         self.config = Config(prompt_template_dir)
         self.prompts = self.config.prompt_template.writer_prompt
+        
+        # Formatter selection (with latex_fix_prompt)
+        if self.template == "acl":
+            self.formatter: BaseOutputFormatter = ACLOutputFormatter(
+                model=self.model, 
+                client=self.client,
+                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt
+            )
+        elif self.template == "iclr":
+            self.formatter = ICLROutputFormatter(
+                model=self.model, 
+                client=self.client,
+                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt
+            )
+        else:
+            raise ValueError(f"Unknown template: {self.template!r}")
         self.cost_tracker = cost_tracker or BudgetChecker()
         self.system_prompt = self.prompts.write_system_prompt.format()
 
@@ -167,14 +173,11 @@ class Writer:
         """Generate abstract using all already-written sections as context."""
         title = idea.get("Title", "Research Paper")
         full_context = self._sections_as_markdown(exclude={"Abstract"})
+        # Use unified idea string in abstract prompt as requested
+        idea_str = self._format_idea_as_string(idea)
         abstract_prompt = self.prompts.abstract_prompt.format(
             abstract_tips=self.prompts.section_tips.get("Abstract", ""),
-            title=title,
-            problem=idea.get("Problem", ""),
-            importance=idea.get("Importance", ""),
-            difficulty=idea.get("Difficulty", ""),
-            novelty=idea.get("NoveltyComparison", ""),
-            experiment=idea.get("Experiment", ""),
+            idea=idea_str,
             full_paper_content=full_context,
         )
         abstract_content, _ = get_response_from_llm(
@@ -448,16 +451,11 @@ class Writer:
         max_queries: int = 6,
     ) -> List[str]:
         """Ask LLM to propose queries; robust JSON parse with fallback."""
-        title = self._to_text(idea.get("Title", ""))
-        problem = self._to_text(idea.get("Problem", ""))
-        novelty = self._to_text(idea.get("NoveltyComparison", ""))
-        experiment = self._to_text(idea.get("Experiment", ""))
+        # Build a single idea string for searching
+        idea_str = self._format_idea_as_string(idea)
 
         prompt = self.prompts.citation_search_query_prompt.format(
-            idea_title=title or "Research Paper",
-            problem=problem,
-            novelty=novelty,
-            experiment=experiment,
+            idea=idea_str,
             section=section or "General",
             snippet=content_snippet or "",
         )

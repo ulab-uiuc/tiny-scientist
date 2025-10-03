@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from .data import (
     CoderPrompt,
     DrawerPrompt,
+    LatexFixPrompt,
     ReviewerPrompt,
     SafetyPrompt,
     ThinkerPrompt,
@@ -25,6 +26,7 @@ class PromptTemplate(BaseModel):
     writer_prompt: WriterPrompt
     drawer_prompt: DrawerPrompt
     safety_prompt: SafetyPrompt
+    latex_fix_prompt: LatexFixPrompt
 
 
 class Config(BaseModel):
@@ -64,6 +66,10 @@ class Config(BaseModel):
             safety_prompt=self._load_yaml_file(
                 os.path.join(prompt_path, "safety_prompt.yaml"),
                 SafetyPrompt,
+            ),
+            latex_fix_prompt=self._load_yaml_file(
+                os.path.join(prompt_path, "latex_fix_prompt.yaml"),
+                LatexFixPrompt,
             ),
         )
 

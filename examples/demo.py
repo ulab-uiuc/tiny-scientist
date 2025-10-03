@@ -9,7 +9,7 @@ def main() -> None:
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="experiments/demo",
+        default="experiments/demo_3",
         help="Base output directory",
     )
     parser.add_argument(
@@ -54,7 +54,7 @@ def main() -> None:
     )
 
     idea = scientist.think(
-        intent="Graph Neural Networks for Natural Language Processing"
+        intent="latent reasoning for large language models"
     )
 
     if isinstance(idea, list):

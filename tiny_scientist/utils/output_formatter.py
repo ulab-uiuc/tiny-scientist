@@ -95,7 +95,7 @@ class BaseOutputFormatter(abc.ABC):
         )
         content = re.sub(r"\\textbf\{([^\}]*?)\*\*", r"\\textbf{\1}", content)
         content = re.sub(r"\*\*([^\*]*?)\\textbf\{", r"\\textbf{\1", content)
-
+        
         # STEP 2: **bold** -> \textbf{bold}
         def replace_bold(match):
             text = match.group(1)
@@ -106,7 +106,7 @@ class BaseOutputFormatter(abc.ABC):
 
         # Match **text** but not inside $...$ or \[...\]
         content = re.sub(r"\*\*([^\*]+?)\*\*", replace_bold, content)
-
+        
         # *italic* -> \textit{italic} (single asterisk)
         def replace_italic(match):
             text = match.group(1)
@@ -119,7 +119,7 @@ class BaseOutputFormatter(abc.ABC):
         content = re.sub(
             r"(?<!\*)\*([^\*\s][^\*]*?[^\*\s])\*(?!\*)", replace_italic, content
         )
-
+        
         # `code` -> \texttt{code} (but avoid if already in verbatim or math)
         def replace_code(match):
             text = match.group(1)
@@ -128,9 +128,9 @@ class BaseOutputFormatter(abc.ABC):
             # Escape special LaTeX characters in code
             text = text.replace("_", "\\_").replace("#", "\\#").replace("%", "\\%")
             return f"\\texttt{{{text}}}"
-
+        
         content = re.sub(r"`([^`]+?)`", replace_code, content)
-
+        
         # Normalize algorithm commands (support both old and new style)
         # The 'algorithmic' package uses uppercase (\STATE, \FOR, \IF, etc.)
         # The 'algpseudocode' package uses mixed case (\State, \For, \If, etc.)
@@ -441,9 +441,9 @@ class BaseOutputFormatter(abc.ABC):
 
         with open(bib_path, "r") as f:
             bib_content = f.read()
-
+        
         valid_keys = set(re.findall(r"@\w+\{([^,]+),", bib_content, re.IGNORECASE))
-
+        
         valid_keys = {k.strip() for k in valid_keys}
 
         print(f"[DEBUG] Found {len(valid_keys)} valid bibtex keys in custom.bib")
@@ -529,10 +529,13 @@ class TemplateDownloader:
 
 
 class ACLOutputFormatter(BaseOutputFormatter):
-    def __init__(self, model: str, client: Any) -> None:
+    def __init__(self, model: str, client: Any, latex_fix_prompt: Any = None) -> None:
         self.template = "acl"
+        self.model = model
+        self.client = client
         self.bib_manager = BibManager(model, client)
         self.watermarker = WaterMarker()
+        self.latex_fix_prompt = latex_fix_prompt
 
     def run(
         self,
@@ -595,78 +598,215 @@ class ACLOutputFormatter(BaseOutputFormatter):
 
         return dest_template_dir
 
+    def _analyze_latex_log(self, log_path: str) -> Dict[str, Any]:
+        """Analyze LaTeX log file for fatal errors"""
+        if not osp.exists(log_path):
+            return {"has_errors": False, "errors": []}
+        
+        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+            log_content = f.read()
+        
+        errors = []
+        
+        # Check for fatal errors
+        fatal_patterns = [
+            (r"! Undefined control sequence\.\n.*\n.*\\(\w+)", "undefined_command"),
+            (r"! LaTeX Error: (.*)", "latex_error"),
+            (r"! LaTeX Warning: (.*)", "latex_warning"),
+            (r"! Package (\w+) Error: (.*)", "package_error"),
+            (r"Runaway argument\?", "runaway_argument"),
+            (r"! File ended while scanning use of (\\.*)\.", "unclosed_environment"),
+            (r"! Missing \\begin\{document\}", "missing_begin_document"),
+        ]
+        
+        for pattern, error_type in fatal_patterns:
+            matches = re.finditer(pattern, log_content, re.MULTILINE)
+            for match in matches:
+                errors.append({
+                    "type": error_type,
+                    "message": match.group(0),
+                    "details": match.groups() if match.groups() else ()
+                })
+        
+        return {
+            "has_errors": len(errors) > 0,
+            "errors": errors,
+            "log_content": log_content
+        }
+    
+    def _fix_latex_errors(self, tex_path: str, log_analysis: Dict[str, Any]) -> bool:
+        """Use LLM to automatically fix LaTeX errors"""
+        if not log_analysis["has_errors"]:
+            return False
+        
+        if not self.latex_fix_prompt:
+            print("[LaTeX Fix] No fix prompt available, skipping LLM fix")
+            return False
+        
+        with open(tex_path, "r", encoding="utf-8") as f:
+            tex_content = f.read()
+        
+        # Prepare error summary
+        error_summary = []
+        for i, error in enumerate(log_analysis["errors"][:10], 1):  # Limit to 10 errors
+            error_summary.append(f"{i}. {error['type']}: {error['message'][:200]}")
+        error_summary_str = "\n".join(error_summary)
+        
+        # Get last 100 lines of log for context
+        log_lines = log_analysis["log_content"].split("\n")
+        log_excerpt = "\n".join(log_lines[-100:])
+        
+        try:
+            # Import get_response_from_llm here to avoid circular imports
+            from ..llm import get_response_from_llm
+            
+            print(f"[LaTeX Fix] Calling LLM to fix {len(log_analysis['errors'])} errors...")
+            
+            # Format the fix prompt
+            fix_prompt = self.latex_fix_prompt.latex_fix_prompt.format(
+                log_excerpt=log_excerpt,
+                error_summary=error_summary_str,
+                tex_content=tex_content
+            )
+            
+            # Call LLM to fix the LaTeX
+            fixed_content, _ = get_response_from_llm(
+                msg=fix_prompt,
+                client=self.client,
+                model=self.model,
+                system_message=self.latex_fix_prompt.latex_fix_system_prompt,
+                print_debug=False,
+                temperature=0.1,  # Low temperature for consistent fixes
+            )
+            
+            # Clean up the response (remove markdown code blocks if present)
+            fixed_content = fixed_content.strip()
+            if fixed_content.startswith("```"):
+                # Remove markdown code blocks
+                lines = fixed_content.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                fixed_content = "\n".join(lines)
+            
+            # Write the fixed content
+            with open(tex_path, "w", encoding="utf-8") as f:
+                f.write(fixed_content)
+            
+            print("[LaTeX Fix] LLM successfully applied fixes to LaTeX file")
+            return True
+            
+        except Exception as e:
+            print(f"[LaTeX Fix] LLM fix failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     def _compile_latex(self, cwd: str, output_pdf_path: str, timeout: int) -> None:
-        """LaTeX compilation using pdflatex (no latexmk required)"""
+        """LaTeX compilation using pdflatex with automatic error fixing"""
         self._ensure_pdflatex()
 
         fname = "acl_latex.tex"
-        if not osp.exists(osp.join(cwd, fname)):
+        tex_path = osp.join(cwd, fname)
+        log_path = osp.join(cwd, fname.replace(".tex", ".log"))
+        
+        if not osp.exists(tex_path):
             print(f"File {fname} not found in {cwd}.")
             return
 
-        try:
-            # Step 1: First pdflatex run (generates .aux file)
-            subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-            )
+        max_fix_attempts = 2
+        for attempt in range(max_fix_attempts):
+            try:
+                # Step 1: First pdflatex run (generates .aux file)
+                result1 = subprocess.run(
+                    ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout,
+                )
 
-            # Step 2: Run bibtex (generates .bbl file from .aux and .bib)
-            base_name = fname.replace(".tex", "")
-            subprocess.run(
-                ["bibtex", base_name],
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-            )
+                # Step 2: Run bibtex (generates .bbl file from .aux and .bib)
+                base_name = fname.replace(".tex", "")
+                subprocess.run(
+                    ["bibtex", base_name],
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout,
+                )
 
-            # Step 3: Second pdflatex run (reads .bbl file and updates references)
-            subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-            )
+                # Step 3: Second pdflatex run (reads .bbl file and updates references)
+                subprocess.run(
+                    ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout,
+                )
 
-            # Step 4: Third pdflatex run (resolves all cross-references and citations)
-            subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-            )
+                # Step 4: Third pdflatex run (resolves all cross-references and citations)
+                result4 = subprocess.run(
+                    ["pdflatex", "-interaction=nonstopmode", "-file-line-error", fname],
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout,
+                )
+                
+                # Analyze log for fatal errors
+                log_analysis = self._analyze_latex_log(log_path)
+                
+                if log_analysis["has_errors"] and attempt < max_fix_attempts - 1:
+                    print(f"[LaTeX] Detected {len(log_analysis['errors'])} errors, attempting automatic fix...")
+                    for err in log_analysis["errors"][:3]:  # Show first 3 errors
+                        print(f"  - {err['type']}: {err['message'][:100]}")
+                    
+                    # Try to fix errors
+                    if self._fix_latex_errors(tex_path, log_analysis):
+                        print(f"[LaTeX] Retrying compilation (attempt {attempt + 2}/{max_fix_attempts})...")
+                        continue
+                    else:
+                        print("[LaTeX] No automatic fixes available, continuing...")
+                        break
+                else:
+                    # Success or max attempts reached
+                    if log_analysis["has_errors"]:
+                        print(f"[LaTeX] Compilation completed with {len(log_analysis['errors'])} errors")
+                        print(f"[LaTeX] Check {log_path} for details")
+                    break
 
-        except subprocess.TimeoutExpired:
-            print(f"LaTeX compilation timed out after {timeout} seconds.")
-            return
-        except FileNotFoundError:
-            print(
-                "LaTeX commands not found. Make sure pdflatex and bibtex are installed."
-            )
-            return
-        except Exception:
-            return
+            except subprocess.TimeoutExpired:
+                print(f"LaTeX compilation timed out after {timeout} seconds.")
+                return
+            except FileNotFoundError:
+                print(
+                    "LaTeX commands not found. Make sure pdflatex and bibtex are installed."
+                )
+                return
+            except Exception as e:
+                print(f"[LaTeX] Compilation error: {e}")
+                return
 
         # Move the PDF to final location
         pdf_source = osp.join(cwd, fname.replace(".tex", ".pdf"))
         if osp.exists(pdf_source):
             try:
                 shutil.move(pdf_source, output_pdf_path)
-            except Exception:
-                pass
+                print(f"[LaTeX] PDF successfully generated: {output_pdf_path}")
+            except Exception as e:
+                print(f"[LaTeX] Failed to move PDF: {e}")
 
 
 class ICLROutputFormatter(BaseOutputFormatter):
-    def __init__(self, model: str, client: Any) -> None:
+    def __init__(self, model: str, client: Any, latex_fix_prompt: Any = None) -> None:
         self.template = "iclr"
+        self.model = model
+        self.client = client
         self.bib_manager = BibManager(model, client)
         self.watermarker = WaterMarker()
+        self.latex_fix_prompt = latex_fix_prompt
 
     def run(
         self,

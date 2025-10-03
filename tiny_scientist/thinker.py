@@ -615,14 +615,14 @@ Be critical and realistic in your assessments."""
         self.cost_tracker.report()
         return scored_ideas
 
-    def _get_related_works(self, query: str) -> str:
+    def _get_related_works(self, query: str, result_limit: int = 30) -> str:
         """Get related works using query caching, similar to Reviewer class"""
         if query in self._query_cache:
             related_papers = self._query_cache[query]
             print("✅ Using cached query results")
         else:
             print(f"Searching for papers with query: {query}")
-            results_dict = self.searcher.run(query)
+            results_dict = self.searcher.run(query, result_limit=result_limit)
             related_papers = list(results_dict.values()) if results_dict else []
             self._query_cache[query] = related_papers
 

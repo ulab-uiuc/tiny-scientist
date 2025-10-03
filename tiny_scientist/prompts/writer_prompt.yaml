@@ -283,47 +283,47 @@ citation_search_query_prompt: |
   You will generate search queries to find relevant papers for citation in the {section} section.
 
   **CONTEXT**:
-  - Idea Title: {idea_title}
-  - Problem: {problem}
-  - Novelty: {novelty}
-  - Experiment: {experiment}
-  - Section Content Snippet: {snippet}
+  - Idea (single string):
+    {idea}
+  - Section Content Snippet:
+    {snippet}
 
-  **CRITICAL**: Focus queries on the UNIQUE/NOVEL aspects of this research, not just general topics.
+  **YOUR TASK**: Read the IDEA and SNIPPET above and extract 2-3 SPECIFIC technical terms FROM THEM to create 6-10 search queries.
 
-  **SEARCH STRATEGY**:
-  1. For the given section content, identify the SPECIFIC claims, methods, or findings that need citation support
-  2. Generate queries that find papers specifically related to those specific aspects
-  3. Combine the novel component with the application domain using AND
-  4. Example: If section discusses "causal graph for GNN link prediction", query should be "causal graph AND graph neural networks" or "link prediction AND graph structure"
+  **CRITICAL STEP-BY-STEP**:
+  1. READ the idea and the section snippet carefully
+  2. IDENTIFY specific techniques/algorithms/models (e.g., "graph attention network", "knowledge distillation", "BERT")
+  3. IDENTIFY the task/application when present (e.g., "link prediction", "question answering")
+  4. CREATE queries as: "specific_technique AND specific_task" (if task is present), otherwise combine 2-3 specific techniques
+  5. DO NOT use generic terms; use only concrete technical terminology
 
-  **QUERY CONSTRUCTION GUIDELINES**:
-  1. Use AND to connect the NOVEL/SPECIFIC component with the domain/task
-  2. Use OR sparingly for alternative terms of the SAME concept (e.g., "few-shot OR low-resource")
-  3. Keep multi-word phrases as simple text (no quotes needed)
-  4. Each query should be 3-8 words, focused on specific concepts
-  5. Match the granularity to the section: Related Work (broader), Method (specific techniques), Discussion (comparative analysis)
+  **TYPES OF SPECIFIC TERMS TO EXTRACT**:
+  ✅ Specific models: "BERT", "GPT-4", "T5", "ResNet"
+  ✅ Specific architectures: "graph attention network", "encoder-decoder"
+  ✅ Specific techniques: "knowledge distillation", "contrastive learning", "adversarial training"
+  ✅ Specific mechanisms: "multi-head attention", "cross-attention", "tree-based reasoning"
+  ✅ Specific tasks: "question answering", "sentiment analysis", "link prediction"
+  ✅ Specific datasets/benchmarks: "SQuAD", "GLUE", "ImageNet"
 
-  **GOOD EXAMPLES** (focused on specific aspects):
-  - causal graph AND graph neural networks
-  - adaptive attention AND low-resource translation
-  - contrastive learning AND graph representation
-  - hierarchical reinforcement learning AND multi-agent
-  - meta-learning AND domain adaptation
+  **WHAT TO AVOID**:
+  ❌ "deep learning", "machine learning", "AI"
+  ❌ "neural networks" (specify which type)
+  ❌ Domain-only terms: "NLP", "CV"
+  ❌ Vague phrases: "improve performance", "state-of-the-art"
 
-  **BAD EXAMPLES** (too general):
-  - graph neural networks (misses the unique aspect)
-  - deep learning (too broad)
-  - machine translation (no specific method)
+  **FORMAT EXAMPLES** (structure only):
+  - If idea/snippet mentions "BERT for question answering" → "BERT AND question answering"
+  - If mentions "graph attention on citation networks" → "graph attention network AND citation network"
+  - If discusses "knowledge distillation for language models" → "knowledge distillation AND language model"
 
   **OUTPUT FORMAT**:
   Return ONLY a JSON array of 6-10 query strings. No extra text, no markdown, no explanations.
 
   Example:
   [
-    "causal graph AND graph neural networks",
-    "link prediction AND graph structure",
-    "contrastive learning AND node embedding"
+    "graph attention network AND link prediction",
+    "knowledge distillation AND language model",
+    "multi-head attention AND machine translation"
   ]
 
 abstract_prompt: |
@@ -331,14 +331,8 @@ abstract_prompt: |
   Some tips are provided below:
   {abstract_tips}
 
-  Here is the research idea that the paper is based on:
-
-  - Title: **{title}**
-  - Research Problem: **{problem}**
-  - Importance: **{importance}**
-  - Difficulty: **{difficulty}**
-  - Novelty: **{novelty}**
-  - Experiment Plan: **{experiment}**
+  Here is the research idea that the paper is based on (single string):
+  {idea}
 
   IMPORTANT: The full paper has already been written. Below is the complete content of all sections.
   Your task is to write an abstract that accurately summarizes what was actually written in the paper,
@@ -635,7 +629,7 @@ section_prompt:
 
     A good result section should look like this:
 
-    \paragraph{{sotopia-RL helps build state-of-the-art social agents on the {{sotopia}} benchmark}} In Table~\ref{{tab:sota-performance}}, Qwen-2.5-7B-Instruct trained with {{sotopia-RL}} reaches the highest goal completion score, achieving the 7.17 score in the {{sotopia-hard}}. It indicates that our utterance-level RM provides better guidance during the training of RL. It also indicates that for multi-turn social interactions, improving the quality of single-turn interactions with suitable single-turn rewards can effectively optimize multi-turn performance. Notably, AMPO~\citep{{wang2025think}} reaches 7.50 on {{sotopia-hard}}. But it includes an explicit reasoning process and requires more than 640 inference tokens per utterance on average. Therefore, it is unfair to compare AMPO with ours since we only utilize GRPO to generate utterances without extra tokens for reasoning. Full results are available in Appendix~\S\ref{{additional-experimental-results}}.
+    \paragraph{{sotopia-RL helps build state-of-the-art social agents on the {{sotopia}} benchmark}} In Table~\ref{{tab:sota-performance}}, Qwen-2.5-7B-Instruct trained with {{sotopia-RL}} reaches the highest goal completion score, achieving the 7.17 score in the {{sotopia-hard}}. It indicates that our utterance-level RM provides better guidance during the training of RL. It also indicates that for multi-turn social interactions, improving the quality of single-turn interactions with suitable single-turn rewards can effectively optimize multi-turn performance. Notably, AMPO~\citep{{wang2025think}} reaches 7.50 on {{sotopia-hard}}. But it includes an explicit reasoning process and requires more than 640 inference tokens per utterance on average. Therefore, it is unfair to compare AMPO with ours since we only utilize GRPO to generate utterances without extra tokens for reasoning. Full results are available in Appendix~\S\ref{{additional-experan saresults}}.
 
     \paragraph{{sotopia-RL goes beyond distillation from GPT}} Our training pipeline begins with GPT-based self-play episodes and GPT-based offline reward annotations. Importantly, GPT annotations are applied \textit{{offline}}, conditioning on the entire episode, whereas during RL training, rewards are computed \textit{{online}}, conditioned only on the preceding dialogue history. As shown in Table~\ref{{tab:sota-performance}}, {{ourmodel}} not only matches but surpasses GPT-4o when used directly as a policy model (7.17 vs.\ 6.97). If {{ourmodel}} were merely a stronger form of distillation, as in behavior cloning, it could at best equal GPT-4o’s performance, not exceed it.
 
