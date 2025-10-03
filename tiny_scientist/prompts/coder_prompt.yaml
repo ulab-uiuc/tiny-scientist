@@ -46,7 +46,7 @@ experiment_prompt: |
   2. Creates the output directory using `os.makedirs(out_dir, exist_ok=True)`.
   3. **CRITICAL: Performs REAL model training and evaluation with actual data loading, model forward/backward passes, and gradient updates.**
      - ❌ ABSOLUTELY FORBIDDEN: Using `np.random.random()`, `torch.rand()`, or any simulated/dummy results
-     - ❌ ABSOLUTELY FORBIDDEN: Hardcoded or placeholder results like `{"accuracy": 0.85}`
+     - ❌ ABSOLUTELY FORBIDDEN: Hardcoded or placeholder results like `{{"accuracy": 0.85}}`
      - ✅ REQUIRED: Load real datasets, define real model architectures, run actual training loops
      - ✅ REQUIRED: All metrics must be computed from actual model predictions vs ground truth
   4. Implements evaluation metrics with real logic (e.g., actual accuracy/F1/loss computation).

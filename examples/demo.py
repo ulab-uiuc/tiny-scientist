@@ -65,7 +65,8 @@ def main() -> None:
         "Temporal Dependency Unfolding: Improving Code Generation for Complex Stateful Systems",
     ]
     for idx, idea in enumerate(ideas):
-        args.output_dir = f"{args.output_dir}_{idx}"
+        safe_idea = idea.replace(" ", "_")
+        args.output_dir = f"experiments/non_bio_{safe_idea}"
 
         os.makedirs(args.output_dir, exist_ok=True)
 
