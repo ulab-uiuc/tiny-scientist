@@ -1,8 +1,5 @@
 import argparse
-import json
 import os
-
-from torch import cross
 
 from tiny_scientist.scientist import TinyScientist
 
@@ -21,7 +18,9 @@ def main() -> None:
         default=None,
         help="Configuration directory with prompt YAML files",
     )
-    parser.add_argument("--model", type=str, default="gpt-4o-mini", help="LLM model to use")
+    parser.add_argument(
+        "--model", type=str, default="gpt-4o-mini", help="LLM model to use"
+    )
     parser.add_argument(
         "--template",
         type=str,
@@ -34,6 +33,12 @@ def main() -> None:
         default=True,
         help="Enable safety check for input prompts (True/False)",
     )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=1.0,
+        help="Maximum USD budget for the entire run",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -45,6 +50,7 @@ def main() -> None:
         prompt_template_dir=args.prompt_template_dir,
         template=args.template,
         enable_safety_check=args.enable_safety_check,
+        budget=args.budget,
     )
 
     idea = scientist.think(
@@ -57,6 +63,9 @@ def main() -> None:
     idea["is_experimental"] = False
     pdf_path = scientist.write(idea=idea, experiment_dir=args.output_dir)
     scientist.review(pdf_path=pdf_path)
+
+    # Display total cost summary
+    scientist.get_total_cost()
 
 
 if __name__ == "__main__":

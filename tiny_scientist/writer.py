@@ -21,6 +21,7 @@ from .utils.output_formatter import (
     BaseOutputFormatter,
     ICLROutputFormatter,
 )
+from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
 
 # ---- Constants --------------------------------------------------------------
 
@@ -231,10 +232,32 @@ class Writer:
 
     def _refine_paper(self, num_rounds: int = 2, add_citations: bool = True) -> None:
         """Multi-round refinement with optional citation passes."""
+        remaining_budget = self._effective_remaining_budget()
+
         # Title refinement over full draft
         full_draft = self._sections_as_latex()
+        title_prompt = self.prompts.title_refinement_prompt.format(
+            full_draft=full_draft
+        )
+
+        if remaining_budget is not None:
+            title_cost = estimate_prompt_cost(
+                self.model,
+                [self.system_prompt, title_prompt],
+                expected_output_tokens=estimate_tokens_from_text(
+                    self.generated_sections.get("Title", "")
+                ),
+            )
+            if title_cost is not None and title_cost > remaining_budget:
+                print(
+                    "[Writer] Skipping refinement stage due to estimated budget constraints."
+                )
+                return
+            if title_cost:
+                remaining_budget -= title_cost
+
         refined_title, _ = get_response_from_llm(
-            msg=self.prompts.title_refinement_prompt.format(full_draft=full_draft),
+            msg=title_prompt,
             client=self.client,
             model=self.model,
             system_message=self.system_prompt,
@@ -283,6 +306,22 @@ class Writer:
                     method_specific_instruction=method_hint,
                     error_list=self.prompts.error_list,
                 )
+
+                estimated_cost = None
+                if remaining_budget is not None:
+                    estimated_cost = estimate_prompt_cost(
+                        self.model,
+                        [self.system_prompt, prompt],
+                        expected_output_tokens=estimate_tokens_from_text(
+                            self.generated_sections.get(section, "")
+                        ),
+                    )
+                    if estimated_cost is not None and estimated_cost > remaining_budget:
+                        print(
+                            f"[Writer] Skipping refinement for {section} in round {r} due to estimated budget constraints."
+                        )
+                        continue
+
                 refined, _ = get_response_from_llm(
                     msg=prompt,
                     client=self.client,
@@ -292,6 +331,9 @@ class Writer:
                     task_name=f"Refine_R{r}_{section}",
                 )
                 self.generated_sections[section] = refined
+
+                if remaining_budget is not None and estimated_cost:
+                    remaining_budget -= estimated_cost
 
                 if add_citations:
                     try:
@@ -308,6 +350,11 @@ class Writer:
                         traceback.print_exc()
 
                 time.sleep(SLEEP_REFINE)
+
+    def _effective_remaining_budget(self) -> Optional[float]:
+        if hasattr(self.cost_tracker, "get_effective_remaining_budget"):
+            return self.cost_tracker.get_effective_remaining_budget()
+        return self.cost_tracker.get_remaining_budget()
 
     def _enrich_section_with_citations(
         self,

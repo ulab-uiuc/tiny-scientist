@@ -14,6 +14,9 @@ model = "gpt-4o"
 # Temperature for controlling randomness in responses
 temperature = 0.75
 
+# Optional overall USD budget for a full TinyScientist run
+#budget = 1.0
+
 # API Key for general LLM API access
 llm_api_key = ""
 

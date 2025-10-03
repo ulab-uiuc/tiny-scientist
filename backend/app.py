@@ -88,8 +88,10 @@ def emit_log_realtime(message: str, level: str = "info") -> None:
         pass
 
 
+from tiny_scientist.budget_checker import BudgetChecker  # noqa: E402
 from tiny_scientist.coder import Coder  # noqa: E402
 from tiny_scientist.reviewer import Reviewer  # noqa: E402
+from tiny_scientist.scientist import TinyScientist  # noqa: E402
 from tiny_scientist.thinker import Thinker  # noqa: E402
 from tiny_scientist.writer import Writer  # noqa: E402
 
@@ -137,6 +139,7 @@ thinker: Optional[Thinker] = None
 coder: Optional[Coder] = None
 writer: Optional[Writer] = None
 reviewer: Optional[Reviewer] = None
+global_cost_tracker: Optional[BudgetChecker] = None
 
 
 def format_name_for_display(name: Optional[str]) -> str:
@@ -155,9 +158,20 @@ def configure() -> Union[Response, tuple[Response, int]]:
         return jsonify({"error": "No JSON data provided"}), 400
     model = data.get("model")
     api_key = data.get("api_key")
+    budget = data.get("budget")
+    budget_preference = data.get("budget_preference")
 
     if not model or not api_key:
         return jsonify({"error": "Model and API key are required"}), 400
+
+    try:
+        (
+            resolved_budget,
+            resolved_preference,
+            allocation,
+        ) = TinyScientist.resolve_budget_settings(budget, budget_preference)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     # Map models to their environment variables
     env_var_map = {
@@ -177,9 +191,11 @@ def configure() -> Union[Response, tuple[Response, int]]:
     session["model"] = model
     session["api_key"] = api_key
     session["configured"] = True
+    session["budget"] = resolved_budget
+    session["budget_preference"] = resolved_preference
 
     # Initialize all components with same parameters as TinyScientist
-    global thinker, coder, writer, reviewer
+    global thinker, coder, writer, reviewer, global_cost_tracker
 
     # Use absolute paths outside React's file watching but still accessible
     experiments_dir = os.path.join(project_root, "generated", "experiments")
@@ -193,6 +209,8 @@ def configure() -> Union[Response, tuple[Response, int]]:
     print(f"Experiments directory: {os.path.abspath(experiments_dir)}")
     print(f"Papers directory: {os.path.abspath(papers_dir)}")
 
+    global_cost_tracker = BudgetChecker(budget=resolved_budget)
+
     thinker = Thinker(
         model=model,
         tools=[],
@@ -200,15 +218,28 @@ def configure() -> Union[Response, tuple[Response, int]]:
         output_dir="./",
         search_papers=False,
         generate_exp_plan=True,
+        cost_tracker=BudgetChecker(
+            budget=allocation.get("thinker"), parent=global_cost_tracker
+        ),
     )
     coder = Coder(
         model=model,
         output_dir=experiments_dir,
         max_iters=4,
         max_runs=3,
+        cost_tracker=BudgetChecker(
+            budget=allocation.get("coder"), parent=global_cost_tracker
+        ),
     )
 
-    return jsonify({"status": "configured", "model": model})
+    return jsonify(
+        {
+            "status": "configured",
+            "model": model,
+            "budget": resolved_budget,
+            "budget_preference": resolved_preference,
+        }
+    )
 
 
 @app.route("/api/generate-initial", methods=["POST"])
@@ -605,11 +636,21 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
         writer_model = session.get("model", "deepseek-chat")  # Get model from session
         papers_dir = os.path.join(project_root, "generated", "papers")
 
+        try:
+            _, _, session_allocation = TinyScientist.resolve_budget_settings(
+                session.get("budget"), session.get("budget_preference")
+            )
+        except ValueError:
+            session_allocation = TinyScientist.compute_budget_allocation(None)
+
         writer = Writer(
             model=writer_model,
             output_dir=papers_dir,
             template="acl",
             s2_api_key=s2_api_key,  # Pass the key here
+            cost_tracker=BudgetChecker(
+                budget=session_allocation.get("writer"), parent=global_cost_tracker
+            ),
         )
         print(f"Writer initialized for this request with model: {writer.model}")
 
@@ -764,6 +805,13 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
             return jsonify({"error": "PDF file not found"}), 404
         reviewer_model = session.get("model", "deepseek-chat")  # Get model from session
         print("🔍 Starting paper review...")
+        try:
+            _, _, session_allocation = TinyScientist.resolve_budget_settings(
+                session.get("budget"), session.get("budget_preference")
+            )
+        except ValueError:
+            session_allocation = TinyScientist.compute_budget_allocation(None)
+
         reviewer = Reviewer(
             model=reviewer_model,
             tools=[],
@@ -771,6 +819,10 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
             num_reflections=1,
             temperature=0.75,
             s2_api_key=s2_api_key,
+            cost_tracker=BudgetChecker(
+                budget=session_allocation.get("reviewer"),
+                parent=global_cost_tracker,
+            ),
         )
         # Call reviewer.review() to get a single review
         review_result = reviewer.review(absolute_pdf_path)
