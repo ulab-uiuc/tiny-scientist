@@ -436,7 +436,7 @@ Please respond with the complete file content only, no explanations or markdown 
                 msg=full_prompt,
                 client=self.client,
                 model=self.model,
-                system_message="You are a Python code generator. Provide only the complete Python code without any markdown formatting or explanations.",
+                system_message="You are an expert Python code generator for machine learning experiments. Generate COMPLETE, RUNNABLE code with REAL data loading, model training, and evaluation. NEVER use random numbers, dummy data, or hardcoded results. All metrics must come from actual model execution. Provide only the complete Python code without any markdown formatting or explanations.",
                 cost_tracker=self.cost_tracker,
                 task_name="non_interactive_aider",
             )
