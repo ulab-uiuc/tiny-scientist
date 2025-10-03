@@ -1,8 +1,5 @@
 import argparse
-import json
 import os
-
-from torch import cross
 
 from tiny_scientist.scientist import TinyScientist
 
@@ -12,7 +9,7 @@ def main() -> None:
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="experiments/demo",
+        default="experiments/demo_2",
         help="Base output directory",
     )
     parser.add_argument(
@@ -21,7 +18,9 @@ def main() -> None:
         default=None,
         help="Configuration directory with prompt YAML files",
     )
-    parser.add_argument("--model", type=str, default="gpt-4o-mini", help="LLM model to use")
+    parser.add_argument(
+        "--model", type=str, default="gpt-4o-mini", help="LLM model to use"
+    )
     parser.add_argument(
         "--template",
         type=str,
@@ -55,6 +54,7 @@ def main() -> None:
         idea = idea[0]
 
     idea["is_experimental"] = False
+    breakpoint()
     pdf_path = scientist.write(idea=idea, experiment_dir=args.output_dir)
     scientist.review(pdf_path=pdf_path)
 

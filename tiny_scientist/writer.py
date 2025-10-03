@@ -94,19 +94,25 @@ class Writer:
         )
         self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
 
-        # Formatter selection
-        if self.template == "acl":
-            self.formatter: BaseOutputFormatter = ACLOutputFormatter(
-                model=self.model, client=self.client
-            )
-        elif self.template == "iclr":
-            self.formatter = ICLROutputFormatter(model=self.model, client=self.client)
-        else:
-            raise ValueError(f"Unknown template: {self.template!r}")
-
-        # Prompts & config
+        # Prompts & config (load first)
         self.config = Config(prompt_template_dir)
         self.prompts = self.config.prompt_template.writer_prompt
+        
+        # Formatter selection (with latex_fix_prompt)
+        if self.template == "acl":
+            self.formatter: BaseOutputFormatter = ACLOutputFormatter(
+                model=self.model, 
+                client=self.client,
+                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt
+            )
+        elif self.template == "iclr":
+            self.formatter = ICLROutputFormatter(
+                model=self.model, 
+                client=self.client,
+                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt
+            )
+        else:
+            raise ValueError(f"Unknown template: {self.template!r}")
         self.cost_tracker = cost_tracker or BudgetChecker()
         self.system_prompt = self.prompts.write_system_prompt.format()
 

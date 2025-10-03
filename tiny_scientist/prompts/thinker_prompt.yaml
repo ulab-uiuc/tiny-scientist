@@ -323,7 +323,7 @@ idea_first_prompt: |
   {related_works_string}
   ```
 
-  Please address these 5 key questions carefully:
+  Please make sure the following requirements are kept:
   1. **Problem**
     * The problem should be a precise, not too large and not ambiguous problem.
     * Think from demand: what are the attractive/necessary demands from the research community that have not been fully satisfied?
@@ -336,7 +336,7 @@ idea_first_prompt: |
   3. **Difficulty**
     * Explain why the problem is technically challenging and why simple methods fail.
     * Cite prior works that highlight these challenges.
-    * Show your insights, help future researchers join our endeavor later. They will become your followers -- of your paper and yourself. These challenges are fundamental and have been tackled by your paper, but cannot be fully solved.
+    * List 2-4 reason why this is very challenging. List with (1) (2) (3)
   4. **NoveltyComparison**
     * Write a **detailed comparison (≥150 words)** explaining how your idea differs from existing work.
     * Discuss related works, their approaches, and limitations. Analyze your prior work’s limitations, and argue that yours is better
@@ -344,9 +344,10 @@ idea_first_prompt: |
     * Prove your novelty. No one has solved XYZ, but we did. These limitations can be perfectly solved after our paper.
   5. **Approach**
     * Describe the **core algorithm/mechanism** of your proposed method (≈200–300 words).
-    * Solution XYZ to (partly) solve challenges and fill novelty gaps.
+    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for (1) (2) (3) in the difficulty
     * Focus on your novel component, not standard preprocessing or ethics.
     * IMPORTANT! You need to make sure that your proposed method can solve the problem you propose. Need to include the reason why such method can solve.
+
 
   The output should be this format:
   ```json
@@ -411,7 +412,7 @@ idea_reflection_prompt: |
   3. **Difficulty**
     * Explain why the problem is technically challenging and why simple methods fail.
     * Cite prior works that highlight these challenges.
-    * Show your insights, help future researchers join our endeavor later. They will become your followers -- of your paper and yourself. These challenges are fundamental and have been tackled by your paper, but cannot be fully solved.
+    * List 2-4 reason why this is very challenging. List with (1) (2) (3)
   4. **NoveltyComparison**
     * Write a **detailed comparison (≥150 words)** explaining how your idea differs from existing work.
     * Discuss related works, their approaches, and limitations. Analyze your prior work’s limitations, and argue that yours is better
@@ -419,7 +420,7 @@ idea_reflection_prompt: |
     * Prove your novelty. No one has solved XYZ, but we did. These limitations can be perfectly solved after our paper.
   5. **Approach**
     * Describe the **core algorithm/mechanism** of your proposed method (≈200–300 words).
-    * Solution XYZ to (partly) solve challenges and fill novelty gaps.
+    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for (1) (2) (3) in the difficulty
     * Focus on your novel component, not standard preprocessing or ethics.
     * IMPORTANT! You need to make sure that your proposed method can solve the problem you propose. Need to include the reason why such method can solve.
 

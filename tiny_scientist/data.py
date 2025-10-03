@@ -69,3 +69,8 @@ class SafetyPrompt(BaseModel):
     attack_detection_system_prompt: str
     ethical_defense_system_prompt: str
     ethical_defense_prompt: str
+
+
+class LatexFixPrompt(BaseModel):
+    latex_fix_system_prompt: str
+    latex_fix_prompt: str
