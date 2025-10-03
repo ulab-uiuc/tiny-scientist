@@ -10,10 +10,37 @@ from .reviewer import Reviewer
 from .safety_checker import SafetyChecker
 from .thinker import Thinker
 from .utils.input_formatter import InputFormatter
+from .utils.pricing import BUDGET_MODULE_KEYS as PRICING_BUDGET_MODULE_KEYS
+from .utils.pricing import (
+    DEFAULT_BUDGET_PREFERENCE as PRICING_DEFAULT_BUDGET_PREFERENCE,
+)
+from .utils.pricing import (
+    compute_budget_allocation as pricing_compute_budget_allocation,
+)
+from .utils.pricing import resolve_budget_settings as pricing_resolve_budget_settings
 from .writer import Writer
 
 
 class TinyScientist:
+    MODULE_KEYS = PRICING_BUDGET_MODULE_KEYS
+    DEFAULT_BUDGET_PREFERENCE = PRICING_DEFAULT_BUDGET_PREFERENCE
+
+    @classmethod
+    def resolve_budget_settings(
+        cls,
+        budget: Optional[Union[float, int, str]],
+        budget_preference: Optional[str] = None,
+    ) -> Tuple[Optional[float], str, Dict[str, Optional[float]]]:
+        return pricing_resolve_budget_settings(budget, budget_preference)
+
+    @classmethod
+    def compute_budget_allocation(
+        cls,
+        budget: Optional[Union[float, int, str]],
+        budget_preference: Optional[str] = None,
+    ) -> Dict[str, Optional[float]]:
+        return pricing_compute_budget_allocation(budget, budget_preference)
+
     def __init__(
         self,
         model: str = "gpt-4o",
@@ -32,55 +59,40 @@ class TinyScientist:
         self.input_formatter = InputFormatter()
         self.enable_safety_check = enable_safety_check
 
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "config.toml"
+        )
+        config_core: Dict[str, Any] = {}
+        if os.path.exists(config_path):
+            cfg = toml.load(config_path)
+            config_core = cfg.get("core", {})
+
+        resolved_budget = budget if budget is not None else config_core.get("budget")
+        resolved_preference = (
+            budget_preference
+            if budget_preference is not None
+            else config_core.get("budget_preference")
+        )
+
+        (
+            normalized_budget,
+            normalized_preference,
+            allocation,
+        ) = self.resolve_budget_settings(resolved_budget, resolved_preference)
+
         self.cost = 0.0
-
-        # Naive budget split
-        modules = ["safety_checker", "thinker", "coder", "writer", "reviewer"]
-        per_module_budget = budget / len(modules) if budget else None
-        if budget_preference is None:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "config.toml"
-            )
-            if os.path.exists(config_path):
-                cfg = toml.load(config_path)
-                budget_preference = cfg.get("core", {}).get(
-                    "budget_preference", "balanced"
-                )
-            else:
-                budget_preference = "balanced"
-
-        weights = {
-            "balanced": {"thinker": 0.3, "writer": 0.3, "reviewer": 0.3, "coder": 0.1},
-            "write-heavy": {
-                "thinker": 0.2,
-                "writer": 0.5,
-                "reviewer": 0.2,
-                "coder": 0.1,
-            },
-            "think-heavy": {
-                "thinker": 0.5,
-                "writer": 0.2,
-                "reviewer": 0.2,
-                "coder": 0.1,
-            },
-            "review-heavy": {
-                "thinker": 0.2,
-                "writer": 0.2,
-                "reviewer": 0.5,
-                "coder": 0.1,
-            },
-        }
-        if budget_preference not in weights:
-            raise ValueError(f"Unknown budget preference: {budget_preference}")
-
-        allocation = {
-            k: (budget * w if budget is not None else None)
-            for k, w in weights[budget_preference].items()
-        }
+        self.budget = normalized_budget
+        self.budget_preference = normalized_preference
+        self.global_cost_tracker = BudgetChecker(budget=normalized_budget)
+        self.budget_allocation = allocation
 
         self.safety_checker = (
             SafetyChecker(
-                model=model, cost_tracker=BudgetChecker(budget=per_module_budget)
+                model=model,
+                cost_tracker=BudgetChecker(
+                    budget=allocation.get("safety_checker"),
+                    parent=self.global_cost_tracker,
+                ),
             )
             if enable_safety_check
             else None
@@ -95,7 +107,10 @@ class TinyScientist:
             search_papers=True,
             generate_exp_plan=True,
             enable_safety_check=enable_safety_check,
-            cost_tracker=BudgetChecker(budget=allocation.get("thinker")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("thinker"),
+                parent=self.global_cost_tracker,
+            ),
         )
 
         self.coder = Coder(
@@ -104,7 +119,10 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             max_iters=4,
             max_runs=3,
-            cost_tracker=BudgetChecker(budget=allocation.get("coder")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("coder"),
+                parent=self.global_cost_tracker,
+            ),
             use_docker=use_docker,
         )
 
@@ -113,14 +131,20 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
-            cost_tracker=BudgetChecker(budget=allocation.get("writer")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("writer"),
+                parent=self.global_cost_tracker,
+            ),
         )
 
         self.reviewer = Reviewer(
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
-            cost_tracker=BudgetChecker(budget=allocation.get("reviewer")),
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("reviewer"),
+                parent=self.global_cost_tracker,
+            ),
         )
 
     def think(
@@ -176,3 +200,30 @@ class TinyScientist:
         print(review)
         print("✅ Review complete.")
         return review
+
+    def get_total_cost(self) -> float:
+        """Get the total cost across all modules."""
+        total_cost = 0.0
+        modules = [
+            ("Safety Checker", self.safety_checker),
+            ("Thinker", self.thinker),
+            ("Coder", self.coder),
+            ("Writer", self.writer),
+            ("Reviewer", self.reviewer),
+        ]
+
+        print("\n" + "=" * 50)
+        print("📊 COST SUMMARY")
+        print("=" * 50)
+
+        for module_name, module in modules:
+            if module and hasattr(module, "cost_tracker"):
+                cost = module.cost_tracker.get_total_cost()
+                total_cost += cost
+                print(f"{module_name:15}: ${cost:.4f}")
+
+        print("-" * 50)
+        print(f"{'TOTAL COST':15}: ${total_cost:.4f}")
+        print("=" * 50)
+
+        return total_cost

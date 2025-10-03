@@ -87,7 +87,7 @@ class BaseOutputFormatter(abc.ABC):
 
     def _convert_markdown_to_latex(self, content: str) -> str:
         """Convert common Markdown syntax to LaTeX equivalents"""
-        
+
         # STEP 1: Fix mixed Markdown+LaTeX (e.g., **text\textbf{more** -> \textbf{text more})
         # Remove cases where ** and \textbf{ are mixed together
         content = re.sub(
@@ -103,7 +103,7 @@ class BaseOutputFormatter(abc.ABC):
             if "\\" in text or "$" in text:
                 return match.group(0)
             return f"\\textbf{{{text}}}"
-        
+
         # Match **text** but not inside $...$ or \[...\]
         content = re.sub(r"\*\*([^\*]+?)\*\*", replace_bold, content)
         
@@ -113,7 +113,7 @@ class BaseOutputFormatter(abc.ABC):
             if "\\" in text or "$" in text:
                 return match.group(0)
             return f"\\textit{{{text}}}"
-        
+
         # Match *text* but not ** (already handled) and not inside math
         # Use word boundaries to avoid matching math multiplication
         content = re.sub(
@@ -136,9 +136,9 @@ class BaseOutputFormatter(abc.ABC):
         # The 'algpseudocode' package uses mixed case (\State, \For, \If, etc.)
         # We keep uppercase as-is since we load the 'algorithmic' package
         # But also ensure common variants work
-        
+
         return content
-    
+
     def _clean_body_content(self, body_content: str) -> str:
         patterns_to_remove = [
             r"\\documentclass(?:\[[^\]]*\])?\{[^\}]+\}",  # matches \documentclass[...]{...}
@@ -403,7 +403,7 @@ class BaseOutputFormatter(abc.ABC):
             "\\usepackage{algpseudocode}  % New-style commands (\\State, \\For, etc.)\n"
             "\\usepackage{algorithmicx}   % Enhanced algorithm support\n\n"
         )
-        
+
         # Check if amsmath is already present (avoid duplicate injection)
         if "amsmath" not in template_text:
             # Inject before \begin{document}
@@ -445,7 +445,7 @@ class BaseOutputFormatter(abc.ABC):
         valid_keys = set(re.findall(r"@\w+\{([^,]+),", bib_content, re.IGNORECASE))
         
         valid_keys = {k.strip() for k in valid_keys}
-        
+
         print(f"[DEBUG] Found {len(valid_keys)} valid bibtex keys in custom.bib")
         if valid_keys:
             print(f"[DEBUG] Sample keys: {list(valid_keys)[:5]}")
@@ -458,7 +458,7 @@ class BaseOutputFormatter(abc.ABC):
                 cleaned = k.strip().lstrip("{").rstrip("}").strip()
                 if cleaned:
                     keys.append(cleaned)
-            
+
             # Filter valid keys
             valid = [k for k in keys if k in valid_keys]
             if valid:

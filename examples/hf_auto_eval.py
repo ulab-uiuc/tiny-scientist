@@ -79,6 +79,12 @@ def main():
         default=True,
         help="Use Docker for experiment execution (default: True)",
     )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=1.0,
+        help="Maximum USD budget for the automated run",
+    )
 
     args = parser.parse_args()
 
@@ -95,7 +101,11 @@ def main():
     # Initialize TinyScientist with the specified model and Docker configuration
     print(f"Initializing TinyScientist with model: {args.gpt_model}")
     print(f"Docker enabled: {args.use_docker}")
-    scientist = TinyScientist(model=args.gpt_model, use_docker=args.use_docker)
+    scientist = TinyScientist(
+        model=args.gpt_model,
+        use_docker=args.use_docker,
+        budget=args.budget,
+    )
 
     # 1. Define the research intent based on user input.
     # This string is the core instruction for TinyScientist.
