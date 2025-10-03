@@ -451,7 +451,8 @@ class BaseOutputFormatter(abc.ABC):
             print(f"[DEBUG] Sample keys: {list(valid_keys)[:5]}")
 
         def citation_replacer(match: Match[str]) -> str:
-            raw_keys = match.group(1)
+            cite_cmd = match.group(1)  # e.g., 'cite', 'citep', 'citet'
+            raw_keys = match.group(2)
             # Clean each key: remove extra braces and whitespace
             keys = []
             for k in raw_keys.split(","):
@@ -462,12 +463,13 @@ class BaseOutputFormatter(abc.ABC):
             # Filter valid keys
             valid = [k for k in keys if k in valid_keys]
             if valid:
-                return f"\\cite{{{','.join(valid)}}}"
+                return f"\\{cite_cmd}{{{','.join(valid)}}}"
             else:
-                print(f"[WARNING] Removing invalid citation keys: {keys}")
+                print(f"[WARNING] Removing invalid citation keys from \\{cite_cmd}: {keys}")
                 return ""
 
-        return re.sub(r"\\cite\{+([^\}]+)\}+", citation_replacer, content)
+        # Match all citation commands: \cite{}, \citep{}, \citet{}, \citealp{}, \citealt{}, etc.
+        return re.sub(r"\\(cite[a-z]*)\{+([^\}]+)\}+", citation_replacer, content)
 
 
 class TemplateDownloader:
@@ -818,10 +820,14 @@ class ICLROutputFormatter(BaseOutputFormatter):
         timeout: int = 30,
     ) -> None:
         body_content = self._assemble_body(content)
+        body_content = self._clean_body_content(body_content)
         dest_template_dir = TemplateDownloader.download_iclr_template(output_dir)
 
         self.bib_manager._update_bib_cite(references, dest_template_dir, self.template)
 
+        body_content = self._clean_invalid_citations(
+            body_content, dest_template_dir, self.template
+        )
         main_tex_path = osp.join(dest_template_dir, "iclr2025_conference.tex")
 
         with open(main_tex_path, "r", encoding="utf-8") as f:
