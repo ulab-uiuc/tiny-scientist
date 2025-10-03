@@ -90,7 +90,7 @@ class Coder:
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
     ) -> Tuple[bool, str, Optional[str]]:
         # Ensure a clean slate for every run
-        os.makedirs(self.output_dir)
+        os.makedirs(self.output_dir, exist_ok=True)
         fnames = [
             osp.join(self.output_dir, "experiment.py"),
             osp.join(self.output_dir, "notes.txt"),

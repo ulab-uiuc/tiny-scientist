@@ -33,6 +33,12 @@ def main() -> None:
         default=True,
         help="Enable safety check for input prompts (True/False)",
     )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=1.0,
+        help="Maximum USD budget for the entire run",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -44,6 +50,7 @@ def main() -> None:
         prompt_template_dir=args.prompt_template_dir,
         template=args.template,
         enable_safety_check=args.enable_safety_check,
+        budget=args.budget,
     )
 
     idea = scientist.think(
@@ -57,6 +64,9 @@ def main() -> None:
 
     if status is True:
         pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
+
+    # Display total cost summary
+    scientist.get_total_cost()
 
 
 if __name__ == "__main__":
