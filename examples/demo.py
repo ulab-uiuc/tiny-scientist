@@ -47,15 +47,16 @@ def main() -> None:
     )
 
     idea = scientist.think(
-        intent="latent reasoning for large language models"
+        intent="Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models"
     )
 
     if isinstance(idea, list):
         idea = idea[0]
 
-    idea["is_experimental"] = False
-    pdf_path = scientist.write(idea=idea, experiment_dir=args.output_dir)
-    scientist.review(pdf_path=pdf_path)
+    status, experiment_dir = scientist.code(idea=idea)
+
+    if status is True:
+        pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
 
 
 if __name__ == "__main__":
