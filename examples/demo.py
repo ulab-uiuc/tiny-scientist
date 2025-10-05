@@ -43,30 +43,30 @@ def main() -> None:
     args = parser.parse_args()
 
     ideas = [
-        "Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models",
-        "Adaptive Contextual Pruning: Improving Relevance and Conciseness in Long-Form Generation",
-        "Adaptive Prompt Decomposition for Coherent Long-Range Code Generation",
-        "Adversarial Confidence Stress Testing: Improving Uncertainty Quantification in Large Language Models",
-        "Conceptual Pivot Prompting: Reducing Social Biases in Large Language Models through Analogical Reframing",
-        "Confidence-Calibrated Semantic Branching: Improving Uncertainty Quantification in Large Language Models",
-        "Culturally-Grounded Chain-of-Thought (CG-CoT): Enhancing LLMs' Performance on Culturally-Specific Tasks in Low-Resource Languages",
+        #"Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models",
+        #"Adaptive Contextual Pruning: Improving Relevance and Conciseness in Long-Form Generation",
+        #"Adaptive Prompt Decomposition for Coherent Long-Range Code Generation",
+        #"Adversarial Confidence Stress Testing: Improving Uncertainty Quantification in Large Language Models",
+        #"Conceptual Pivot Prompting: Reducing Social Biases in Large Language Models through Analogical Reframing",
+        #"Confidence-Calibrated Semantic Branching: Improving Uncertainty Quantification in Large Language Models",
+        #"Culturally-Grounded Chain-of-Thought (CG-CoT): Enhancing LLMs' Performance on Culturally-Specific Tasks in Low-Resource Languages",
         "Differential Confidence Mapping: Enhancing Uncertainty Quantification in Large Language Models",
-        "Emergent Axiom Distillation: Improving Code Generation through Paradigm-Specific Principles",
-        "Linguistic Pivot Constellation: Enhancing Cross-Lingual Transfer for Low-Resource Languages and Dialects",
-        "Metaphorical Concept Transposition: Enhancing Mathematical Problem Solving in Large Language Models",
-        "Neuro-Symbolic Vernacular Parsing: Enhancing Language Models' Performance on Low-Resource Languages and Vernaculars",
-        "Neurosymbolic API Synthesis: Improving Code Generation through Hybrid Prompting",
-        "Probabilistic Proof Outline Generation: Improving Mathematical Problem Solving in Large Language Models",
-        "Recursive Dialectal Expansion: Improving Large Language Models' Performance on Low-Resource and Vernacular Languages",
-        "Semantic Constellation Diffraction: A Novel Prompting Technique for Privacy-Preserving Language Model Outputs",
-        "Semantic Fog Injection: Enhancing Large Language Model Robustness Against Adversarial Attacks",
-        "Sociolinguistic Role-Play Prompting: Enhancing Language Models' Performance in Multilingual and Low-Resource Contexts",
-        "Temporal Bias Decay Simulation: Reducing Social Biases in Large Language Models through Evolutionary Prompting",
-        "Temporal Dependency Unfolding: Improving Code Generation for Complex Stateful Systems",
+        #"Emergent Axiom Distillation: Improving Code Generation through Paradigm-Specific Principles",
+        #"Linguistic Pivot Constellation: Enhancing Cross-Lingual Transfer for Low-Resource Languages and Dialects",
+        #"Metaphorical Concept Transposition: Enhancing Mathematical Problem Solving in Large Language Models",
+        #"Neuro-Symbolic Vernacular Parsing: Enhancing Language Models' Performance on Low-Resource Languages and Vernaculars",
+        #"Neurosymbolic API Synthesis: Improving Code Generation through Hybrid Prompting",
+        #"Probabilistic Proof Outline Generation: Improving Mathematical Problem Solving in Large Language Models",
+        #"Recursive Dialectal Expansion: Improving Large Language Models' Performance on Low-Resource and Vernacular Languages",
+        #"Semantic Constellation Diffraction: A Novel Prompting Technique for Privacy-Preserving Language Model Outputs",
+        #"Semantic Fog Injection: Enhancing Large Language Model Robustness Against Adversarial Attacks",
+        #"Sociolinguistic Role-Play Prompting: Enhancing Language Models' Performance in Multilingual and Low-Resource Contexts",
+        #"Temporal Bias Decay Simulation: Reducing Social Biases in Large Language Models through Evolutionary Prompting",
+        #"Temporal Dependency Unfolding: Improving Code Generation for Complex Stateful Systems",
     ]
     for idx, idea in enumerate(ideas):
         safe_idea = idea.replace(" ", "_")
-        args.output_dir = f"experiments/non_bio_{safe_idea}"
+        args.output_dir = f"experiments/non_bio_no_tool_{safe_idea}"
 
         os.makedirs(args.output_dir, exist_ok=True)
 
@@ -78,19 +78,23 @@ def main() -> None:
             template=args.template,
             enable_safety_check=args.enable_safety_check,
             budget=args.budget,
+            search_papers=False,
         )
 
         idea = scientist.think(
-            intent="Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models"
+            intent=idea
         )
 
         with open(args.output_dir + '/idea.json', 'w') as f:
             json.dump(idea, f, indent=2)
 
-        status, experiment_dir = scientist.code(idea=idea)
+        try:
+            status, experiment_dir = scientist.code(idea=idea)
+        except Exception as e:
+            print(f"Error: {e}")
+            pass
 
-        if status is True:
-            pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
+        pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
 
         # Display total cost summary
         scientist.get_total_cost()

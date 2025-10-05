@@ -7,6 +7,8 @@ MODEL_PRICING = {
     "gpt-3.5-turbo": (0.5, 1.5),
     "gpt-4o-mini": (0.15, 0.6),
     "gpt-4o": (2.5, 10),
+    "gpt-5": (5.0, 15.0),  # GPT-5 pricing (estimated, update when official pricing is released)
+    "gpt-5-preview": (5.0, 15.0),  # GPT-5 preview pricing (estimated)
     "o1-preview": (15, 60),
     "o1-mini": (1.1, 4.4),
     "o1": (15, 60),

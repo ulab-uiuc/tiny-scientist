@@ -51,6 +51,7 @@ class TinyScientist:
         enable_safety_check: bool = True,
         budget_preference: Optional[str] = None,
         use_docker: bool = True,
+        search_papers: bool = False,
     ):
         self.model = model
         self.output_dir = output_dir
@@ -58,6 +59,7 @@ class TinyScientist:
         self.prompt_template_dir = prompt_template_dir
         self.input_formatter = InputFormatter()
         self.enable_safety_check = enable_safety_check
+        self.search_papers = search_papers
 
         config_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "config.toml"
@@ -104,7 +106,7 @@ class TinyScientist:
             prompt_template_dir=prompt_template_dir,
             tools=[],
             iter_num=3,
-            search_papers=True,
+            search_papers=self.search_papers,
             generate_exp_plan=True,
             enable_safety_check=enable_safety_check,
             cost_tracker=BudgetChecker(
@@ -131,6 +133,7 @@ class TinyScientist:
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
             template=template,
+            search_papers=self.search_papers,
             cost_tracker=BudgetChecker(
                 budget=allocation.get("writer"),
                 parent=self.global_cost_tracker,
@@ -141,6 +144,7 @@ class TinyScientist:
             model=model,
             prompt_template_dir=prompt_template_dir,
             tools=[],
+            search_papers=self.search_papers,
             cost_tracker=BudgetChecker(
                 budget=allocation.get("reviewer"),
                 parent=self.global_cost_tracker,

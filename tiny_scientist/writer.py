@@ -78,12 +78,14 @@ class Writer:
         cost_tracker: Optional[BudgetChecker] = None,
         s2_api_key: Optional[str] = None,
         num_refinement_rounds: int = 2,
+        search_papers: bool = True,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
         self.template = template
         self.temperature = temperature
         self.num_refinement_rounds = num_refinement_rounds
+        self.search_papers = search_papers
 
         # API key
         s2_api_key = s2_api_key or os.environ.get("S2_API_KEY")
@@ -137,8 +139,12 @@ class Writer:
             is_experimental, experiment_dir
         )
 
-        print("[step] Generating Related Work…")
-        self._write_related_work(idea)  # non-fatal if it fails
+        if self.search_papers:
+            print("[step] Generating Related Work…")
+            self._write_related_work(idea)  # non-fatal if it fails
+        else:
+            print("[step] Skipping Related Work (search_papers=False)…")
+            self.generated_sections["Related_Work"] = ""
 
         sections = (
             REFINEMENT_SECTIONS_EXPERIMENTAL
@@ -221,15 +227,18 @@ class Writer:
         self.generated_sections[section] = content
 
         # Try citation enrichment (non-fatal)
-        try:
-            enriched = self._enrich_section_with_citations(
-                section=section, idea=idea, max_queries=5
-            )
-            if enriched:
-                self.generated_sections[section] = enriched
-        except Exception as e:
-            print(f"[warn] Citation enrichment failed in {section}: {e}")
-            traceback.print_exc()
+        if self.search_papers:
+            try:
+                enriched = self._enrich_section_with_citations(
+                    section=section, idea=idea, max_queries=5
+                )
+                if enriched:
+                    self.generated_sections[section] = enriched
+            except Exception as e:
+                print(f"[warn] Citation enrichment failed in {section}: {e}")
+                traceback.print_exc()
+        else:
+            print(f"[info] Skipping citation enrichment for {section} (search_papers=False)")
 
     # ---- Refinement & citations --------------------------------------------
 
@@ -338,7 +347,7 @@ class Writer:
                 if remaining_budget is not None and estimated_cost:
                     remaining_budget -= estimated_cost
 
-                if add_citations:
+                if add_citations and self.search_papers:
                     try:
                         idea_proxy = {"Title": self.generated_sections.get("Title", "")}
                         enriched = self._enrich_section_with_citations(

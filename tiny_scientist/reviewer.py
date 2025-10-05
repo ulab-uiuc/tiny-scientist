@@ -29,6 +29,7 @@ class Reviewer:
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
         s2_api_key: Optional[str] = None,
+        search_papers: bool = True,
     ):
         self.tools = tools
         self.num_reviews = num_reviews
@@ -36,6 +37,7 @@ class Reviewer:
         self.client, self.model = create_client(model)
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
+        self.search_papers = search_papers
         self.searcher: BaseTool = PaperSearchTool(
             s2_api_key=s2_api_key, engine="semanticscholar"
         )
@@ -66,10 +68,14 @@ class Reviewer:
         if not paper_text:
             raise ValueError("No paper text provided for review.")
 
-        query = self._generate_query(paper_text)
-
-        related_works_string = self._get_related_works(query)
-        self.last_related_works_string = related_works_string
+        if self.search_papers:
+            query = self._generate_query(paper_text)
+            related_works_string = self._get_related_works(query)
+            self.last_related_works_string = related_works_string
+        else:
+            print("[info] Skipping paper search for review (search_papers=False)")
+            related_works_string = ""
+            self.last_related_works_string = ""
 
         base_prompt = self._build_review_prompt(paper_text, related_works_string)
         system_prompt = self.prompts.reviewer_system_prompt_neg

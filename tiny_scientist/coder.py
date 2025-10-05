@@ -135,8 +135,16 @@ class Coder:
     def _format_experiment_for_prompt(
         self, exp: Dict[str, str]
     ) -> Tuple[str, str, str]:
+        # Handle both "Metric" and "EvaluationMetrics" keys
+        metric_value = exp.get("Metric") or exp.get("EvaluationMetrics", "")
+        
+        # Convert dict values to string if needed
+        model_str = json.dumps(exp["Model"], indent=2) if isinstance(exp["Model"], dict) else exp["Model"]
+        dataset_str = json.dumps(exp["Dataset"], indent=2) if isinstance(exp["Dataset"], dict) else exp["Dataset"]
+        metric_str = json.dumps(metric_value, indent=2) if isinstance(metric_value, dict) else metric_value
+        
         llm_prompt = self.prompts.experiment_keyword_prompt.format(
-            model=exp["Model"], dataset=exp["Dataset"], metric=exp["Metric"]
+            model=model_str, dataset=dataset_str, metric=metric_str
         )
 
         llm_output, _ = get_response_from_llm(
