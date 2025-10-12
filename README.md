@@ -12,8 +12,13 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://pre-commit.com/)
 [![bear-ified](https://raw.githubusercontent.com/beartype/beartype-assets/main/badge/bear-ified.svg)](https://beartype.readthedocs.io)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![arXiv](https://img.shields.io/badge/arXiv-2510.06579-b31b1b.svg)](https://arxiv.org/abs/2510.06579)
 
 </div>
+
+# News
+
+- **Oct 11, 2025** — Our paper is out on arXiv ([2510.06579](https://arxiv.org/abs/2510.06579)) and accepted to EMNLP 2025 (Demo Track) 🎉
 
 # Introduction
 
