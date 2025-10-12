@@ -32,7 +32,9 @@ class BaseTool(abc.ABC):
         self.github_token = config["core"].get("github_token", None)
 
     @abc.abstractmethod
-    def run(self, query: str, result_limit: Optional[int] = None) -> Dict[str, Dict[str, str]]:
+    def run(
+        self, query: str, result_limit: Optional[int] = None
+    ) -> Dict[str, Dict[str, str]]:
         pass
 
 
@@ -260,7 +262,7 @@ class PaperSearchTool(BaseTool):
                         print("[PaperSearchTool] ✅ Got bibtex from OpenAlex (via ID)")
 
                 # If no bibtex yet, try searching OpenAlex by title (OPTIMIZED: 1 API call)
-                '''
+                """
                 if not paper_data["bibtex"]:
                     try:
                         print("[PaperSearchTool] No OpenAlex ID, searching by title for bibtex...")
@@ -273,7 +275,7 @@ class PaperSearchTool(BaseTool):
                             )
                     except Exception as e:
                         print(f"[PaperSearchTool] OpenAlex title search failed: {e}")
-                '''
+                """
 
                 if not paper_data["bibtex"]:
                     bibtex = self._generate_bibtex_from_metadata(paper)
@@ -497,34 +499,36 @@ class PaperSearchTool(BaseTool):
         """
         try:
             import requests
-            
+
             # STEP 1: Quick search to get work ID (lightweight, JSON response)
             search_url = "https://api.openalex.org/works"
             params = {
                 "filter": f"title.search:{title}",
                 "per_page": 1,
-                "select": "id"  # Only get ID field for speed
+                "select": "id",  # Only get ID field for speed
             }
-            
+
             headers = {}
             mail = os.environ.get("OPENALEX_MAIL_ADDRESS")
             if mail:
                 headers["User-Agent"] = f"TinyScientist (mailto:{mail})"
-            
-            response = requests.get(search_url, params=params, headers=headers, timeout=10)
+
+            response = requests.get(
+                search_url, params=params, headers=headers, timeout=10
+            )
             if response.status_code != 200:
                 return None
-                
+
             data = response.json()
             results = data.get("results", [])
             if not results or not results[0].get("id"):
                 return None
-            
+
             work_id = results[0]["id"]
-            
+
             # STEP 2: Fetch bibtex using the ID (still 2 calls but both are optimized)
             return self._fetch_bibtex_from_openalex(work_id)
-            
+
         except Exception as e:
             print(f"[WARNING] Failed to fetch bibtex by title from OpenAlex: {e}")
             return None
