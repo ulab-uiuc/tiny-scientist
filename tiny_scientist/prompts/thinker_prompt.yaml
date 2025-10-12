@@ -296,7 +296,7 @@ novelty_query_prompt: |
   ✅ If idea uses "hierarchical policy gradient for dialogue" → extract: "hierarchical AND policy gradient AND dialogue"
   ✅ If idea uses "tree-based reasoning with transformers" → extract: "tree-based AND reasoning AND transformer"
 
-  **KEY PRINCIPLE**: 
+  **KEY PRINCIPLE**:
   - Include ALL distinctive modifiers that make it novel (e.g., "causal", "adversarial", "hierarchical")
   - Use complete technical phrases (e.g., "graph attention network", not just "attention")
   - Be as specific as the idea describes

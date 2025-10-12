@@ -194,7 +194,9 @@ class TinyScientist:
         print("✅ Paper written.")
         return pdf_path
 
-    def review(self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None) -> Dict[str, Any]:
+    def review(
+        self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         print("🔍 Reviewing paper...")
         review = self.reviewer.run(pdf_path=pdf_path, tex_path=tex_path)
         print(review)

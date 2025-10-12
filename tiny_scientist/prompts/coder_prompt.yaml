@@ -59,14 +59,14 @@ experiment_prompt: |
   - Do not use complex distributed training or multi-GPU setups.
 
   Do not add extra command-line arguments.
-  
+
   **VERIFICATION CHECKLIST** (You MUST pass all checks):
   - [ ] Does the code load a real dataset (not random data)?
   - [ ] Does the code define a real model architecture (not a dummy class)?
   - [ ] Does the code have a training loop with actual optimizer.step() calls?
   - [ ] Are metrics computed from real predictions (not random numbers)?
   - [ ] Does final_info.json contain results from actual execution?
-  
+
   If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.
 

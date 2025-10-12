@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tiny-scientist"
-version = "0.1.2"
+version = "0.1.3"
 description = "A lightweight framework for building research agents"
 authors = ["Haofei Yu <yuhaofei44@gmail.com>"]
 license = "Apache 2.0 License"

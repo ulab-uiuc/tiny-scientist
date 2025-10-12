@@ -98,19 +98,19 @@ class Writer:
         # Prompts & config (load first)
         self.config = Config(prompt_template_dir)
         self.prompts = self.config.prompt_template.writer_prompt
-        
+
         # Formatter selection (with latex_fix_prompt)
         if self.template == "acl":
             self.formatter: BaseOutputFormatter = ACLOutputFormatter(
-                model=self.model, 
+                model=self.model,
                 client=self.client,
-                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt
+                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt,
             )
         elif self.template == "iclr":
             self.formatter = ICLROutputFormatter(
-                model=self.model, 
+                model=self.model,
                 client=self.client,
-                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt
+                latex_fix_prompt=self.config.prompt_template.latex_fix_prompt,
             )
         else:
             raise ValueError(f"Unknown template: {self.template!r}")

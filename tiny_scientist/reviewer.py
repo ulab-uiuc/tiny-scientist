@@ -50,7 +50,9 @@ class Reviewer:
             template_instructions=self.prompts.template_instructions
         )
 
-    def review(self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None) -> str:
+    def review(
+        self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None
+    ) -> str:
         if tex_path:
             with open(tex_path, "r", encoding="utf-8") as f:
                 paper_text = f.read()
@@ -95,7 +97,9 @@ class Reviewer:
         self.cost_tracker.report()
         return json.dumps(new_review, indent=2)
 
-    def run(self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None) -> Dict[str, Any]:
+    def run(
+        self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         all_reviews = []
 
         for i in range(self.num_reviews):

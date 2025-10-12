@@ -1,8 +1,8 @@
 import argparse
+import json
 import os
 
 from tiny_scientist.scientist import TinyScientist
-import json
 
 
 def main() -> None:
@@ -84,7 +84,7 @@ def main() -> None:
             intent="Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models"
         )
 
-        with open(args.output_dir + '/idea.json', 'w') as f:
+        with open(args.output_dir + "/idea.json", "w") as f:
             json.dump(idea, f, indent=2)
 
         status, experiment_dir = scientist.code(idea=idea)
@@ -95,13 +95,14 @@ def main() -> None:
         # Display total cost summary
         scientist.get_total_cost()
 
-        tex_path = args.output_dir + '/latex/acl_latex.tex'
+        tex_path = args.output_dir + "/latex/acl_latex.tex"
         review = scientist.review(
             tex_path=tex_path,
         )
         print(review)
-        with open(args.output_dir + '/review.json', 'w') as f:
+        with open(args.output_dir + "/review.json", "w") as f:
             json.dump(review, f, indent=2)
+
 
 if __name__ == "__main__":
     main()
