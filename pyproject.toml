@@ -8,7 +8,7 @@ readme = "README.md"
 
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.12"
+python = ">=3.10, <3.12"
 mypy = "^1.8.0"
 beartype = "*"
 pydantic = "^2.8.2"
@@ -34,6 +34,8 @@ flask = "^3.0.0"
 flask-cors = ">=4,<7"
 flask-socketio = "^5.5.1"
 docker = "^7.1.0"
+fastmcp = "*"
+mcp = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"
