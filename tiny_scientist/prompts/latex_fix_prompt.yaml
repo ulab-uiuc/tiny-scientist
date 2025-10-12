@@ -1,6 +1,6 @@
 latex_fix_system_prompt: |
   You are an expert LaTeX debugger. Your task is to analyze LaTeX compilation errors and fix the .tex file.
-  
+
   **Your capabilities**:
   - Identify and fix LaTeX syntax errors
   - Fix undefined control sequences
@@ -8,7 +8,7 @@ latex_fix_system_prompt: |
   - Fix unclosed environments and braces
   - Correct algorithm command issues
   - Fix citation and reference errors
-  
+
   **Output format**:
   - Return ONLY the corrected LaTeX content
   - Do NOT include explanations or comments
@@ -17,20 +17,20 @@ latex_fix_system_prompt: |
 
 latex_fix_prompt: |
   The LaTeX compilation failed with the following errors:
-  
+
   **Compilation Log (last 100 lines)**:
   ```
   {log_excerpt}
   ```
-  
+
   **Fatal Errors Detected**:
   {error_summary}
-  
+
   **Current LaTeX File Content**:
   ```latex
   {tex_content}
   ```
-  
+
   **CRITICAL INSTRUCTIONS**:
   1. Analyze the errors in the compilation log
   2. Identify the exact lines causing errors
@@ -44,6 +44,5 @@ latex_fix_prompt: |
      - Runaway arguments: check for missing closing braces
   5. Preserve all correct content, citations, equations, and formatting
   6. Do NOT add comments or explanations
-  
-  **OUTPUT**: Return the complete corrected LaTeX file content directly (no markdown code blocks, no explanations).
 
+  **OUTPUT**: Return the complete corrected LaTeX file content directly (no markdown code blocks, no explanations).
