@@ -348,18 +348,10 @@ COPY experiment.py .
                         )
                         try:
                             # Build with detailed logging
-                            build_logs = self.docker_client.images.build(
-                                path=tmpdir, tag=image_name, rm=True, decode=True
+                            image, build_logs = self.docker_client.images.build(
+                                path=tmpdir, tag=image_name, rm=True
                             )
-                            # Check for build errors
-                            for log in build_logs:
-                                if "error" in log:
-                                    print(f"[Docker] Build error: {log['error']}")
-                                    raise Exception(
-                                        f"Docker build failed: {log['error']}"
-                                    )
-                                elif "stream" in log:
-                                    print(f"[Docker] {log['stream'].strip()}")
+                            print(f"[Docker] Successfully built image: {image_name}")
                         except Exception as e:
                             print(f"[Docker] Failed to build image {image_name}: {e}")
                             # Fallback to base image
@@ -444,6 +436,12 @@ COPY experiment.py .
                             shutil.copytree(src, dst, dirs_exist_ok=True)
                         return (0, logs)
                     else:
+                        # Print error logs to stderr so they're visible
+                        print(
+                            f"[Docker] Container failed with logs:\n{logs}",
+                            file=sys.stderr,
+                        )
+
                         # Check if it's a missing package error
                         if "ModuleNotFoundError" in logs:
                             missing_pkg = self.extract_missing_package(logs)

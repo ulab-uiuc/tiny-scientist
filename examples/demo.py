@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 
 from tiny_scientist.scientist import TinyScientist
 
@@ -10,7 +9,7 @@ def main() -> None:
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="experiments/demo_3",
+        default="demo_test",
         help="Base output directory",
     )
     parser.add_argument(
@@ -42,7 +41,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    ideas = [
+    ideas = [  # noqa: F841
         "Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models",
         "Adaptive Contextual Pruning: Improving Relevance and Conciseness in Long-Form Generation",
         "Adaptive Prompt Decomposition for Coherent Long-Range Code Generation",
@@ -64,44 +63,39 @@ def main() -> None:
         "Temporal Bias Decay Simulation: Reducing Social Biases in Large Language Models through Evolutionary Prompting",
         "Temporal Dependency Unfolding: Improving Code Generation for Complex Stateful Systems",
     ]
-    for idx, idea in enumerate(ideas):
-        safe_idea = idea.replace(" ", "_")
-        args.output_dir = f"experiments/non_bio_{safe_idea}"
 
-        os.makedirs(args.output_dir, exist_ok=True)
+    # Instantiate TinyScientist and run pipeline
+    scientist = TinyScientist(
+        model=args.model,
+        output_dir=args.output_dir,
+        prompt_template_dir=args.prompt_template_dir,
+        template=args.template,
+        enable_safety_check=args.enable_safety_check,
+        budget=args.budget,
+    )
 
-        # Instantiate TinyScientist and run pipeline
-        scientist = TinyScientist(
-            model=args.model,
-            output_dir=args.output_dir,
-            prompt_template_dir=args.prompt_template_dir,
-            template=args.template,
-            enable_safety_check=args.enable_safety_check,
-            budget=args.budget,
-        )
+    idea = scientist.think(
+        intent="Adaptive Prompt Decomposition for Coherent Long-Range Code Generation",
+    )
 
-        idea = scientist.think(
-            intent="Adaptive Confidence-Guided Prompting for Improved Factuality in Large Language Models"
-        )
+    with open(args.output_dir + "/idea.json", "w") as f:
+        json.dump(idea, f, indent=2)
+    status, experiment_dir = scientist.code(idea=idea)
 
-        with open(args.output_dir + "/idea.json", "w") as f:
-            json.dump(idea, f, indent=2)
+    if status is True:
+        print(f"✅Experiment code generated at: {experiment_dir}")
+        # pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
 
-        status, experiment_dir = scientist.code(idea=idea)
+    # # Display total cost summary
+    # scientist.get_total_cost()
 
-        if status is True:
-            pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
-
-        # Display total cost summary
-        scientist.get_total_cost()
-
-        tex_path = args.output_dir + "/latex/acl_latex.tex"
-        review = scientist.review(
-            tex_path=tex_path,
-        )
-        print(review)
-        with open(args.output_dir + "/review.json", "w") as f:
-            json.dump(review, f, indent=2)
+    # tex_path = args.output_dir + "/latex/acl_latex.tex"
+    # review = scientist.review(
+    #     tex_path=tex_path,
+    # )
+    # print(review)
+    # with open(args.output_dir + "/review.json", "w") as f:
+    #     json.dump(review, f, indent=2)
 
 
 if __name__ == "__main__":
