@@ -152,6 +152,10 @@ Be critical and realistic in your assessments."""
         # Apply comprehensive safety check if enabled
         current_idea_final = self._safety_check(current_idea_final)
 
+        if not current_idea_final:
+            print("[Thinker] Safety check returned empty output; discarding this idea.")
+            return None
+
         current_idea_dict = json.loads(current_idea_final)
 
         print(
@@ -846,6 +850,10 @@ Be critical and realistic in your assessments."""
         Returns:
             str: Modified idea JSON with enhanced safety
         """
+        if idea_json is None:
+            print("⚠️ Safety check skipped: received empty idea JSON.")
+            return idea_json
+
         if not self.enable_safety_check or not self.safety_checker:
             return idea_json
 

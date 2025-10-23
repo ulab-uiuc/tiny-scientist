@@ -7,6 +7,7 @@ import anthropic
 import backoff
 import openai
 import toml
+import yaml
 from google.generativeai.types import GenerationConfig
 
 from tiny_scientist.budget_checker import BudgetChecker
@@ -690,6 +691,16 @@ def extract_json_between_markers(llm_output: str) -> Optional[Dict[str, Any]]:
                 print("[SUCCESS] Fixed JSON parsing errors and parsed successfully")
                 return parsed_json
             except json.JSONDecodeError as e2:
+                # Fallback: attempt to parse with YAML loader to tolerate minor JSON deviations
+                for candidate in (fixed_string, json_string):
+                    try:
+                        parsed_yaml = yaml.safe_load(candidate)
+                    except yaml.YAMLError:
+                        continue
+                    if isinstance(parsed_yaml, dict):
+                        print("[SUCCESS] Parsed JSON via YAML fallback")
+                        return cast(Dict[str, Any], parsed_yaml)
+
                 # Log the error for debugging
                 print(f"[ERROR] JSON parse error: {e}")
                 print(f"[ERROR] After fixes, still failed: {e2}")

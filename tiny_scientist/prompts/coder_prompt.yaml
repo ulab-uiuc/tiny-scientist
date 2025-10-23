@@ -30,11 +30,35 @@ experiment_prompt: |
   Proposed Approach: {approach}
 
   ## Experimental Setup
-  The following describes the experiment setup. You must base your implementation strictly on this structure:
+  The following describes the experiment setup. You must base your implementation strictly on this structure and keep it lightweight.
 
-  Models/Algorithms to use: {model}
-  Datasets involved: {dataset}
-  Evaluation metrics: {metric}
+  Models/Algorithms (key terms): {model_keywords}
+  Detailed model specification:
+  {model_details}
+
+  Datasets (key terms): {dataset_keywords}
+  Detailed dataset specification (use this loader exactly — do not invent file paths):
+  {dataset_details}
+
+  Evaluation metrics (key terms): {metric_keywords}
+  Detailed metric specification:
+  {metric_details}
+
+  ## Hard Constraints
+  - Use only lightweight architectures: bag-of-words/logistic regression, shallow MLP (≤2 hidden layers, ≤128 units), shallow CNN (≤3 conv layers, ≤32 filters), linear SVM, single-layer GRU (≤64 hidden units). Total parameter count should stay under ~100k.
+  - ABSOLUTELY FORBIDDEN: importing `transformers`, `BertTokenizer`, any BERT/GPT/ViT class, graph neural networks, diffusion models, random feature generators (`torch.rand`, `np.random` placeholders for embeddings), manual placeholder paths, loading huge pretrained checkpoints.
+  - Dataset must be loaded via the provided command. If it fails, switch to one of: `datasets.load_dataset("ag_news")`, `datasets.load_dataset("imdb")`, `datasets.load_dataset("yelp_polarity")`, `datasets.load_dataset("cifar10")`, `datasets.load_dataset("mnist")`, `datasets.load_dataset("fashion_mnist")`, `datasets.load_dataset("amazon_polarity")`, or an equivalent auto-downloadable dataset. NEVER fall back to local files. For text, prefer simple vectorizers (`CountVectorizer`, `TfidfVectorizer`) over tokenizers.
+  - Always subsample large datasets: cap training examples at ≤5,000 and validation/test at ≤2,000 each (use `select(range(...))` or appropriate slicing). Document this in code comments.
+
+  ## Required Script Structure
+  Your script MUST include the following components (you may adapt names, but all roles must be present):
+  1. `load_data()` – downloads the dataset using the loader above, subsamples to the limits (≤5k train / ≤2k val/test), and converts examples into explicit tensors/arrays (`torch.tensor` or `numpy.array`). If using HuggingFace datasets, call `.set_format(type="torch", columns=[...])` or manually build tensors, then wrap them with `torch.utils.data.TensorDataset` + `DataLoader` (or sklearn splits if you stay in sklearn). Include a brief comment explaining why this preprocessing keeps the experiment lightweight.
+  2. `build_model()` – constructs the lightweight model defined in the plan. Document input/output dimensions explicitly, and add a short justification for why this architecture is the simplest option that still addresses the task.
+  3. `train(model, train_loader, optimizer, criterion, device)` – iterates over batches, moves tensors to `device`, computes loss, `loss.backward()`, `optimizer.step()`. Log the epoch count and explain in a comment why the number of epochs is sufficient.
+  4. `evaluate(model, data_loader, device)` – returns a dict of metrics computed from real predictions vs ground truth. Include a comment explaining why the chosen metrics match the scientific goal.
+  5. `main(out_dir)` – orchestrates the steps above, saves `final_info.json` with metric values (no placeholder numbers), and prints dataset sizes so we can verify subsampling.
+
+  Keep training loops short (≤5 epochs, batch_size ≤64) so the experiment finishes quickly on CPU. If the dataset is extremely small, 3 epochs are usually enough.
 
   ## Execution Command (DO NOT MODIFY):
   You have {max_runs} runs to complete this experiment. For each run, the script will be executed using:
@@ -42,15 +66,12 @@ experiment_prompt: |
   where `i` is the run number (`run_1`, `run_2`, etc.).
 
   ## YOU MUST ENSURE experiment.py:
-  1. Parses the `--out_dir` argument.
-  2. Creates the output directory using `os.makedirs(out_dir, exist_ok=True)`.
-  3. **CRITICAL: Performs REAL model training and evaluation with actual data loading, model forward/backward passes, and gradient updates.**
-     - ❌ ABSOLUTELY FORBIDDEN: Using `np.random.random()`, `torch.rand()`, or any simulated/dummy results
-     - ❌ ABSOLUTELY FORBIDDEN: Hardcoded or placeholder results like `{{"accuracy": 0.85}}`
-     - ✅ REQUIRED: Load real datasets, define real model architectures, run actual training loops
-     - ✅ REQUIRED: All metrics must be computed from actual model predictions vs ground truth
-  4. Implements evaluation metrics with real logic (e.g., actual accuracy/F1/loss computation).
-  5. **Saves results as a dictionary in a file named `final_info.json` placed directly inside `out_dir`** — do **not** save into nested folders like `out_dir/variant_name/final_info.json`.
+  1. Parses the `--out_dir` argument and calls `os.makedirs(out_dir, exist_ok=True)`.
+  2. Loads the dataset using the specified loader (or the fallback whitelist above) with NO manual file paths.
+  3. Builds a lightweight model that matches the dataset feature shape; document tensor dimensions in code comments when not obvious. No hidden “placeholder embeddings”.
+  4. Performs REAL training with gradient updates (`optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()`) on actual features (no zero/random stand-ins).
+  5. Computes metrics from real predictions (e.g., accuracy/F1) using sklearn/torch utilities—no hardcoded results.
+  6. Saves a dict of metrics to `{{out_dir}}/final_info.json` (no nested folders).
 
   ## Computational Constraints
   - Ensure the code is computationally affordable to run on a single GPU or CPU machine.
@@ -61,11 +82,12 @@ experiment_prompt: |
   Do not add extra command-line arguments.
 
   **VERIFICATION CHECKLIST** (You MUST pass all checks):
-  - [ ] Does the code load a real dataset (not random data)?
-  - [ ] Does the code define a real model architecture (not a dummy class)?
-  - [ ] Does the code have a training loop with actual optimizer.step() calls?
-  - [ ] Are metrics computed from real predictions (not random numbers)?
-  - [ ] Does final_info.json contain results from actual execution?
+  - [ ] Dataset is downloaded via library loader (no placeholder paths, no mocks, no random tensors) and converted to tensors/arrays explicitly. Document any subsampling (≤5k train / ≤2k val/test).
+  - [ ] Model is a lightweight architecture (no transformer/graph/pretrained behemoth) and input/output shapes line up. Forbidden imports (`transformers`, BERT classes) are absent.
+  - [ ] Training loop performs `optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()` on real batches (no synthetic placeholder features).
+  - [ ] Evaluation computes metrics from actual predictions vs labels (no dummy numbers).
+  - [ ] `final_info.json` is written in `out_dir` with real metric values.
+  - [ ] Sanity check: print or log dataset sizes and confirm they respect the limits; mention parameter count estimate in a comment.
 
   If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.

@@ -133,10 +133,14 @@ class Coder:
         return True, self.output_dir, None
 
     def _format_experiment_for_prompt(
-        self, exp: Dict[str, str]
-    ) -> Tuple[str, str, str]:
+        self, exp: Dict[str, Any]
+    ) -> Tuple[str, str, str, str, str, str]:
+        model_section = self._serialize_for_prompt(exp.get("Model", ""))
+        dataset_section = self._serialize_for_prompt(exp.get("Dataset", ""))
+        metric_section = self._serialize_for_prompt(exp.get("Metric", ""))
+
         llm_prompt = self.prompts.experiment_keyword_prompt.format(
-            model=exp["Model"], dataset=exp["Dataset"], metric=exp["Metric"]
+            model=model_section, dataset=dataset_section, metric=metric_section
         )
 
         llm_output, _ = get_response_from_llm(
@@ -164,7 +168,23 @@ class Coder:
         dataset_kw = ", ".join(keyword_info.get("dataset", []))
         metric_kw = ", ".join(keyword_info.get("metric", []))
 
-        return model_kw, dataset_kw, metric_kw
+        return (
+            model_kw,
+            dataset_kw,
+            metric_kw,
+            model_section,
+            dataset_section,
+            metric_section,
+        )
+
+    @staticmethod
+    def _serialize_for_prompt(section: Any) -> str:
+        if isinstance(section, (dict, list)):
+            try:
+                return json.dumps(section, indent=2, ensure_ascii=False)
+            except TypeError:
+                return str(section)
+        return str(section)
 
     def _summarize_to_bullets(self, paragraph: str) -> str:
         # Simple sentence-splitting bullet conversion
@@ -178,17 +198,27 @@ class Coder:
         current_iter = 0
         run_time = 1
 
-        # Initial prompt
-        model, dataset, metric = self._format_experiment_for_prompt(idea["Experiment"])
+        experiment_spec = idea["Experiment"]
+        (
+            model_kw,
+            dataset_kw,
+            metric_kw,
+            model_text,
+            dataset_text,
+            metric_text,
+        ) = self._format_experiment_for_prompt(experiment_spec)
 
         next_prompt = self.prompts.experiment_prompt.format(
             title=idea["Title"],
             problem=idea["Problem"],
             novelty=idea["NoveltyComparison"],
             approach=idea["Approach"],
-            model=model,
-            dataset=dataset,
-            metric=metric,
+            model_keywords=model_kw,
+            dataset_keywords=dataset_kw,
+            metric_keywords=metric_kw,
+            model_details=model_text,
+            dataset_details=dataset_text,
+            metric_details=metric_text,
             max_runs=self.max_runs,
             baseline_results=baseline_results,
         )

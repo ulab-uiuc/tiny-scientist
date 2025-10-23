@@ -523,19 +523,44 @@ experiment_plan_prompt: |
   In <THOUGHT>, briefly discuss your reasoning behind the chosen approach.
 
   In <JSON>, provide the plan in JSON format with these fields:
-  - "Model": Detailed description of model architecture with specific components
-  - "Dataset": Detailed description of dataset including size, split, preprocessing
-  - "Metric": Description of evaluation metrics with justification
+  - "Model": Detailed description of model architecture with specific components. You must stay within LIGHTWEIGHT architectures:
+    * Allowed families: bag-of-words/logistic regression, shallow MLP/FFN (≤2 hidden layers, ≤128 units), shallow CNN (≤3 convolutional layers, ≤32 filters), linear SVM, single-layer GRU (≤64 hidden units).
+    * Forbidden: Transformers (BERT, GPT, ViT, etc.), large pretrained backbones, graph neural networks, diffusion models, custom random feature generators.
+    * Document input/output dimensions so coder can wire tensors without guessing. Provide literal numeric values (e.g., use 3072 instead of `32 * 32 * 3`).
+    * Absolutely NO comments (`//` or `/* */`) inside JSON values.
+    * Keep parameter counts tiny: total hidden units per layer ≤ 128, total trainable parameters ≤ ~100k.
+  - "Dataset": Detailed description of dataset including:
+    * "Name": MUST be a real dataset available on HuggingFace Datasets (verify it exists!)
+    * "Size": Number of samples (limit each split to ≤ 5,000 training examples and ≤ 2,000 for validation/test in the initial plan to keep runtime low)
+    * "Splits": Train/validation/test split ratios (explicitly state how you will downsample large datasets to the limits above)
+    * "Preprocessing": Required preprocessing steps (e.g., lowercasing text, CountVectorizer/TF-IDF, image normalization). Specify resulting feature shapes.
+    * Absolutely NO comments (`//` or `/* */`) or inline expressions inside the JSON.
+    * "Load_Command": The exact Python call that loads the dataset programmatically (e.g., `datasets.load_dataset("ag_news")`, `datasets.load_dataset("imdb")`, `sklearn.datasets.load_iris()`). The identifier MUST be valid on the target library—generic names like `'coco'` or any path placeholders are forbidden. If a dataset needs manual downloads, select a different public dataset that can be fetched automatically.
+    * CRITICAL: Stay within this downloadable shortlist unless the intent explicitly demands otherwise: `{{"ag_news", "imdb", "yelp_polarity", "cifar10", "mnist", "fashion_mnist", "amazon_polarity"}}`. If none fit, clearly justify an alternative that is still auto-downloadable.
+  - "Metric": Description of evaluation metrics with justification (use key name "Metric", NOT "Evaluation_Metrics")
+    * Include a short self-check note confirming that dataset size limits, model simplicity, and lack of comments are satisfied.
 
   In <MARKDOWN_TABLE>, provide a DETAILED experimental plan as a Markdown table. This table MUST include the following columns and rows:
   - "Component": The part of the experiment
   - "Specification": A DETAILED description with specifics (not vague descriptions)
   - "Justification / Rationale": Why this choice is appropriate, citing relevant literature
   - "Status": Leave this column EMPTY
+  - Include an additional row titled **Sanity Checks** listing:
+    * Dataset subsampling strategy confirming ≤5,000 train / ≤2,000 val/test examples.
+    * Model parameter count estimate (≤100k parameters).
+    * Confirmation that JSON contains no inline comments or expressions.
 
   **REQUIRED ROWS** (at minimum):
   1. **Model Architecture**: Specify exact architecture, layers, dimensions, parameters
   2. **Dataset**: Name, size, splits (train/val/test), preprocessing steps
+     - **CRITICAL DATASET REQUIREMENT**: You MUST use a dataset that is:
+       a) Publicly available on HuggingFace Datasets Hub (https://huggingface.co/datasets) and can be loaded with `datasets.load_dataset()`, OR
+       b) A standard benchmark dataset with clear download instructions (e.g., via torchvision, tensorflow_datasets)
+       - ❌ DO NOT invent dataset names (e.g., "Gutenberg Dataset" does not exist on HuggingFace)
+       - ✅ Prefer the shortlist `ag_news`, `imdb`, `yelp_polarity`, `cifar10`, `mnist`, `fashion_mnist`, `amazon_polarity`. If intent requires a different dataset, confirm it is auto-downloadable and provide the exact `datasets.load_dataset` call.
+       - ❌ DO NOT use placeholder file paths such as `path/to/...`; rely on library loaders only
+       - ✅ Verify the dataset exists (including the config/split name) before specifying it
+       - Include the exact load command: e.g., `datasets.load_dataset("wikitext", "wikitext-2-raw-v1")`
   3. **Baselines**: List 3-5 specific baseline methods to compare against (with citations)
   4. **Training Setup**: Optimizer, learning rate, batch size, epochs, hardware
   5. **Evaluation Metrics**: Primary and secondary metrics with justification
