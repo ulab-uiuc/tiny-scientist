@@ -1,15 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { io } from 'socket.io-client';
+
+const resolveSocketBaseURL = () => {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:5000';
+  }
+
+  const explicitBase = process.env.REACT_APP_SOCKET_BASE_URL;
+  if (explicitBase) {
+    return explicitBase;
+  }
+
+  const { protocol, hostname, port } = window.location;
+
+  // When running the dev server (port 3000) we need to talk to the backend port.
+  if (port === '3000') {
+    const backendPort = process.env.REACT_APP_SOCKET_PORT || '5000';
+    return `${protocol}//${hostname}:${backendPort}`;
+  }
+
+  return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+};
+
+const SOCKET_PATH = process.env.REACT_APP_SOCKET_PATH || '/socket.io';
 
 const LogDisplay = ({ isVisible, onToggle }) => {
   const [logs, setLogs] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
   const logsEndRef = useRef(null);
+  const socketUrl = useMemo(resolveSocketBaseURL, []);
 
   useEffect(() => {
-    // Always maintain socket connection when component mounts
-    socketRef.current = io('http://localhost:5000');
+    socketRef.current = io(socketUrl, {
+      path: SOCKET_PATH,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 6000,
+      timeout: 10000,
+    });
 
     socketRef.current.on('connect', () => {
       setIsConnected(true);
@@ -26,8 +56,9 @@ const LogDisplay = ({ isVisible, onToggle }) => {
 
     return () => {
       socketRef.current?.disconnect();
+      socketRef.current = null;
     };
-  }, []);
+  }, [socketUrl]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new logs arrive

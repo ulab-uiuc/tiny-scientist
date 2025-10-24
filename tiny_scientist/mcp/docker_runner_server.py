@@ -21,6 +21,27 @@ PACKAGE_ROOT = Path(tiny_scientist.__file__).resolve().parent
 CONFIG_PATH = PACKAGE_ROOT / "config.toml"
 config = toml.load(CONFIG_PATH) if CONFIG_PATH.exists() else {"core": {}}
 
+DEFAULT_BASE_PACKAGES = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    "tqdm",
+    "requests",
+    "pillow",
+]
+
+
+def _resolve_configured_packages() -> List[str]:
+    docker_cfg = config.get("docker") if isinstance(config, dict) else None
+    configured = None
+    if isinstance(docker_cfg, dict):
+        configured = docker_cfg.get("base_packages")
+    if isinstance(configured, list) and all(isinstance(pkg, str) for pkg in configured):
+        return configured
+    return DEFAULT_BASE_PACKAGES.copy()
+
 
 class DockerExperimentRunner:
     def __init__(
@@ -32,6 +53,8 @@ class DockerExperimentRunner:
         self.docker_base = docker_base
         self.docker_client = None
         self.use_docker = False
+        self.base_packages = _resolve_configured_packages()
+        self._base_package_set: Set[str] = set(self.base_packages)
 
         # Initialize Docker client
         try:
@@ -49,24 +72,7 @@ class DockerExperimentRunner:
     ) -> List[str]:
         """Detect required packages from import statements in a Python file."""
         if base_packages is None:
-            base_packages = set(
-                [
-                    "numpy",
-                    "pandas",
-                    "scikit-learn",
-                    "matplotlib",
-                    "seaborn",
-                    "torch",
-                    "tensorflow",
-                    "transformers",
-                    "datasets",
-                    "evaluate",
-                    "wandb",
-                    "tqdm",
-                    "requests",
-                    "pillow",
-                ]
-            )
+            base_packages = set(DEFAULT_BASE_PACKAGES)
 
         # Common package name mappings (import_name -> pip_package_name)
         package_mapping = {
@@ -298,10 +304,11 @@ class DockerExperimentRunner:
                 print(f"[Docker] Using existing image: {self.docker_image}")
             except ImageNotFound:
                 print(f"[Docker] Building image: {self.docker_image}")
-                dockerfile = f"""
-FROM {self.docker_base}
-RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torch tensorflow transformers datasets evaluate wandb tqdm requests pillow
-"""
+                dockerfile_lines = [f"FROM {self.docker_base}"]
+                if self.base_packages:
+                    joined = " ".join(sorted(self.base_packages))
+                    dockerfile_lines.append(f"RUN pip install --no-cache-dir {joined}")
+                dockerfile = "\n".join(dockerfile_lines) + "\n"
                 with tempfile.TemporaryDirectory() as tmpdir:
                     with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
                         f.write(dockerfile)
@@ -316,7 +323,9 @@ RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torc
         if not self.use_docker:
             return None
         base_image = self.get_or_build_base_image()
-        extra_pkgs = self.detect_required_packages(experiment_py_path)
+        extra_pkgs = self.detect_required_packages(
+            experiment_py_path, base_packages=self._base_package_set
+        )
         if extra_pkgs:
             image_name = f"tiny-scientist-exp-{hash(tuple(extra_pkgs))}"
             if self.docker_client is not None:
