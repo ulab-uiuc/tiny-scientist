@@ -1,41 +1,74 @@
 import builtins
-import io
+import logging
 import os
 import sys
+import time
 from typing import Any, Dict, Optional, Union
 
-from flask import Flask, Response, jsonify, request, send_file, session
-from flask_cors import CORS
-from flask_socketio import SocketIO
+import eventlet
+
+eventlet.monkey_patch()
+
+from flask import Flask, Response, jsonify, request, send_file, session  # noqa: E402
+from flask_cors import CORS  # noqa: E402
+from flask_socketio import SocketIO  # noqa: E402
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+
 original_print = builtins.print
-original_stdout = sys.stdout
 
-# Buffer to store messages until socketio is ready
-log_buffer = []
+_LOG_BUFFER: list[dict[str, Any]] = []
+_MAX_LOG_BUFFER_LENGTH = 500
 
 
-class WebSocketCapture(io.StringIO):
-    def write(self, text: str) -> int:
-        # Also write to original stdout
-        original_stdout.write(text)
-        # Store for WebSocket emission
-        if text.strip():  # Only non-empty messages
-            log_buffer.append(text.strip())
-        return len(text)
+def _push_log(message: str, level: str = "info") -> None:
+    message = message.strip()
+    if not message:
+        return
+    payload = {
+        "message": message,
+        "level": level,
+        "timestamp": time.time(),
+    }
+    _LOG_BUFFER.append(payload)
+    if len(_LOG_BUFFER) > _MAX_LOG_BUFFER_LENGTH:
+        del _LOG_BUFFER[0]
+    try:
+        if "socketio" in globals():
+            socketio.emit("log", payload)
+    except Exception:
+        pass
+
+
+class SocketIOLogHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            message = self.format(record)
+        except Exception:
+            message = record.getMessage()
+        _push_log(message, record.levelname.lower())
+
+
+def flush_log_buffer() -> None:
+    global _LOG_BUFFER
+    if not _LOG_BUFFER:
+        return
+    try:
+        for payload in _LOG_BUFFER:
+            socketio.emit("log", payload)
+    except Exception:
+        return
+    finally:
+        _LOG_BUFFER = []
 
 
 def websocket_print(*args: Any, **kwargs: Any) -> None:
-    # Call original print
-    original_print(*args, **kwargs)
-    # Also emit via WebSocket in real-time
     message = " ".join(str(arg) for arg in args)
-    if message.strip():
-        emit_log_realtime(message.strip())
+    _push_log(message)
+    original_print(*args, **kwargs)
 
 
 # Override print globally before importing tiny_scientist modules
@@ -51,41 +84,6 @@ try:
         rich.console.print = websocket_print  # type: ignore
 except ImportError:
     pass
-
-
-# Create a function to emit buffered logs when socketio is ready
-def emit_buffered_logs() -> None:
-    global log_buffer
-    try:
-        for message in log_buffer:
-            socketio.emit(
-                "log",
-                {
-                    "message": message,
-                    "level": "info",
-                    "timestamp": __import__("time").time(),
-                },
-            )
-        log_buffer = []  # Clear buffer after emitting
-    except Exception:
-        pass
-
-
-# Create a function to emit logs in real-time
-def emit_log_realtime(message: str, level: str = "info") -> None:
-    try:
-        # Check if socketio is available
-        if "socketio" in globals():
-            socketio.emit(
-                "log",
-                {
-                    "message": message,
-                    "level": level,
-                    "timestamp": __import__("time").time(),
-                },
-            )
-    except Exception:
-        pass
 
 
 from tiny_scientist.budget_checker import BudgetChecker  # noqa: E402
@@ -129,7 +127,15 @@ CORS(
         "http://localhost:3000",
     ],
 )
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+root_logger = logging.getLogger()
+if not any(isinstance(handler, SocketIOLogHandler) for handler in root_logger.handlers):
+    socketio_handler = SocketIOLogHandler()
+    socketio_handler.setLevel(logging.INFO)
+    socketio_handler.setFormatter(logging.Formatter("%(message)s"))
+    root_logger.addHandler(socketio_handler)
+if root_logger.level > logging.INFO:
+    root_logger.setLevel(logging.INFO)
 
 # Print override is now active
 print("🚀 Backend server starting with WebSocket logging enabled!")
@@ -245,7 +251,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/generate-initial", methods=["POST"])
 def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
-    emit_buffered_logs()  # Emit any buffered logs from module initialization
+    flush_log_buffer()  # Emit any buffered logs from module initialization
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -523,7 +529,7 @@ def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
 @app.route("/api/code", methods=["POST"])
 def generate_code() -> Union[Response, tuple[Response, int]]:
     """Generate code synchronously and return when complete"""
-    emit_buffered_logs()  # Emit any buffered logs
+    flush_log_buffer()  # Emit any buffered logs
     global coder
 
     if coder is None:
@@ -624,9 +630,8 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
     experiment_dir = data.get("experiment_dir", None)
 
     s2_api_key = data.get("s2_api_key", None)
-
-    if not s2_api_key:
-        return jsonify({"error": "Semantic Scholar API key is required"}), 400
+    if isinstance(s2_api_key, str):
+        s2_api_key = s2_api_key.strip() or None
 
     if not idea_data:
         print("ERROR: No idea provided in request")
@@ -653,6 +658,10 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
             ),
         )
         print(f"Writer initialized for this request with model: {writer.model}")
+        if not s2_api_key:
+            print(
+                "Proceeding without Semantic Scholar API key; using fallback sources."
+            )
 
         # Extract the original idea data
         if isinstance(idea_data, dict) and "originalData" in idea_data:
