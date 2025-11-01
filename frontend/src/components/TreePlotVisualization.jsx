@@ -553,6 +553,44 @@ const TreePlotVisualization = () => {
   const [isReviewing, setIsReviewing] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState('comments'); // 'comments' or 'review'
 
+  const isDemoRoute =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/demo' ||
+      window.location.pathname.startsWith('/demo/'));
+  const FALLBACK_DEMO_INTENT =
+    'Adaptive Prompt Decomposition for Coherent Long-Range Code Generation';
+  const demoDefaultIntent =
+    (typeof process !== 'undefined' && process.env.REACT_APP_DEMO_INTENT) ||
+    FALLBACK_DEMO_INTENT;
+
+  useEffect(() => {
+    if (isDemoRoute) {
+      setCurrentView('exploration');
+      setIsConfigured(true);
+    }
+  }, [isDemoRoute]);
+
+  useEffect(() => {
+    if (!isDemoRoute) {
+      return;
+    }
+    let desiredIntent = demoDefaultIntent;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.sessionStorage.getItem('demo_intent_prefill');
+        if (stored) {
+          desiredIntent = stored;
+          window.sessionStorage.removeItem('demo_intent_prefill');
+        }
+      } catch (_) {
+        // ignore storage errors
+      }
+    }
+    if (desiredIntent && analysisIntent !== desiredIntent) {
+      setAnalysisIntent(desiredIntent);
+    }
+  }, [isDemoRoute, analysisIntent, demoDefaultIntent]);
+
   const experimentFileCount = experimentFileList.length;
   const hasExperimentFiles = experimentFileCount > 0;
 
@@ -2972,10 +3010,24 @@ const TreePlotVisualization = () => {
     setPdfComments(pdfComments.filter(c => c.id !== commentId));
   };
 
+  const buildRelativeApiUrl = (path) => {
+    if (!path) return path;
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+    if (path.startsWith('/')) {
+      return path;
+    }
+    return `/${path}`;
+  };
+
   const downloadPDF = async (pdfPath) => {
     try {
+      const requestUrl = buildRelativeApiUrl(pdfPath);
       // Fetch the PDF as a blob to force download
-      const response = await fetch(`http://localhost:5000${pdfPath}`);
+      const response = await fetch(requestUrl, {
+        credentials: 'include',
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to download PDF: ${response.status}`);
@@ -3015,13 +3067,14 @@ const TreePlotVisualization = () => {
     try {
       console.log('Starting paper review for:', pdfPath);
 
-      const response = await fetch('http://localhost:5000/api/review', {
+      const response = await fetch('/api/review', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
-          pdf_path: pdfPath
+          pdf_path: buildRelativeApiUrl(pdfPath)
         }),
       });
 
@@ -3636,7 +3689,7 @@ const TreePlotVisualization = () => {
                     </button>
                   </div>
                   <iframe
-                    src={`http://localhost:5000${paperResult.pdf_path}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
+                    src={`${buildRelativeApiUrl(paperResult.pdf_path)}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
                     style={{
                       width: '100%',
                       height: 'calc(100% - 45px)',

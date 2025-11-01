@@ -86,6 +86,7 @@ except ImportError:
     pass
 
 
+from backend.demo_cache import DemoCacheError, DemoCacheService  # noqa: E402
 from tiny_scientist.budget_checker import BudgetChecker  # noqa: E402
 from tiny_scientist.coder import Coder  # noqa: E402
 from tiny_scientist.reviewer import Reviewer  # noqa: E402
@@ -115,6 +116,38 @@ def patch_module_print() -> None:
 
 # Call the patching function
 patch_module_print()
+
+
+def _demo_log(message: str, level: str = "info") -> None:
+    _push_log(message, level)
+
+
+DEMO_CACHE_MODE = os.environ.get("DEMO_CACHE_MODE", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+DEMO_CACHE_DIR = os.path.abspath(
+    os.environ.get("DEMO_CACHE_DIR")
+    or os.path.join(project_root, "frontend", "demo_cache")
+)
+
+try:
+    demo_cache = DemoCacheService(
+        DEMO_CACHE_DIR,
+        enabled=DEMO_CACHE_MODE,
+        log_fn=_demo_log,
+    )
+    if demo_cache.enabled:
+        print(f"🗄️  Demo cache enabled using data at {DEMO_CACHE_DIR}")
+except DemoCacheError as exc:
+    print(f"⚠️ Demo cache disabled: {exc}")
+    demo_cache = DemoCacheService(
+        DEMO_CACHE_DIR,
+        enabled=False,
+        log_fn=_demo_log,
+    )
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key-here"
@@ -162,6 +195,12 @@ def configure() -> Union[Response, tuple[Response, int]]:
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.apply_config(session)
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
     model = data.get("model")
     api_key = data.get("api_key")
     budget = data.get("budget")
@@ -255,10 +294,18 @@ def generate_initial() -> Union[Response, tuple[Response, int]]:
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
-    if thinker is None:
-        return jsonify({"error": "Thinker not configured"}), 400
     intent = data.get("intent")
     num_ideas = data.get("num_ideas", 3)
+
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_initial_ideas(intent)
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
+
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
 
     # Generate ideas
     ideas = thinker.run(intent=intent, num_ideas=num_ideas)
@@ -285,15 +332,22 @@ def generate_initial() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/set-system-prompt", methods=["POST"])
 def set_system_prompt() -> Union[Response, tuple[Response, int]]:
     """Set the system prompt for the Thinker"""
-    global thinker
-
-    if not thinker:
-        return jsonify({"error": "Thinker not configured"}), 400
-
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
     system_prompt = data.get("system_prompt")
+
+    if demo_cache.enabled:
+        try:
+            demo_cache.update_system_prompt(system_prompt)
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify({"status": "success", "message": "System prompt updated"})
+
+    global thinker
+
+    if not thinker:
+        return jsonify({"error": "Thinker not configured"}), 400
 
     # If empty string or None, reset to default
     if not system_prompt:
@@ -307,11 +361,6 @@ def set_system_prompt() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/set-criteria", methods=["POST"])
 def set_criteria() -> Union[Response, tuple[Response, int]]:
     """Set evaluation criteria for a specific dimension"""
-    global thinker
-
-    if not thinker:
-        return jsonify({"error": "Thinker not configured"}), 400
-
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -320,6 +369,23 @@ def set_criteria() -> Union[Response, tuple[Response, int]]:
 
     if dimension not in ["novelty", "feasibility", "impact"]:
         return jsonify({"error": "Invalid dimension"}), 400
+
+    if demo_cache.enabled:
+        try:
+            demo_cache.update_criteria(dimension, criteria)
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"{dimension.capitalize()} criteria updated",
+            }
+        )
+
+    global thinker
+
+    if not thinker:
+        return jsonify({"error": "Thinker not configured"}), 400
 
     # If empty string or None, reset to default
     if not criteria:
@@ -335,6 +401,12 @@ def set_criteria() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/get-prompts", methods=["GET"])
 def get_prompts() -> Union[Response, tuple[Response, int]]:
     """Get current prompts and criteria"""
+    if demo_cache.enabled:
+        try:
+            return jsonify(demo_cache.get_prompts())
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+
     global thinker
 
     if thinker is None:
@@ -364,6 +436,12 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_child_ideas()
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
     parent_content = data.get("parent_content")
@@ -398,6 +476,12 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_modified_idea()
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
     original_idea = data.get("original_idea")
@@ -435,6 +519,12 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_merged_idea()
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
     idea_a = data.get("idea_a")
@@ -467,10 +557,17 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
+    ideas = data.get("ideas") or []
+    intent = data.get("intent")
+
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.evaluate(ideas)
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
-    ideas = data.get("ideas")
-    intent = data.get("intent")
 
     # Use original data directly (no conversion needed)
     thinker_ideas = ideas
@@ -532,14 +629,21 @@ def generate_code() -> Union[Response, tuple[Response, int]]:
     flush_log_buffer()  # Emit any buffered logs
     global coder
 
-    if coder is None:
-        return jsonify({"error": "Coder not configured"}), 400
-
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
     idea_data = data.get("idea")
     baseline_results = data.get("baseline_results", {})
+
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_code_result()
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
+
+    if coder is None:
+        return jsonify({"error": "Coder not configured"}), 400
 
     print("💻 Starting synchronous code generation...")
 
@@ -628,6 +732,13 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
 
     idea_data = data.get("idea")
     experiment_dir = data.get("experiment_dir", None)
+
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_paper_result()
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
 
     s2_api_key = data.get("s2_api_key", None)
     if isinstance(s2_api_key, str):
@@ -740,15 +851,14 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
 def serve_experiment_file(file_path: str) -> Union[Response, tuple[Response, int]]:
     """Serve generated experiment files"""
     try:
-        # The base directory for all generated content
-        generated_base = os.path.join(project_root, "generated")
-
-        # Construct the full path securely
-        full_path = os.path.abspath(os.path.join(generated_base, file_path))
-
-        # Security check: ensure the file is within the allowed directory
-        if not full_path.startswith(os.path.abspath(generated_base)):
-            return jsonify({"error": "Access denied"}), 403
+        if demo_cache.enabled:
+            generated_base = demo_cache.generated_base
+            full_path = demo_cache.resolve_generated_path(file_path)
+        else:
+            generated_base = os.path.join(project_root, "generated")
+            full_path = os.path.abspath(os.path.join(generated_base, file_path))
+            if not full_path.startswith(os.path.abspath(generated_base)):
+                return jsonify({"error": "Access denied"}), 403
 
         if not os.path.exists(full_path):
             return jsonify({"error": "File not found"}), 404
@@ -762,6 +872,8 @@ def serve_experiment_file(file_path: str) -> Union[Response, tuple[Response, int
             # For other files, serve directly
             return send_file(full_path)
 
+    except DemoCacheError as exc:
+        return jsonify({"error": str(exc)}), 404
     except Exception as e:
         print(f"Error serving file {file_path}: {e}")
         return jsonify({"error": str(e)}), 500
@@ -779,6 +891,13 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
 
     pdf_path = data.get("pdf_path")
     s2_api_key = data.get("s2_api_key")
+
+    if demo_cache.enabled:
+        try:
+            response_payload = demo_cache.get_review_result()
+        except DemoCacheError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(response_payload)
 
     if not pdf_path:
         return jsonify({"error": "No PDF path provided"}), 400
@@ -862,11 +981,12 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
 if __name__ == "__main__":
     # Configure Flask for long-running requests
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    port = int(os.environ.get("PORT", "5000"))
     socketio.run(
         app,
         debug=True,
         use_reloader=False,
-        port=5000,
+        port=port,
         host="0.0.0.0",
         allow_unsafe_werkzeug=True,
     )

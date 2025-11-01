@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import os
 import shutil
 import sys
@@ -22,6 +23,8 @@ CONFIG_PATH = PACKAGE_ROOT / "config.toml"
 config = toml.load(CONFIG_PATH) if CONFIG_PATH.exists() else {"core": {}}
 
 DEFAULT_BASE_PACKAGES = [
+    "torch",
+    "datasets",
     "numpy",
     "pandas",
     "scikit-learn",
@@ -55,6 +58,14 @@ class DockerExperimentRunner:
         self.use_docker = False
         self.base_packages = _resolve_configured_packages()
         self._base_package_set: Set[str] = set(self.base_packages)
+        self._base_fingerprint = self._compute_base_fingerprint()
+        last_colon = self.docker_image.rfind(":")
+        last_slash = self.docker_image.rfind("/")
+        if last_colon > last_slash:
+            self._base_image_repo = self.docker_image[:last_colon]
+        else:
+            self._base_image_repo = self.docker_image
+        self.base_image_tag = f"{self._base_image_repo}:{self._base_fingerprint}"
 
         # Initialize Docker client
         try:
@@ -300,10 +311,10 @@ class DockerExperimentRunner:
             return None
         if self.docker_client is not None:
             try:
-                self.docker_client.images.get(self.docker_image)
-                print(f"[Docker] Using existing image: {self.docker_image}")
+                self.docker_client.images.get(self.base_image_tag)
+                print(f"[Docker] Using existing image: {self.base_image_tag}")
             except ImageNotFound:
-                print(f"[Docker] Building image: {self.docker_image}")
+                print(f"[Docker] Building image: {self.base_image_tag}")
                 dockerfile_lines = [f"FROM {self.docker_base}"]
                 if self.base_packages:
                     joined = " ".join(sorted(self.base_packages))
@@ -313,9 +324,9 @@ class DockerExperimentRunner:
                     with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
                         f.write(dockerfile)
                     self.docker_client.images.build(
-                        path=tmpdir, tag=self.docker_image, rm=True
+                        path=tmpdir, tag=self.base_image_tag, rm=True
                     )
-            return self.docker_image
+            return self.base_image_tag
         return None
 
     def get_or_build_experiment_image(self, experiment_py_path: str) -> Optional[str]:
@@ -327,7 +338,12 @@ class DockerExperimentRunner:
             experiment_py_path, base_packages=self._base_package_set
         )
         if extra_pkgs:
-            image_name = f"tiny-scientist-exp-{hash(tuple(extra_pkgs))}"
+            extras_fingerprint = hashlib.sha256(
+                "|".join(sorted(extra_pkgs)).encode("utf-8")
+            ).hexdigest()[:12]
+            image_name = (
+                f"tiny-scientist-exp-{self._base_fingerprint}-{extras_fingerprint}"
+            )
             if self.docker_client is not None:
                 try:
                     self.docker_client.images.get(image_name)
@@ -370,6 +386,11 @@ COPY experiment.py .
             return base_image
         else:
             return base_image
+
+    def _compute_base_fingerprint(self) -> str:
+        """Fingerprint the base image definition so cache invalidation is automatic."""
+        normalized = "\n".join([self.docker_base] + sorted(self.base_packages))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
 
     def run_experiment_in_docker(
         self, experiment_code: str, run_num: int, output_dir: str, timeout: int = 7200
