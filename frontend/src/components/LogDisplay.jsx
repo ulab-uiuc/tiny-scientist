@@ -1,39 +1,49 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-const resolveSocketBaseURL = () => {
+const resolveSocketBaseURL = (isDemo) => {
   if (typeof window === 'undefined') {
-    return 'http://localhost:5000';
+    if (isDemo) {
+      return process.env.REACT_APP_DEMO_SOCKET_BASE_URL || 'http://localhost:5001';
+    }
+    return process.env.REACT_APP_SOCKET_BASE_URL || 'http://localhost:5000';
   }
 
-  const explicitBase = process.env.REACT_APP_SOCKET_BASE_URL;
-  if (explicitBase) {
-    return explicitBase;
+  if (isDemo && process.env.REACT_APP_DEMO_SOCKET_BASE_URL) {
+    return process.env.REACT_APP_DEMO_SOCKET_BASE_URL;
+  }
+  if (!isDemo && process.env.REACT_APP_SOCKET_BASE_URL) {
+    return process.env.REACT_APP_SOCKET_BASE_URL;
   }
 
   const { protocol, hostname, port } = window.location;
 
-  // When running the dev server (port 3000) we need to talk to the backend port.
   if (port === '3000') {
-    const backendPort = process.env.REACT_APP_SOCKET_PORT || '5000';
+    const backendPort = isDemo
+      ? process.env.REACT_APP_DEMO_SOCKET_PORT || '5001'
+      : process.env.REACT_APP_SOCKET_PORT || '5000';
     return `${protocol}//${hostname}:${backendPort}`;
   }
 
   return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
 };
 
-const SOCKET_PATH = process.env.REACT_APP_SOCKET_PATH || '/socket.io';
-
 const LogDisplay = ({ isVisible, onToggle }) => {
   const [logs, setLogs] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
   const logsEndRef = useRef(null);
-  const socketUrl = useMemo(resolveSocketBaseURL, []);
+  const isDemoPage =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/demo' || window.location.pathname.startsWith('/demo/'));
+  const socketPath =
+    (isDemoPage ? process.env.REACT_APP_DEMO_SOCKET_PATH : process.env.REACT_APP_SOCKET_PATH) ||
+    (isDemoPage ? '/demo/socket.io' : '/socket.io');
+  const socketUrl = useMemo(() => resolveSocketBaseURL(isDemoPage), [isDemoPage]);
 
   useEffect(() => {
     socketRef.current = io(socketUrl, {
-      path: SOCKET_PATH,
+      path: socketPath,
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
@@ -58,7 +68,7 @@ const LogDisplay = ({ isVisible, onToggle }) => {
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [socketUrl]);
+  }, [socketUrl, socketPath]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new logs arrive

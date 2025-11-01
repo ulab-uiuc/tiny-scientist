@@ -20,23 +20,23 @@ const normalizeExperimentDir = (dir) => {
   return sanitized || 'experiments';
 };
 
-const buildExperimentFileUrl = (dir, fileName) => {
+const buildExperimentFileUrl = (dir, fileName, apiBase = '/api') => {
   const safeDir = normalizeExperimentDir(dir);
   const encodedDir = safeDir
     .split('/')
     .filter(Boolean)
     .map(encodeURIComponent)
     .join('/');
-  return `/api/files/${encodedDir}/${encodeURIComponent(fileName)}`;
+  return `${apiBase}/files/${encodedDir}/${encodeURIComponent(fileName)}`;
 };
 
 const DEFAULT_RUN_DISCOVERY_LIMIT = 10;
 
-const fetchTextFile = async (dir, filePath) => {
-  const url = buildExperimentFileUrl(dir, filePath);
+const fetchTextFile = async (dir, filePath, apiBase = '/api') => {
+  const url = buildExperimentFileUrl(dir, filePath, apiBase);
   try {
     console.log(`Attempting to fetch ${filePath} from ${url}`);
-    const response = await fetch(url);
+    const response = await fetch(url, { credentials: 'include' });
     if (!response.ok) {
       console.log(`Fetch skipped for ${filePath}: ${response.status} ${response.statusText}`);
       return null;
@@ -562,6 +562,11 @@ const TreePlotVisualization = () => {
   const demoDefaultIntent =
     (typeof process !== 'undefined' && process.env.REACT_APP_DEMO_INTENT) ||
     FALLBACK_DEMO_INTENT;
+  const apiBase = isDemoRoute ? '/demo/api' : '/api';
+  const fileBase = `${apiBase}/files`;
+
+  const buildFileUrl = (dir, fileName) => buildExperimentFileUrl(dir, fileName, apiBase);
+  const fetchTextFileWithBase = (dir, fileName) => fetchTextFile(dir, fileName, apiBase);
 
   useEffect(() => {
     if (isDemoRoute) {
@@ -697,7 +702,7 @@ const TreePlotVisualization = () => {
     const fetchPrompts = async () => {
       if (isConfigured) {
         try {
-          const response = await fetch('/api/get-prompts', { credentials: 'include' });
+          const response = await fetch(`${apiBase}/get-prompts`, { credentials: 'include' });
           if (!response.ok) {
             throw new Error('Failed to fetch prompts'); // Corrected spelling
           }
@@ -730,7 +735,7 @@ const TreePlotVisualization = () => {
     setOperationStatus('Configuring model...');
 
     try {
-      const response = await fetch('/api/configure', {
+      const response = await fetch(`${apiBase}/configure`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -768,7 +773,7 @@ const TreePlotVisualization = () => {
     setOperationStatus('Configuring model...');
 
     try {
-      const response = await fetch('/api/configure', {
+      const response = await fetch(`${apiBase}/configure`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -992,7 +997,7 @@ const TreePlotVisualization = () => {
   // ============== 自定义prompts==============
   const updateSystemPrompt = async (prompt) => {
     try {
-      const response = await fetch('/api/set-system-prompt', {
+      const response = await fetch(`${apiBase}/set-system-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1009,7 +1014,7 @@ const TreePlotVisualization = () => {
 
   const updateCriteria = async (dimension, criteria) => {
     try {
-      const response = await fetch('/api/set-criteria', {
+      const response = await fetch(`${apiBase}/set-criteria`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1228,7 +1233,7 @@ const TreePlotVisualization = () => {
         intent: analysisIntent
       };
 
-      const response = await fetch('/api/evaluate', {
+      const response = await fetch(`${apiBase}/evaluate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1294,7 +1299,7 @@ const TreePlotVisualization = () => {
 
     try {
       // Call Flask backend
-      const response = await fetch('/api/generate-initial', {
+      const response = await fetch(`${apiBase}/generate-initial`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1383,7 +1388,7 @@ const TreePlotVisualization = () => {
     setShowLogs(true); // Show logs when generating child ideas
 
     try {
-      const response = await fetch('/api/generate-children', {
+      const response = await fetch(`${apiBase}/generate-children`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1456,7 +1461,7 @@ const TreePlotVisualization = () => {
     try {
       setIsGenerating(true);
       setOperationStatus('Modifying idea...');
-      const response = await fetch('/api/modify', {
+      const response = await fetch(`${apiBase}/modify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1534,7 +1539,7 @@ const TreePlotVisualization = () => {
     setError(null);
     try {
       /* ---------- ② 调用 Flask API ---------- */
-      const response = await fetch('/api/merge', {
+      const response = await fetch(`${apiBase}/merge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2402,7 +2407,7 @@ const TreePlotVisualization = () => {
 
       const baseFiles = ['experiment.py', 'notes.txt', 'experiment_results.txt'];
       for (const fileName of baseFiles) {
-        const content = await fetchTextFile(safeDir, fileName);
+        const content = await fetchTextFileWithBase(safeDir, fileName);
         if (content !== null) {
           loadedFiles[fileName] = content;
           fileItems.push({
@@ -2446,7 +2451,7 @@ const TreePlotVisualization = () => {
           let fetchedContent = false;
 
           const finalInfoPath = `${runName}/final_info.json`;
-          const finalInfo = await fetchTextFile(safeDir, finalInfoPath);
+          const finalInfo = await fetchTextFileWithBase(safeDir, finalInfoPath);
           if (finalInfo !== null) {
             loadedFiles[finalInfoPath] = finalInfo;
             fetchedContent = true;
@@ -2469,7 +2474,7 @@ const TreePlotVisualization = () => {
           }
 
           const runScriptPath = `${runName}.py`;
-          const runScript = await fetchTextFile(safeDir, runScriptPath);
+          const runScript = await fetchTextFileWithBase(safeDir, runScriptPath);
           if (runScript !== null) {
             loadedFiles[runScriptPath] = runScript;
             fetchedContent = true;
@@ -2611,7 +2616,7 @@ const TreePlotVisualization = () => {
     setShowLogs(true); // Show logs when starting code generation
 
     try {
-      const codeResponse = await fetch('/api/code', {
+      const codeResponse = await fetch(`${apiBase}/code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2684,7 +2689,7 @@ const TreePlotVisualization = () => {
         `Semantic Scholar API key ${effectiveS2Key ? 'detected' : 'not provided'} for paper generation`
       );
 
-      const paperResponse = await fetch('/api/write', {
+      const paperResponse = await fetch(`${apiBase}/write`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2801,7 +2806,7 @@ const TreePlotVisualization = () => {
       console.log("Checking backend configuration...");
       setOperationStatus('Checking configuration...');
 
-      const configCheck = await fetch('/api/get-prompts', {
+      const configCheck = await fetch(`${apiBase}/get-prompts`, {
         credentials: 'include'
       });
 
@@ -2814,7 +2819,7 @@ const TreePlotVisualization = () => {
         }
 
         // Auto-reconfigure the backend
-        const reconfigResponse = await fetch('/api/configure', {
+        const reconfigResponse = await fetch(`${apiBase}/configure`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2848,7 +2853,7 @@ const TreePlotVisualization = () => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
-          const codeResponse = await fetch('/api/code', {
+          const codeResponse = await fetch(`${apiBase}/code`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -2882,9 +2887,9 @@ const TreePlotVisualization = () => {
             setOperationStatus('Connection lost, checking if code generation completed...');
 
             // Single check for existing files (backend may have completed despite connection issue)
-            const expectedFileUrl = '/api/files/experiments/experiment.py';
+            const expectedFileUrl = buildFileUrl('experiments', 'experiment.py');
             try {
-              const fileCheck = await fetch(expectedFileUrl);
+              const fileCheck = await fetch(expectedFileUrl, { credentials: 'include' });
               if (fileCheck.ok) {
                 const fileData = await fileCheck.json();
                 if (fileData.content && fileData.content.length > 50) {
@@ -2941,7 +2946,7 @@ const TreePlotVisualization = () => {
         setOperationStatus('Generating paper...');
         setShowLogs(true); // Show logs when starting paper generation
 
-        const paperResponse = await fetch('/api/write', {
+        const paperResponse = await fetch(`${apiBase}/write`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3015,10 +3020,19 @@ const TreePlotVisualization = () => {
     if (/^https?:\/\//i.test(path)) {
       return path;
     }
+    if (path.startsWith(apiBase)) {
+      return path;
+    }
+    if (path.startsWith('/demo/api/')) {
+      return path;
+    }
+    if (path.startsWith('/api/')) {
+      return `${apiBase}${path.slice(4)}`;
+    }
     if (path.startsWith('/')) {
       return path;
     }
-    return `/${path}`;
+    return `${apiBase}/${path.replace(/^\//, '')}`;
   };
 
   const downloadPDF = async (pdfPath) => {
@@ -3067,7 +3081,7 @@ const TreePlotVisualization = () => {
     try {
       console.log('Starting paper review for:', pdfPath);
 
-      const response = await fetch('/api/review', {
+      const response = await fetch(`${apiBase}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
