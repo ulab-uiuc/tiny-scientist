@@ -36,6 +36,7 @@ flask-socketio = "^5.5.1"
 docker = "^7.1.0"
 fastmcp = "*"
 mcp = "*"
+eventlet = "^0.40.3"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

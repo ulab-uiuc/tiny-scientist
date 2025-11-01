@@ -1,0 +1,38 @@
+{
+  "message": "Paper review completed successfully",
+  "review": {
+    "Clarity": 2,
+    "Confidence": 4,
+    "Contribution": 2,
+    "Decision": "Reject",
+    "Ethical Concerns": true,
+    "Limitations": [
+      "Limited generalizability due to the use of a single non-code dataset.",
+      "Potential challenges in applying the method across different coding tasks and datasets are not explored."
+    ],
+    "Originality": 2,
+    "Overall": 3,
+    "Presentation": 2,
+    "Quality": 2,
+    "Questions": [
+      "Why was the AG News dataset chosen for evaluating code generation tasks?",
+      "Can the authors provide more details on how the adaptive feedback loop is implemented and evaluated?",
+      "How is computational overhead measured and compared to baseline methods?"
+    ],
+    "Significance": 2,
+    "Soundness": 2,
+    "Strengths": [
+      "Addresses a relevant challenge in maintaining coherence in long-range code generation.",
+      "Proposes an adaptive mechanism that iteratively refines prompt decomposition."
+    ],
+    "Summary": "The paper introduces Adaptive Prompt Decomposition for enhancing long-range coherence in code generation with LLMs. It dynamically segments input prompts based on structural complexity and employs an adaptive feedback loop to refine the decomposition process.",
+    "Weaknesses": [
+      "Inappropriate choice of dataset (AG News) for evaluating code generation coherence.",
+      "Lack of detailed implementation and evaluation of the adaptive feedback loop.",
+      "Insufficient discussion on limitations and potential societal impacts.",
+      "Claims of reduced computational overhead are not empirically supported.",
+      "Ethical concerns regarding the deployment of LLMs in critical code generation tasks are not addressed."
+    ]
+  },
+  "success": true
+}

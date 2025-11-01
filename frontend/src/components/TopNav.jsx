@@ -6,6 +6,27 @@ import React from 'react';
  * @param {Function} setShowTree
  */
 const TopNav = ({ currentView, setCurrentView, showCodeView = false }) => {
+  const FALLBACK_DEMO_INTENT =
+    'Adaptive Prompt Decomposition for Coherent Long-Range Code Generation';
+  const demoIntentPrefill =
+    process.env.REACT_APP_DEMO_INTENT || FALLBACK_DEMO_INTENT;
+  const demoTarget = process.env.REACT_APP_DEMO_URL || '/demo';
+  const liveTarget = process.env.REACT_APP_LIVE_URL || '/';
+  const resolveHref = (target) => {
+    if (/^https?:\/\//i.test(target)) {
+      return target;
+    }
+    if (target.startsWith('/')) {
+      return `${window.location.origin}${target}`;
+    }
+    return `${window.location.origin}/${target}`;
+  };
+  const isDemoLocation =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/demo' ||
+      window.location.pathname.startsWith('/demo/'));
+  const modeButtonLabel = isDemoLocation ? 'Live Mode' : 'Demo Mode';
+
   /* ---------- SVG 图标 ---------- */
   const overviewIcon = (
     <svg
@@ -243,23 +264,54 @@ const TopNav = ({ currentView, setCurrentView, showCodeView = false }) => {
       </div>
       </div>
 
-      {/* GitHub Logo */}
-      <a
-        href="https://github.com/ulab-uiuc/tiny-scientist"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          color: '#A0AEC0',
-          textDecoration: 'none',
-          transition: 'color 0.2s ease',
-        }}
-        onMouseEnter={(e) => e.target.style.color = '#fff'}
-        onMouseLeave={(e) => e.target.style.color = '#A0AEC0'}
-      >
-        {githubIcon}
-      </a>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Demo Mode Button */}
+        <button
+          type="button"
+          onClick={() => {
+            const target = isDemoLocation ? liveTarget : demoTarget;
+            if (!isDemoLocation && typeof window !== 'undefined') {
+              try {
+                window.sessionStorage.setItem('demo_intent_prefill', demoIntentPrefill);
+              } catch (_) {
+                // ignore storage issues
+              }
+            }
+            window.location.href = resolveHref(target);
+          }}
+          style={{
+            padding: '8px 18px',
+            borderRadius: '9999px',
+            border: '2px solid #FBBF24',
+            backgroundColor: isDemoLocation ? '#FBBF24' : 'transparent',
+            color: isDemoLocation ? '#0F172A' : '#FBBF24',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {modeButtonLabel}
+        </button>
+
+        {/* GitHub Logo */}
+        <a
+          href="https://github.com/ulab-uiuc/tiny-scientist"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            color: '#A0AEC0',
+            textDecoration: 'none',
+            transition: 'color 0.2s ease',
+          }}
+          onMouseEnter={(e) => (e.target.style.color = '#fff')}
+          onMouseLeave={(e) => (e.target.style.color = '#A0AEC0')}
+        >
+          {githubIcon}
+        </a>
+      </div>
     </div>
   );
 };
