@@ -31,6 +31,7 @@ AVAILABLE_LLMS = [
     "gpt-4o-mini-2024-07-18",
     "gpt-4o-2024-05-13",
     "gpt-4o-2024-08-06",
+    "gpt-5",
     "o1-preview-2024-09-12",
     "o1-mini-2024-09-12",
     "o1-2024-12-17",
@@ -133,6 +134,28 @@ def get_batch_responses_from_llm(
             max_tokens=MAX_NUM_TOKENS,
             n=n_responses,
             stop=None,
+        )
+        content = [r.message.content for r in response.choices]
+        new_msg_history = [
+            new_msg_history + [{"role": "assistant", "content": c}] for c in content
+        ]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
+            if cost_tracker is not None:
+                cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
+    elif model.startswith("gpt-5"):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            max_completion_tokens=MAX_NUM_TOKENS,
+            n=n_responses,
+            stop=None,
+            seed=0,
         )
         content = [r.message.content for r in response.choices]
         new_msg_history = [
@@ -274,6 +297,24 @@ def get_response_from_llm(
             ],
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+            seed=0,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "prompt_tokens", 0)
+            output_tokens = getattr(response.usage, "completion_tokens", 0)
+    elif model.startswith("gpt-5"):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            max_completion_tokens=MAX_NUM_TOKENS,
             n=1,
             stop=None,
             seed=0,
@@ -462,20 +503,27 @@ def get_batch_responses_from_llm_with_tools(
         "gpt" in model or model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]
     ):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        kwargs = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            "tools": tools,
+            "tool_choice": "auto",
+            "n": n_responses,
+            "stop": None,
+            "seed": 0,
+        }
+        if model.startswith("gpt-5"):
+            kwargs["max_completion_tokens"] = MAX_NUM_TOKENS
+        else:
+            kwargs["temperature"] = temperature
+            kwargs["max_tokens"] = MAX_NUM_TOKENS
+
         try:
             response = client.chat.completions.create(  # type: ignore[call-overload]
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    *new_msg_history,
-                ],
-                tools=tools,
-                tool_choice="auto",  # Or specify a tool like {"type": "function", "function": {"name": "my_function"}}
-                temperature=temperature,
-                max_tokens=MAX_NUM_TOKENS,
-                n=n_responses,
-                stop=None,
-                seed=0,  # Seed might not be available for all models or with tool use
+                **kwargs
             )
 
             # Extract token usage for OpenAI
