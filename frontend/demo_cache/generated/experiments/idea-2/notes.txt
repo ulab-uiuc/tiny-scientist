@@ -1,17 +1,20 @@
-Figure 1: filename_figure1.png
-This plot illustrates the relationship between variable X and variable Y, showcasing a positive linear correlation. As variable X increases, variable Y also tends to increase, indicating a direct relationship. The data points are scattered closely along the line of best fit, suggesting a strong correlation. This plot is useful for understanding how changes in X may predict changes in Y.
+Auto-generated experiment notes
+Updated: 2025-11-05T19:24:37.495790Z
 
-Figure 2: filename_figure2.png
-The bar chart depicted in this figure represents the distribution of category Z across different groups. Each bar corresponds to a different group, and the height of the bar indicates the frequency or count of category Z within that group. This visualization helps in comparing the prevalence of category Z among the various groups, highlighting any significant differences or trends.
+run_1:
+  - AST_Parse_Rate: 1.0
+  - TextSim_Avg: 0.04661257702428245
+  - UndefinedRef_Avg: 0.0
+  - pass@1_proxy: 0.0
 
-Figure 3: filename_figure3.png
-This figure presents a histogram of variable A, providing insights into its distribution. The x-axis represents the range of variable A, while the y-axis indicates the frequency of occurrences within each bin. The shape of the histogram reveals whether the data is normally distributed, skewed, or has multiple modes. This information is crucial for understanding the overall pattern and any potential outliers in the dataset.
+run_2:
+  - AST_Parse_Rate: 1.0
+  - TextSim_Avg: 0.04661257702428245
+  - UndefinedRef_Avg: 0.0
+  - pass@1_proxy: 0.0
 
-Figure 4: filename_figure4.png
-The scatter plot shown in this figure examines the interaction between variables B and C. Each point on the plot represents an observation, with its position determined by the values of B and C. A trend line is included to highlight any potential correlation between the two variables. This plot aids in identifying patterns, clusters, or anomalies and is essential for exploratory data analysis.
-
-Figure 5: filename_figure5.png
-This line graph illustrates the time series data of variable D over a defined period. The x-axis represents time intervals, while the y-axis displays the values of variable D. The line connecting the data points provides a visual representation of trends, cycles, or seasonality present in the data. Observing this plot can help predict future values and understand past behavior of variable D.
-
-Figure 6: filename_figure6.png
-The pie chart in this figure represents the composition of variable E, divided into different segments that illustrate the proportional contribution of each component to the whole. Each segment is labeled with either the component name or percentage it represents. This visualization is effective in conveying the relative sizes of parts within a dataset, offering a clear view of the distribution and significance of each component.
+run_3:
+  - AST_Parse_Rate: 1.0
+  - TextSim_Avg: 0.04661257702428245
+  - UndefinedRef_Avg: 0.0
+  - pass@1_proxy: 0.0

@@ -6,13 +6,13 @@
     "Difficulty": "(1) Coherence over long sequences is challenging due to the limitations in the context window size of LLMs, which causes information loss. (2) Existing prompt engineering techniques are often static, lacking the adaptability needed to manage diverse and dynamic code structures. (3) Ensuring that adaptive decomposition does not introduce overhead or complexity that outweighs its benefits is non-trivial. (4) Balancing the granularity of decomposition with the model's ability to synthesize meaningful code segments is difficult.",
     "Experiment": {
       "Dataset": {
-        "Load_Command": "evaluate.load('humaneval')",
+        "Load_Command": "load_dataset(\"openai_humaneval\")",
         "Name": "humaneval",
         "Preprocessing": "Character-level encoding with BOS/EOS markers; truncate each sample to max_len=1024 (no TF-IDF)",
         "Size": {
-          "Train": "≈70% (pseudo-split)",
-          "Validation": "≈15% (pseudo-split)",
-          "Test": "≈15% (pseudo-split)"
+          "Train": "\u224870% (pseudo-split)",
+          "Validation": "\u224815% (pseudo-split)",
+          "Test": "\u224815% (pseudo-split)"
         },
         "Splits": "70/15/15 (deterministic pseudo-split by seed=42)"
       },

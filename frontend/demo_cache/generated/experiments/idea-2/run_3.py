@@ -11,9 +11,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 try:
-    from evaluate import load as load_metric  # pip install evaluate
+    from datasets import load_dataset  # pip install datasets
 except Exception:
-    load_metric = None
+    load_dataset = None
 
 SEED = 42
 random.seed(SEED)
@@ -24,13 +24,17 @@ torch.manual_seed(SEED)
 # Data
 # -----------------------------
 def _load_humaneval(max_items: int = 164) -> List[Dict[str, str]]:
-    if load_metric is None:
+    if load_dataset is None:
         raise RuntimeError(
-            "Please install `evaluate` (pip install evaluate) to load HumanEval."
+            "Please install `datasets` (pip install datasets) to load HumanEval."
         )
-    ds = load_metric("humaneval")
+    dataset = load_dataset("openai_humaneval")
+    split_name = "test" if "test" in dataset else next(iter(dataset.keys()))
+    records = dataset[split_name]
     items = []
-    for i, ex in enumerate(ds["test"][:max_items]):
+    for i, ex in enumerate(records):
+        if i >= max_items:
+            break
         prompt = ex.get("prompt", "")
         ref = ex.get("canonical_solution", "")
         if prompt and ref:

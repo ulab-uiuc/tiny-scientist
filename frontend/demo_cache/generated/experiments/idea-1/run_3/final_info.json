@@ -1,1 +1,10 @@
-{"Accuracy": 0.821, "Precision": 0.8251032168130884, "Recall": 0.821, "F1": 0.8208549347485607}
+{
+  "Dataset": "HumanEval pseudo-split (n_train=114, n_val=24, n_test=26)",
+  "Test": {
+    "AST_Parse_Rate": 1.0,
+    "UndefinedRef_Avg": 0.0,
+    "TextSim_Avg": 0.04661257702428245,
+    "pass@1_proxy": 0.0
+  },
+  "Notes": "Plug a unit-test runner for true pass@k."
+}

@@ -1,1 +1,6 @@
-{"Accuracy": 0.805, "Precision": 0.8056109579615937, "Recall": 0.805, "F1": 0.8047095700204514}
+{
+  "AST_Parse_Rate": 1.0,
+  "UndefinedRef_Avg": 0.0,
+  "TextSim_Avg": 0.04661257702428245,
+  "pass@1_proxy": 0.0
+}

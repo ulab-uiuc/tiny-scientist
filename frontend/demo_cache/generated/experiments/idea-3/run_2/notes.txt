@@ -1,4 +1,6 @@
-Experiment Description:
-In this experiment, we used a SimpleGRUClassifier with a GRU layer and a linear layer to classify IMDB reviews. The model was trained using subsampled training data from the IMDB dataset, with a validation set for hyperparameter tuning and a separate test set for evaluating the model's generalization.
-Run Number: 1
-Results: {'Accuracy': 1.0}
+Auto-generated notes for run_2
+Updated: 2025-11-05T19:29:40.248282Z
+
+- BLEU: 0.0
+- ROUGE_L: 0.0
+- Samples: 26

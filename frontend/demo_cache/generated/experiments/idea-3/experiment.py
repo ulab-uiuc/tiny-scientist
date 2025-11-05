@@ -1,25 +1,8 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 """
-HumanEval Torch Evaluation Script
-
-Usage (example):
-    python experiment.updated.py \
-        --model_name_or_path codellama/CodeLlama-7b-Instruct-hf \
-        --humaneval_jsonl /path/to/HumanEval.jsonl \
-        --k 1 5 10 \
-        --temperature 0.2 0.6 \
-        --top_p 0.9 \
-        --max_new_tokens 384 \
-        --timeout 20 \
-        --device auto
-
-Outputs:
-    predictions.jsonl  # one JSON per sampled completion with pass/fail
-    scores.json        # aggregate pass@k and summary stats
-
-Notes:
-- This script expects a HumanEval-style JSONL with fields: "task_id", "prompt", "test".
-- We run each (task, sample) in a sandboxed Python subprocess with timeouts.
+Lightweight HumanEval experiment for idea-3:
+- Train a single-layer GRU language model on prompt→solution pairs.
+- Report BLEU and ROUGE-L on the held-out test split.
 """
 
 import argparse
@@ -27,275 +10,372 @@ import json
 import math
 import os
 import random
-import signal
-import subprocess
-import sys
-import tempfile
-import time
-from typing import List, Dict, Any
+from collections import Counter
+from typing import Any, Dict, List, Sequence, Tuple
 
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
+
+try:
+    from datasets import load_dataset  # pip install datasets
+except Exception:
+    load_dataset = None
+
+SEED = 42
+random.seed(SEED)
+torch.manual_seed(SEED)
 
 
-def set_seed(seed: int):
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-
-def pick_device(device_arg: str):
-    if device_arg == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return "mps"
-        else:
-            return "cpu"
-    return device_arg
-
-
-def load_model(model_name_or_path: str, device: str):
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name_or_path, trust_remote_code=True
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name_or_path,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else None,
-        device_map="auto" if device != "cpu" else None,
-    )
-    if device == "cpu":
-        model = model.to("cpu")
-    return tokenizer, model
-
-
-def stop_at_stop_tokens(text: str, stop_tokens: List[str]) -> str:
-    end = len(text)
-    for s in stop_tokens:
-        idx = text.find(s)
-        if idx != -1:
-            end = min(end, idx)
-    return text[:end]
-
-
-def generate_one(
-    tokenizer,
-    model,
-    prompt: str,
-    max_new_tokens: int,
-    temperature: float,
-    top_p: float,
-    stop_tokens: List[str],
-) -> str:
-    input_ids = tokenizer(prompt, return_tensors="pt").input_ids
-    input_ids = input_ids.to(model.device)
-    with torch.no_grad():
-        out = model.generate(
-            input_ids=input_ids,
-            do_sample=True if temperature > 0 else False,
-            temperature=max(1e-6, temperature),
-            top_p=top_p,
-            max_new_tokens=max_new_tokens,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
+# ---------------------------------------------------------------------------
+# Data loading / preprocessing
+# ---------------------------------------------------------------------------
+def load_humaneval(max_items: int = 164) -> List[Dict[str, str]]:
+    if load_dataset is None:
+        raise RuntimeError(
+            "Please install `datasets` (pip install datasets) to load HumanEval."
         )
-    gen = tokenizer.decode(out[0][input_ids.shape[-1] :], skip_special_tokens=True)
-    gen = stop_at_stop_tokens(gen, stop_tokens)
-    return gen
-
-
-def run_tests_in_subprocess(program_text: str, timeout_sec: int) -> Dict[str, Any]:
-    """
-    Write program_text to a temp file and run it with Python.
-    program_text = prompt + completion + "\n" + tests
-    """
-    with tempfile.TemporaryDirectory() as td:
-        path = os.path.join(td, "main.py")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(program_text)
-
-        try:
-            start = time.time()
-            # Use a clean subprocess; do not inherit unneeded env
-            proc = subprocess.run(
-                [sys.executable, path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout_sec,
-                check=False,
-                text=True,
-            )
-            elapsed = time.time() - start
-            passed = proc.returncode == 0
-            return {
-                "passed": passed,
-                "returncode": proc.returncode,
-                "stdout": proc.stdout[-2000:],
-                "stderr": proc.stderr[-2000:],
-                "elapsed_sec": elapsed,
-            }
-        except subprocess.TimeoutExpired as e:
-            return {
-                "passed": False,
-                "returncode": None,
-                "stdout": (e.stdout or "")[-2000:] if hasattr(e, "stdout") else "",
-                "stderr": (e.stderr or "Timeout")[-2000:],
-                "elapsed_sec": timeout_sec,
-                "timeout": True,
-            }
-
-
-def estimate_pass_at_k(num_total: int, num_correct: int, k: int) -> float:
-    """
-    Unbiased estimator from Chen et al. (HumanEval).
-    If we sampled n completions and c are correct:
-        pass@k = 1 - comb(n - c, k) / comb(n, k)  (for n >= k)
-    """
-    import math
-
-    n = num_total
-    c = num_correct
-    if n < k:
-        return float("nan")
-    if c == 0:
-        return 0.0
-    if n == k:
-        return 1.0 if c > 0 else 0.0
-
-    # compute 1 - C(n-c, k)/C(n, k)
-    def comb(a, b):
-        if b < 0 or b > a:
-            return 0.0
-        return math.comb(a, b)
-
-    return 1.0 - (comb(n - c, k) / comb(n, k))
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name_or_path", type=str, required=True)
-    parser.add_argument(
-        "--humaneval_jsonl",
-        type=str,
-        required=True,
-        help="Path to HumanEval problems (JSONL with fields: task_id, prompt, test).",
-    )
-    parser.add_argument("--k", type=int, nargs="+", default=[1, 5, 10])
-    parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=10,
-        help="Total samples per task for estimating pass@k. Should be >= max(k).",
-    )
-    parser.add_argument("--temperature", type=float, nargs="+", default=[0.2, 0.6])
-    parser.add_argument("--top_p", type=float, default=0.9)
-    parser.add_argument("--max_new_tokens", type=int, default=384)
-    parser.add_argument(
-        "--stop_tokens", type=str, nargs="*", default=["\n\n", "\nclass", "\ndef"]
-    )
-    parser.add_argument("--timeout", type=int, default=20)
-    parser.add_argument("--device", type=str, default="auto")
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output_dir", type=str, default=".")
-    args = parser.parse_args()
-
-    assert args.num_samples >= max(args.k), "num_samples must be >= max(k)."
-    device = pick_device(args.device)
-    set_seed(args.seed)
-
-    print(f"[Info] Loading model: {args.model_name_or_path} on {device}", flush=True)
-    tokenizer, model = load_model(args.model_name_or_path, device=device)
-
-    # Load HumanEval JSONL
-    problems = []
-    with open(args.humaneval_jsonl, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                problems.append(json.loads(line))
-
-    os.makedirs(args.output_dir, exist_ok=True)
-    pred_path = os.path.join(args.output_dir, "predictions.jsonl")
-    scores_path = os.path.join(args.output_dir, "scores.json")
-
-    # Write predictions incrementally
-    pred_f = open(pred_path, "w", encoding="utf-8")
-
-    aggregate = {"k_list": args.k, "temperatures": args.temperature, "summary": {}}
-
-    for temp in args.temperature:
-        print(f"[Info] Evaluating temperature={temp}", flush=True)
-        total_correct = {
-            k: 0 for k in args.k
-        }  # for simple pass@k counting when num_samples==k; we still compute unbiased later
-        per_task_correct_counts = []  # store c for each task
-
-        for task in problems:
-            task_id = task.get("task_id")
-            prompt = task.get("prompt")
-            tests = task.get("test")
-            # Collect num_samples completions
-            completions = []
-            passed_flags = []
-
-            for i in range(args.num_samples):
-                comp = generate_one(
-                    tokenizer,
-                    model,
-                    prompt,
-                    args.max_new_tokens,
-                    temp,
-                    args.top_p,
-                    args.stop_tokens,
-                )
-                program = prompt + comp + "\n" + tests + "\n"
-                result = run_tests_in_subprocess(program, timeout_sec=args.timeout)
-                passed = bool(result.get("passed", False))
-                completions.append(comp)
-                passed_flags.append(passed)
-
-                rec = {
-                    "task_id": task_id,
-                    "sample_index": i,
-                    "temperature": temp,
-                    "completion": comp,
-                    "passed": passed,
-                    "elapsed_sec": result.get("elapsed_sec"),
-                    "stderr_tail": result.get("stderr", ""),
+    dataset = load_dataset("openai_humaneval")
+    split_name = "test" if "test" in dataset else next(iter(dataset.keys()))
+    records = dataset[split_name]
+    tasks: List[Dict[str, str]] = []
+    for i, ex in enumerate(records):
+        if i >= max_items:
+            break
+        prompt = ex.get("prompt", "")
+        reference = ex.get("canonical_solution", "")
+        if prompt and reference:
+            tasks.append(
+                {
+                    "task_id": ex.get("task_id", f"HE-{i}"),
+                    "prompt": prompt,
+                    "reference": reference,
                 }
-                pred_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                pred_f.flush()
-
-            c = sum(passed_flags)
-            per_task_correct_counts.append(
-                {"task_id": task_id, "correct": c, "n": args.num_samples}
             )
+    if not tasks:
+        raise RuntimeError("HumanEval dataset yielded no usable tasks.")
+    return tasks
 
-        # Compute unbiased pass@k over tasks
-        temp_summary = {}
-        for k in args.k:
-            # average of per-task pass@k estimators
-            vals = []
-            for item in per_task_correct_counts:
-                vals.append(estimate_pass_at_k(item["n"], item["correct"], k))
-            # filter NaNs
-            vals = [v for v in vals if isinstance(v, float) and not math.isnan(v)]
-            mean_pass_at_k = (
-                float(sum(vals) / max(1, len(vals))) if vals else float("nan")
-            )
-            temp_summary[f"pass@{k}"] = mean_pass_at_k
 
-        temp_summary["num_tasks"] = len(per_task_correct_counts)
-        temp_summary["samples_per_task"] = args.num_samples
-        aggregate["summary"][str(temp)] = temp_summary
-        print(f"[Info] Temp={temp} summary: {temp_summary}", flush=True)
+def pseudo_split(items: Sequence[Dict[str, str]]) -> Tuple[List, List, List]:
+    idx = list(range(len(items)))
+    random.Random(SEED).shuffle(idx)
+    n = len(items)
+    n_train = int(0.7 * n)
+    n_val = int(0.15 * n)
+    train = [items[i] for i in idx[:n_train]]
+    val = [items[i] for i in idx[n_train : n_train + n_val]]
+    test = [items[i] for i in idx[n_train + n_val :]]
+    return train, val, test
 
-    pred_f.close()
-    with open(scores_path, "w", encoding="utf-8") as f:
-        json.dump(aggregate, f, ensure_ascii=False, indent=2)
 
-    print(f"[Done] Wrote {pred_path} and {scores_path}")
+class CharVocab:
+    def __init__(self, texts: Sequence[str]):
+        specials = ["<PAD>", "<BOS>", "<EOS>", "<UNK>"]
+        charset = set()
+        for t in texts:
+            charset.update(t)
+        self.itos = specials + sorted(ch for ch in charset if ch not in specials)
+        self.stoi = {ch: i for i, ch in enumerate(self.itos)}
+        self.pad_id = self.stoi["<PAD>"]
+        self.bos_id = self.stoi["<BOS>"]
+        self.eos_id = self.stoi["<EOS>"]
+        self.unk_id = self.stoi["<UNK>"]
+
+    def encode(self, text: str) -> List[int]:
+        return [self.stoi.get(ch, self.unk_id) for ch in text]
+
+    def decode(self, ids: Sequence[int]) -> str:
+        return "".join(self.itos[i] for i in ids if 0 <= i < len(self.itos))
+
+
+class HEDataset(Dataset):
+    def __init__(
+        self,
+        items: Sequence[Dict[str, str]],
+        vocab: CharVocab,
+        max_len: int = 512,
+    ):
+        self.vocab = vocab
+        self.rows: List[Tuple[List[int], List[int], List[int], str, str, str]] = []
+        for ex in items:
+            prompt = ex["prompt"]
+            ref = ex["reference"].rstrip() + "\n"
+            ctx = [vocab.bos_id] + vocab.encode(prompt + "\n# solution:\n")
+            tgt = vocab.encode(ref) + [vocab.eos_id]
+            x = (ctx + tgt)[:max_len]
+            y = x[1:] + [vocab.eos_id]
+            ctx_len = min(len(ctx), len(x))
+            mask = [0] * ctx_len + [1] * (len(x) - ctx_len)
+            self.rows.append((x, y, mask, ref, ex["task_id"], prompt))
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, idx: int):
+        return self.rows[idx]
+
+
+def collate_fn(batch, pad_id: int):
+    length = max(len(x) for x, _, _, _, _, _ in batch)
+    xs, ys, masks, refs, tids, prompts = [], [], [], [], [], []
+    for x, y, m, ref, tid, prompt in batch:
+        pad = length - len(x)
+        xs.append(x + [pad_id] * pad)
+        ys.append(y + [pad_id] * pad)
+        masks.append(m + [0] * pad)
+        refs.append(ref)
+        tids.append(tid)
+        prompts.append(prompt)
+    return (
+        torch.tensor(xs, dtype=torch.long),
+        torch.tensor(ys, dtype=torch.long),
+        torch.tensor(masks, dtype=torch.float32),
+        refs,
+        tids,
+        prompts,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+class SingleLayerGRU(nn.Module):
+    def __init__(self, vocab_size: int, emb: int = 256, hidden: int = 64):
+        super().__init__()
+        self.emb = nn.Embedding(vocab_size, emb, padding_idx=0)
+        self.rnn = nn.GRU(emb, hidden, num_layers=1, batch_first=True)
+        self.head = nn.Linear(hidden, vocab_size)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        emb = self.emb(x)
+        h, _ = self.rnn(emb)
+        return self.head(h)
+
+
+def masked_ce(logits, targets, mask, pad_id: int) -> torch.Tensor:
+    B, L, V = logits.shape
+    loss = nn.functional.cross_entropy(
+        logits.reshape(B * L, V),
+        targets.reshape(B * L),
+        ignore_index=pad_id,
+        reduction="none",
+    ).reshape(B, L)
+    return (loss * mask).sum() / (mask.sum() + 1e-8)
+
+
+@torch.no_grad()
+def greedy_decode(
+    model: nn.Module,
+    vocab: CharVocab,
+    prompt: str,
+    max_new: int,
+    device: torch.device,
+) -> str:
+    model.eval()
+    ctx = [vocab.bos_id] + vocab.encode(prompt + "\n# solution:\n")
+    x = torch.tensor([ctx], dtype=torch.long, device=device)
+    out = ctx.copy()
+    for _ in range(max_new):
+        logits = model(x)[:, -1, :]
+        nid = int(torch.argmax(logits, dim=-1).item())
+        out.append(nid)
+        x = torch.tensor([out], dtype=torch.long, device=device)
+        if nid == vocab.eos_id:
+            break
+    return vocab.decode(out[len(ctx) :])
+
+
+# ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+def _ngram_counts(tokens: Sequence[str], max_order: int) -> Counter:
+    counts: Counter = Counter()
+    for order in range(1, max_order + 1):
+        for i in range(len(tokens) - order + 1):
+            counts[tuple(tokens[i : i + order])] += 1
+    return counts
+
+
+def compute_bleu(reference: str, candidate: str, max_order: int = 4) -> float:
+    ref_tokens = reference.strip().split()
+    cand_tokens = candidate.strip().split()
+    if not cand_tokens:
+        return 0.0
+    ref_counts = _ngram_counts(ref_tokens, max_order)
+    cand_counts = _ngram_counts(cand_tokens, max_order)
+    matches_by_order = [0] * max_order
+    possible_matches_by_order = [0] * max_order
+    for ngram, count in cand_counts.items():
+        matches_by_order[len(ngram) - 1] += min(count, ref_counts.get(ngram, 0))
+    for order in range(1, max_order + 1):
+        possible_matches_by_order[order - 1] = max(
+            0, len(cand_tokens) - order + 1
+        )
+    precisions = []
+    for match, possible in zip(matches_by_order, possible_matches_by_order):
+        precisions.append((match + 1) / (possible + 1))
+    geo_mean = math.exp(sum(math.log(p) for p in precisions) / max_order)
+    ref_len = len(ref_tokens)
+    cand_len = len(cand_tokens)
+    if cand_len == 0:
+        return 0.0
+    ratio = cand_len / (ref_len + 1e-8)
+    brevity = 1.0 if ratio > 1.0 else math.exp(1.0 - 1.0 / (ratio + 1e-8))
+    return float(geo_mean * brevity)
+
+
+def lcs_length(a: Sequence[str], b: Sequence[str]) -> int:
+    if not a or not b:
+        return 0
+    prev = [0] * (len(b) + 1)
+    for token in a:
+        curr = [0] * (len(b) + 1)
+        for j, tok_b in enumerate(b, start=1):
+            if token == tok_b:
+                curr[j] = prev[j - 1] + 1
+            else:
+                curr[j] = max(prev[j], curr[j - 1])
+        prev = curr
+    return prev[-1]
+
+
+def compute_rouge_l(reference: str, candidate: str) -> float:
+    ref_tokens = reference.strip().split()
+    cand_tokens = candidate.strip().split()
+    if not ref_tokens or not cand_tokens:
+        return 0.0
+    lcs = lcs_length(ref_tokens, cand_tokens)
+    precision = lcs / len(cand_tokens)
+    recall = lcs / len(ref_tokens)
+    if precision + recall == 0:
+        return 0.0
+    return (2 * precision * recall) / (precision + recall)
+
+
+# ---------------------------------------------------------------------------
+# Train / evaluate
+# ---------------------------------------------------------------------------
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    pad_id: int,
+    epochs: int,
+) -> None:
+    for epoch in range(1, epochs + 1):
+        model.train()
+        total = 0.0
+        steps = 0
+        for X, Y, M, *_ in train_loader:
+            X, Y, M = X.to(device), Y.to(device), M.to(device)
+            optimizer.zero_grad()
+            logits = model(X)
+            loss = masked_ce(logits, Y, M, pad_id)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            total += float(loss.item())
+            steps += 1
+        print(f"[Epoch {epoch}] train_loss={total / max(1, steps):.4f}")
+
+
+@torch.no_grad()
+def run_eval(
+    model: nn.Module,
+    loader: DataLoader,
+    vocab: CharVocab,
+    device: torch.device,
+    decode_max: int,
+) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    model.eval()
+    bleu_sum = 0.0
+    rouge_sum = 0.0
+    gens: List[Dict[str, str]] = []
+    count = 0
+    for _, _, _, refs, tids, prompts in loader:
+        for ref, tid, prompt in zip(refs, tids, prompts):
+            gen = greedy_decode(model, vocab, prompt, decode_max, device)
+            gens.append({"task_id": tid, "generated": gen, "reference": ref})
+            bleu_sum += compute_bleu(ref, gen)
+            rouge_sum += compute_rouge_l(ref, gen)
+            count += 1
+    metrics = {
+        "BLEU": bleu_sum / max(1, count),
+        "ROUGE_L": rouge_sum / max(1, count),
+        "Samples": count,
+    }
+    return metrics, gens
+
+
+def main(
+    out_dir: str,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    emb: int,
+    hidden: int,
+    max_len: int,
+    decode_max: int,
+    max_items: int,
+):
+    os.makedirs(out_dir, exist_ok=True)
+    items = load_humaneval(max_items=max_items)
+    train_items, val_items, test_items = pseudo_split(items)
+
+    vocab = CharVocab(
+        [ex["prompt"] for ex in train_items] + [ex["reference"] for ex in train_items]
+    )
+    train_ds = HEDataset(train_items, vocab, max_len=max_len)
+    val_ds = HEDataset(val_items, vocab, max_len=max_len)
+    test_ds = HEDataset(test_items, vocab, max_len=max_len)
+
+    coll = lambda batch: collate_fn(batch, vocab.pad_id)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=coll)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=coll)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, collate_fn=coll)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = SingleLayerGRU(len(vocab.itos), emb=emb, hidden=hidden).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    train_model(model, train_loader, optimizer, device, vocab.pad_id, epochs)
+
+    # quick validation monitoring
+    with torch.no_grad():
+        val_metrics, _ = run_eval(model, val_loader, vocab, device, decode_max)
+        print(f"[Validation] BLEU={val_metrics['BLEU']:.4f} ROUGE_L={val_metrics['ROUGE_L']:.4f}")
+
+    test_metrics, gens = run_eval(model, test_loader, vocab, device, decode_max)
+    with open(os.path.join(out_dir, "final_info.json"), "w") as f:
+        json.dump(test_metrics, f, indent=2)
+    with open(os.path.join(out_dir, "generations.jsonl"), "w") as f:
+        for row in gens:
+            f.write(json.dumps(row) + "\n")
+    print(json.dumps(test_metrics, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out_dir", type=str, required=True)
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--emb", type=int, default=256)
+    parser.add_argument("--hidden", type=int, default=64)
+    parser.add_argument("--max_len", type=int, default=512)
+    parser.add_argument("--decode_max", type=int, default=512)
+    parser.add_argument("--max_items", type=int, default=164)
+    args = parser.parse_args()
+    main(
+        args.out_dir,
+        args.epochs,
+        args.batch_size,
+        args.lr,
+        args.emb,
+        args.hidden,
+        args.max_len,
+        args.decode_max,
+        args.max_items,
+    )
