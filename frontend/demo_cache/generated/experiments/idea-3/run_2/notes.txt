@@ -1,6 +1,0 @@
-Auto-generated notes for run_2
-Updated: 2025-11-05T19:29:40.248282Z
-
-- BLEU: 0.0
-- ROUGE_L: 0.0
-- Samples: 26

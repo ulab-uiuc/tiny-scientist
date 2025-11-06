@@ -256,6 +256,32 @@ class Coder:
                         except Exception as e:
                             print(f"[System] Failed to fix placeholders: {e}")
 
+                    # Enforce inference-only via OpenAI API, disallow local ML stacks
+                    disallowed_markers = [
+                        "import torch",
+                        "from torch",
+                        "import transformers",
+                        "from transformers",
+                        "sklearn",
+                        "tensorflow",
+                    ]
+                    if any(marker in content for marker in disallowed_markers):
+                        print(
+                            "[System] Detected local ML libs (torch/transformers/sklearn/etc). Refactoring to OpenAI inference-only."
+                        )
+                        try:
+                            self._run_non_interactive_aider(
+                                (
+                                    "Refactor experiment.py to remove any usage of torch, transformers, tensorflow, or sklearn. "
+                                    "Implement inference-only using the OpenAI Python SDK with Chat Completions (model: gpt-4o-mini). "
+                                    "Import strictly 'from openai import OpenAI'; create a client = OpenAI(); and call client.chat.completions.create(...). "
+                                    "Parse --out_dir, write final_info.json with real metrics derived from model outputs. "
+                                    "Do NOT include any training loops, optimizers, or backward passes. Provide the full corrected experiment.py."
+                                )
+                            )
+                        except Exception as e:
+                            print(f"[System] Failed to refactor to OpenAI-only inference: {e}")
+
             return_code, message = self._run_single_experiment(run_time)
 
             if return_code == 0:
@@ -422,7 +448,9 @@ Please provide the complete updated notes content.
                 msg=full_prompt,
                 client=self.client,
                 model=self.model,
-                system_message="You are a technical writer. Provide only the notes content without any markdown formatting.",
+                system_message=(
+                    "You are a technical writer. Provide only the notes content without any markdown formatting."
+                ),
                 cost_tracker=self.cost_tracker,
                 task_name="update_notes",
             )
@@ -466,7 +494,14 @@ Please respond with the complete file content only, no explanations or markdown 
                 msg=full_prompt,
                 client=self.client,
                 model=self.model,
-                system_message="You are an expert Python code generator for machine learning experiments. Generate COMPLETE, RUNNABLE code with REAL data loading, model training, and evaluation. NEVER use random numbers, dummy data, or hardcoded results. All metrics must come from actual model execution. Provide only the complete Python code without any markdown formatting or explanations.",
+                system_message=(
+                    "You are an expert Python engineer. Generate a COMPLETE, RUNNABLE experiment.py that performs "
+                    "inference-only using the OpenAI Python SDK (Chat Completions, model: gpt-4o-mini). Do NOT import or use "
+                    "torch, transformers, tensorflow, or sklearn. Absolutely no training/fine-tuning or gradient updates. "
+                    "The script must: parse --out_dir, call OpenAI via OpenAI(), run inference on real inputs, compute simple, "
+                    "transparent metrics from the responses, and write a JSON to {out_dir}/final_info.json. Provide only the "
+                    "complete Python code without markdown or extra explanations."
+                ),
                 cost_tracker=self.cost_tracker,
                 task_name="non_interactive_aider",
             )

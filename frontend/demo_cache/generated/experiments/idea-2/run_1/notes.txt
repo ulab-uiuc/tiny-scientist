@@ -1,7 +1,0 @@
-Auto-generated notes for run_1
-Updated: 2025-11-05T19:18:52.932715Z
-
-- AST_Parse_Rate: 1.0
-- TextSim_Avg: 0.04661257702428245
-- UndefinedRef_Avg: 0.0
-- pass@1_proxy: 0.0

@@ -415,6 +415,10 @@ COPY experiment.py .
             try:
                 # Create container without auto-removal
                 if self.docker_client is not None:
+                    env_vars = {
+                        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
+                        "OPENAI_API_BASE": os.environ.get("OPENAI_API_BASE", ""),
+                    }
                     container = self.docker_client.containers.run(
                         image=image_name,
                         command=f"python experiment.py --out_dir=run_{run_num}",
@@ -422,6 +426,7 @@ COPY experiment.py .
                             temp_dir: {"bind": "/experiment", "mode": "rw"},
                             output_dir: {"bind": "/experiment/output", "mode": "rw"},
                         },
+                        environment={k: v for k, v in env_vars.items() if v},
                         working_dir="/experiment",
                         detach=True,
                         remove=False,  # Don't auto-remove
@@ -510,6 +515,10 @@ RUN pip install --no-cache-dir -r requirements.txt
                                         )
 
                                         # Run with retry image
+                                        retry_env = {
+                                            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
+                                            "OPENAI_API_BASE": os.environ.get("OPENAI_API_BASE", ""),
+                                        }
                                         retry_container = self.docker_client.containers.run(
                                             image=retry_image_name,
                                             command=f"python experiment.py --out_dir=run_{run_num}",
@@ -523,6 +532,7 @@ RUN pip install --no-cache-dir -r requirements.txt
                                                     "mode": "rw",
                                                 },
                                             },
+                                            environment={k: v for k, v in retry_env.items() if v},
                                             working_dir="/experiment",
                                             detach=True,
                                             remove=False,  # Don't auto-remove

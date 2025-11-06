@@ -503,9 +503,15 @@ experiment_plan_prompt: |
   {intent}
   ```
 
-  Develop a comprehensive experimental plan. You must provide TWO separate outputs: a JSON object and a Markdown table.
+  Develop a comprehensive experimental plan using Adaptive Prompt Decomposition principles.
+  You must provide TWO separate outputs: a JSON object and a Markdown table.
 
-  IMPORTANT: Your experiment plan MUST directly support investigation of the original intent. Ensure that your experimental design directly addresses the research question posed in the original intent and builds upon the idea that was generated. Your response should heavily rely on literature search; use the approaches from relevant papers as references.
+  IMPORTANT: Your plan MUST support the original intent and long-range coherence, and it MUST NOT
+  include any training or fine-tuning. Design the experiment to minimize special cases (prefer data
+  structure changes over conditionals), keep functions small (<=3 indentation levels), and avoid
+  breaking existing behavior unless a clear migration path is provided. Cite relevant papers
+  pragmatically as needed. Prefer zero-shot or in-context demonstrations over parameter updates.
+  Prefer small pretrained models (< 100M parameters) or lightweight API endpoints for inference.
 
   Respond in the following format:
 
@@ -526,15 +532,19 @@ experiment_plan_prompt: |
   - "Model": Detailed description of model architecture with specific components. Choose architectures appropriate to the task (pretrained models, transformers, graph neural networks, or diffusion models are allowed).
     * Document input/output dimensions so coder can wire tensors without guessing. Provide literal numeric values (e.g., use 3072 instead of `32 * 32 * 3`).
     * Absolutely NO comments (`//` or `/* */`) inside JSON values.
+    * Prefer direct inference with small pretrained models (< 100M parameters) or API endpoints; avoid ad-hoc MLP/GRU designs or any training.
   - "Dataset": Detailed description of dataset including:
     * "Name": Clearly identify the dataset (e.g., HuggingFace dataset, standard benchmark, or well-defined local/hosted dataset).
     * "Size": Number of samples
-    * "Splits": Train/validation/test split ratios
+    * "Splits": Dev/validation/test split ratios (NO TRAINING). Use "Dev" only for prompt crafting/ICL selection or configuration probing; it MUST NOT be used for parameter updates. Allowed keys are strictly ["Dev", "Validation", "Test"]. Do NOT output a key named "Train".
     * "Preprocessing": Required preprocessing steps (e.g., tokenization/vectorization, image normalization). Specify resulting feature shapes.
     * Absolutely NO comments (`//` or `/* */`) or inline expressions inside the JSON values.
     * "Load_Command": The exact Python call or code snippet that loads the dataset programmatically (e.g., `datasets.load_dataset(...)`, `sklearn.datasets.load_iris()`, torchvision loaders, or explicit path-based loaders). If local files or downloads are required, include the expected path(s) and/or download steps.
   - "Metric": Description of evaluation metrics with justification (use key name "Metric", NOT "Evaluation_Metrics")
     * Include a short self-check note confirming that the plan is reproducible and the JSON contains no inline comments.
+  - "Decomposition": A compact list describing how the task decomposes into stable interfaces
+    and small steps (owner, inputs, outputs). Prefer data-centric boundaries and note any
+    compatibility or migration considerations.
 
   In <MARKDOWN_TABLE>, provide a DETAILED experimental plan as a Markdown table. This table MUST include the following columns and rows:
   - "Component": The part of the experiment
@@ -553,9 +563,10 @@ experiment_plan_prompt: |
      - Provide exact, runnable loading code or commands (e.g., `datasets.load_dataset("wikitext", "wikitext-2-raw-v1")`, torchvision loaders, or explicit path-based loaders with expected locations).
      - If manual downloads or authentication are required, include concise instructions or code to fetch the data.
   3. **Baselines**: List 3-5 specific baseline methods to compare against (with citations)
-  4. **Training Setup**: Optimizer, learning rate, batch size, epochs, hardware
+  4. **Execution Setup (No Training)**: Environment, hardware (if any), seeds, batch sizes for inference only, and any caching. Do not include optimizers, epochs, or gradient updates. If the plan previously suggested training, explicitly state that training is skipped and why inference-only is sufficient.
   5. **Evaluation Metrics**: Primary and secondary metrics with justification
   6. **Hyperparameters**: Key hyperparameters and their values/ranges
+  7. **Decomposition & Interfaces**: Steps, owners, inputs/outputs, and any compatibility contract.
 
   Each specification should be concrete and implementation-ready, not high-level or vague.
 
