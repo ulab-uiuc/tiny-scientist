@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -40,6 +41,14 @@ class DemoCacheService:
         self._configure_state: Dict[str, Any] = {}
         self._logs: Dict[str, List[Any]] = {}
         self.intent: Optional[str] = None
+        self._idea_names_by_id: defaultdict[str, set[str]] = defaultdict(set)
+        self._idea_id_by_name: Dict[str, str] = {}
+        self._code_results_by_id: Dict[str, Any] = {}
+        self._code_results_by_experiment: Dict[str, Any] = {}
+        self._paper_results_by_id: Dict[str, Any] = {}
+        self._paper_results_by_path: Dict[str, Any] = {}
+        self._review_results_by_id: Dict[str, Any] = {}
+        self._review_results_by_path: Dict[str, Any] = {}
 
         if self.enabled:
             self._load()
@@ -108,6 +117,9 @@ class DemoCacheService:
             else:
                 self._queues[key] = [copy.deepcopy(item) for item in raw_queue]
 
+        self._build_name_index()
+        self._rebuild_result_indices()
+
     def _emit_logs(self, channel: str) -> None:
         if not self.enabled:
             return
@@ -123,6 +135,130 @@ class DemoCacheService:
 
             if message:
                 self._log_fn(message, level)
+
+    def _normalize_name(self, name: Optional[str]) -> Optional[str]:
+        if not name or not isinstance(name, str):
+            return None
+        normalized = " ".join(name.strip().split()).lower()
+        return normalized or None
+
+    def _extract_idea_id(self, value: Optional[str]) -> Optional[str]:
+        if not value or not isinstance(value, str):
+            return None
+        sanitized = value.replace("\\", "/")
+        match = re.search(r"(idea[-_][0-9a-z]+)", sanitized, re.IGNORECASE)
+        if match:
+            return match.group(1).lower()
+        return None
+
+    def _build_name_index(self) -> None:
+        self._idea_names_by_id = defaultdict(set)
+        self._idea_id_by_name = {}
+
+        initial_entries = self._queues.get("generate_initial") or []
+        for entry in initial_entries:
+            ideas = entry.get("ideas") if isinstance(entry, dict) else None
+            if not isinstance(ideas, list):
+                continue
+            for idea in ideas:
+                if not isinstance(idea, dict):
+                    continue
+                idea_id = idea.get("id")
+                normalized_id = (
+                    idea_id.strip().lower() if isinstance(idea_id, str) else None
+                )
+                if not normalized_id:
+                    continue
+
+                candidates = [
+                    idea.get("title"),
+                    idea.get("name"),
+                    idea.get("Title"),
+                    idea.get("Name"),
+                ]
+                original = idea.get("originalData")
+                if isinstance(original, dict):
+                    candidates.extend(
+                        [original.get("Title"), original.get("Name")]
+                    )
+
+                for candidate in candidates:
+                    normalized = self._normalize_name(candidate)
+                    if normalized:
+                        self._idea_names_by_id[normalized_id].add(normalized)
+
+        for idea_id, names in self._idea_names_by_id.items():
+            for normalized in names:
+                self._idea_id_by_name.setdefault(normalized, idea_id)
+
+    def _rebuild_result_indices(self) -> None:
+        self._code_results_by_id = {}
+        self._code_results_by_experiment = {}
+        for entry in self._queues.get("code") or []:
+            if not isinstance(entry, dict):
+                continue
+            experiment_dir = entry.get("experiment_dir")
+            idea_id = self._extract_idea_id(experiment_dir)
+            if idea_id:
+                self._code_results_by_id.setdefault(idea_id, copy.deepcopy(entry))
+            if isinstance(experiment_dir, str):
+                self._code_results_by_experiment.setdefault(
+                    experiment_dir, copy.deepcopy(entry)
+                )
+
+        self._paper_results_by_id = {}
+        self._paper_results_by_path = {}
+        for entry in self._queues.get("write") or []:
+            if not isinstance(entry, dict):
+                continue
+            idea_id = (
+                self._extract_idea_id(entry.get("pdf_path"))
+                or self._extract_idea_id(entry.get("local_pdf_path"))
+                or self._extract_idea_id(entry.get("paper_name"))
+            )
+            if idea_id:
+                self._paper_results_by_id.setdefault(idea_id, copy.deepcopy(entry))
+            pdf_path = entry.get("pdf_path")
+            if isinstance(pdf_path, str):
+                self._paper_results_by_path.setdefault(pdf_path, copy.deepcopy(entry))
+
+        self._review_results_by_id = {}
+        self._review_results_by_path = {}
+        for entry in self._queues.get("review") or []:
+            if not isinstance(entry, dict):
+                continue
+            pdf_path = entry.get("pdf_path")
+            if isinstance(pdf_path, str):
+                self._review_results_by_path.setdefault(pdf_path, copy.deepcopy(entry))
+            idea_id = self._extract_idea_id(pdf_path)
+            if idea_id:
+                self._review_results_by_id.setdefault(idea_id, copy.deepcopy(entry))
+
+    def _resolve_candidate_ids(
+        self,
+        idea_id: Optional[str] = None,
+        idea_name: Optional[str] = None,
+        experiment_hint: Optional[str] = None,
+    ) -> List[str]:
+        candidates: List[str] = []
+
+        for raw in (
+            idea_id,
+            self._extract_idea_id(experiment_hint),
+        ):
+            if isinstance(raw, str):
+                normalized = raw.strip().lower()
+                if normalized and normalized not in candidates:
+                    candidates.append(normalized)
+
+        if idea_name:
+            normalized = self._normalize_name(idea_name)
+            if normalized:
+                mapped = self._idea_id_by_name.get(normalized)
+                if mapped and mapped not in candidates:
+                    candidates.append(mapped)
+
+        return candidates
 
     def _next(self, key: str) -> Any:
         queue = self._queues.get(key) or []
@@ -212,13 +348,74 @@ class DemoCacheService:
     def get_merged_idea(self) -> Dict[str, Any]:
         return self._next("merge")
 
-    def get_code_result(self) -> Dict[str, Any]:
+    def get_code_result(
+        self,
+        idea_id: Optional[str] = None,
+        idea_name: Optional[str] = None,
+        experiment_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        if not self.enabled:
+            raise DemoCacheError("Demo cache mode is disabled")
+
+        for candidate in self._resolve_candidate_ids(
+            idea_id=idea_id, idea_name=idea_name, experiment_hint=experiment_hint
+        ):
+            payload = self._code_results_by_id.get(candidate)
+            if payload is not None:
+                self._emit_logs("code")
+                return copy.deepcopy(payload)
+
         return self._next("code")
 
-    def get_paper_result(self) -> Dict[str, Any]:
+    def get_paper_result(
+        self,
+        idea_id: Optional[str] = None,
+        idea_name: Optional[str] = None,
+        experiment_hint: Optional[str] = None,
+        pdf_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        if not self.enabled:
+            raise DemoCacheError("Demo cache mode is disabled")
+
+        if pdf_path and isinstance(pdf_path, str):
+            cached = self._paper_results_by_path.get(pdf_path)
+            if cached is not None:
+                self._emit_logs("write")
+                return copy.deepcopy(cached)
+
+        for candidate in self._resolve_candidate_ids(
+            idea_id=idea_id, idea_name=idea_name, experiment_hint=experiment_hint
+        ):
+            payload = self._paper_results_by_id.get(candidate)
+            if payload is not None:
+                self._emit_logs("write")
+                return copy.deepcopy(payload)
+
         return self._next("write")
 
-    def get_review_result(self) -> Dict[str, Any]:
+    def get_review_result(
+        self,
+        idea_id: Optional[str] = None,
+        idea_name: Optional[str] = None,
+        pdf_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        if not self.enabled:
+            raise DemoCacheError("Demo cache mode is disabled")
+
+        if pdf_path and isinstance(pdf_path, str):
+            cached = self._review_results_by_path.get(pdf_path)
+            if cached is not None:
+                self._emit_logs("review")
+                return copy.deepcopy(cached)
+
+        for candidate in self._resolve_candidate_ids(
+            idea_id=idea_id, idea_name=idea_name, experiment_hint=pdf_path
+        ):
+            payload = self._review_results_by_id.get(candidate)
+            if payload is not None:
+                self._emit_logs("review")
+                return copy.deepcopy(payload)
+
         return self._next("review")
 
     def evaluate(self, ideas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

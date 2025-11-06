@@ -634,10 +634,26 @@ def generate_code() -> Union[Response, tuple[Response, int]]:
         return jsonify({"error": "No JSON data provided"}), 400
     idea_data = data.get("idea")
     baseline_results = data.get("baseline_results", {})
+    idea_id = data.get("idea_id")
+    idea_name = None
+    if isinstance(idea_data, dict):
+        if not idea_id:
+            idea_candidate = idea_data.get("id")
+            if isinstance(idea_candidate, str):
+                idea_id = idea_candidate
+        idea_name = (
+            idea_data.get("Name")
+            or idea_data.get("Title")
+            or idea_data.get("name")
+            or idea_data.get("title")
+        )
 
     if demo_cache.enabled:
         try:
-            response_payload = demo_cache.get_code_result()
+            response_payload = demo_cache.get_code_result(
+                idea_id=idea_id,
+                idea_name=idea_name,
+            )
         except DemoCacheError as exc:
             return jsonify({"error": str(exc)}), 409
         return jsonify(response_payload)
@@ -732,10 +748,27 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
 
     idea_data = data.get("idea")
     experiment_dir = data.get("experiment_dir", None)
+    idea_id = data.get("idea_id")
+    idea_name = None
+    if isinstance(idea_data, dict):
+        if not idea_id:
+            idea_candidate = idea_data.get("id")
+            if isinstance(idea_candidate, str):
+                idea_id = idea_candidate
+        idea_name = (
+            idea_data.get("Name")
+            or idea_data.get("Title")
+            or idea_data.get("name")
+            or idea_data.get("title")
+        )
 
     if demo_cache.enabled:
         try:
-            response_payload = demo_cache.get_paper_result()
+            response_payload = demo_cache.get_paper_result(
+                idea_id=idea_id,
+                idea_name=idea_name,
+                experiment_hint=experiment_dir,
+            )
         except DemoCacheError as exc:
             return jsonify({"error": str(exc)}), 409
         return jsonify(response_payload)
@@ -891,10 +924,16 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
 
     pdf_path = data.get("pdf_path")
     s2_api_key = data.get("s2_api_key")
+    idea_id = data.get("idea_id")
+    idea_name = data.get("idea_name")
 
     if demo_cache.enabled:
         try:
-            response_payload = demo_cache.get_review_result()
+            response_payload = demo_cache.get_review_result(
+                idea_id=idea_id,
+                idea_name=idea_name,
+                pdf_path=pdf_path,
+            )
         except DemoCacheError as exc:
             return jsonify({"error": str(exc)}), 409
         return jsonify(response_payload)

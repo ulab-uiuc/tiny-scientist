@@ -2607,6 +2607,15 @@ const TreePlotVisualization = () => {
       return;
     }
 
+    const retryIdeaId = typeof node.id === 'string' ? node.id : null;
+    const retryIdeaName =
+      node.originalData?.Name ||
+      node.originalData?.Title ||
+      node.originalData?.name ||
+      node.originalData?.title ||
+      node.title ||
+      null;
+
     console.log("Retrying code generation for idea:", node.originalData.Title);
     setIsGeneratingCode(true);
     setOperationStatus('Retrying code generation...');
@@ -2623,7 +2632,9 @@ const TreePlotVisualization = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          idea: node.originalData
+          idea: node.originalData,
+          idea_id: retryIdeaId,
+          idea_name: retryIdeaName
         })
       });
 
@@ -2668,6 +2679,15 @@ const TreePlotVisualization = () => {
       return;
     }
 
+    const paperIdeaId = typeof node.id === 'string' ? node.id : null;
+    const paperIdeaName =
+      node.originalData?.Name ||
+      node.originalData?.Title ||
+      node.originalData?.name ||
+      node.originalData?.title ||
+      node.title ||
+      null;
+
     // Only require experiment directory for experimental ideas
     const isExperimental = node.originalData.is_experimental;
     if (isExperimental && !experimentDir) {
@@ -2697,6 +2717,8 @@ const TreePlotVisualization = () => {
         credentials: 'include',
         body: JSON.stringify({
           idea: node.originalData,
+          idea_id: paperIdeaId,
+          idea_name: paperIdeaName,
           experiment_dir: experimentDir,
           s2_api_key: effectiveS2Key || null
         })
@@ -2757,6 +2779,14 @@ const TreePlotVisualization = () => {
 
     // Check if the idea is experimental to determine S2 API key requirement
     const isExperimental = selectedNode.originalData.is_experimental === true;
+    const ideaId = typeof selectedNode.id === 'string' ? selectedNode.id : null;
+    const ideaName =
+      selectedNode.originalData?.Name ||
+      selectedNode.originalData?.Title ||
+      selectedNode.originalData?.name ||
+      selectedNode.originalData?.title ||
+      selectedNode.title ||
+      null;
 
     const sanitizedS2Key = sanitizeS2ApiKey(s2ApiKey);
     persistS2ApiKey(sanitizedS2Key);
@@ -2860,7 +2890,9 @@ const TreePlotVisualization = () => {
             },
             credentials: 'include',
             body: JSON.stringify({
-              idea: selectedNode.originalData
+              idea: selectedNode.originalData,
+              idea_id: ideaId,
+              idea_name: ideaName
             }),
             signal: controller.signal
           });
@@ -2954,6 +2986,8 @@ const TreePlotVisualization = () => {
           credentials: 'include',
           body: JSON.stringify({
             idea: selectedNode.originalData,
+            idea_id: ideaId,
+            idea_name: ideaName,
             experiment_dir: null, // No experiment directory for non-experimental papers
             s2_api_key: sanitizedS2Key || null,
           }),
