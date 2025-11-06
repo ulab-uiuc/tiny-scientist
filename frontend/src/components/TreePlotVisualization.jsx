@@ -8,6 +8,110 @@ import IdeaCard from './IdeaCard';
 import IdeaFactorsAndScoresCard from './IdeaFactorsAndScoresCard';
 import LogDisplay from './LogDisplay';
 
+const normalizeExperimentDir = (dir) => {
+  if (!dir) return 'experiments';
+  let sanitized = dir.trim();
+  if (!sanitized) return 'experiments';
+  sanitized = sanitized.replace(/\\/g, '/');
+  sanitized = sanitized.replace(/^\.?\/+/, '');
+  if (sanitized.startsWith('generated/')) {
+    sanitized = sanitized.slice('generated/'.length);
+  }
+  return sanitized || 'experiments';
+};
+
+const buildExperimentFileUrl = (dir, fileName, apiBase = '/api') => {
+  const safeDir = normalizeExperimentDir(dir);
+  const encodedDir = safeDir
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+  return `${apiBase}/files/${encodedDir}/${encodeURIComponent(fileName)}`;
+};
+
+const DEFAULT_RUN_DISCOVERY_LIMIT = 10;
+
+const fetchTextFile = async (dir, filePath, apiBase = '/api') => {
+  const url = buildExperimentFileUrl(dir, filePath, apiBase);
+  try {
+    console.log(`Attempting to fetch ${filePath} from ${url}`);
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) {
+      console.log(`Fetch skipped for ${filePath}: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    const data = await response.json();
+    if (typeof data?.content === 'string') {
+      return data.content;
+    }
+  } catch (err) {
+    console.error(`Error fetching ${filePath}:`, err);
+  }
+  return null;
+};
+
+const getRunLabel = (runName, index = 0) => {
+  if (!runName) {
+    return `Run ${index + 1}`;
+  }
+  if (runName.startsWith('run_')) {
+    const parts = runName.split('_');
+    if (parts.length > 1 && parts[1]) {
+      return `Run ${parts[1]}`;
+    }
+  }
+  return runName;
+};
+
+const getFileIcon = (fileName = '') => {
+  if (fileName.endsWith('.py')) return '🐍';
+  if (fileName.endsWith('.json')) return '📊';
+  if (fileName.endsWith('.txt')) return '📄';
+  return '📝';
+};
+
+const normalizeCodeResult = (data) => {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  const safeDir = data.experiment_dir ? normalizeExperimentDir(data.experiment_dir) : null;
+  return { ...data, experiment_dir: safeDir };
+};
+
+const formatMetricValue = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const fixed = value.toFixed(4);
+    return parseFloat(fixed).toString();
+  }
+  return String(value);
+};
+
+const sanitizeS2ApiKey = (key) => (typeof key === 'string' ? key.trim() : '');
+
+const getStoredS2ApiKey = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem('s2_api_key') || '';
+  } catch (err) {
+    console.error('Failed to read Semantic Scholar key from storage:', err);
+    return '';
+  }
+};
+
+const persistS2ApiKey = (key) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (key) {
+      window.localStorage.setItem('s2_api_key', key);
+    } else {
+      window.localStorage.removeItem('s2_api_key');
+    }
+  } catch (err) {
+    console.error('Failed to persist Semantic Scholar key:', err);
+  }
+};
+
 
 // Helper components defined outside the main component to preserve state
 const ContextAndGenerateCard = ({
@@ -398,7 +502,7 @@ const TreePlotVisualization = () => {
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [customIdea, setCustomIdea] = useState({ title: '', content: '' });
   // *** 新增：用于主界面模型选择和api-key输入
-  const [selectedModel, setSelectedModel] = useState('deepseek-chat');
+  const [selectedModel, setSelectedModel] = useState('gpt-4o');
   const [apiKey, setApiKey] = useState('');
   const [isConfigured, setIsConfigured] = useState(false);
   const [configError, setConfigError] = useState('');
@@ -438,7 +542,7 @@ const TreePlotVisualization = () => {
   const [codeFileName, setCodeFileName] = useState('experiment.py');
   const [activeCodeTab, setActiveCodeTab] = useState('experiment.py');
   const [experimentFiles, setExperimentFiles] = useState({});
-  const [consoleOutput, setConsoleOutput] = useState('');
+  const [experimentFileList, setExperimentFileList] = useState([]);
   const [experimentRuns, setExperimentRuns] = useState([]);
   const [isRunningExperiment, setIsRunningExperiment] = useState(false);
   const [pdfComments, setPdfComments] = useState([]);
@@ -448,6 +552,79 @@ const TreePlotVisualization = () => {
   const [reviewResult, setReviewResult] = useState(null);
   const [isReviewing, setIsReviewing] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState('comments'); // 'comments' or 'review'
+
+  const isDemoRoute =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/demo' ||
+      window.location.pathname.startsWith('/demo/'));
+  const FALLBACK_DEMO_INTENT =
+    'Adaptive Prompt Decomposition for Coherent Long-Range Code Generation';
+  const demoDefaultIntent =
+    (typeof process !== 'undefined' && process.env.REACT_APP_DEMO_INTENT) ||
+    FALLBACK_DEMO_INTENT;
+  const apiBase = isDemoRoute ? '/demo/api' : '/api';
+  const fileBase = `${apiBase}/files`;
+
+  const buildFileUrl = (dir, fileName) => buildExperimentFileUrl(dir, fileName, apiBase);
+  const fetchTextFileWithBase = (dir, fileName) => fetchTextFile(dir, fileName, apiBase);
+
+  useEffect(() => {
+    if (isDemoRoute) {
+      setCurrentView('exploration');
+      setIsConfigured(true);
+    }
+  }, [isDemoRoute]);
+
+  useEffect(() => {
+    if (!isDemoRoute) {
+      return;
+    }
+    let desiredIntent = demoDefaultIntent;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.sessionStorage.getItem('demo_intent_prefill');
+        if (stored) {
+          desiredIntent = stored;
+          window.sessionStorage.removeItem('demo_intent_prefill');
+        }
+      } catch (_) {
+        // ignore storage errors
+      }
+    }
+    if (desiredIntent && analysisIntent !== desiredIntent) {
+      setAnalysisIntent(desiredIntent);
+    }
+  }, [isDemoRoute, analysisIntent, demoDefaultIntent]);
+
+  const experimentFileCount = experimentFileList.length;
+  const hasExperimentFiles = experimentFileCount > 0;
+
+
+  const baseFileItems = experimentFileList.filter((item) => item.group === 'base');
+  const runFileGroups = (() => {
+    const map = new Map();
+    experimentFileList.forEach((item) => {
+      if (item.group !== 'run') {
+        return;
+      }
+      const key = item.runName || item.path;
+      if (!map.has(key)) {
+        map.set(key, {
+          runLabel: item.runLabel || getRunLabel(item.runName || '', map.size),
+          items: [],
+        });
+      }
+      map.get(key).items.push(item);
+    });
+    return Array.from(map.entries());
+  })();
+
+  useEffect(() => {
+    const savedKey = sanitizeS2ApiKey(getStoredS2ApiKey());
+    if (savedKey) {
+      setS2ApiKey(savedKey);
+    }
+  }, []);
 
 
   // Track view changes
@@ -515,9 +692,9 @@ const TreePlotVisualization = () => {
   };
   // ============== 配置模型和API Key ==============
   const modelOptions = [
+    { value: 'gpt-4o', label: 'GPT-4o' },
     { value: 'deepseek-chat', label: 'DeepSeek Chat' },
     { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
     { value: 'o1-2024-12-17', label: 'GPT-o1' },
     { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
   ];
@@ -525,7 +702,7 @@ const TreePlotVisualization = () => {
     const fetchPrompts = async () => {
       if (isConfigured) {
         try {
-          const response = await fetch('/api/get-prompts', { credentials: 'include' });
+          const response = await fetch(`${apiBase}/get-prompts`, { credentials: 'include' });
           if (!response.ok) {
             throw new Error('Failed to fetch prompts'); // Corrected spelling
           }
@@ -558,7 +735,7 @@ const TreePlotVisualization = () => {
     setOperationStatus('Configuring model...');
 
     try {
-      const response = await fetch('/api/configure', {
+      const response = await fetch(`${apiBase}/configure`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -596,7 +773,7 @@ const TreePlotVisualization = () => {
     setOperationStatus('Configuring model...');
 
     try {
-      const response = await fetch('/api/configure', {
+      const response = await fetch(`${apiBase}/configure`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -820,7 +997,7 @@ const TreePlotVisualization = () => {
   // ============== 自定义prompts==============
   const updateSystemPrompt = async (prompt) => {
     try {
-      const response = await fetch('/api/set-system-prompt', {
+      const response = await fetch(`${apiBase}/set-system-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -837,7 +1014,7 @@ const TreePlotVisualization = () => {
 
   const updateCriteria = async (dimension, criteria) => {
     try {
-      const response = await fetch('/api/set-criteria', {
+      const response = await fetch(`${apiBase}/set-criteria`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1056,7 +1233,7 @@ const TreePlotVisualization = () => {
         intent: analysisIntent
       };
 
-      const response = await fetch('/api/evaluate', {
+      const response = await fetch(`${apiBase}/evaluate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1122,7 +1299,7 @@ const TreePlotVisualization = () => {
 
     try {
       // Call Flask backend
-      const response = await fetch('/api/generate-initial', {
+      const response = await fetch(`${apiBase}/generate-initial`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1211,7 +1388,7 @@ const TreePlotVisualization = () => {
     setShowLogs(true); // Show logs when generating child ideas
 
     try {
-      const response = await fetch('/api/generate-children', {
+      const response = await fetch(`${apiBase}/generate-children`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1284,7 +1461,7 @@ const TreePlotVisualization = () => {
     try {
       setIsGenerating(true);
       setOperationStatus('Modifying idea...');
-      const response = await fetch('/api/modify', {
+      const response = await fetch(`${apiBase}/modify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1362,7 +1539,7 @@ const TreePlotVisualization = () => {
     setError(null);
     try {
       /* ---------- ② 调用 Flask API ---------- */
-      const response = await fetch('/api/merge', {
+      const response = await fetch(`${apiBase}/merge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2223,46 +2400,177 @@ const TreePlotVisualization = () => {
 
   // Load generated files from public directory
   const loadGeneratedFiles = async (experimentDir) => {
+    const safeDir = normalizeExperimentDir(experimentDir);
     try {
-      const fileUrls = {
-        'experiment.py': `/api/files/${experimentDir}/experiment.py`,
-        'notes.txt': `/api/files/${experimentDir}/notes.txt`,
-        'experiment_results.txt': `/api/files/${experimentDir}/experiment_results.txt`,
-      };
-
       const loadedFiles = {};
-      for (const [fileName, url] of Object.entries(fileUrls)) {
-        try {
-          console.log(`Attempting to fetch: ${fileName} from ${url}`);
-          const response = await fetch(url);
-          console.log(`Response for ${fileName}:`, response.status, response.statusText);
+      const fileItems = [];
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.content) {
-              loadedFiles[fileName] = data.content;
-              console.log(`Loaded ${fileName} successfully.`);
-            }
-          } else {
-            console.log(`Could not load ${fileName}, but this might be expected (e.g., no notes).`);
-          }
-        } catch (err) {
-          console.error(`Error fetching ${fileName}:`, err);
+      const baseFiles = ['experiment.py', 'notes.txt', 'experiment_results.txt'];
+      for (const fileName of baseFiles) {
+        const content = await fetchTextFileWithBase(safeDir, fileName);
+        if (content !== null) {
+          loadedFiles[fileName] = content;
+          fileItems.push({
+            path: fileName,
+            tabLabel: fileName,
+            sidebarLabel: fileName,
+            icon: getFileIcon(fileName),
+            group: 'base',
+          });
         }
       }
 
-      // Update state all at once
-      setExperimentFiles(prev => ({ ...prev, ...loadedFiles }));
-
-      // Set the code content for the editor if experiment.py was loaded
-      if (loadedFiles['experiment.py']) {
-        setCodeContent(loadedFiles['experiment.py']);
-        setActiveCodeTab('experiment.py');
+      const resultContent = loadedFiles['experiment_results.txt'] || null;
+      let runNames = [];
+      if (resultContent) {
+        try {
+          const parsed = JSON.parse(resultContent);
+          if (parsed && typeof parsed === 'object') {
+            runNames = Object.keys(parsed);
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse experiment_results.txt:', parseErr);
+        }
+      }
+      if (runNames.length === 0) {
+        runNames = Array.from({ length: DEFAULT_RUN_DISCOVERY_LIMIT }, (_, i) => `run_${i + 1}`);
       }
 
+      const runMeta = new Map();
+      await Promise.all(
+        runNames.map(async (runName, index) => {
+          if (!runName) return;
+
+          const runLabel = getRunLabel(runName, index);
+          let meta = runMeta.get(runName);
+          if (!meta) {
+            meta = { runName, runLabel };
+            runMeta.set(runName, meta);
+          }
+
+          let fetchedContent = false;
+
+          const finalInfoPath = `${runName}/final_info.json`;
+          const finalInfo = await fetchTextFileWithBase(safeDir, finalInfoPath);
+          if (finalInfo !== null) {
+            loadedFiles[finalInfoPath] = finalInfo;
+            fetchedContent = true;
+            try {
+              meta.finalInfo = JSON.parse(finalInfo);
+            } catch (err) {
+              console.error(`Failed to parse ${finalInfoPath}:`, err);
+              meta.finalInfo = null;
+            }
+            meta.finalInfoPath = finalInfoPath;
+            fileItems.push({
+              path: finalInfoPath,
+              tabLabel: `${runLabel} • final_info.json`,
+              sidebarLabel: 'final_info.json',
+              icon: getFileIcon(finalInfoPath),
+              group: 'run',
+              runName,
+              runLabel,
+            });
+          }
+
+          const runScriptPath = `${runName}.py`;
+          const runScript = await fetchTextFileWithBase(safeDir, runScriptPath);
+          if (runScript !== null) {
+            loadedFiles[runScriptPath] = runScript;
+            fetchedContent = true;
+            meta.scriptPath = runScriptPath;
+            const scriptFileName = runScriptPath.split('/').pop() || runScriptPath;
+            fileItems.push({
+              path: runScriptPath,
+              tabLabel: `${runLabel} • ${scriptFileName}`,
+              sidebarLabel: scriptFileName,
+              icon: getFileIcon(runScriptPath),
+              group: 'run',
+              runName,
+              runLabel,
+            });
+          }
+
+          if (!fetchedContent) {
+            runMeta.delete(runName);
+          }
+        })
+      );
+
+      setExperimentFiles(loadedFiles);
+      setExperimentFileList(fileItems);
+
+      const runMetaMap = Object.fromEntries(runMeta.entries());
+
+      if (resultContent) {
+        try {
+          const parsed = JSON.parse(resultContent);
+          if (parsed && typeof parsed === 'object') {
+            const runs = Object.entries(parsed).map(([name, metrics], index) => {
+              const safeMetrics = typeof metrics === 'object' && metrics !== null ? metrics : {};
+              const meta = runMetaMap[name] || { runName: name, runLabel: getRunLabel(name, index) };
+              return {
+                name,
+                runLabel: meta.runLabel || getRunLabel(name, index),
+                metrics: safeMetrics,
+                success: Object.keys(safeMetrics).length > 0,
+              };
+            });
+            setExperimentRuns(runs);
+          } else {
+            setExperimentRuns([]);
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse experiment_results.txt:', parseErr);
+          setExperimentRuns([]);
+        }
+      } else if (Object.keys(runMetaMap).length > 0) {
+        const runs = Object.entries(runMetaMap).map(([name, meta], index) => {
+          return {
+            name,
+            runLabel: meta.runLabel || getRunLabel(name, index),
+            metrics: meta.finalInfo && typeof meta.finalInfo === 'object' ? meta.finalInfo : {},
+            success: true,
+          };
+        });
+        setExperimentRuns(runs);
+      } else {
+        setExperimentRuns([]);
+      }
+
+      if (loadedFiles['experiment.py']) {
+        setActiveCodeTab('experiment.py');
+        setCodeFileName('experiment.py');
+        setCodeContent(loadedFiles['experiment.py']);
+      } else if (fileItems.length > 0) {
+        const firstItem = fileItems[0];
+        setActiveCodeTab(firstItem.path);
+        setCodeFileName(firstItem.tabLabel);
+        setCodeContent(loadedFiles[firstItem.path] || '');
+      } else {
+        setActiveCodeTab('');
+        setCodeFileName('');
+        setCodeContent(
+          `# Generated experiment code
+# Files are being generated in: ${safeDir}
+
+# Please check the directory for the actual code files.`
+        );
+      }
+
+      return safeDir;
     } catch (err) {
-      console.log("Error loading generated files:", err);
-      setCodeContent(`# Generated experiment code\n# Files are being generated in: ${experimentDir}\n\n# Please check the directory for the actual code files.`);
+      console.log(`Error loading generated files from ${safeDir}:`, err);
+      setExperimentFiles({});
+      setExperimentFileList([]);
+      setCodeContent(
+        `# Generated experiment code
+# Files are being generated in: ${safeDir}
+
+# Please check the directory for the actual code files.`
+      );
+      setExperimentRuns([]);
+      return safeDir;
     }
   };
 
@@ -2281,11 +2589,11 @@ const TreePlotVisualization = () => {
       console.log("Manual file loading completed");
 
       // Set a fake successful result to satisfy the UI
-      setCodeResult({
+      setCodeResult(normalizeCodeResult({
         status: true,
         success: true,
         experiment_dir: "experiments"
-      });
+      }));
 
     } catch (err) {
       console.log("Manual file loading failed:", err);
@@ -2299,22 +2607,34 @@ const TreePlotVisualization = () => {
       return;
     }
 
+    const retryIdeaId = typeof node.id === 'string' ? node.id : null;
+    const retryIdeaName =
+      node.originalData?.Name ||
+      node.originalData?.Title ||
+      node.originalData?.name ||
+      node.originalData?.title ||
+      node.title ||
+      null;
+
     console.log("Retrying code generation for idea:", node.originalData.Title);
     setIsGeneratingCode(true);
     setOperationStatus('Retrying code generation...');
     setCodeResult(null);
     setExperimentFiles({});
+    setExperimentFileList([]);
     setShowLogs(true); // Show logs when starting code generation
 
     try {
-      const codeResponse = await fetch('/api/code', {
+      const codeResponse = await fetch(`${apiBase}/code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
         body: JSON.stringify({
-          idea: node.originalData
+          idea: node.originalData,
+          idea_id: retryIdeaId,
+          idea_name: retryIdeaName
         })
       });
 
@@ -2325,25 +2645,28 @@ const TreePlotVisualization = () => {
 
       const codeData = await codeResponse.json();
       console.log("Retry code generation completed:", codeData);
-      setCodeResult(codeData);
-
       if (!codeData.success) {
         throw new Error(codeData.error || 'Code generation failed');
       }
 
+      const normalizedResult = normalizeCodeResult(codeData);
+      setCodeResult(normalizedResult);
+
       // Load generated files
       setOperationStatus('Loading generated files...');
-      await loadGeneratedFiles(codeData.experiment_dir);
+      if (normalizedResult.experiment_dir) {
+        await loadGeneratedFiles(normalizedResult.experiment_dir);
+      }
       setOperationStatus('Code generation retry completed successfully!');
 
     } catch (error) {
       console.error("Retry code generation failed:", error);
       setOperationStatus('Retry code generation failed: ' + error.message);
-      setCodeResult({
+      setCodeResult(normalizeCodeResult({
         success: false,
         error: error.message,
         error_details: error.message
-      });
+      }));
     } finally {
       setIsGeneratingCode(false);
     }
@@ -2355,6 +2678,15 @@ const TreePlotVisualization = () => {
       console.log("ERROR: Missing node or originalData for paper generation");
       return;
     }
+
+    const paperIdeaId = typeof node.id === 'string' ? node.id : null;
+    const paperIdeaName =
+      node.originalData?.Name ||
+      node.originalData?.Title ||
+      node.originalData?.name ||
+      node.originalData?.title ||
+      node.title ||
+      null;
 
     // Only require experiment directory for experimental ideas
     const isExperimental = node.originalData.is_experimental;
@@ -2369,17 +2701,15 @@ const TreePlotVisualization = () => {
     setShowLogs(true); // Show logs when starting paper generation
 
     try {
-      // Get S2 API key from localStorage or prompt user
-      let s2ApiKey = localStorage.getItem('s2_api_key');
-      if (!s2ApiKey) {
-        s2ApiKey = prompt('Please enter your Semantic Scholar API Key:');
-        if (!s2ApiKey) {
-          throw new Error('Semantic Scholar API key is required for paper generation');
-        }
-        localStorage.setItem('s2_api_key', s2ApiKey);
-      }
+      const effectiveS2Key =
+        sanitizeS2ApiKey(s2ApiKey) || sanitizeS2ApiKey(getStoredS2ApiKey());
+      persistS2ApiKey(effectiveS2Key);
+      setS2ApiKey(effectiveS2Key);
+      console.log(
+        `Semantic Scholar API key ${effectiveS2Key ? 'detected' : 'not provided'} for paper generation`
+      );
 
-      const paperResponse = await fetch('/api/write', {
+      const paperResponse = await fetch(`${apiBase}/write`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2387,8 +2717,10 @@ const TreePlotVisualization = () => {
         credentials: 'include',
         body: JSON.stringify({
           idea: node.originalData,
+          idea_id: paperIdeaId,
+          idea_name: paperIdeaName,
           experiment_dir: experimentDir,
-          s2_api_key: s2ApiKey
+          s2_api_key: effectiveS2Key || null
         })
       });
 
@@ -2447,12 +2779,18 @@ const TreePlotVisualization = () => {
 
     // Check if the idea is experimental to determine S2 API key requirement
     const isExperimental = selectedNode.originalData.is_experimental === true;
+    const ideaId = typeof selectedNode.id === 'string' ? selectedNode.id : null;
+    const ideaName =
+      selectedNode.originalData?.Name ||
+      selectedNode.originalData?.Title ||
+      selectedNode.originalData?.name ||
+      selectedNode.originalData?.title ||
+      selectedNode.title ||
+      null;
 
-    // Validate Semantic Scholar API key only for non-experimental ideas
-    if (!isExperimental && !s2ApiKey.trim()) {
-      setProceedError('Semantic Scholar API key is required for non-experimental ideas');
-      return;
-    }
+    const sanitizedS2Key = sanitizeS2ApiKey(s2ApiKey);
+    persistS2ApiKey(sanitizedS2Key);
+    setS2ApiKey(sanitizedS2Key);
 
     setShowProceedConfirm(false);
     setProceedError(null);
@@ -2498,7 +2836,7 @@ const TreePlotVisualization = () => {
       console.log("Checking backend configuration...");
       setOperationStatus('Checking configuration...');
 
-      const configCheck = await fetch('/api/get-prompts', {
+      const configCheck = await fetch(`${apiBase}/get-prompts`, {
         credentials: 'include'
       });
 
@@ -2511,7 +2849,7 @@ const TreePlotVisualization = () => {
         }
 
         // Auto-reconfigure the backend
-        const reconfigResponse = await fetch('/api/configure', {
+        const reconfigResponse = await fetch(`${apiBase}/configure`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2545,14 +2883,16 @@ const TreePlotVisualization = () => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
 
-          const codeResponse = await fetch('/api/code', {
+          const codeResponse = await fetch(`${apiBase}/code`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             credentials: 'include',
             body: JSON.stringify({
-              idea: selectedNode.originalData
+              idea: selectedNode.originalData,
+              idea_id: ideaId,
+              idea_name: ideaName
             }),
             signal: controller.signal
           });
@@ -2566,7 +2906,6 @@ const TreePlotVisualization = () => {
 
           codeData = await codeResponse.json();
           console.log("Code generation completed:", codeData);
-          setCodeResult(codeData);
 
           if (!codeData.success) {
             throw new Error(codeData.error || 'Code generation failed');
@@ -2580,9 +2919,9 @@ const TreePlotVisualization = () => {
             setOperationStatus('Connection lost, checking if code generation completed...');
 
             // Single check for existing files (backend may have completed despite connection issue)
-            const expectedFileUrl = '/api/files/experiments/experiment.py';
+            const expectedFileUrl = buildFileUrl('experiments', 'experiment.py');
             try {
-              const fileCheck = await fetch(expectedFileUrl);
+              const fileCheck = await fetch(expectedFileUrl, { credentials: 'include' });
               if (fileCheck.ok) {
                 const fileData = await fileCheck.json();
                 if (fileData.content && fileData.content.length > 50) {
@@ -2608,12 +2947,17 @@ const TreePlotVisualization = () => {
         }
 
         // Store results
-        setCodeResult(codeData);
-        const finalExperimentDir = codeData.experiment_dir;
+        const normalizedResult = normalizeCodeResult(codeData);
+        setCodeResult(normalizedResult);
+        const finalExperimentDir = normalizedResult?.experiment_dir;
 
         // Load generated files
         setOperationStatus('Loading generated files...');
-        await loadGeneratedFiles(finalExperimentDir);
+        if (finalExperimentDir) {
+          await loadGeneratedFiles(finalExperimentDir);
+        } else {
+          console.warn("Code generation succeeded but experiment directory is missing.");
+        }
 
         // Mark that code has been generated (this will show Code View tab)
         setHasGeneratedCode(true);
@@ -2634,7 +2978,7 @@ const TreePlotVisualization = () => {
         setOperationStatus('Generating paper...');
         setShowLogs(true); // Show logs when starting paper generation
 
-        const paperResponse = await fetch('/api/write', {
+        const paperResponse = await fetch(`${apiBase}/write`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2642,8 +2986,10 @@ const TreePlotVisualization = () => {
           credentials: 'include',
           body: JSON.stringify({
             idea: selectedNode.originalData,
+            idea_id: ideaId,
+            idea_name: ideaName,
             experiment_dir: null, // No experiment directory for non-experimental papers
-            s2_api_key: s2ApiKey.trim(),
+            s2_api_key: sanitizedS2Key || null,
           }),
         });
 
@@ -2703,10 +3049,33 @@ const TreePlotVisualization = () => {
     setPdfComments(pdfComments.filter(c => c.id !== commentId));
   };
 
+  const buildRelativeApiUrl = (path) => {
+    if (!path) return path;
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+    if (path.startsWith(apiBase)) {
+      return path;
+    }
+    if (path.startsWith('/demo/api/')) {
+      return path;
+    }
+    if (path.startsWith('/api/')) {
+      return `${apiBase}${path.slice(4)}`;
+    }
+    if (path.startsWith('/')) {
+      return path;
+    }
+    return `${apiBase}/${path.replace(/^\//, '')}`;
+  };
+
   const downloadPDF = async (pdfPath) => {
     try {
+      const requestUrl = buildRelativeApiUrl(pdfPath);
       // Fetch the PDF as a blob to force download
-      const response = await fetch(`http://localhost:5000${pdfPath}`);
+      const response = await fetch(requestUrl, {
+        credentials: 'include',
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to download PDF: ${response.status}`);
@@ -2746,13 +3115,14 @@ const TreePlotVisualization = () => {
     try {
       console.log('Starting paper review for:', pdfPath);
 
-      const response = await fetch('http://localhost:5000/api/review', {
+      const response = await fetch(`${apiBase}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
-          pdf_path: pdfPath
+          pdf_path: buildRelativeApiUrl(pdfPath)
         }),
       });
 
@@ -2776,7 +3146,14 @@ const TreePlotVisualization = () => {
 
   // Enhanced code editing functions
   const switchCodeTab = (tabName) => {
-    // Save current content before switching
+    if (!tabName) {
+      return;
+    }
+
+    if (experimentFiles[tabName] === undefined) {
+      return;
+    }
+
     if (activeCodeTab && experimentFiles[activeCodeTab] !== undefined) {
       setExperimentFiles(prev => ({
         ...prev,
@@ -2784,9 +3161,9 @@ const TreePlotVisualization = () => {
       }));
     }
 
-    // Switch to new tab
+    const fileItem = experimentFileList.find((item) => item.path === tabName);
     setActiveCodeTab(tabName);
-    setCodeFileName(tabName);
+    setCodeFileName(fileItem?.tabLabel || tabName);
     setCodeContent(experimentFiles[tabName] || '');
   };
 
@@ -2894,14 +3271,14 @@ const TreePlotVisualization = () => {
                 {/* Download All Button */}
                 <button
                   onClick={downloadExperimentFiles}
-                  disabled={Object.keys(experimentFiles).length === 0}
+                  disabled={!hasExperimentFiles}
                   style={{
                     padding: '8px 16px',
-                    backgroundColor: Object.keys(experimentFiles).length > 0 ? '#4C84FF' : '#9CA3AF',
+                    backgroundColor: hasExperimentFiles ? '#4C84FF' : '#9CA3AF',
                     color: 'white',
                     border: 'none',
                     borderRadius: '6px',
-                    cursor: Object.keys(experimentFiles).length > 0 ? 'pointer' : 'not-allowed',
+                    cursor: hasExperimentFiles ? 'pointer' : 'not-allowed',
                     fontSize: '0.875rem',
                     fontWeight: 500,
                     display: 'flex',
@@ -2971,11 +3348,11 @@ const TreePlotVisualization = () => {
                   <div>
                     <strong>Directory:</strong>
                     <code style={{ backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px' }}>
-                      {codeResult.experiment_dir}
+                      {codeResult.experiment_dir ? `generated/${codeResult.experiment_dir}` : 'N/A'}
                     </code>
                   </div>
                   <div>
-                    <strong>Files:</strong> {Object.keys(experimentFiles).length} loaded
+                    <strong>Files:</strong> {experimentFileCount} loaded
                   </div>
                 </div>
               </div>
@@ -3005,7 +3382,7 @@ const TreePlotVisualization = () => {
                 </div>
 
                 <div style={{ flex: 1, padding: '8px' }}>
-                  {Object.keys(experimentFiles).length === 0 ? (
+                  {!hasExperimentFiles ? (
                     <div style={{
                       textAlign: 'center',
                       padding: '20px',
@@ -3015,30 +3392,32 @@ const TreePlotVisualization = () => {
                       No files loaded
                     </div>
                   ) : (
-                    Object.keys(experimentFiles).map((fileName) => (
-                      <div
-                        key={fileName}
-                        onClick={() => switchCodeTab(fileName)}
-                        style={{
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          marginBottom: '4px',
-                          backgroundColor: activeCodeTab === fileName ? '#eff6ff' : 'transparent',
-                          color: activeCodeTab === fileName ? '#1d4ed8' : '#374151',
-                          fontSize: '0.875rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        {fileName.endsWith('.py') ? '🐍' : fileName.endsWith('.txt') ? '📄' : '📝'}
-                        {fileName}
-                      </div>
-                    ))
+                    <>
+                      {baseFileItems.map((item) => (
+                        <div
+                          key={item.path}
+                          onClick={() => switchCodeTab(item.path)}
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            marginBottom: '4px',
+                            backgroundColor: activeCodeTab === item.path ? '#eff6ff' : 'transparent',
+                            color: activeCodeTab === item.path ? '#1d4ed8' : '#374151',
+                            fontSize: '0.875rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          <span>{item.icon}</span>
+                          <span>{item.sidebarLabel}</span>
+                        </div>
+                      ))}
+                    </>
                   )}
 
-                  {experimentRuns.length > 0 && (
+                  {runFileGroups.length > 0 && (
                     <>
                       <div style={{
                         padding: '8px 12px',
@@ -3051,21 +3430,44 @@ const TreePlotVisualization = () => {
                       }}>
                         📊 Experiment Runs
                       </div>
-                      {experimentRuns.map((run, index) => (
+                      {runFileGroups.map(([runName, group], index) => (
                         <div
-                          key={index}
+                          key={runName || index}
                           style={{
                             padding: '8px 12px',
-                            borderRadius: '4px',
-                            marginBottom: '4px',
+                            borderRadius: '6px',
+                            marginBottom: '6px',
                             backgroundColor: '#f9fafb',
-                            fontSize: '0.875rem',
                             display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
+                            flexDirection: 'column',
+                            gap: '4px'
                           }}
                         >
-                          {run.success ? '✅' : '❌'} Run {index + 1}
+                          <div style={{ fontWeight: 600, color: '#111827' }}>
+                            {group.runLabel}
+                          </div>
+                          {group.items.map((item) => (
+                            <div
+                              key={item.path}
+                              onClick={() => switchCodeTab(item.path)}
+                              style={{
+                                padding: '6px 10px',
+                                cursor: experimentFiles[item.path] ? 'pointer' : 'not-allowed',
+                                borderRadius: '4px',
+                                backgroundColor: activeCodeTab === item.path ? '#eff6ff' : 'transparent',
+                                color: experimentFiles[item.path]
+                                  ? activeCodeTab === item.path ? '#1d4ed8' : '#374151'
+                                  : '#9ca3af',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                paddingLeft: '18px'
+                              }}
+                            >
+                              <span>{item.icon}</span>
+                              <span>{item.sidebarLabel}</span>
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </>
@@ -3076,31 +3478,83 @@ const TreePlotVisualization = () => {
               {/* Main Editor Area */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 {/* File Tabs */}
-                {Object.keys(experimentFiles).length > 0 && (
+                {hasExperimentFiles && (
                   <div style={{
                     display: 'flex',
                     backgroundColor: 'white',
                     borderRadius: '8px 8px 0 0',
                     border: '1px solid #e5e7eb',
-                    borderBottom: 'none'
+                    borderBottom: 'none',
+                    overflowX: 'auto'
                   }}>
-                    {Object.keys(experimentFiles).map((fileName) => (
+                    {experimentFileList.map((item) => (
                       <div
-                        key={fileName}
-                        onClick={() => switchCodeTab(fileName)}
+                        key={item.path}
+                        onClick={() => switchCodeTab(item.path)}
                         style={{
                           padding: '8px 16px',
-                          cursor: 'pointer',
-                          backgroundColor: activeCodeTab === fileName ? '#f8fafc' : 'transparent',
-                          borderBottom: activeCodeTab === fileName ? '2px solid #4C84FF' : '2px solid transparent',
+                          cursor: experimentFiles[item.path] ? 'pointer' : 'not-allowed',
+                          backgroundColor: activeCodeTab === item.path ? '#f8fafc' : 'transparent',
+                          borderBottom: activeCodeTab === item.path ? '2px solid #4C84FF' : '2px solid transparent',
                           fontSize: '0.875rem',
-                          fontWeight: activeCodeTab === fileName ? 500 : 400,
-                          color: activeCodeTab === fileName ? '#1f2937' : '#6b7280'
+                          fontWeight: activeCodeTab === item.path ? 500 : 400,
+                          color: experimentFiles[item.path]
+                            ? activeCodeTab === item.path ? '#1f2937' : '#6b7280'
+                            : '#9ca3af'
                         }}
                       >
-                        {fileName}
+                        {item.tabLabel}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {activeCodeTab === 'experiment_results.txt' && experimentRuns.length > 0 && (
+                  <div
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderTop: hasExperimentFiles ? 'none' : '1px solid #e2e8f0',
+                      borderRadius: hasExperimentFiles ? '0 0 8px 8px' : '8px',
+                      padding: '16px',
+                      marginBottom: '12px',
+                      marginTop: hasExperimentFiles ? '-1px' : '0'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a', marginBottom: '12px' }}>
+                      Run Summary
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                      {experimentRuns.map((run, index) => {
+                        const runLabel = run.runLabel || getRunLabel(run.name || '', index);
+                        const metricEntries = Object.entries(run.metrics || {});
+                        return (
+                          <div
+                            key={run.name || index}
+                            style={{
+                              backgroundColor: 'white',
+                              borderRadius: '6px',
+                              border: '1px solid #e2e8f0',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{runLabel}</div>
+                            {metricEntries.length > 0 ? (
+                              metricEntries.map(([metricName, metricValue]) => (
+                                <div key={metricName} style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                  <span style={{ textTransform: 'capitalize' }}>{metricName.replace(/_/g, ' ')}</span>: <span style={{ fontWeight: 600 }}>{formatMetricValue(metricValue)}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No metrics recorded.</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -3108,14 +3562,14 @@ const TreePlotVisualization = () => {
                 <div style={{
                   flex: 1,
                   backgroundColor: 'white',
-                  borderRadius: Object.keys(experimentFiles).length > 0 ? '0 0 8px 8px' : '8px',
+                  borderRadius: hasExperimentFiles ? '0 0 8px 8px' : '8px',
                   border: '1px solid #e5e7eb',
                   overflow: 'hidden',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                 }}>
                   <Editor
                     height="100%"
-                    language={activeCodeTab.endsWith('.py') ? 'python' : activeCodeTab.endsWith('.js') ? 'javascript' : activeCodeTab.endsWith('.ts') ? 'typescript' : activeCodeTab.endsWith('.json') ? 'json' : activeCodeTab.endsWith('.md') ? 'markdown' : 'plaintext'}
+                    language={activeCodeTab === 'experiment_results.txt' ? 'json' : activeCodeTab.endsWith('.py') ? 'python' : activeCodeTab.endsWith('.js') ? 'javascript' : activeCodeTab.endsWith('.ts') ? 'typescript' : activeCodeTab.endsWith('.json') ? 'json' : activeCodeTab.endsWith('.md') ? 'markdown' : 'plaintext'}
                     value={codeContent}
                     onChange={(value) => setCodeContent(value || '')}
                     theme="vs-dark"
@@ -3134,55 +3588,6 @@ const TreePlotVisualization = () => {
                 </div>
               </div>
 
-              {/* Console Output Panel */}
-              <div style={{
-                width: '300px',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                display: 'flex',
-                flexDirection: 'column'
-              }}>
-                <div style={{
-                  backgroundColor: '#f8fafc',
-                  padding: '12px 16px',
-                  borderBottom: '1px solid #e5e7eb',
-                  fontSize: '0.875rem',
-                  color: '#64748b',
-                  fontWeight: 500,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  💻 Console Output
-                  <button
-                    onClick={() => setConsoleOutput('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#6b7280',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem'
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                <div style={{
-                  flex: 1,
-                  padding: '12px',
-                  fontSize: '0.75rem',
-                  fontFamily: 'monospace',
-                  backgroundColor: '#1a1a1a',
-                  color: '#e5e7eb',
-                  overflow: 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {consoleOutput || 'No output yet...'}
-                </div>
-              </div>
             </div>
 
             {proceedError && (
@@ -3198,7 +3603,7 @@ const TreePlotVisualization = () => {
               </div>
             )}
 
-            {!codeResult && !isGeneratingCode && !proceedError && Object.keys(experimentFiles).length === 0 && (
+            {!codeResult && !isGeneratingCode && !proceedError && !hasExperimentFiles && (
               <div style={{
                 textAlign: 'center',
                 padding: '40px',
@@ -3332,7 +3737,7 @@ const TreePlotVisualization = () => {
                     </button>
                   </div>
                   <iframe
-                    src={`http://localhost:5000${paperResult.pdf_path}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
+                    src={`${buildRelativeApiUrl(paperResult.pdf_path)}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
                     style={{
                       width: '100%',
                       height: 'calc(100% - 45px)',
@@ -4107,15 +4512,13 @@ const TreePlotVisualization = () => {
                 color: '#374151',
                 fontWeight: 500
               }}>
-                Semantic Scholar API Key {!selectedNode?.originalData?.is_experimental ? '*' : '(Optional for now)'}
+                Semantic Scholar API Key (Optional)
               </label>
               <input
                 type="password"
                 value={s2ApiKey}
                 onChange={(e) => setS2ApiKey(e.target.value)}
-                placeholder={selectedNode?.originalData?.is_experimental ?
-                  "Enter your Semantic Scholar API key (can be provided later for paper generation)" :
-                  "Enter your Semantic Scholar API key"}
+                placeholder="Optional: improves citation quality"
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -4128,10 +4531,7 @@ const TreePlotVisualization = () => {
                 }}
               />
               <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#6B7280' }}>
-                {selectedNode?.originalData?.is_experimental ?
-                  'For experimental ideas: Required only when generating paper. You can provide it later.' :
-                  'Required for paper generation.'
-                } Get your API key from{' '}
+                Providing a key lets us fetch references from Semantic Scholar. Leave blank to skip for now. Get your API key from{' '}
                 <a
                   href="https://www.semanticscholar.org/product/api"
                   target="_blank"
@@ -4177,16 +4577,16 @@ const TreePlotVisualization = () => {
               <button
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: ((!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper) ? '#9CA3AF' : '#4C84FF',
+                  backgroundColor: (isGeneratingCode || isGeneratingPaper) ? '#9CA3AF' : '#4C84FF',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: ((!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper) ? 'not-allowed' : 'pointer',
+                  cursor: (isGeneratingCode || isGeneratingPaper) ? 'not-allowed' : 'pointer',
                   fontSize: '0.875rem',
                   fontWeight: 500,
                 }}
                 onClick={handleConfirmProceed}
-                disabled={(!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper}
+                disabled={isGeneratingCode || isGeneratingPaper}
               >
                 {isGeneratingCode || isGeneratingPaper ? 'Processing...' : 'Yes, Proceed'}
               </button>

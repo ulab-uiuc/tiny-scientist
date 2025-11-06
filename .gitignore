@@ -160,6 +160,13 @@ demo/
 frontend/node_modules/
 run_experiments/
 generated/
+!frontend/demo_cache/generated/experiments/**
+!frontend/demo_cache/generated/
+!frontend/demo_cache/generated/**
+!frontend/demo_cache/ideas/
+!frontend/demo_cache/ideas/**
+!frontend/demo_cache/reviews/
+!frontend/demo_cache/reviews/**
 runs/
 testst/
 

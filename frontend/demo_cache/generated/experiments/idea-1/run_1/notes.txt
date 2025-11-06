@@ -1,0 +1,6 @@
+Auto-generated notes for run_1
+Updated: 2025-11-05T19:10:30.023769Z
+
+- Dataset: HumanEval pseudo-split (n_train=114, n_val=24, n_test=26)
+- Notes: Plug a unit-test runner for true pass@k.
+- Test: {'AST_Parse_Rate': 1.0, 'UndefinedRef_Avg': 0.0, 'TextSim_Avg': 0.04661257702428245, 'pass@1_proxy': 0.0}

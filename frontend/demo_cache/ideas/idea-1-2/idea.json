@@ -1,0 +1,47 @@
+{
+  "content": "**Description:**\nThis research proposes an adaptive prompt decomposition technique to improve the coherence of large language models (LLMs) in generating long-range code. The method dynamically segments prompts based on complexity and context, ensuring that the model maintains coherent code generation across lengthy sequences.\n\n**Impact:**\nThe research addresses a critical gap in the ability of LLMs like Codex and CodeBERT to generate coherent long-range code, which is vital for complex software development. As these models become more integrated into automated coding tools, their capacity to manage large and dynamic codebases coherently is in high demand. This study aligns with the trend toward autonomous coding solutions and the need for more intelligent prompt engineering strategies.\n\n**Feasibility:**\n(1) Maintaining coherence in long-range code generation is challenging due to LLMs' limited context window sizes, leading to fragmentation. (2) Existing static prompt engineering techniques do not adapt to the diverse and dynamic nature of real-world coding tasks. (3) Balancing the granularity of decomposition to prevent information loss while preserving synthesis capability is difficult.\n\n**Novelty:**\nWhile models like OpenAI's Codex and Google's PaLM have advanced code comprehension and generation, they lack mechanisms for adaptive prompt decomposition. Existing static methods fail to account for the variable complexity of real coding environments, leading to suboptimal coherence in extensive code sequences. Our approach introduces a context-aware adaptive mechanism that adjusts prompt decomposition based on task structure and complexity in real-time, a capability not realized in prior work. By focusing on dynamic decomposition, our method prevents the coherence breakdown seen in existing models, offering a significant leap in maintaining code integrity over long sequences.",
+  "originalData": {
+    "Approach": "The core algorithm involves a dynamic prompt decomposition strategy that evaluates the task's complexity and context. (1) To tackle coherence issues, our method uses a sliding window technique combined with semantic analysis to ensure that context is maintained throughout generation. (2) We introduce an adaptive mechanism that analyzes code structure and adjusts decomposition dynamically, unlike static methods that fail in diverse environments. (3) Our method balances granularity by using a feedback loop that assesses the coherence of generated segments, ensuring that the synthesis capability remains intact while preventing information loss.",
+    "Description": "This research proposes an adaptive prompt decomposition technique to improve the coherence of large language models (LLMs) in generating long-range code. The method dynamically segments prompts based on complexity and context, ensuring that the model maintains coherent code generation across lengthy sequences.",
+    "Difficulty": "(1) Maintaining coherence in long-range code generation is challenging due to LLMs' limited context window sizes, leading to fragmentation. (2) Existing static prompt engineering techniques do not adapt to the diverse and dynamic nature of real-world coding tasks. (3) Balancing the granularity of decomposition to prevent information loss while preserving synthesis capability is difficult.",
+    "Experiment": {
+      "Dataset": {
+        "Load_Command": "datasets.load_dataset('code_x_glue_cc_clone_detection_big_clone_bench')",
+        "Name": "code_x_glue_cc_clone_detection_big_clone_bench",
+        "Preprocessing": "Tokenization with CountVectorizer, max_features=512",
+        "Size": 7000,
+        "Splits": {
+          "Test": 1000,
+          "Train": 5000,
+          "Validation": 1000
+        }
+      },
+      "Metric": {
+        "Primary": "BLEU Score",
+        "Secondary": "Code Coherence Metric (CCM)"
+      },
+      "Model": {
+        "Architecture": "Shallow MLP",
+        "Hidden_Layers": 1,
+        "Hidden_Units": 128,
+        "Input_Dimension": 512,
+        "Output_Dimension": 256,
+        "Total_Parameters": 98752
+      }
+    },
+    "ExperimentTable": "| Component            | Specification                                                                 | Justification / Rationale                                                                                                                                                                     | Status |\n|----------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|\n| Model Architecture   | Shallow MLP with 1 hidden layer of 128 units, input dimension 512, output 256 | Ensures model simplicity while allowing some degree of learning from the input features. This architecture is a balance between complexity and feasibility given the parameter constraints.    |        |\n| Dataset              | Use `code_x_glue_cc_clone_detection_big_clone_bench` with 5000 train, 1000 val, 1000 test | Suitable for code generation tasks, providing a realistic scenario to test prompt decomposition methods. The dataset is on HuggingFace and can be easily loaded with a command. |        |\n| Baselines            | Static prompt decomposition, random prompt segmentation, heuristic-based decomposition | Comparing against existing methods allows us to assess improvements due to adaptive decomposition. Literature: Prominent in works on prompt engineering for LLMs.                            |        |\n| Training Setup       | Optimizer: Adam, Learning Rate: 0.001, Batch Size: 32, Epochs: 10, Hardware: GPU | Standard setup for training lightweight models efficiently, ensuring convergence within practical time limits.                                                                               |        |\n| Evaluation Metrics   | BLEU Score for language generation quality, Code Coherence Metric (CCM) for coherence | BLEU is widely used in language generation evaluation. CCM can be calculated based on structural and semantic coherence, crucial for assessing code quality.                                   |        |\n| Hyperparameters      | Hidden Units: 128, Learning Rate: 0.001, Batch Size: 32                                                            | Key hyperparameters that directly impact model training efficiency and effectiveness, selected based on prior studies on shallow networks.                                                    |        |\n| **Sanity Checks**    | Dataset limited to \u22645,000 train / \u22642,000 val/test; Model \u2264100k parameters; JSON contains no inline comments | Ensures feasibility by preventing excessive computational requirements and maintaining clarity in JSON format.                                                                                |        |",
+    "Feasibility": 7,
+    "Importance": "The research addresses a critical gap in the ability of LLMs like Codex and CodeBERT to generate coherent long-range code, which is vital for complex software development. As these models become more integrated into automated coding tools, their capacity to manage large and dynamic codebases coherently is in high demand. This study aligns with the trend toward autonomous coding solutions and the need for more intelligent prompt engineering strategies.",
+    "IntentAlignment": 9,
+    "Interestingness": 9,
+    "Name": "Adaptive Decomposition for LLM Code Generation",
+    "Novelty": 8,
+    "NoveltyComparison": "While models like OpenAI's Codex and Google's PaLM have advanced code comprehension and generation, they lack mechanisms for adaptive prompt decomposition. Existing static methods fail to account for the variable complexity of real coding environments, leading to suboptimal coherence in extensive code sequences. Our approach introduces a context-aware adaptive mechanism that adjusts prompt decomposition based on task structure and complexity in real-time, a capability not realized in prior work. By focusing on dynamic decomposition, our method prevents the coherence breakdown seen in existing models, offering a significant leap in maintaining code integrity over long sequences.",
+    "Problem": "Can an adaptive prompt decomposition technique improve the coherence of long-range code generation in large language models compared to existing static methods?",
+    "Score": 8,
+    "Title": "Adaptive Prompt Decomposition for Enhanced Coherence in Long-Range Code Generation by Large Language Models",
+    "is_experimental": true
+  },
+  "title": "Adaptive decomposition for llm code generation",
+  "id": "idea-1-2"
+}

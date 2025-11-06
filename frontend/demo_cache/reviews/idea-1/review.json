@@ -1,0 +1,34 @@
+{
+  "Summary": "The paper introduces an innovative method for enhancing coherence in long-range code generation by large language models through adaptive prompt decomposition. The approach involves dynamically segmenting prompts and incorporating a feedback loop for coherence evaluation. While it achieves perfect syntactic and semantic coherence, it struggles with functional correctness.",
+  "Strengths": [
+    "Addresses a key challenge in achieving coherence for long-range code generation.",
+    "Innovative approach using adaptive segmentation and feedback loops.",
+    "Demonstrates improvements in syntactic and semantic coherence."
+  ],
+  "Weaknesses": [
+    "Lacks a clear demonstration of improvements over existing techniques.",
+    "Functional correctness is not achieved, with a pass@1 metric of 0.0.",
+    "Does not integrate unit tests, which is a significant oversight.",
+    "Evaluation metrics are limited to syntactic and semantic coherence."
+  ],
+  "Originality": 3,
+  "Quality": 2,
+  "Clarity": 3,
+  "Significance": 2,
+  "Questions": [
+    "How does the proposed method compare quantitatively against existing methods?",
+    "What steps can be taken to address the functional correctness issue?",
+    "Why were unit tests not integrated into the evaluation process?"
+  ],
+  "Limitations": [
+    "The method struggles with functional correctness.",
+    "Lack of integration of unit tests for evaluating code functionality."
+  ],
+  "Ethical Concerns": false,
+  "Soundness": 2,
+  "Presentation": 3,
+  "Contribution": 2,
+  "Overall": 5,
+  "Confidence": 4,
+  "Decision": "Reject"
+}

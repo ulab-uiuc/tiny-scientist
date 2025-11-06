@@ -1,0 +1,17 @@
+Auto-generated experiment notes
+Updated: 2025-11-05T19:32:12.381403Z
+
+run_1:
+  - BLEU: 0.0
+  - ROUGE_L: 0.0
+  - Samples: 26
+
+run_2:
+  - BLEU: 0.0
+  - ROUGE_L: 0.0
+  - Samples: 26
+
+run_3:
+  - BLEU: 0.0
+  - ROUGE_L: 0.0
+  - Samples: 26
