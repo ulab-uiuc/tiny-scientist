@@ -13,7 +13,7 @@ import argparse
 import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from scripts import generate_demo_cache as demo_cache
 from scripts import review_demo_papers as review_cache
@@ -34,7 +34,9 @@ def parse_args() -> argparse.Namespace:
         help="Research intent to feed into the Thinker",
     )
     parser.add_argument(
-        "--model", default="gpt-5", help="Model name passed to /api/configure"
+        "--model",
+        default="claude-4-5-sonnet",
+        help="Model name passed to /api/configure",
     )
     parser.add_argument(
         "--api-key",
