@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 """
-Run the demo cache capture flow and immediately populate cached reviews.
+Run the demo cache capture flow.
 
-This script wraps the behaviour of `generate_demo_cache.py` followed by
-`review_demo_papers.py` so that a single command produces a fully populated
-`frontend/demo_cache` directory (ideas, code artefacts, papers, and reviews).
+This script wraps the behaviour of `generate_demo_cache.py` so that a single
+command produces a fully populated `frontend/demo_cache` directory (ideas,
+code artefacts, and papers).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from pathlib import Path
 from typing import Any, Dict, List
 
 from scripts import generate_demo_cache as demo_cache
-from scripts import review_demo_papers as review_cache
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate demo cache artefacts and populate cached reviews"
+        description="Generate demo cache artefacts"
     )
 
     # Generation phase parameters (mirrors generate_demo_cache.py)
@@ -35,7 +33,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default="claude-4-5-sonnet",
+        default="claude-sonnet-4-5",
         help="Model name passed to /api/configure",
     )
     parser.add_argument(
@@ -87,44 +85,10 @@ def parse_args() -> argparse.Namespace:
         default=1200,
         help="Request timeout (seconds) for generation calls (default: 1200)",
     )
-
-    # Review phase parameters (mirrors review_demo_papers.py)
-    parser.add_argument(
-        "--review-model",
-        default=None,
-        help="Optional override for review /api/configure model (defaults to --model)",
-    )
-    parser.add_argument(
-        "--review-api-key",
-        default=None,
-        help="Optional override for review /api/configure API key (defaults to --api-key)",
-    )
-    parser.add_argument(
-        "--review-budget",
-        type=float,
-        default=None,
-        help="Optional override for review budget (defaults to --budget)",
-    )
-    parser.add_argument(
-        "--review-budget-preference",
-        default=None,
-        help="Optional override for review budget preference (defaults to --budget-preference)",
-    )
-    parser.add_argument(
-        "--review-timeout",
-        type=int,
-        default=None,
-        help="Optional timeout (seconds) for review API calls (defaults to --timeout)",
-    )
     parser.add_argument(
         "--s2-api-key",
         default=None,
-        help="Optional Semantic Scholar API key forwarded to review requests",
-    )
-    parser.add_argument(
-        "--skip-review",
-        action="store_true",
-        help="Generate the demo cache but skip the review population step",
+        help="Optional Semantic Scholar API key for paper generation",
     )
 
     return parser.parse_args()
@@ -215,100 +179,11 @@ def run_generation(args: argparse.Namespace) -> demo_cache.CacheContext:
     return ctx
 
 
-def run_reviews(args: argparse.Namespace) -> None:
-    cache_root = Path(args.output_dir).resolve()
-    session_path = cache_root / "session.json"
-    papers_root = cache_root / "generated" / "papers"
-    reviews_root = cache_root / "reviews"
-    generated_root = Path(args.generated_root).resolve()
-    generated_papers_root = generated_root / "papers"
-
-    review_cache.ensure_dir(reviews_root)
-    session_payload = review_cache.load_session(session_path)
-
-    write_entries: List[Dict[str, Any]] = session_payload.get("write") or []
-    idea_meta: Dict[str, Dict[str, Any]] = {}
-    for entry in write_entries:
-        idea_data = entry.get("idea") or {}
-        idea_id = idea_data.get("id")
-        if not idea_id:
-            continue
-        idea_meta[idea_id] = {
-            "pdf_path": entry.get("pdf_path"),
-            "_cached_idea_index": entry.get("_cached_idea_index"),
-        }
-
-    paper_pairs = review_cache.discover_papers(papers_root)
-    if not paper_pairs:
-        raise RuntimeError(
-            f"No cached papers found under {papers_root}. "
-            "Ensure the generation phase produced papers."
-        )
-
-    http_session = review_cache.requests.Session()
-    review_cache.configure_backend(
-        http_session,
-        args.base_url,
-        model=args.review_model or args.model,
-        api_key=args.review_api_key or args.api_key,
-        budget=(args.review_budget if args.review_budget is not None else args.budget),
-        budget_preference=(args.review_budget_preference or args.budget_preference),
-        timeout=args.review_timeout or args.timeout,
-    )
-
-    review_entries: List[Dict[str, Any]] = []
-    for idea_id, pdf_file in paper_pairs:
-        relative_pdf_path = f"/api/files/papers/{idea_id}/{pdf_file.name}"
-        idea_info = idea_meta.get(idea_id, {})
-        idea_index = idea_info.get("_cached_idea_index")
-
-        print(f"[review] Reviewing {idea_id}: {relative_pdf_path}")
-
-        backend_paper_dir = generated_papers_root / idea_id
-        review_cache.ensure_dir(backend_paper_dir)
-        backend_pdf_path = backend_paper_dir / pdf_file.name
-        if not backend_pdf_path.exists():
-            shutil.copy2(pdf_file, backend_pdf_path)
-
-        review_response = review_cache.call_review(
-            args.base_url,
-            relative_pdf_path,
-            timeout=args.review_timeout or args.timeout,
-            s2_api_key=args.s2_api_key,
-            session=http_session,
-        )
-
-        review_payload: Dict[str, Any] = {
-            "pdf_path": relative_pdf_path,
-            "review": review_response.get("review"),
-            "success": review_response.get("success", True),
-            "message": review_response.get("message"),
-        }
-        if idea_index is not None:
-            review_payload["_cached_idea_index"] = idea_index
-
-        review_entries.append(review_payload)
-
-        idea_review_dir = reviews_root / idea_id
-        review_cache.ensure_dir(idea_review_dir)
-        with (idea_review_dir / "review.json").open("w", encoding="utf-8") as fh:
-            json.dump(review_response, fh, indent=2)
-            fh.write("\n")
-
-    session_payload["review"] = review_entries
-    review_cache.save_session(session_path, session_payload)
-    print(f"[review] Stored {len(review_entries)} review entries into {session_path}")
-
-
 def main() -> None:
     args = parse_args()
     ctx = run_generation(args)
-    if args.skip_review:
-        print("[full-cache] Skipping review population as requested.")
-        return
-    run_reviews(args)
     print(
-        f"[full-cache] Completed generation and review for {len(ctx.ideas)} ideas under {args.output_dir}"
+        f"[full-cache] Completed generation for {len(ctx.ideas)} ideas under {args.output_dir}"
     )
 
 
