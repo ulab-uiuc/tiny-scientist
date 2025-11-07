@@ -7,6 +7,7 @@ MODEL_PRICING = {
     "gpt-3.5-turbo": (0.5, 1.5),
     "gpt-4o-mini": (0.15, 0.6),
     "gpt-4o": (2.5, 10),
+    "gpt-5": (1.25, 10),
     "o1-preview": (15, 60),
     "o1-mini": (1.1, 4.4),
     "o1": (15, 60),
@@ -23,6 +24,8 @@ MODEL_PRICING = {
     "claude-3-haiku": (0.25, 1.25),
     "claude-3-opus-v1": (15, 75),
     "claude-3-opus": (15, 75),
+    "claude-sonnet-4-5": (3, 15),
+    "claude-4-5-sonnet": (3, 15),
     # DeepSeek models
     "deepseek-chat": (0.07, 0.27),
     "deepseek-reasoner": (0.14, 0.55),
@@ -36,12 +39,23 @@ def calculate_pricing(model: str, input_tokens: int, output_tokens: int) -> floa
     # Check if the model exists
     if model not in MODEL_PRICING:
         found_match = False
-        for m in MODEL_PRICING:
-            if model.startswith(m):
-                model = m
-                found_match = True
-                break
-
+        
+        # Handle special cases for claude model name variations
+        if model == "claude-4-5-sonnet" or model == "claude-sonnet-4-5":
+            # Both variations are in MODEL_PRICING, use the one that exists
+            if "claude-4-5-sonnet" in MODEL_PRICING:
+                model = "claude-4-5-sonnet"
+            elif "claude-sonnet-4-5" in MODEL_PRICING:
+                model = "claude-sonnet-4-5"
+            found_match = True
+        else:
+            # Try prefix matching
+            for m in MODEL_PRICING:
+                if model.startswith(m) or m.startswith(model):
+                    model = m
+                    found_match = True
+                    break
+        
         if not found_match:
             raise ValueError(f"Pricing for '{model}' is not found.")
 

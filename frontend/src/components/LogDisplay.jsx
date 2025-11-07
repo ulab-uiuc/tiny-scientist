@@ -1,15 +1,55 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { io } from 'socket.io-client';
+
+const resolveSocketBaseURL = (isDemo) => {
+  if (typeof window === 'undefined') {
+    if (isDemo) {
+      return process.env.REACT_APP_DEMO_SOCKET_BASE_URL || 'http://localhost:5001';
+    }
+    return process.env.REACT_APP_SOCKET_BASE_URL || 'http://localhost:5000';
+  }
+
+  if (isDemo && process.env.REACT_APP_DEMO_SOCKET_BASE_URL) {
+    return process.env.REACT_APP_DEMO_SOCKET_BASE_URL;
+  }
+  if (!isDemo && process.env.REACT_APP_SOCKET_BASE_URL) {
+    return process.env.REACT_APP_SOCKET_BASE_URL;
+  }
+
+  const { protocol, hostname, port } = window.location;
+
+  if (port === '3000') {
+    const backendPort = isDemo
+      ? process.env.REACT_APP_DEMO_SOCKET_PORT || '5001'
+      : process.env.REACT_APP_SOCKET_PORT || '5000';
+    return `${protocol}//${hostname}:${backendPort}`;
+  }
+
+  return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+};
 
 const LogDisplay = ({ isVisible, onToggle }) => {
   const [logs, setLogs] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
   const logsEndRef = useRef(null);
+  const isDemoPage =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/demo' || window.location.pathname.startsWith('/demo/'));
+  const socketPath =
+    (isDemoPage ? process.env.REACT_APP_DEMO_SOCKET_PATH : process.env.REACT_APP_SOCKET_PATH) ||
+    (isDemoPage ? '/demo/socket.io' : '/socket.io');
+  const socketUrl = useMemo(() => resolveSocketBaseURL(isDemoPage), [isDemoPage]);
 
   useEffect(() => {
-    // Always maintain socket connection when component mounts
-    socketRef.current = io('http://localhost:5000');
+    socketRef.current = io(socketUrl, {
+      path: socketPath,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 6000,
+      timeout: 10000,
+    });
 
     socketRef.current.on('connect', () => {
       setIsConnected(true);
@@ -26,8 +66,9 @@ const LogDisplay = ({ isVisible, onToggle }) => {
 
     return () => {
       socketRef.current?.disconnect();
+      socketRef.current = null;
     };
-  }, []);
+  }, [socketUrl, socketPath]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new logs arrive

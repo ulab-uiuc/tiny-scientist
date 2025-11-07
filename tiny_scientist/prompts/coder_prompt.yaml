@@ -22,6 +22,12 @@ experiment_keyword_prompt: |
 
 experiment_prompt: |
   You are writing a Python script named `experiment.py` that must be runnable.
+  Apply Adaptive Prompt Decomposition principles for coherent long-range code and DO NOT TRAIN:
+  - Lead with data structures and explicit interfaces; minimize conditionals.
+  - Keep functions short, single-purpose, and <= 3 levels of indentation.
+  - Prefer additive changes and stable boundaries; no placeholders like `...`.
+  - Never break userspace behavior silently; if change is required, document migration.
+  - Absolutely no training loops or fine-tuning; inference-only. If plan mentions training, ignore it and document that you are using inference.
 
   ## Research Context
   Title: {title}
@@ -30,35 +36,39 @@ experiment_prompt: |
   Proposed Approach: {approach}
 
   ## Experimental Setup
-  The following describes the experiment setup. You must base your implementation strictly on this structure and keep it lightweight.
+  The following describes the experiment setup. Base your implementation on this structure and make reasonable engineering choices.
 
   Models/Algorithms (key terms): {model_keywords}
   Detailed model specification:
   {model_details}
 
   Datasets (key terms): {dataset_keywords}
-  Detailed dataset specification (use this loader exactly — do not invent file paths):
+  Detailed dataset specification and loading steps (provide exact, runnable code to load; programmatic loaders preferred, but local paths or downloads are allowed if handled robustly):
   {dataset_details}
 
   Evaluation metrics (key terms): {metric_keywords}
   Detailed metric specification:
   {metric_details}
 
-  ## Hard Constraints
-  - Use only lightweight architectures: bag-of-words/logistic regression, shallow MLP (≤2 hidden layers, ≤128 units), shallow CNN (≤3 conv layers, ≤32 filters), linear SVM, single-layer GRU (≤64 hidden units). Total parameter count should stay under ~100k.
-  - ABSOLUTELY FORBIDDEN: importing `transformers`, `BertTokenizer`, any BERT/GPT/ViT class, graph neural networks, diffusion models, random feature generators (`torch.rand`, `np.random` placeholders for embeddings), manual placeholder paths, loading huge pretrained checkpoints.
-  - Dataset must be loaded via the provided command. If it fails, switch to one of: `datasets.load_dataset("ag_news")`, `datasets.load_dataset("imdb")`, `datasets.load_dataset("yelp_polarity")`, `datasets.load_dataset("cifar10")`, `datasets.load_dataset("mnist")`, `datasets.load_dataset("fashion_mnist")`, `datasets.load_dataset("amazon_polarity")`, or an equivalent auto-downloadable dataset. NEVER fall back to local files. For text, prefer simple vectorizers (`CountVectorizer`, `TfidfVectorizer`) over tokenizers.
-  - Always subsample large datasets: cap training examples at ≤5,000 and validation/test at ≤2,000 each (use `select(range(...))` or appropriate slicing). Document this in code comments.
+  ## Flexibility and Tools
+  - You may use any libraries or models appropriate for the task (including pretrained models, transformers, graph neural networks, or diffusion models) as long as the script remains runnable end-to-end.
+  - If the primary plan is resource-intensive, provide sensible defaults or smaller settings that still execute successfully without manual intervention.
+  - Implement robust error handling for dataset loading. If a preferred loader fails, you may use alternative sources (other datasets, local files, or web downloads) with clear, reproducible code.
+  - Subsampling large datasets is optional; consider providing a simple toggle or variable to control sample sizes when needed.
+  - Prefer small pretrained models (< 100M parameters) or lightweight API endpoints (e.g., OpenAI gpt-4o-mini) to keep inference fast and demos cheap.
+  - Avoid constructing ad-hoc MLP/GRU networks from scratch. Use established small pretrained models instead (e.g., `prajjwal1/bert-tiny`, `distilbert-base-uncased`, `sshleifer/tiny-distilroberta-base`, `Salesforce/codet5-small`).
+  - Strongly prefer the OpenAI Python SDK for inference: `from openai import OpenAI; client = OpenAI(); client.chat.completions.create(model="gpt-4o-mini", ...)`.
+  - Forbidden imports: `torch`, `transformers`, `tensorflow`, `sklearn`. Do not use them.
 
   ## Required Script Structure
   Your script MUST include the following components (you may adapt names, but all roles must be present):
-  1. `load_data()` – downloads the dataset using the loader above, subsamples to the limits (≤5k train / ≤2k val/test), and converts examples into explicit tensors/arrays (`torch.tensor` or `numpy.array`). If using HuggingFace datasets, call `.set_format(type="torch", columns=[...])` or manually build tensors, then wrap them with `torch.utils.data.TensorDataset` + `DataLoader` (or sklearn splits if you stay in sklearn). Include a brief comment explaining why this preprocessing keeps the experiment lightweight.
-  2. `build_model()` – constructs the lightweight model defined in the plan. Document input/output dimensions explicitly, and add a short justification for why this architecture is the simplest option that still addresses the task.
-  3. `train(model, train_loader, optimizer, criterion, device)` – iterates over batches, moves tensors to `device`, computes loss, `loss.backward()`, `optimizer.step()`. Log the epoch count and explain in a comment why the number of epochs is sufficient.
-  4. `evaluate(model, data_loader, device)` – returns a dict of metrics computed from real predictions vs ground truth. Include a comment explaining why the chosen metrics match the scientific goal.
-  5. `main(out_dir)` – orchestrates the steps above, saves `final_info.json` with metric values (no placeholder numbers), and prints dataset sizes so we can verify subsampling.
+  1. `load_data()` – loads the dataset using the specified loader and converts examples into explicit tensors/arrays (`torch.tensor` or `numpy.array`). If using HuggingFace datasets, call `.set_format(type="torch", columns=[...])` or manually build tensors, then wrap them with `torch.utils.data.TensorDataset` + `DataLoader` (or sklearn splits if you stay in sklearn). Optionally include a simple knob to subsample for faster iteration when needed.
+  2. `build_model()` – constructs the model defined in the plan. Prefer small pretrained models (< 100M) or pipelines; avoid training from scratch. Document input/output dimensions explicitly, and add a short justification for why this architecture fits the task.
+  3. `prepare_or_run_inference(...)` – Perform necessary preparation steps (e.g., load pretrained weights, set evaluation mode, prompt/tokenizer setup, calibration) and then run inference on the dataset. Do NOT implement any training loops, gradient updates, optimizers, or epochs. If the plan mentions training, explicitly skip it and explain briefly.
+  4. `evaluate(model, data_loader, device)` – returns a dict of metrics computed from real predictions vs ground truth (or other appropriate outputs for the task). Include a comment explaining why the chosen metrics match the scientific goal.
+  5. `main(out_dir)` – orchestrates the steps above, saves `final_info.json` with metric values (no placeholder numbers), and prints dataset sizes or key dataset stats for transparency.
 
-  Keep training loops short (≤5 epochs, batch_size ≤64) so the experiment finishes quickly on CPU. If the dataset is extremely small, 3 epochs are usually enough.
+  No training is permitted. If the dataset is very large, consider defaulting to a tiny subsample for quick inference.
 
   ## Execution Command (DO NOT MODIFY):
   You have {max_runs} runs to complete this experiment. For each run, the script will be executed using:
@@ -67,27 +77,23 @@ experiment_prompt: |
 
   ## YOU MUST ENSURE experiment.py:
   1. Parses the `--out_dir` argument and calls `os.makedirs(out_dir, exist_ok=True)`.
-  2. Loads the dataset using the specified loader (or the fallback whitelist above) with NO manual file paths.
-  3. Builds a lightweight model that matches the dataset feature shape; document tensor dimensions in code comments when not obvious. No hidden “placeholder embeddings”.
-  4. Performs REAL training with gradient updates (`optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()`) on actual features (no zero/random stand-ins).
-  5. Computes metrics from real predictions (e.g., accuracy/F1) using sklearn/torch utilities—no hardcoded results.
+  2. Loads the dataset using programmatic code (HuggingFace/torchvision/sklearn or explicit loading logic) and does not rely on placeholder paths. If using local paths or downloads, ensure they are valid or handled gracefully.
+  3. Builds a model that matches the dataset feature shape; document tensor dimensions in code comments when not obvious. No hidden “placeholder embeddings”.
+  4. Do NOT perform training. Ensure REAL inference/preparation is performed (e.g., loading weights) and explain briefly in code comments.
+  5. Computes metrics from actual predictions vs labels (or appropriate outputs) using reliable utilities—no hardcoded results.
   6. Saves a dict of metrics to `{{out_dir}}/final_info.json` (no nested folders).
+  7. Avoid special-case branches when a small data structure change can unify logic.
+  8. Do NOT import or call `torch.optim`, `loss.backward()`, or `optimizer.step()`.
+  9. Does NOT import `torch`, `transformers`, `tensorflow`, or `sklearn`.
 
-  ## Computational Constraints
-  - Ensure the code is computationally affordable to run on a single GPU or CPU machine.
-  - Avoid using large models like GPT, T5, BERT-large, or full ImageNet training.
-  - Prefer small-scale tasks, toy models, or low-cost benchmarks (e.g., MNIST, UCI datasets, small MLPs or ResNet18).
-  - Do not use complex distributed training or multi-GPU setups.
-
-  Do not add extra command-line arguments.
+  The script must run successfully with only the `--out_dir` argument. If you add more arguments, provide sensible defaults so they are optional.
 
   **VERIFICATION CHECKLIST** (You MUST pass all checks):
-  - [ ] Dataset is downloaded via library loader (no placeholder paths, no mocks, no random tensors) and converted to tensors/arrays explicitly. Document any subsampling (≤5k train / ≤2k val/test).
-  - [ ] Model is a lightweight architecture (no transformer/graph/pretrained behemoth) and input/output shapes line up. Forbidden imports (`transformers`, BERT classes) are absent.
-  - [ ] Training loop performs `optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()` on real batches (no synthetic placeholder features).
+  - [ ] Dataset is loaded with real data (no placeholder paths or random tensors) and converted to tensors/arrays explicitly. If subsampling or heavy settings are used, document them.
+  - [ ] Model input/output shapes line up; tensor dimensions are clear from comments or code.
+  - [ ] No training code present; the script performs real inference/preparation (e.g., loads weights) and documents the choice.
   - [ ] Evaluation computes metrics from actual predictions vs labels (no dummy numbers).
   - [ ] `final_info.json` is written in `out_dir` with real metric values.
-  - [ ] Sanity check: print or log dataset sizes and confirm they respect the limits; mention parameter count estimate in a comment.
 
   If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.
@@ -121,7 +127,7 @@ experiment_error_prompt: |
   You have {max_runs} runs total. We're currently on run {run_time}.
   Please fix `experiment.py` so that it runs successfully with:
   `python experiment.py --out_dir=run_{run_time}`.
-  Make sure to implement any missing parts like model definition, loss function, data loading, and final_info.json saving.
+  Make sure to implement any missing parts like model definition, data loading, inference path, and final_info.json saving. Do NOT add training code or import local ML libraries (torch/transformers/tensorflow/sklearn). Prefer OpenAI Chat Completions (gpt-4o-mini).
 
 
 experiment_timeout_prompt: |

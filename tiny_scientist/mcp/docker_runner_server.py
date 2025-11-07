@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import os
 import shutil
 import sys
@@ -21,6 +22,29 @@ PACKAGE_ROOT = Path(tiny_scientist.__file__).resolve().parent
 CONFIG_PATH = PACKAGE_ROOT / "config.toml"
 config = toml.load(CONFIG_PATH) if CONFIG_PATH.exists() else {"core": {}}
 
+DEFAULT_BASE_PACKAGES = [
+    "torch",
+    "datasets",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    "tqdm",
+    "requests",
+    "pillow",
+]
+
+
+def _resolve_configured_packages() -> List[str]:
+    docker_cfg = config.get("docker") if isinstance(config, dict) else None
+    configured = None
+    if isinstance(docker_cfg, dict):
+        configured = docker_cfg.get("base_packages")
+    if isinstance(configured, list) and all(isinstance(pkg, str) for pkg in configured):
+        return configured
+    return DEFAULT_BASE_PACKAGES.copy()
+
 
 class DockerExperimentRunner:
     def __init__(
@@ -32,6 +56,16 @@ class DockerExperimentRunner:
         self.docker_base = docker_base
         self.docker_client = None
         self.use_docker = False
+        self.base_packages = _resolve_configured_packages()
+        self._base_package_set: Set[str] = set(self.base_packages)
+        self._base_fingerprint = self._compute_base_fingerprint()
+        last_colon = self.docker_image.rfind(":")
+        last_slash = self.docker_image.rfind("/")
+        if last_colon > last_slash:
+            self._base_image_repo = self.docker_image[:last_colon]
+        else:
+            self._base_image_repo = self.docker_image
+        self.base_image_tag = f"{self._base_image_repo}:{self._base_fingerprint}"
 
         # Initialize Docker client
         try:
@@ -49,24 +83,7 @@ class DockerExperimentRunner:
     ) -> List[str]:
         """Detect required packages from import statements in a Python file."""
         if base_packages is None:
-            base_packages = set(
-                [
-                    "numpy",
-                    "pandas",
-                    "scikit-learn",
-                    "matplotlib",
-                    "seaborn",
-                    "torch",
-                    "tensorflow",
-                    "transformers",
-                    "datasets",
-                    "evaluate",
-                    "wandb",
-                    "tqdm",
-                    "requests",
-                    "pillow",
-                ]
-            )
+            base_packages = set(DEFAULT_BASE_PACKAGES)
 
         # Common package name mappings (import_name -> pip_package_name)
         package_mapping = {
@@ -294,21 +311,22 @@ class DockerExperimentRunner:
             return None
         if self.docker_client is not None:
             try:
-                self.docker_client.images.get(self.docker_image)
-                print(f"[Docker] Using existing image: {self.docker_image}")
+                self.docker_client.images.get(self.base_image_tag)
+                print(f"[Docker] Using existing image: {self.base_image_tag}")
             except ImageNotFound:
-                print(f"[Docker] Building image: {self.docker_image}")
-                dockerfile = f"""
-FROM {self.docker_base}
-RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torch tensorflow transformers datasets evaluate wandb tqdm requests pillow
-"""
+                print(f"[Docker] Building image: {self.base_image_tag}")
+                dockerfile_lines = [f"FROM {self.docker_base}"]
+                if self.base_packages:
+                    joined = " ".join(sorted(self.base_packages))
+                    dockerfile_lines.append(f"RUN pip install --no-cache-dir {joined}")
+                dockerfile = "\n".join(dockerfile_lines) + "\n"
                 with tempfile.TemporaryDirectory() as tmpdir:
                     with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
                         f.write(dockerfile)
                     self.docker_client.images.build(
-                        path=tmpdir, tag=self.docker_image, rm=True
+                        path=tmpdir, tag=self.base_image_tag, rm=True
                     )
-            return self.docker_image
+            return self.base_image_tag
         return None
 
     def get_or_build_experiment_image(self, experiment_py_path: str) -> Optional[str]:
@@ -316,9 +334,16 @@ RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn torc
         if not self.use_docker:
             return None
         base_image = self.get_or_build_base_image()
-        extra_pkgs = self.detect_required_packages(experiment_py_path)
+        extra_pkgs = self.detect_required_packages(
+            experiment_py_path, base_packages=self._base_package_set
+        )
         if extra_pkgs:
-            image_name = f"tiny-scientist-exp-{hash(tuple(extra_pkgs))}"
+            extras_fingerprint = hashlib.sha256(
+                "|".join(sorted(extra_pkgs)).encode("utf-8")
+            ).hexdigest()[:12]
+            image_name = (
+                f"tiny-scientist-exp-{self._base_fingerprint}-{extras_fingerprint}"
+            )
             if self.docker_client is not None:
                 try:
                     self.docker_client.images.get(image_name)
@@ -362,6 +387,11 @@ COPY experiment.py .
         else:
             return base_image
 
+    def _compute_base_fingerprint(self) -> str:
+        """Fingerprint the base image definition so cache invalidation is automatic."""
+        normalized = "\n".join([self.docker_base] + sorted(self.base_packages))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+
     def run_experiment_in_docker(
         self, experiment_code: str, run_num: int, output_dir: str, timeout: int = 7200
     ) -> Optional[Tuple[int, str]]:
@@ -385,6 +415,10 @@ COPY experiment.py .
             try:
                 # Create container without auto-removal
                 if self.docker_client is not None:
+                    env_vars = {
+                        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
+                        "OPENAI_API_BASE": os.environ.get("OPENAI_API_BASE", ""),
+                    }
                     container = self.docker_client.containers.run(
                         image=image_name,
                         command=f"python experiment.py --out_dir=run_{run_num}",
@@ -392,6 +426,7 @@ COPY experiment.py .
                             temp_dir: {"bind": "/experiment", "mode": "rw"},
                             output_dir: {"bind": "/experiment/output", "mode": "rw"},
                         },
+                        environment={k: v for k, v in env_vars.items() if v},
                         working_dir="/experiment",
                         detach=True,
                         remove=False,  # Don't auto-remove
@@ -480,6 +515,10 @@ RUN pip install --no-cache-dir -r requirements.txt
                                         )
 
                                         # Run with retry image
+                                        retry_env = {
+                                            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
+                                            "OPENAI_API_BASE": os.environ.get("OPENAI_API_BASE", ""),
+                                        }
                                         retry_container = self.docker_client.containers.run(
                                             image=retry_image_name,
                                             command=f"python experiment.py --out_dir=run_{run_num}",
@@ -493,6 +532,7 @@ RUN pip install --no-cache-dir -r requirements.txt
                                                     "mode": "rw",
                                                 },
                                             },
+                                            environment={k: v for k, v in retry_env.items() if v},
                                             working_dir="/experiment",
                                             detach=True,
                                             remove=False,  # Don't auto-remove
