@@ -25,7 +25,8 @@ MAX_NUM_TOKENS = 4096
 
 AVAILABLE_LLMS = [
     # Anthropic models
-    "claude-4-5-sonnet",
+    "claude-haiku-4-5",
+    "claude-sonnet-4-5",
     "claude-3-5-sonnet-20240620",
     "claude-3-5-sonnet-20241022",
     # OpenAI models

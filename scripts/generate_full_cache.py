@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        default="claude-4-5-sonnet",
+        default="claude-haiku-4-5",
         help="Model name passed to /api/configure",
     )
     parser.add_argument(
