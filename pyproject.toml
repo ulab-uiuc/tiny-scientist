@@ -22,7 +22,7 @@ pypdf = "^5.3.1"
 anthropic = "*"
 google-generativeai = "*"
 openai = "*"
-aider-chat = "*"
+smolagents = { version = "*", extras = ["litellm"] }
 toml = "*"
 spacy = "^3.0.0"
 reportlab = "*"
@@ -34,8 +34,11 @@ flask = "^3.0.0"
 flask-cors = ">=4,<7"
 flask-socketio = "^5.5.1"
 docker = "^7.1.0"
-fastmcp = "*"
-mcp = "*"
+fastmcp = { version = "*", optional = true }
+mcp = { version = "*", optional = true }
+
+[tool.poetry.extras]
+mcp = ["fastmcp", "mcp"]
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

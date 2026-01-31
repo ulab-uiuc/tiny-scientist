@@ -5,7 +5,7 @@ from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
-from .tool import BaseTool, PaperSearchTool
+from .smolagents_tools import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.input_formatter import InputFormatter
 from .utils.llm import (
@@ -20,7 +20,7 @@ class Reviewer:
     def __init__(
         self,
         model: str,
-        tools: List[BaseTool],
+        tools: List[Any],
         num_reviews: int = 3,
         num_reflections: int = 2,
         temperature: float = 0.75,
@@ -36,7 +36,7 @@ class Reviewer:
         self.client, self.model = create_client(model)
         self.temperature = temperature
         self.config = Config(prompt_template_dir)
-        self.searcher: BaseTool = PaperSearchTool(
+        self.searcher: PaperSearchTool = PaperSearchTool(
             s2_api_key=s2_api_key, engine="semanticscholar"
         )
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}

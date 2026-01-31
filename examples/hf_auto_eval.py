@@ -6,7 +6,7 @@ from tiny_scientist import TinyScientist
 def test_docker_availability() -> bool:
     """Test if Docker is available."""
     try:
-        from tiny_scientist.tool import DockerExperimentRunner
+        from tiny_scientist.smolagents_tools import DockerExperimentRunner
 
         runner = DockerExperimentRunner()
         if runner.use_docker:

@@ -8,7 +8,7 @@ from rich import print
 from .budget_checker import BudgetChecker
 from .configs import Config
 from .safety_checker import SafetyChecker
-from .tool import PaperSearchTool
+from .smolagents_tools import PaperSearchTool
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import (
     create_client,

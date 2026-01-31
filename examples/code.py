@@ -13,7 +13,8 @@ from tiny_scientist.coder import Coder
 def test_docker_availability() -> bool:
     """Test if Docker is available."""
     try:
-        from tiny_scientist.tool import DockerExperimentRunner
+        from tiny_scientist.smolagents_tools import DockerExperimentRunner
+
         runner = DockerExperimentRunner()
         if runner.use_docker:
             print("✅ Docker is available and will be used")
@@ -36,8 +37,8 @@ def create_sample_idea() -> Dict[str, Any]:
         "Experiment": {
             "Model": "Neural Network",
             "Dataset": "MNIST",
-            "Metric": "Accuracy and Convergence Speed"
-        }
+            "Metric": "Accuracy and Convergence Speed",
+        },
     }
 
 
@@ -120,22 +121,22 @@ def main() -> None:
         "--prompt_template_dir", type=str, default="./configs", help="Config directory"
     )
     parser.add_argument(
-        "--use_docker", 
-        action="store_true", 
+        "--use_docker",
+        action="store_true",
         default=True,
-        help="Use Docker for experiment execution (default: True)"
+        help="Use Docker for experiment execution (default: True)",
     )
     parser.add_argument(
-        "--auto_install", 
-        action="store_true", 
+        "--auto_install",
+        action="store_true",
         default=True,
-        help="Auto-install missing packages in local mode (default: True)"
+        help="Auto-install missing packages in local mode (default: True)",
     )
     args = parser.parse_args()
 
     # Test Docker availability
     docker_available = test_docker_availability()
-    
+
     # Set up the experiment directory
     setup_experiment_directory(args.output_dir)
 
@@ -155,7 +156,7 @@ def main() -> None:
         prompt_template_dir=args.prompt_template_dir,
         use_docker=args.use_docker,
         auto_install=args.auto_install,
-        cost_tracker=BudgetChecker()
+        cost_tracker=BudgetChecker(),
     )
 
     # Create a sample idea and baseline results
@@ -172,21 +173,22 @@ def main() -> None:
         if success:
             print("\n✅ Experiment completed successfully!")
             print(f"📁 Results saved to: {output_path}")
-            
+
             # Check the results
             import json
+
             results_file = os.path.join(output_path, "experiment_results.txt")
             if os.path.exists(results_file):
-                with open(results_file, 'r') as f:
+                with open(results_file, "r") as f:
                     results = json.load(f)
                 print(f"📊 Experiment results: {results}")
         else:
             print(f"\n❌ Experiment failed: {error}")
             print("Check the logs for more information.")
-            
+
     except Exception as e:
         print(f"\n💥 Error during experiment: {e}")
-        
+
     finally:
         # Clean up Docker images if Docker was used
         if args.use_docker and docker_available:

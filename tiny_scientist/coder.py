@@ -8,14 +8,18 @@ import time
 from subprocess import TimeoutExpired
 from typing import Any, Dict, List, Optional, Tuple
 
-from aider.coders import Coder as AiderCoder
-from aider.io import InputOutput
-from aider.models import Model
 from rich import print
+from smolagents import CodeAgent
 
 from .budget_checker import BudgetChecker
 from .configs import Config
-from .tool import DockerExperimentRunner
+from .smolagents_model import create_smolagents_model
+from .smolagents_tools import (
+    DockerExperimentRunner,
+    ReadFileTool,
+    RunExperimentTool,
+    WriteFileTool,
+)
 from .utils.llm import create_client, get_response_from_llm
 
 
@@ -33,7 +37,7 @@ class Coder:
         cost_tracker: Optional[BudgetChecker] = None,
         use_docker: bool = True,
     ) -> None:
-        """Initialize the ExperimentCoder with configuration and Aider setup."""
+        """Initialize the ExperimentCoder with configuration and smolagents setup."""
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
@@ -54,36 +58,60 @@ class Coder:
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
 
-    def setup_aider(
-        self, model: str, fnames: List[str], chat_history: Optional[str] = None
-    ) -> None:
-        """Setup Aider coder with the specified model."""
+        # smolagents agent (initialized in setup_agent)
+        self.agent: Optional[CodeAgent] = None
+
+    def setup_agent(self) -> None:
+        """Setup smolagents CodeAgent with tools for code generation."""
         # Ensure the output directory exists
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Set environment variables to make Aider non-interactive
-        os.environ["AIDER_YES"] = "1"
-        os.environ["AIDER_QUIET"] = "1"
+        # Create smolagents model
+        smolagents_model = create_smolagents_model(self.model)
 
-        # Try to make Aider completely non-interactive
-        io = InputOutput(yes=True, input_history_file=None, chat_history_file=None)
+        # Create tools for the agent
+        tools = [
+            WriteFileTool(self.output_dir),
+            ReadFileTool(self.output_dir),
+            RunExperimentTool(self.output_dir, self.docker_runner),
+        ]
 
-        if model == "deepseek-coder-v2-0724":
-            main_model = Model("deepseek/deepseek-coder")
-        elif model == "deepseek-chat":
-            main_model = Model("deepseek/deepseek-chat")
-        elif model == "llama3.1-405b":
-            main_model = Model("openrouter/meta-llama/llama-3.1-405b-instruct")
-        else:
-            main_model = Model(model)
-
-        self.coder = AiderCoder.create(
-            main_model=main_model,
-            fnames=fnames,  # Will be set per operation
-            io=io,
-            stream=False,
-            use_git=False,
-            edit_format="diff",
+        # Create CodeAgent
+        self.agent = CodeAgent(
+            tools=tools,
+            model=smolagents_model,
+            max_steps=self.max_iters * 3,
+            additional_authorized_imports=[
+                "numpy",
+                "pandas",
+                "torch",
+                "tensorflow",
+                "sklearn",
+                "matplotlib",
+                "seaborn",
+                "scipy",
+                "json",
+                "os",
+                "sys",
+                "argparse",
+                "time",
+                "datetime",
+                "random",
+                "math",
+                "collections",
+                "itertools",
+                "functools",
+                "pathlib",
+                "typing",
+                "re",
+                "pickle",
+                "csv",
+                "transformers",
+                "datasets",
+                "evaluate",
+                "tqdm",
+                "requests",
+            ],
         )
 
     def run(
@@ -91,12 +119,9 @@ class Coder:
     ) -> Tuple[bool, str, Optional[str]]:
         # Ensure a clean slate for every run
         os.makedirs(self.output_dir, exist_ok=True)
-        fnames = [
-            osp.join(self.output_dir, "experiment.py"),
-            osp.join(self.output_dir, "notes.txt"),
-        ]
 
-        self.setup_aider(self.model, fnames)
+        # Setup the smolagents agent
+        self.setup_agent()
 
         # Run experiments
         success = self._run_experiment_loop(idea, baseline_results)
@@ -229,19 +254,20 @@ class Coder:
                 return False
 
             try:
-                # Try to use a non-interactive approach first
-                coder_out = self._run_non_interactive_aider(next_prompt)
+                # Use smolagents agent to generate experiment code
+                agent_out = self._generate_experiment(next_prompt)
             except Exception as e:
-                print(f"[System] Non-interactive Aider failed: {e}")
+                print(f"[System] Agent failed: {e}")
+                # If agent fails, try direct LLM approach
                 try:
-                    coder_out = self.coder.run(next_prompt)
+                    agent_out = self._run_direct_llm(next_prompt)
                 except Exception as e2:
-                    print(f"[System] Interactive Aider also failed: {e2}")
-                    # If Aider fails, try to continue with what we have
-                    coder_out = "CONTINUE"
+                    print(f"[System] Direct LLM also failed: {e2}")
+                    agent_out = "CONTINUE"
+
             exp_path = osp.join(self.output_dir, "experiment.py")
 
-            if "ALL_COMPLETED" in coder_out:
+            if "ALL_COMPLETED" in agent_out:
                 return True
 
             if osp.exists(exp_path):
@@ -250,7 +276,7 @@ class Coder:
                     if "..." in content:
                         print("[System] Placeholder '...' detected. Attempting fix.")
                         try:
-                            self._run_non_interactive_aider(
+                            self._run_direct_llm(
                                 "Please replace all placeholders (`...`) in experiment.py with complete runnable code."
                             )
                         except Exception as e:
@@ -263,7 +289,7 @@ class Coder:
                 current_iter = 0
                 next_prompt = message
             else:
-                print("[System] Experiment run failed. Attempting fix with Aider...")
+                print("[System] Experiment run failed. Attempting fix...")
                 try:
                     next_prompt = self.prompts.experiment_error_prompt.format(
                         message=message,
@@ -272,15 +298,86 @@ class Coder:
                         run_time=run_time,
                         max_runs=self.max_runs,
                     )
-                    # Try to run non-interactive Aider to fix the issue
-                    self._run_non_interactive_aider(next_prompt)
+                    # Try to fix the issue
+                    self._run_direct_llm(next_prompt)
                 except Exception as e:
-                    print(f"[System] Non-interactive Aider fix attempt failed: {e}")
-                    # If Aider fails, just continue to next iteration
+                    print(f"[System] Fix attempt failed: {e}")
 
                 current_iter += 1
 
         return current_iter < self.max_iters
+
+    def _generate_experiment(self, prompt: str) -> str:
+        """Use smolagents CodeAgent to generate experiment code."""
+        if self.agent is None:
+            raise RuntimeError("Agent not initialized. Call setup_agent() first.")
+
+        # Build a task prompt for the agent
+        task_prompt = f"""
+You are an expert Python code generator for machine learning experiments.
+Your task is to generate COMPLETE, RUNNABLE Python code for an experiment.
+
+IMPORTANT REQUIREMENTS:
+1. Generate REAL code with actual data loading, model training, and evaluation
+2. NEVER use random numbers, dummy data, or hardcoded results
+3. All metrics must come from actual model execution
+4. The code must be self-contained and runnable
+5. Save results to a JSON file using argparse --out_dir argument
+
+TASK:
+{prompt}
+
+Use the available tools to:
+1. Write the experiment.py file with complete, working code
+2. The code should accept --out_dir argument and save final_info.json with results
+
+After writing the code, respond with "CONTINUE" to proceed with running the experiment.
+"""
+
+        try:
+            result = self.agent.run(task_prompt)
+            return str(result) if result else "CONTINUE"
+        except Exception as e:
+            print(f"[System] Agent run failed: {e}")
+            # Fall back to direct LLM
+            return self._run_direct_llm(prompt)
+
+    def _run_direct_llm(self, prompt: str) -> str:
+        """Run direct LLM call to generate experiment code (fallback method)."""
+        exp_path = osp.join(self.output_dir, "experiment.py")
+        current_content = ""
+        if osp.exists(exp_path):
+            with open(exp_path, "r") as f:
+                current_content = f.read()
+
+        full_prompt = f"""
+{prompt}
+
+Please provide the complete content for experiment.py. If the file already exists, please provide the corrected/improved version.
+
+Current file content:
+{current_content}
+
+Please respond with the complete file content only, no explanations or markdown formatting.
+"""
+
+        response, _ = get_response_from_llm(
+            msg=full_prompt,
+            client=self.client,
+            model=self.model,
+            system_message="You are an expert Python code generator for machine learning experiments. Generate COMPLETE, RUNNABLE code with REAL data loading, model training, and evaluation. NEVER use random numbers, dummy data, or hardcoded results. All metrics must come from actual model execution. Provide only the complete Python code without any markdown formatting or explanations.",
+            cost_tracker=self.cost_tracker,
+            task_name="direct_llm_experiment",
+        )
+
+        # Clean the response to extract just the code
+        code_content = self._extract_code_from_response(response)
+
+        # Write the code to the file
+        with open(exp_path, "w") as f:
+            f.write(code_content)
+
+        return "CONTINUE"
 
     def _run_single_experiment(
         self, run_num: int, timeout: int = 7200
@@ -399,10 +496,7 @@ class Coder:
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
-        # Set files for this operation
-        self.coder.fnames = [osp.join(self.output_dir, "notes.txt")]
         try:
-            # Use non-interactive approach for notes too
             notes_path = osp.join(self.output_dir, "notes.txt")
             current_notes = ""
             if osp.exists(notes_path):
@@ -438,51 +532,6 @@ Please provide the complete updated notes content.
         run_dir = osp.join(self.output_dir, f"run_{run_num}")
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)
-
-    def _run_non_interactive_aider(self, prompt: str) -> str:
-        """Run Aider in a non-interactive mode by directly calling the LLM."""
-        try:
-            # Get the current experiment.py content
-            exp_path = osp.join(self.output_dir, "experiment.py")
-            current_content = ""
-            if osp.exists(exp_path):
-                with open(exp_path, "r") as f:
-                    current_content = f.read()
-
-            # Create a prompt that asks for the complete file content
-            full_prompt = f"""
-{prompt}
-
-Please provide the complete content for experiment.py. If the file already exists, please provide the corrected/improved version.
-
-Current file content:
-{current_content}
-
-Please respond with the complete file content only, no explanations or markdown formatting.
-"""
-
-            # Call the LLM directly
-            response, _ = get_response_from_llm(
-                msg=full_prompt,
-                client=self.client,
-                model=self.model,
-                system_message="You are an expert Python code generator for machine learning experiments. Generate COMPLETE, RUNNABLE code with REAL data loading, model training, and evaluation. NEVER use random numbers, dummy data, or hardcoded results. All metrics must come from actual model execution. Provide only the complete Python code without any markdown formatting or explanations.",
-                cost_tracker=self.cost_tracker,
-                task_name="non_interactive_aider",
-            )
-
-            # Clean the response to extract just the code
-            code_content = self._extract_code_from_response(response)
-
-            # Write the code to the file
-            with open(exp_path, "w") as f:
-                f.write(code_content)
-
-            return "CONTINUE"
-
-        except Exception as e:
-            print(f"[System] Non-interactive Aider failed: {e}")
-            raise
 
     def _extract_code_from_response(self, response: str) -> str:
         """Extract Python code from LLM response."""
