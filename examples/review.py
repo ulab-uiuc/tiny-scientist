@@ -2,10 +2,9 @@
 import argparse
 import json
 import os.path as osp
-from typing import List
+from typing import Any, List
 
 from tiny_scientist.reviewer import Reviewer
-from tiny_scientist.tool import BaseTool
 from tiny_scientist.utils.llm import AVAILABLE_LLMS
 
 
@@ -53,13 +52,19 @@ def parse_args() -> argparse.Namespace:
         default="../configs",
         help="Path to directory containing model configurations.",
     )
+    parser.add_argument(
+        "--prompt-template-dir",
+        type=str,
+        default=None,
+        help="Path to directory containing prompt templates.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
 
-    dummy_tools: List[BaseTool] = []
+    dummy_tools: List[Any] = []
     reviewer = Reviewer(
         tools=dummy_tools,
         num_reviews=args.reviews_num,

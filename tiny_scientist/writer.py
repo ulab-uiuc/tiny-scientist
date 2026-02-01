@@ -10,7 +10,7 @@ from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
-from .tool import BaseTool, DrawerTool, PaperSearchTool
+from .smolagents_tools import DrawerTool, PaperSearchTool
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
@@ -89,11 +89,11 @@ class Writer:
         s2_api_key = s2_api_key or os.environ.get("S2_API_KEY")
 
         # Tools
-        self.searcher: BaseTool = PaperSearchTool(
+        self.searcher: PaperSearchTool = PaperSearchTool(
             s2_api_key=s2_api_key,
             engine="semanticscholar",
         )
-        self.drawer: BaseTool = DrawerTool(model, prompt_template_dir, temperature)
+        self.drawer: DrawerTool = DrawerTool(model, prompt_template_dir, temperature)
 
         # Prompts & config (load first)
         self.config = Config(prompt_template_dir)
