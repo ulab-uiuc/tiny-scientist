@@ -85,6 +85,46 @@ Be critical and realistic in your assessments."""
         else:
             self.safety_checker = None
 
+    def suggest_dimensions(self, intent: str) -> List[Dict[str, Any]]:
+        """Suggest dimension pairs for evaluating research ideas."""
+        print(f"Suggesting dimension pairs for intent: {intent}")
+
+        try:
+            text, _ = get_response_from_llm(
+                self.prompts.dimension_suggestion_prompt.format(intent=intent),
+                client=self.client,
+                model=self.model,
+                system_message=self.prompts.idea_system_prompt,
+                msg_history=[],
+                temperature=self.temperature,
+                print_debug=False,
+            )
+        except Exception as e:
+            print(f"Error calling LLM for dimension suggestion: {str(e)}")
+            return []
+
+        result = extract_json_between_markers(text)
+
+        if not result:
+            print("Failed to extract dimension pairs from LLM response")
+            print(f"Raw LLM response: {text}")
+            return []
+
+        # Handle both dict with 'dimension_pairs' key and direct list
+        if isinstance(result, dict) and "dimension_pairs" in result:
+            dimension_pairs = result["dimension_pairs"]
+        elif isinstance(result, list):
+            dimension_pairs = result
+        else:
+            dimension_pairs = [result] if result else []
+
+        if not isinstance(dimension_pairs, list) or len(dimension_pairs) == 0:
+            print(f"Expected list of dimension pairs but got: {type(dimension_pairs)}")
+            return []
+
+        print(f"✅ Successfully generated {len(dimension_pairs)} dimension pairs")
+        return dimension_pairs
+
     def think(self, intent: str, pdf_content: Optional[str] = None) -> str:
         self.intent = intent
         # If intent is too long, show simplified message
@@ -267,16 +307,162 @@ Be critical and realistic in your assessments."""
         self,
         ideas: List[Dict[str, Any]],
         intent: Optional[str] = None,
+        dimension_pairs: Optional[List[Dict[str, Any]]] = None,
+        user_score_corrections: Optional[List[Dict[str, Any]]] = None,
+        partial: bool = False,
+        modify_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Rank multiple research ideas."""
+        """Rank (score) research ideas using custom dimension pairs.
+
+        When partial=True, only newly added / target ideas should be scored; context ideas
+        (with AlreadyScored true) are ignored in output.
+
+        dimension_pairs: List of up to 3 dimension pair dicts, each containing:
+            - dimensionA: str
+            - dimensionB: str
+            - descriptionA: str
+            - descriptionB: str
+        """
         intent = intent or self.intent
 
         ideas_json = json.dumps(ideas, indent=2)
-        evaluation_result = self._get_idea_evaluation(ideas_json, intent)
-        ranked_ideas = self._parse_evaluation_result(evaluation_result, ideas)
+        evaluation_result = self._get_idea_evaluation(
+            ideas_json,
+            intent,
+            dimension_pairs=dimension_pairs,
+            user_score_corrections=user_score_corrections,
+            partial=partial,
+            modify_context=modify_context,
+        )
+        ranked_ideas = self._parse_evaluation_result(
+            evaluation_result, ideas, dimension_pairs=dimension_pairs
+        )
 
         self.cost_tracker.report()
         return ranked_ideas
+
+    def rank_single_dimension(
+        self,
+        ideas: List[Dict[str, Any]],
+        intent: Optional[str] = None,
+        dimension_pair: Optional[Dict[str, Any]] = None,
+        dimension_index: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Evaluate ideas on a single dimension pair only.
+
+        Returns a list of {id, score, reason} for each idea.
+        """
+        if not dimension_pair:
+            return []
+
+        intent = intent or self.intent
+        ideas_json = json.dumps(ideas, indent=2)
+
+        dim_a = dimension_pair.get("dimensionA", "Dimension A")
+        dim_b = dimension_pair.get("dimensionB", "Dimension B")
+        desc_a = dimension_pair.get("descriptionA", "")
+        desc_b = dimension_pair.get("descriptionB", "")
+
+        if hasattr(self.prompts, "single_dimension_evaluation_prompt"):
+            prompt = self.prompts.single_dimension_evaluation_prompt.format(
+                intent=intent,
+                ideas=ideas_json,
+                dimension_a=dim_a,
+                dimension_b=dim_b,
+                description_a=desc_a if desc_a else f"Aligned with {dim_a}",
+                description_b=desc_b if desc_b else f"Aligned with {dim_b}",
+            )
+        else:
+            prompt = f"""You are tasked with evaluating research ideas on a SINGLE dimension.
+
+RESEARCH INTENT:
+```
+{intent}
+```
+
+IDEAS TO EVALUATE:
+```
+{ideas_json}
+```
+
+DIMENSION CRITERIA:
+**{dim_a} vs {dim_b}**
+- **{dim_a} (Score: -50)**: {desc_a if desc_a else f'Aligned with {dim_a}'}
+- **{dim_b} (Score: +50)**: {desc_b if desc_b else f'Aligned with {dim_b}'}
+
+This is a SPECTRUM where -50 means completely aligned with {dim_a}, +50 means completely aligned with {dim_b}, and 0 means balanced between both.
+
+OUTPUT REQUIREMENTS:
+- For each idea, provide a score (-50 to +50) and brief reasoning
+- Preserve exact titles
+- Be consistent in your scoring scale
+
+Respond in JSON format:
+```json
+{{
+  "scored_ideas": [
+    {{
+      "Title": "exact idea title",
+      "Score": <number from -50 to +50>,
+      "Reason": "brief explanation"
+    }}
+  ]
+}}
+```"""
+
+        text, _ = get_response_from_llm(
+            prompt,
+            client=self.client,
+            model=self.model,
+            system_message=self.prompts.evaluation_system_prompt,
+            msg_history=[],
+            temperature=0.3,
+        )
+
+        return self._parse_single_dimension_result(text, ideas)
+
+    def _parse_single_dimension_result(
+        self, evaluation_text: str, original_ideas: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Parse single dimension evaluation result."""
+        try:
+            evaluation_data = extract_json_between_markers(evaluation_text)
+            if not evaluation_data:
+                print("[WARN] No JSON found in single dimension evaluation response")
+                return []
+
+            scored_items = evaluation_data.get("scored_ideas", [])
+            idea_map = {idea.get("Title", "").strip(): idea for idea in original_ideas}
+
+            results = []
+            for scored_item in scored_items:
+                title = scored_item.get("Title", "").strip()
+                idea = idea_map.get(title)
+                if not idea:
+                    continue
+
+                raw_score = scored_item.get("Score", 0)
+                try:
+                    score = int(round(float(raw_score)))
+                    if score < -50:
+                        score = -50
+                    elif score > 50:
+                        score = 50
+                except (ValueError, TypeError):
+                    score = 0
+
+                results.append(
+                    {
+                        "id": idea.get("id"),
+                        "score": score,
+                        "reason": scored_item.get("Reason", ""),
+                    }
+                )
+
+            return results
+        except Exception as e:
+            print(f"[ERROR] Failed to parse single dimension result: {e}")
+            return []
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def modify_idea(
@@ -284,9 +470,16 @@ Be critical and realistic in your assessments."""
         original_idea: Dict[str, Any],
         modifications: List[Dict[str, Any]],
         behind_idea: Optional[Dict[str, Any]] = None,
+        dimension_pairs: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Modify an idea based on score adjustments.
+
+        Args:
+            original_idea: The idea to modify
+            modifications: List of modification instructions
+            behind_idea: Optional reference idea
+            dimension_pairs: Optional list of dimension pairs for dynamic evaluation
         """
         # Extract required information from modifications
         instruction_lines = []
@@ -299,23 +492,71 @@ Be critical and realistic in your assessments."""
                 "noveltyScore": "Novelty",
                 "feasibilityScore": "Feasibility",
                 "impactScore": "Impact",
-            }.get(mod["metric"])
+                "dimension1Score": "dimension1",
+                "dimension2Score": "dimension2",
+                "dimension3Score": "dimension3",
+            }.get(mod["metric"], mod["metric"])
 
-            direction = mod["direction"]
-            instruction_lines.append(
-                {
-                    "metric": metric_name,
-                    "direction": direction,
-                    "reference": behind_content,
-                }
-            )
+            # Handle both old direction-based and new score-based formats
+            if "previousScore" in mod and "newScore" in mod:
+                # New score-based format (from dynamic dimensions)
+                instruction_lines.append(
+                    {
+                        "metric": metric_name,
+                        "previousScore": mod["previousScore"],
+                        "newScore": mod["newScore"],
+                        "change": mod.get("change", 0),
+                        "reference": behind_content,
+                    }
+                )
+            else:
+                # Legacy direction-based format
+                direction = mod.get("direction", "increase")
+                instruction_lines.append(
+                    {
+                        "metric": metric_name,
+                        "direction": direction,
+                        "reference": behind_content,
+                    }
+                )
 
         # Prepare the prompt using the template from YAML
-        prompt = self.prompts.modify_idea_prompt.format(
-            idea=json.dumps(original_idea),
-            modifications=json.dumps(instruction_lines),
-            intent=self.intent,
-        )
+        # Format varies based on whether dimension_pairs are provided
+        pair_count = len(dimension_pairs) if dimension_pairs else 0
+
+        if dimension_pairs and pair_count >= 2:
+            # Use dimension pairs (up to 3)
+            pair1 = dimension_pairs[0]
+            pair2 = dimension_pairs[1]
+            pair3 = dimension_pairs[2] if pair_count >= 3 else {}
+
+            prompt = self.prompts.modify_idea_prompt.format(
+                idea=json.dumps(original_idea),
+                modifications=json.dumps(instruction_lines),
+                intent=self.intent,
+                dimension_pair_1_name=f"{pair1.get('dimensionA', '')} - {pair1.get('dimensionB', '')}",
+                dimension_1_a=pair1.get("dimensionA", "Dimension 1A"),
+                dimension_1_b=pair1.get("dimensionB", "Dimension 1B"),
+                dimension_1_a_desc=pair1.get("descriptionA", ""),
+                dimension_1_b_desc=pair1.get("descriptionB", ""),
+                dimension_pair_2_name=f"{pair2.get('dimensionA', '')} - {pair2.get('dimensionB', '')}",
+                dimension_2_a=pair2.get("dimensionA", "Dimension 2A"),
+                dimension_2_b=pair2.get("dimensionB", "Dimension 2B"),
+                dimension_2_a_desc=pair2.get("descriptionA", ""),
+                dimension_2_b_desc=pair2.get("descriptionB", ""),
+                dimension_pair_3_name=f"{pair3.get('dimensionA', '')} - {pair3.get('dimensionB', '')}",
+                dimension_3_a=pair3.get("dimensionA", "Dimension 3A"),
+                dimension_3_b=pair3.get("dimensionB", "Dimension 3B"),
+                dimension_3_a_desc=pair3.get("descriptionA", ""),
+                dimension_3_b_desc=pair3.get("descriptionB", ""),
+            )
+        else:
+            # Legacy format without dimension pairs
+            prompt = self.prompts.modify_idea_prompt.format(
+                idea=json.dumps(original_idea),
+                modifications=json.dumps(instruction_lines),
+                intent=self.intent,
+            )
 
         text, _ = get_response_from_llm(
             prompt,
@@ -550,16 +791,77 @@ Be critical and realistic in your assessments."""
         )
 
     def _get_idea_evaluation(
-        self, ideas_json: str, intent: str, custom_criteria: Optional[str] = None
+        self,
+        ideas_json: str,
+        intent: str,
+        dimension_pairs: Optional[List[Dict[str, Any]]] = None,
+        user_score_corrections: Optional[List[Dict[str, Any]]] = None,
+        custom_criteria: Optional[str] = None,
+        partial: bool = False,
+        modify_context: Optional[str] = None,
     ) -> str:
-        """Get comparative evaluation from LLM"""
-        prompt = self.prompts.idea_evaluation_prompt.format(
-            intent=intent,
-            ideas=ideas_json,
-            novelty_criteria=self.novelty_criteria,
-            feasibility_criteria=self.feasibility_criteria,
-            impact_criteria=self.impact_criteria,
-        )
+        corrections_context = ""
+        if user_score_corrections and len(user_score_corrections) > 0:
+            corrections_context = "\n\nUSER SCORE CORRECTIONS (In-context learning):\n"
+            corrections_context += (
+                "The user has previously corrected the following evaluations:\n"
+            )
+            for correction in user_score_corrections[-10:]:
+                corrections_context += f"- Idea '{correction['ideaTitle']}': {correction['metric']} score corrected from {correction['previousScore']} to {correction['newScore']} (change: {correction['change']:+d})\n"
+            corrections_context += "\nPlease consider these corrections as learning context for your current evaluation.\n"
+
+        if partial and hasattr(self.prompts, "idea_partial_evaluation_prompt"):
+            base_template = self.prompts.idea_partial_evaluation_prompt
+        else:
+            base_template = self.prompts.idea_evaluation_prompt
+
+        modify_context_text = ""
+        if modify_context:
+            modify_context_text = f"\n\nMODIFICATION CONTEXT:\n{modify_context}\nPlease consider this modification context when evaluating the ideas, particularly if any ideas are result of user-guided modifications.\n"
+
+        pair_count = len(dimension_pairs) if dimension_pairs else 0
+        if dimension_pairs and pair_count >= 2:
+            pair1 = dimension_pairs[0]
+            pair2 = dimension_pairs[1]
+            pair3 = dimension_pairs[2] if pair_count >= 3 else {}
+
+            prompt_kwargs = dict(
+                intent=intent,
+                ideas=ideas_json,
+                dimension_pair_1_name=f"{pair1.get('dimensionA', '')} - {pair1.get('dimensionB', '')}",
+                dimension_1_a=pair1.get("dimensionA", "Dimension 1A"),
+                dimension_1_b=pair1.get("dimensionB", "Dimension 1B"),
+                dimension_1_a_desc=pair1.get("descriptionA", ""),
+                dimension_1_b_desc=pair1.get("descriptionB", ""),
+                dimension_pair_2_name=f"{pair2.get('dimensionA', '')} - {pair2.get('dimensionB', '')}",
+                dimension_2_a=pair2.get("dimensionA", "Dimension 2A"),
+                dimension_2_b=pair2.get("dimensionB", "Dimension 2B"),
+                dimension_2_a_desc=pair2.get("descriptionA", ""),
+                dimension_2_b_desc=pair2.get("descriptionB", ""),
+                dimension_pair_3_name=f"{pair3.get('dimensionA', '')} - {pair3.get('dimensionB', '')}",
+                dimension_3_a=pair3.get("dimensionA", "Dimension 3A"),
+                dimension_3_b=pair3.get("dimensionB", "Dimension 3B"),
+                dimension_3_a_desc=pair3.get("descriptionA", ""),
+                dimension_3_b_desc=pair3.get("descriptionB", ""),
+                modify_context=modify_context_text,
+            )
+            prompt = base_template.format(**prompt_kwargs)
+        else:
+            prompt = base_template.format(
+                intent=intent,
+                ideas=ideas_json,
+                novelty_criteria=self.novelty_criteria,
+                feasibility_criteria=self.feasibility_criteria,
+                impact_criteria=self.impact_criteria,
+                modify_context=modify_context_text,
+            )
+
+        if corrections_context:
+            print(
+                "*****************Adding user score corrections context to evaluation prompt**************"
+            )
+            prompt = prompt + corrections_context
+
         if custom_criteria:
             prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
 
@@ -578,41 +880,116 @@ Be critical and realistic in your assessments."""
         return text
 
     def _parse_evaluation_result(
-        self, evaluation_text: str, original_ideas: List[Dict[str, Any]]
+        self,
+        evaluation_text: str,
+        original_ideas: List[Dict[str, Any]],
+        dimension_pairs: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Parse evaluation result and update idea dictionaries with scores"""
-        # Extract JSON from response
         evaluation_data = extract_json_between_markers(evaluation_text)
 
         if not evaluation_data:
             print("Failed to extract JSON from evaluation response")
             return []
-        # Create mapping from idea title to original idea dict (check both Title and title)
+
+        def _get_field(scored_item: Dict[str, Any], variants: List[str]) -> Any:
+            for key in variants:
+                if key in scored_item and scored_item[key] is not None:
+                    return scored_item[key]
+            return None
+
+        def _score_variants(prefix: str) -> List[str]:
+            camel = prefix[0].lower() + prefix[1:]
+            snake = "".join(
+                ["_" + c.lower() if c.isupper() else c for c in prefix]
+            ).lstrip("_")
+            compact = snake.replace("_", "")
+            return [
+                prefix,
+                camel,
+                prefix.lower(),
+                snake,
+                compact,
+            ]
+
         idea_map = {}
         for idea in original_ideas:
             title = idea.get("Title", "") or idea.get("title", "")
             if title:
                 idea_map[title] = idea
 
-        # Create scored list
         scored_ideas = []
         scored_items = evaluation_data.get("scored_ideas", [])
 
-        # FIX: The key from the prompt is "scored_ideas", not "ranked_ideas"
+        pair_count = len(dimension_pairs) if dimension_pairs else 0
+        use_dimension_pairs = pair_count >= 2
+
+        def _to_signed(v):
+            try:
+                if v is None:
+                    return None
+                fv = float(v)
+                if -50.0 <= fv <= 50.0:
+                    return int(round(fv))
+                if 0.0 <= fv <= 100.0:
+                    return int(round(fv)) - 50
+                if fv > 50.0:
+                    return 50
+                if fv < -50.0:
+                    return -50
+                return int(round(fv))
+            except Exception:
+                return None
+
         for scored_item in scored_items:
             idea_name = scored_item.get("Title", "")
 
             if idea_name in idea_map:
-                # Get original idea and update with scoring data
                 idea = idea_map[idea_name].copy()
 
-                # Add scoring information
-                idea["FeasibilityScore"] = scored_item.get("FeasibilityScore")
-                idea["NoveltyScore"] = scored_item.get("NoveltyScore")
-                idea["ImpactScore"] = scored_item.get("ImpactScore")
-                idea["NoveltyReason"] = scored_item.get("NoveltyReason", "")
-                idea["FeasibilityReason"] = scored_item.get("FeasibilityReason", "")
-                idea["ImpactReason"] = scored_item.get("ImpactReason", "")
+                if use_dimension_pairs:
+                    idea["scores"] = {}
+                    max_dimensions = min(pair_count, 5) if pair_count else 0
+                    for idx in range(max_dimensions):
+                        pair = dimension_pairs[idx]
+                        dim_score_raw = _get_field(
+                            scored_item, _score_variants(f"Dimension{idx + 1}Score")
+                        )
+                        dim_reason = (
+                            _get_field(
+                                scored_item,
+                                _score_variants(f"Dimension{idx + 1}Reason"),
+                            )
+                            or ""
+                        )
+                        dim_score = _to_signed(dim_score_raw)
+                        dim_key = f"{pair.get('dimensionA', f'Dim{idx + 1}A')}-{pair.get('dimensionB', f'Dim{idx + 1}B')}"
+
+                        idea["scores"][dim_key] = dim_score
+                        idea[f"Dimension{idx + 1}Score"] = dim_score
+                        idea[f"Dimension{idx + 1}Reason"] = dim_reason
+                else:
+                    raw_feas = _get_field(
+                        scored_item, _score_variants("FeasibilityScore")
+                    )
+                    raw_nov = _get_field(scored_item, _score_variants("NoveltyScore"))
+                    raw_imp = _get_field(scored_item, _score_variants("ImpactScore"))
+
+                    def _to_signed_legacy(v):
+                        return _to_signed(v)
+
+                    idea["FeasibilityScore"] = _to_signed_legacy(raw_feas)
+                    idea["NoveltyScore"] = _to_signed_legacy(raw_nov)
+                    idea["ImpactScore"] = _to_signed_legacy(raw_imp)
+                    idea["NoveltyReason"] = (
+                        _get_field(scored_item, _score_variants("NoveltyReason")) or ""
+                    )
+                    idea["FeasibilityReason"] = (
+                        _get_field(scored_item, _score_variants("FeasibilityReason"))
+                        or ""
+                    )
+                    idea["ImpactReason"] = (
+                        _get_field(scored_item, _score_variants("ImpactReason")) or ""
+                    )
 
                 scored_ideas.append(idea)
 

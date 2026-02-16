@@ -9,6 +9,102 @@ evaluation_system_prompt: >
   You are an expert research reviewer who evaluates scientific ideas with rigor and fairness.
   Your role is to comparatively evaluate multiple research ideas and score them based on their feasibility, novelty, impact, and alignment with the original research intent.
   Be thoughtful, objective, and provide clear justifications for your scoring.
+dimension_suggestion_prompt: |
+  Based on the following research intent, suggest 5 pairs of contrasting evaluation dimensions that would be most relevant for comparing research ideas.
+
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  Each dimension pair should represent TWO OPPOSING ENDS OF THE SAME SPECTRUM. These are trade-offs, not independent dimensions.
+
+  EXAMPLES OF DIMENSION PAIRS:
+  - (HCI-oriented, AI-oriented): Interaction design vs. algorithmic innovation
+  - (High Risk High Reward, Low Risk Incremental): Bold bets vs. safe iterations
+  - (Theoretical Depth, Practical Application): Theory vs. real-world utility
+  - (Computational Efficiency, Model Accuracy): Fast/lightweight vs. accurate/resource-intensive
+
+  REQUIREMENTS:
+  1. Each pair must be a single spectrum with two opposing ends (not two independent axes).
+  2. The pairs must be relevant to the intent and represent meaningful trade-offs.
+  3. Provide short, concrete descriptions for both ends.
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  DIMENSION PAIRS JSON:
+  ```json
+  <JSON>
+  ```
+
+  In <THOUGHT>, justify why these spectrums are the right trade-offs for this intent (2-4 sentences).
+
+  In <JSON>, provide exactly 5 dimension pairs with the following structure:
+  {{
+    "dimension_pairs": [
+      {{
+        "dimensionA": "First end of the spectrum (e.g., HCI-oriented)",
+        "dimensionB": "Opposite end of the spectrum (e.g., AI-oriented)",
+        "descriptionA": "Brief description of what dimensionA means",
+        "descriptionB": "Brief description of what dimensionB means"
+      }}
+    ]
+  }}
+
+  CRITICAL: Each pair represents ONE spectrum (later scored on a -50..+50 scale: -50 = dimensionA, +50 = dimensionB, 0 = balanced).
+
+single_dimension_evaluation_prompt: |
+  You are tasked with evaluating research ideas on a SINGLE dimension.
+
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  IDEAS TO EVALUATE:
+  ```
+  {ideas}
+  ```
+
+  DIMENSION CRITERIA:
+  **{dimension_a} vs {dimension_b}**
+  - **{dimension_a} (Score: -50)**: {description_a}
+  - **{dimension_b} (Score: +50)**: {description_b}
+
+  This is a SPECTRUM where -50 means completely aligned with {dimension_a}, +50 means completely aligned with {dimension_b}, and 0 means balanced between both.
+
+  OUTPUT REQUIREMENTS:
+  - For each idea, provide a score (-50 to +50) and brief reasoning
+  - Preserve exact titles from the input
+  - Be consistent in your scoring scale
+  - Consider how each idea positions itself on this specific dimension spectrum
+  - JSON numeric values must be strict: use 30 not +30; only negative numbers use a leading "-"
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  EVALUATION JSON:
+  ```json
+  {{
+    "scored_ideas": [
+      {{
+        "Title": "exact idea title",
+        "Score": <number from -50 to +50>,
+        "Reason": "brief explanation of why this score (1-2 sentences)"
+      }}
+    ]
+  }}
+  ```
+
+  In <THOUGHT>, briefly describe how you interpret this spectrum and ensure consistent scoring (1-2 sentences).
+
+  IMPORTANT: The JSON inside the ```json block must be the evaluation object itself (do NOT wrap it inside another object with keys like "THOUGHT").
+
 idea_evaluation_prompt: |
   You are tasked with evaluating and scoring multiple research ideas generated for the following research intent:
 
@@ -21,30 +117,35 @@ idea_evaluation_prompt: |
   ```
   {ideas}
   ```
-  Please evaluate these ideas comparatively across three key dimensions:
+  {modify_context}
+  Please evaluate these ideas comparatively across THREE custom dimension pairs chosen specifically for this research context.
 
-  **NOVELTY DIMENSION**
-  {novelty_criteria}
+  Some ideas include a field "problem_highlights": a short list of key phrases copied verbatim from the Problem. Treat these as critical anchors: factor them into scoring where relevant and explicitly reference them in your reasoning when they influence the score.
 
-  **FEASIBILITY DIMENSION**
-  {feasibility_criteria}
+  **DIMENSION PAIR 1: {dimension_pair_1_name}**
+  - **{dimension_1_a} (Score: -50)**: {dimension_1_a_desc}
+  - **{dimension_1_b} (Score: +50)**: {dimension_1_b_desc}
 
-  **IMPACT DIMENSION**
-  {impact_criteria}
+  **DIMENSION PAIR 2: {dimension_pair_2_name}**
+  - **{dimension_2_a} (Score: -50)**: {dimension_2_a_desc}
+  - **{dimension_2_b} (Score: +50)**: {dimension_2_b_desc}
+
+  **DIMENSION PAIR 3: {dimension_pair_3_name}**
+  - **{dimension_3_a} (Score: -50)**: {dimension_3_a_desc}
+  - **{dimension_3_b} (Score: +50)**: {dimension_3_b_desc}
+
+  SCORING SCALE (all three pairs): -50 = fully aligned with the first endpoint (A), +50 = fully aligned with the second endpoint (B), 0 = balanced.
 
   CRITICAL REQUIREMENTS:
-  1. For EACH idea, you MUST provide three separate rating fields that MUST follow this format:
-    - "FeasibilityScore": A number from 0 to 100, where 100 is most feasible
-    - "NoveltyScore": A number from 0 to 100, where 100 is most novel
-    - "ImpactScore": A number from 0 to 100, where 100 is highest impact
-
-  2. For EACH idea, also provide a brief reasoning for each score:
-    - "NoveltyReason": Brief explanation (1-2 sentences) of why this idea received its novelty score
-    - "FeasibilityReason": Brief explanation (1-2 sentences) of why this idea received its feasibility score
-    - "ImpactReason": Brief explanation (1-2 sentences) of why this idea received its impact score
-  These three scores must be completely separate and independent from each other. For example, the idea with the highest impact score might have a low feasibility score.
+  1. For EACH idea, output ALL fields: "Title", "Dimension1Score", "Dimension2Score", "Dimension3Score", "Dimension1Reason", "Dimension2Reason", "Dimension3Reason".
+  2. Scores are integers in -50..+50 (-50 = {dimension_1_a}/{dimension_2_a}/{dimension_3_a}, +50 = {dimension_1_b}/{dimension_2_b}/{dimension_3_b}, 0 = balanced).
+  3. Ensure meaningful differentiation between ideas (avoid identical score triplets).
+  4. JSON numeric values must be strict: use 30 not +30; only negative numbers use a leading "-".
 
   Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
 
   COMPARATIVE ANALYSIS:
   <ANALYSIS>
@@ -54,28 +155,108 @@ idea_evaluation_prompt: |
   <JSON>
   ```
 
-  In <ANALYSIS>, provide a thoughtful comparative analysis discussing the trade-offs between ideas.
+  In <THOUGHT>, briefly state your comparative evaluation strategy (1-2 sentences).
+  In <ANALYSIS>, provide a brief comparative summary highlighting the key differences across the three spectrums (3-6 sentences).
   In <JSON>, provide the evaluation results in JSON format with the following structure:
   "scored_ideas": A list of scored idea objects, each containing:
   - "Title": The EXACT original title of the idea as provided in the input JSON - DO NOT MODIFY OR CHANGE THE TITLE IN ANY WAY
-  - "FeasibilityScore": A number from 0 to 100, scoring feasibility
-  - "NoveltyScore": A number from 0 to 100, scoring novelty
-  - "ImpactScore": A number from 0 to 100, scoring impact
-  - "NoveltyReason": Explanation of the novelty score
-  - "FeasibilityReason": Explanation of the feasibility score
-  - "ImpactReason": Explanation of the impact score
+  - "Dimension1Score": A number from -50 to +50
+  - "Dimension2Score": A number from -50 to +50
+  - "Dimension3Score": A number from -50 to +50
+  - "Dimension1Reason": A brief explanation (1-2 sentences) - REQUIRED
+  - "Dimension2Reason": A brief explanation (1-2 sentences) - REQUIRED
+  - "Dimension3Reason": A brief explanation (1-2 sentences) - REQUIRED
+
+  IMPORTANT: The reasoning fields are MANDATORY and must be included for every idea. Do not omit these fields.
+
+  NOTE FOR ROBUSTNESS: If you are unable to provide a concise reason for a given dimension for any idea, you MUST still include the corresponding "Dimension1Reason" / "Dimension2Reason" / "Dimension3Reason" fields in the JSON and set their value to an empty string (""). Do not omit the keys. This helps downstream parsers reliably find the fields.
 
   CRITICAL: You MUST preserve the exact original titles from the input. Do not change, modify, or improve the titles in any way.
   Ensure your evaluation is fair, comprehensive, and based solely on the scientific and practical merits of each idea.
+
+idea_partial_evaluation_prompt: |
+  You are tasked with assigning scores ONLY to the newly added research ideas while being given the full previously scored idea list for calibration.
+
+  RESEARCH INTENT:
+  ```
+  {intent}
+  ```
+
+  FULL IDEA SET (context + new):
+  ```
+  {ideas}
+  ```
+  {modify_context}
+  Some ideas include a field "problem_highlights": a short list of key phrases copied verbatim from the Problem. Treat these as critical anchors: factor them into scoring where relevant and explicitly reference them in your reasoning when they influence the score.
+
+  PARTIAL SCORING PROTOCOL:
+  - Some ideas include "AlreadyScored": true along with existing *Score and *Reason fields; these are CONTEXT ONLY and must NOT be rescored or output again.
+  - Only ideas without "AlreadyScored" true (either missing the field or explicitly false) are NEW TARGETS requiring fresh scores.
+  - Calibrate new scores relative to existing contextual scores so the global scale remains consistent (avoid inflating or compressing scale unnecessarily).
+  - Do NOT repeat or copy existing contextual ideas in the output.
+  - If all ideas are new (no AlreadyScored true), then score them all (treat as first evaluation batch).
+
+  DIMENSION CRITERIA:
+  **DIMENSION PAIR 1: {dimension_pair_1_name}**
+  - **{dimension_1_a} (Score: -50)**: {dimension_1_a_desc}
+  - **{dimension_1_b} (Score: +50)**: {dimension_1_b_desc}
+
+  **DIMENSION PAIR 2: {dimension_pair_2_name}**
+  - **{dimension_2_a} (Score: -50)**: {dimension_2_a_desc}
+  - **{dimension_2_b} (Score: +50)**: {dimension_2_b_desc}
+
+  **DIMENSION PAIR 3: {dimension_pair_3_name}**
+  - **{dimension_3_a} (Score: -50)**: {dimension_3_a_desc}
+  - **{dimension_3_b} (Score: +50)**: {dimension_3_b_desc}
+
+  OUTPUT REQUIREMENTS:
+  1. Provide distinct, fine‑grained scores (-50 to +50) for each new idea: "Dimension1Score", "Dimension2Score", "Dimension3Score".
+  2. Provide brief reasoning for each score: "Dimension1Reason", "Dimension2Reason", "Dimension3Reason".
+  NOTE FOR ROBUSTNESS: If you cannot provide a reason for a given score, include the corresponding reason field and set it to an empty string ("") rather than omitting the key.
+  3. DO NOT include any context (AlreadyScored true) ideas in the output JSON.
+  4. Preserve exact titles.
+  5. JSON numeric values must be strict: use 30 not +30; only negative numbers use a leading "-".
+
+  Respond in the following format:
+
+  THOUGHT:
+  <THOUGHT>
+
+  CALIBRATION ANALYSIS:
+  <ANALYSIS>
+
+  EVALUATION JSON:
+  ```json
+  <JSON>
+  ```
+  In <THOUGHT>, briefly describe how you will calibrate scores against the context ideas (1-2 sentences).
+  In <ANALYSIS>, provide a concise calibration explanation describing how the contextual (AlreadyScored) ideas and their existing scores informed the scale you used for the NEW ideas.
+
+  In <JSON>, provide ONLY the newly scored idea objects in JSON format. Use the following structure:
+  "scored_ideas": A list of newly scored idea objects, each containing:
+  - "Title": The EXACT original title of the new idea (preserve exact text)
+  - "Dimension1Score": A number from -50 to +50
+  - "Dimension2Score": A number from -50 to +50
+  - "Dimension3Score": A number from -50 to +50
+  - "Dimension1Reason": A brief explanation (1-2 sentences) of the score - REQUIRED
+  - "Dimension2Reason": A brief explanation (1-2 sentences) of the score - REQUIRED
+  - "Dimension3Reason": A brief explanation (1-2 sentences) of the score - REQUIRED
+
+  IMPORTANT: The reasoning fields (Dimension1Reason, Dimension2Reason, Dimension3Reason) are MANDATORY and must be included for every idea. Do not omit these fields.
+
+  CRITICAL:
+  - Do NOT include any context ideas (those with "AlreadyScored": true) inside "scored_ideas".
+  - Do NOT invent or modify titles.
+  - Maintain meaningful differentiation between the numeric scores.
 modify_idea_prompt: |
-  Given a research idea and a set of requested modifications, generate a modified version of the idea.
+  Given a research idea and score adjustments based on user evaluation, generate a modified version of the idea that aligns with the specified target scores.
 
   ORIGINAL RESEARCH IDEA:
   ```
   {idea}
   ```
 
-  REQUESTED MODIFICATIONS:
+  SCORE ADJUSTMENTS:
   ```
   {modifications}
   ```
@@ -84,15 +265,30 @@ modify_idea_prompt: |
   ```
   {intent}
   ```
-  Carefully consider how to preserve the core strengths of the original idea while enhancing it according to the requested modifications. Ensure the modified idea maintains strong alignment with the original research intent.
 
-  For each modification request, adjust the corresponding aspect (Novelty, Feasibility, or Impact) by emphasizing or de-emphasizing relevant characteristics.
+  EVALUATION CRITERIA:
+  **DIMENSION PAIR 1: {dimension_pair_1_name}**
+  - **{dimension_1_a} (Score: -50)**: {dimension_1_a_desc}
+  - **{dimension_1_b} (Score: +50)**: {dimension_1_b_desc}
+
+  **DIMENSION PAIR 2: {dimension_pair_2_name}**
+  - **{dimension_2_a} (Score: -50)**: {dimension_2_a_desc}
+  - **{dimension_2_b} (Score: +50)**: {dimension_2_b_desc}
+
+  **DIMENSION PAIR 3: {dimension_pair_3_name}**
+  - **{dimension_3_a} (Score: -50)**: {dimension_3_a_desc}
+  - **{dimension_3_b} (Score: +50)**: {dimension_3_b_desc}
+
+  IMPORTANT: Use the score adjustments as concrete targets. For example, if a dimension moves from -30 to -5, the idea should shift slightly toward the opposite end but remain broadly similar; if it moves from -45 to +40, expect a major redesign.
+
+  Guidelines for modification:
+  1. Preserve the core contribution unless the target shifts are extreme (|score| >= 40 or a sign flip with large magnitude).
+  2. Change the parts that justify the new positions (methodology, supervision signal, constraints, evaluation, resources).
+  3. Keep it aligned with the original intent and keep changes concrete (not cosmetic).
 
   **CRITICAL**: When modifying the idea:
   - Keep the "Approach" field focused on the CORE NOVEL ALGORITHM (not basic preprocessing)
   - The "Approach" should describe YOUR algorithmic innovation with mathematical/technical detail
-  - If increasing Novelty, add more distinctive technical innovations to the CORE ALGORITHM
-  - If increasing Feasibility, provide implementation details for the NOVEL component specifically
   - Maintain detailed comparison with existing work in "NoveltyComparison"
   - AVOID filling "Approach" with standard data processing, tokenization, or routine training procedures
   - AVOID ethical considerations, societal impact, or bias discussions in "Approach" - focus ONLY on the technical algorithm
@@ -107,8 +303,35 @@ modify_idea_prompt: |
   <JSON>
   ```
 
-  In <THOUGHT>, explain your reasoning for the modifications and how they enhance the idea.
-  In <JSON>, provide the modified idea with the same structure as the original, including all original fields.
+  In <THOUGHT>, explain how you interpreted the score adjustments and what specific changes you made to achieve the target scores.
+
+  In <JSON>, provide the modified idea preserving ALL original fields:
+
+  **REQUIRED FIELDS** (must be present in output):
+  - "Name": Lowercase identifier with underscores
+  - "Title": Full title for the idea
+  - "Description": Brief 1-2 sentence summary
+  - "Problem": The research question being addressed
+  - "Importance": Why this problem matters
+  - "Difficulty": Technical challenges
+  - "NoveltyComparison": Detailed comparison with existing work (≥150 words)
+  - "Approach": Core algorithm/mechanism (CRITICAL - focus on novel component)
+  - "is_experimental": Boolean (true/false)
+  - "Interestingness": Score 1-10
+  - "Feasibility": Score 1-10
+  - "Novelty": Score 1-10
+  - "IntentAlignment": Score 1-10
+  - "Score": Overall score 1-10
+
+  **PRESERVE IF PRESENT** (copy from original if exists):
+  - "Experiment": Experimental plan (if already generated)
+  - "ResearchPlan": Alternative to Experiment
+  - Any evaluation scores: NoveltyScore, FeasibilityScore, ImpactScore, Dimension1Score, Dimension2Score, Dimension3Score, scores dict, etc.
+
+  **IMPORTANT**:
+  - If the original idea has an "Experiment" field, copy it exactly unless modifications specifically target the experimental design
+  - Preserve all fields even if not modified
+  - The "Approach" field is CRITICAL for downstream code generation
 
 merge_ideas_prompt: |
   You are tasked with merging two research ideas into a single, stronger idea that combines the best aspects of both.
@@ -144,13 +367,33 @@ merge_ideas_prompt: |
   ```
 
   In <THOUGHT>, explain your reasoning for how you combined elements from both ideas and why the merged result is stronger.
-  In <JSON>, provide the merged idea with the same structure as the original ideas, including all required fields:
-  - "Name": A shortened descriptor of the idea. Lowercase, no spaces, underscores allowed.
-  - "Title": A title for the idea, will be used for the report writing.
-  - "Problem": Answer to question 1.
-  - "Importance": Answer to question 2.
-  - "Difficulty": Answer to question 3.
-  - "NoveltyComparison": Answer to question 4.
+  In <JSON>, provide the merged idea with ALL required fields:
+
+  **REQUIRED FIELDS** (must be present in output):
+  - "Name": Lowercase identifier with underscores (create new merged name)
+  - "Title": New title combining aspects of both ideas
+  - "Description": Brief 1-2 sentence summary
+  - "Problem": Merged research question
+  - "Importance": Why the merged problem matters
+  - "Difficulty": Combined technical challenges
+  - "NoveltyComparison": Detailed comparison explaining how merged idea differs from existing work (≥150 words)
+  - "Approach": Core algorithm/mechanism combining both ideas (CRITICAL - describe the merged technical approach)
+  - "is_experimental": Boolean (true if either idea is experimental)
+  - "Interestingness": Score 1-10 (estimate for merged idea)
+  - "Feasibility": Score 1-10 (estimate for merged idea)
+  - "Novelty": Score 1-10 (estimate for merged idea)
+  - "IntentAlignment": Score 1-10 (estimate for merged idea)
+  - "Score": Overall score 1-10 (estimate for merged idea)
+
+  **PRESERVE IF PRESENT** (copy from most relevant source idea or merge intelligently):
+  - "Experiment": If one or both ideas have experimental plans, merge or choose the more comprehensive one
+  - "ResearchPlan": Alternative to Experiment
+
+  **IMPORTANT**:
+  - The "Approach" field is CRITICAL and must describe the merged technical approach
+  - If both ideas have "Experiment" fields, intelligently merge them or choose the more comprehensive one
+  - Create new Name/Title that reflects the merged nature
+  - Do not copy evaluation scores from either idea (NoveltyScore, FeasibilityScore, etc.) - the merged idea will be re-evaluated
 
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.

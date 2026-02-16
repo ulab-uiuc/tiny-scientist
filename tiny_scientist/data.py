@@ -45,6 +45,9 @@ class ThinkerPrompt(BaseModel):
     idea_system_prompt: str
     evaluation_system_prompt: str
     idea_evaluation_prompt: str
+    idea_partial_evaluation_prompt: str
+    dimension_suggestion_prompt: str
+    single_dimension_evaluation_prompt: str
     modify_idea_prompt: str
     merge_ideas_prompt: str
     query_prompt: str

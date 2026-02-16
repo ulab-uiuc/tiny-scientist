@@ -1,12 +1,18 @@
 // ============== 段落1：导入依赖 ==============
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
-import Editor from '@monaco-editor/react';
 
 import TopNav from './TopNav';
 import IdeaCard from './IdeaCard';
-import IdeaFactorsAndScoresCard from './IdeaFactorsAndScoresCard';
-import LogDisplay from './LogDisplay';
+import UserActionTrackingPanel from './UserActionTrackingPanel';
+import DimensionSelector from './DimensionSelector';
+import DimensionSelectorPanel from './DimensionSelectorPanel';
+import DimensionEditDropdown from './DimensionEditDropdown';
+import Evaluation3D from './Evaluation3D';
+import userActionTracker from '../utils/userActionTracker';
+import plotStatusTracker from '../utils/plotStatusTracker';
+import { buildNodeContent } from '../utils/contentParser';
+import { useUserActionTracking, useFormTracking, useNavigationTracking } from './useUserActionTracking';
 
 
 // Helper components defined outside the main component to preserve state
@@ -26,7 +32,8 @@ const ContextAndGenerateCard = ({
   setIsEditingSystemPrompt,
   setModalAnchorEl,
   editIcon,
-  handleProceedWithSelectedIdea
+  handleProceedWithSelectedIdea,
+  getNodeTrackingInfo
 }) => {
   const newEditButtonRef = useRef(null);
   const generateButtonRef = useRef(null);
@@ -34,7 +41,22 @@ const ContextAndGenerateCard = ({
   const contextInputRef = useRef(null);
   const customFormRef = useRef(null);
 
-  // Removed user action tracking
+  // Track user interactions (disable hover to avoid conflicts with D3 node tracking)
+  useUserActionTracking(generateButtonRef, 'generate_ideas_button', {
+    trackHover: false,
+    additionalDetails: { hasSelectedNode: !!selectedNode }
+  });
+  useUserActionTracking(newEditButtonRef, 'edit_system_prompt_button', {
+    trackHover: false
+  });
+  useUserActionTracking(addCustomButtonRef, 'add_custom_idea_button', {
+    trackHover: false
+  });
+  useUserActionTracking(contextInputRef, 'context_input_field', {
+    trackHover: false,
+    trackFocus: true
+  });
+  useFormTracking(customFormRef, 'custom_idea_form');
 
   return (
     <div
@@ -56,7 +78,9 @@ const ContextAndGenerateCard = ({
             id="context-input"
             rows={2}
             value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
+            onChange={(e) => {
+              setUserInput(e.target.value);
+            }}
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
@@ -151,34 +175,6 @@ const ContextAndGenerateCard = ({
               Add Custom Idea
             </button>
 
-            <button
-              onClick={(e) => {
-                console.log("=== BUTTON CLICK DETECTED ===");
-                console.log("Event:", e);
-                console.log("selectedNode:", selectedNode);
-                console.log("isGenerating:", isGenerating);
-                console.log("isEvaluating:", isEvaluating);
-                console.log("Button disabled:", !selectedNode || isGenerating || isEvaluating);
-
-                e.stopPropagation();
-                handleProceedWithSelectedIdea();
-              }}
-              disabled={!selectedNode || isGenerating || isEvaluating}
-              style={{
-                padding: '0 16px',
-                backgroundColor: selectedNode && !isGenerating && !isEvaluating ? '#4C84FF' : '#9CA3AF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                cursor: selectedNode && !isGenerating && !isEvaluating ? 'pointer' : 'not-allowed',
-                height: '38px',
-                boxSizing: 'border-box',
-              }}
-            >
-              Proceed
-            </button>
           </div>
         </div>
       ) : (
@@ -198,7 +194,9 @@ const ContextAndGenerateCard = ({
               id="custom-idea-title"
               type="text"
               value={customIdea.title}
-              onChange={(e) => setCustomIdea(prev => ({ ...prev, title: e.target.value }))}
+              onChange={(e) => {
+                setCustomIdea(prev => ({ ...prev, title: e.target.value }));
+              }}
               onClick={(e) => e.stopPropagation()}
               style={{
                 width: '100%',
@@ -218,7 +216,9 @@ const ContextAndGenerateCard = ({
             <textarea
               id="custom-idea-content"
               value={customIdea.content}
-              onChange={(e) => setCustomIdea(prev => ({ ...prev, content: e.target.value }))}
+              onChange={(e) => {
+                setCustomIdea(prev => ({ ...prev, content: e.target.value }));
+              }}
               onClick={(e) => e.stopPropagation()}
               rows={4}
               style={{
@@ -281,6 +281,7 @@ const ContextAndGenerateCard = ({
 const Dashboard = ({
   nodeId,
   nodes,
+  fragmentNodes = [], // 新增：Fragment 节点数组
   isEvaluating,
   showTree,
   setModalAnchorEl,
@@ -300,17 +301,32 @@ const Dashboard = ({
   setIsEditingSystemPrompt,
   editIcon,
   handleProceedWithSelectedIdea,
-  onUpdateTable
+  getNodeTrackingInfo,
+  // Props for score modification
+  onModifyScore,
+  showModifyButton = false,
+  pendingChanges = null,
+  currentView = 'evaluation', // Current view context
+  selectedDimensionPairs = [], // 添加这个 prop
+  activeDimensions = null, // 当前展示的维度平面
+  reEvaluateAll, // pass down full re-eval handler
+  onShowFragmentMenu, // 新增：Fragment 菜单回调
+  activeDimensionIndices, // Active dimension indices
+  onToggleDimensionIndex, // Callback to toggle dimension index
+  onCreateFragmentFromHighlight, // 点击重点直接生成 fragment
+  onSwapDimension = null, // 交换维度方向
+  onEditDimension = null, // 编辑维度 (pairIndex, anchorRect) => void
 }) => {
   const [showAfter, setShowAfter] = useState(true);
-  const [activeSection, setActiveSection] = useState('Impact');
-
-  const node = nodeId ? nodes.find(n => n.id === nodeId) : null;
 
   useEffect(() => {
-    // When the node being viewed changes, reset the tab to Impact.
-    setActiveSection('Impact');
+    setShowAfter(true);
   }, [nodeId]);
+
+  // 先从 nodes 数组查找，如果没找到再从 fragmentNodes 查找
+  const node = nodeId ?
+    (nodes.find(n => n.id === nodeId) || fragmentNodes.find(f => f.id === nodeId))
+    : null;
 
   if (!node) {
     return (
@@ -342,13 +358,24 @@ const Dashboard = ({
         node={node}
         showAfter={showAfter}
         setShowAfter={setShowAfter}
-        activeSection={activeSection}
-        setActiveSection={setActiveSection}
         onEditCriteria={(buttonRef, dimension) => {
           setModalAnchorEl(buttonRef);
           setEditingCriteria(dimension);
         }}
-        onUpdateTable={onUpdateTable} // Pass the function down to IdeaCard
+        onModifyScore={onModifyScore}
+        showModifyButton={showModifyButton}
+        pendingChanges={pendingChanges}
+        currentView={currentView}
+        selectedDimensionPairs={selectedDimensionPairs}
+        activeDimensions={activeDimensions}
+        onReEvaluateAll={reEvaluateAll}
+        isEvaluating={isEvaluating}
+        onShowFragmentMenu={onShowFragmentMenu}
+        activeDimensionIndices={activeDimensionIndices}
+        onToggleDimensionIndex={onToggleDimensionIndex}
+        onCreateFragmentFromHighlight={onCreateFragmentFromHighlight}
+        onSwapDimension={onSwapDimension}
+        onEditDimension={onEditDimension}
       />
       {showTree ? (
         <ContextAndGenerateCard
@@ -368,6 +395,7 @@ const Dashboard = ({
           setModalAnchorEl={setModalAnchorEl}
           editIcon={editIcon}
           handleProceedWithSelectedIdea={handleProceedWithSelectedIdea}
+          getNodeTrackingInfo={getNodeTrackingInfo}
         />
       ) : null}
     </div>
@@ -377,6 +405,7 @@ const Dashboard = ({
 
 // ============== 段落2：定义 TreePlotVisualization 组件 ==============
 const TreePlotVisualization = () => {
+  // ... (all your existing state hooks remain here)
   const [currentView, setCurrentView] = useState('home_view'); // Start with home_view
   const [nodes, setNodes] = useState([]);
   const [links, setLinks] = useState([]);
@@ -389,19 +418,72 @@ const TreePlotVisualization = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState(null);
+  // *** 新增：维度选择相关状态 ***
+  const [selectedDimensionPairs, setSelectedDimensionPairs] = useState([]);
+  const [activeDimensionIndices, setActiveDimensionIndices] = useState([0, 1, 2]); // Default all 3 active
+  const [currentFaceIndex, setCurrentFaceIndex] = useState(0); // 0/1/2 对应三张面
+  const [showDimensionPanel, setShowDimensionPanel] = useState(false); // 下拉面板控制
+  const [currentIntent, setCurrentIntent] = useState(''); // 存储当前 intent
+  // *** 新增：维度编辑弹窗状态 ***
+  const [editingDimensionIndex, setEditingDimensionIndex] = useState(null);
+  const [dimensionDropdownAnchor, setDimensionDropdownAnchor] = useState(null);
+  const [isSingleDimensionEvaluating, setIsSingleDimensionEvaluating] = useState(false);
   const svgRef = useRef(null);
   const [ideasList, setIdeasList] = useState([]);
+  const [userScoreCorrections, setUserScoreCorrections] = useState([]);
   const [pendingChange, setPendingChange] = useState(null);
   const [pendingMerge, setPendingMerge] = useState(null);
+  // Track user drag targets for visualization
+  const [userDragTargets, setUserDragTargets] = useState({});
   // *** 新增：用于放大被拖拽覆盖的目标节点 ***
   const [mergeTargetId, setMergeTargetId] = useState(null);
+  // *** Fragment 节点相关状态 ***
+  const [fragmentNodes, setFragmentNodes] = useState([]); // 存储所有 fragment 节点
+  const [fragmentMenuState, setFragmentMenuState] = useState(null); // { x, y, text, parentNodeId }
+  const [expandedFragmentId, setExpandedFragmentId] = useState(null); // 当前展开的 fragment ID
+  const [dragHoverTarget, setDragHoverTarget] = useState(null); // 拖动时 hover 的目标节点 ID
+  const [draggingNodeId, setDraggingNodeId] = useState(null); // 当前正在拖动的节点 ID (用于 z-index 提升)
+  // *** 新增：拖动视觉反馈状态 ***
+  const [dragVisualState, setDragVisualState] = useState(null); // { type: 'modify'|'merge', sourceNodeId, targetNodeId?, ghostPosition? }
+  const cubeDragRef = useRef(null); // 记录立方体自由旋转的拖拽起点
+  const snapTimerRef = useRef(null);
+  const [cubeRotation, setCubeRotation] = useState({ yaw: 0, pitch: 0 }); // yaw: 绕Y轴, pitch: 绕X轴
+  const [isSnapping, setIsSnapping] = useState(false);
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [customIdea, setCustomIdea] = useState({ title: '', content: '' });
+  const [customIdeaCounter, setCustomIdeaCounter] = useState(1);
+
+  // Initialize custom idea counter based on existing custom ideas
+  useEffect(() => {
+    const existingCustomIdeas = nodes.filter(node => /^C-\d+$/.test(node.id));
+    if (existingCustomIdeas.length > 0) {
+      const maxNumber = Math.max(...existingCustomIdeas.map(node => {
+        const match = node.id.match(/^C-(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      }));
+      setCustomIdeaCounter(maxNumber + 1);
+    }
+  }, [nodes]);
   // *** 新增：用于主界面模型选择和api-key输入
-  const [selectedModel, setSelectedModel] = useState('deepseek-chat');
+  const [selectedModel, setSelectedModel] = useState('gpt-4o');
   const [apiKey, setApiKey] = useState('');
   const [isConfigured, setIsConfigured] = useState(false);
   const [configError, setConfigError] = useState('');
+  // Clear server session on page load to avoid stale ideas after refresh.
+  useEffect(() => {
+    const clearSession = async () => {
+      try {
+        await fetch('/api/clear-session', {
+          method: 'POST',
+          credentials: 'include',
+        });
+        setIsConfigured(false);
+      } catch (err) {
+        console.error('[WARN] Failed to clear session on load:', err);
+      }
+    };
+    clearSession();
+  }, []);
   // *** 新增：用于用户自定义prompts
   const [systemPrompt, setSystemPrompt] = useState('');
   const [isEditingSystemPrompt, setIsEditingSystemPrompt] = useState(false);
@@ -422,33 +504,280 @@ const TreePlotVisualization = () => {
   const [dashboardWidth, setDashboardWidth] = useState(0);
   const dashboardContainerRef = useRef(null);
   const analysisFormRef = useRef(null);
-  const svgContainerRef = useRef(null);
+  const evaluationContainerRef = useRef(null); // Ref for plot view container
+  const explorationContainerRef = useRef(null); // Ref for tree view container
+  const fragmentDragOriginRef = useRef(null);
 
-  // New state for Code View and Paper View
-  const [showProceedConfirm, setShowProceedConfirm] = useState(false);
+  // Node merging state
+  const [mergeMode, setMergeMode] = useState({
+    active: false,
+    firstNode: null,
+    secondNode: null,
+    cursorPosition: { x: 0, y: 0 },
+    showDialog: false
+  });
+  const [mergeAnimationState, setMergeAnimationState] = useState(null); // Persist merge visuals while backend merges
 
-  // State for log display
-  const [showLogs, setShowLogs] = useState(false);
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  const [isGeneratingPaper, setIsGeneratingPaper] = useState(false);
-  const [codeResult, setCodeResult] = useState(null);
-  const [paperResult, setPaperResult] = useState(null);
-  const [proceedError, setProceedError] = useState(null);
-  const [codeContent, setCodeContent] = useState('');
-  const [codeFileName, setCodeFileName] = useState('experiment.py');
-  const [activeCodeTab, setActiveCodeTab] = useState('experiment.py');
-  const [experimentFiles, setExperimentFiles] = useState({});
-  const [consoleOutput, setConsoleOutput] = useState('');
-  const [experimentRuns, setExperimentRuns] = useState([]);
-  const [isRunningExperiment, setIsRunningExperiment] = useState(false);
-  const [pdfComments, setPdfComments] = useState([]);
-  const [hasGeneratedCode, setHasGeneratedCode] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [s2ApiKey, setS2ApiKey] = useState('');
-  const [reviewResult, setReviewResult] = useState(null);
-  const [isReviewing, setIsReviewing] = useState(false);
-  const [rightPanelTab, setRightPanelTab] = useState('comments'); // 'comments' or 'review'
+  // Toggle for hiding plot view
+  const [hideEvaluationView, setHideEvaluationView] = useState(false);
 
+  // Helper function to create modifications array from score change
+  const createModificationFromScoreChange = (nodeId, metric, previousScore, newScore) => {
+    return [{
+      metric,
+      previousScore,
+      newScore,
+      change: newScore - previousScore
+    }];
+  };
+
+  const normalizeIdeaOriginalData = (source, fallback = {}) => {
+    const raw = source && typeof source === 'object' ? source : {};
+    const title = raw.Title || raw.title || raw.Name || raw.name || fallback.title;
+    const name = raw.Name || raw.name || raw.Title || raw.title || fallback.title;
+    const problem = raw.Problem || raw.problem || raw.content || fallback.content;
+    const normalized = { ...raw };
+    const id = raw.id || raw.ID || fallback.id;
+
+    if (id) normalized.id = id;
+    if (title) normalized.Title = title;
+    if (name) normalized.Name = name;
+    if (problem) normalized.Problem = problem;
+    if (raw.problem_highlights || fallback.problemHighlights) {
+      normalized.problem_highlights = raw.problem_highlights || fallback.problemHighlights;
+    }
+
+    delete normalized.title;
+    delete normalized.content;
+    delete normalized.originalData;
+    delete normalized.problemHighlights;
+
+    return normalized;
+  };
+
+  // Unified node color helper to keep Exploration/Evaluation views consistent
+  const getNodeColor = (node) => {
+    if (!node) return '#FF6B6B';
+    if (node.isMergedResult) return '#B22222';
+    if (node.isNewlyGenerated || node.isModified) return '#FFD700';
+    return colorMap[node.type] || '#FF6B6B';
+  };
+
+  // Helper function to create ghost node with modified score
+  const createGhostNodeWithModifiedScore = (originalNode, metric, newScore) => {
+    const ghostId = `${originalNode.id}-Xghost-${Date.now()}`;
+    const ghostNode = {
+      ...originalNode,
+      id: ghostId,
+      level: originalNode.level + 1, // Put on next level
+      [metric]: newScore,
+      isGhost: true,
+      isModified: true, // Mark as modified for different color
+      isNewlyGenerated: true, // Use same yellow color as plot view
+      x: originalNode.x + Math.random() * 40 - 20, // Random offset like child nodes
+      y: originalNode.y + 150 + Math.random() * 20 - 10 // Position below like child nodes
+    };
+    return ghostNode;
+  };
+
+  // Score modification handler for tree view
+  const handleScoreModification = (nodeId, metric, previousScore, newScore, screenX, screenY) => {
+    const originalNode = nodes.find(n => n.id === nodeId);
+    if (!originalNode) return;
+
+    // Create modifications array
+    const modifications = createModificationFromScoreChange(nodeId, metric, previousScore, newScore);
+
+    // Create ghost node with modified score
+    const ghostNode = createGhostNodeWithModifiedScore(originalNode, metric, newScore);
+
+    // Add ghost node to nodes
+    setNodes(prev => [...prev, ghostNode]);
+    setLinks(prev => [...prev, { source: originalNode.id, target: ghostNode.id }]);
+
+    // Set pending change to trigger the 3-option modal positioned beneath the score
+    setPendingChange({
+      originalNode,
+      ghostNode,
+      modifications,
+      behindNode: null, // Not needed for score modifications
+      screenX: screenX || window.innerWidth / 2,
+      screenY: screenY || window.innerHeight / 2
+    });
+  };
+
+  const applyModifyEvaluation = useCallback((change) => {
+    if (!change || !change.originalNode || !change.modifications?.length) {
+      return;
+    }
+
+    const { originalNode, ghostNode, modifications } = change;
+
+    const corrections = modifications
+      .filter(mod => Math.abs(mod.change) > 5)
+      .map(mod => ({
+        ideaTitle: originalNode.title,
+        ideaId: originalNode.id,
+        metric: mod.metric,
+        previousScore: mod.previousScore,
+        newScore: mod.newScore,
+        change: mod.change,
+        timestamp: new Date().toISOString()
+      }));
+
+    if (corrections.length > 0) {
+      setUserScoreCorrections(prev => [...prev, ...corrections]);
+    }
+
+    setNodes(prevNodes => {
+      const filteredNodes = ghostNode
+        ? prevNodes.filter(node => node.id !== ghostNode.id)
+        : [...prevNodes];
+
+      const updatedNodes = filteredNodes.map(node => {
+        if (node.id !== originalNode.id) {
+          return node;
+        }
+
+        const updatedNode = {
+          ...node,
+          // 更新 scores 对象（新的动态维度系统）
+          scores: { ...(node.scores || {}) },
+          originalData: node.originalData ? { ...node.originalData } : node.originalData
+        };
+
+        modifications.forEach(mod => {
+          // 更新动态维度分数（scores 对象）
+          if (updatedNode.scores) {
+            updatedNode.scores[mod.metric] = mod.newScore;
+          }
+
+          // 更新旧的三维度分数（向后兼容）
+          updatedNode[mod.metric] = mod.newScore;
+
+          if (updatedNode.originalData) {
+            // 更新 originalData 中的 scores 对象
+            if (!updatedNode.originalData.scores) {
+              updatedNode.originalData.scores = {};
+            }
+            updatedNode.originalData.scores[mod.metric] = mod.newScore;
+
+            // 更新旧格式
+            updatedNode.originalData[mod.metric] = mod.newScore;
+
+            if (mod.metric.endsWith('Score')) {
+              const prefix = mod.metric.slice(0, -5);
+              const capitalizedKey = `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}Score`;
+              updatedNode.originalData[capitalizedKey] = mod.newScore;
+            }
+          }
+        });
+
+        return updatedNode;
+      });
+
+      plotStatusTracker.trackNodesUpdate(updatedNodes, 'accept_modify_eval');
+      return updatedNodes;
+    });
+
+    setIdeasList(prevIdeas => prevIdeas.map(idea => {
+      if (idea.id !== originalNode.id) {
+        return idea;
+      }
+
+      const updatedIdea = {
+        ...idea,
+        // 更新 scores 对象
+        scores: { ...(idea.scores || {}) },
+        originalData: idea.originalData ? { ...idea.originalData } : idea.originalData
+      };
+
+      modifications.forEach(mod => {
+        // 更新动态维度分数
+        if (updatedIdea.scores) {
+          updatedIdea.scores[mod.metric] = mod.newScore;
+        }
+
+        // 更新旧格式
+        updatedIdea[mod.metric] = mod.newScore;
+
+        if (updatedIdea.originalData) {
+          // 更新 originalData 中的 scores 对象
+          if (!updatedIdea.originalData.scores) {
+            updatedIdea.originalData.scores = {};
+          }
+          updatedIdea.originalData.scores[mod.metric] = mod.newScore;
+
+          updatedIdea.originalData[mod.metric] = mod.newScore;
+
+          if (mod.metric.endsWith('Score')) {
+            const prefix = mod.metric.slice(0, -5);
+            const capitalizedKey = `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}Score`;
+            updatedIdea.originalData[capitalizedKey] = mod.newScore;
+          }
+        }
+      });
+
+      return updatedIdea;
+    }));
+
+    if (ghostNode) {
+      setLinks(prev => prev.filter(link => link.target !== ghostNode.id));
+    }
+
+    // 清理拖动视觉状态
+    setDragVisualState(null);
+    setPendingChange(null);
+  }, [plotStatusTracker, setIdeasList, setLinks, setPendingChange, setNodes, setUserScoreCorrections]);
+
+  // Clear drag visual state when newly generated node becomes visible (isGhost: false)
+  // Use ref to track if we've already cleared for a specific node to avoid repeated clears
+  const clearedNodesRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!dragVisualState) return;
+
+    // Only clear if we have a pending operation and that specific node becomes visible
+    if (dragVisualState.type === 'modify' && dragVisualState.sourceNodeId) {
+      // Check if there's a newly generated node related to this drag operation
+      const relatedNode = nodes.find(n =>
+        n.isNewlyGenerated &&
+        !n.isGhost &&
+        n.isModified &&
+        // Match by checking if this node was modified from the source
+        (n.previousState?.id === dragVisualState.sourceNodeId || n.id.includes(dragVisualState.sourceNodeId))
+      );
+      if (relatedNode && !clearedNodesRef.current.has(relatedNode.id)) {
+        console.log('[DEBUG] Related modified node visible, clearing drag visual state:', relatedNode.id);
+        clearedNodesRef.current.add(relatedNode.id);
+        setDragVisualState(null);
+      }
+    } else if (dragVisualState.type === 'merge' && (dragVisualState.sourceNodeId || dragVisualState.targetNodeId)) {
+      // Check if merged result related to this specific merge is visible
+      const relatedMerge = nodes.find(n =>
+        n.isMergedResult &&
+        !n.isGhost &&
+        n.isNewlyGenerated &&
+        n.parentIds &&
+        (n.parentIds.includes(dragVisualState.sourceNodeId) || n.parentIds.includes(dragVisualState.targetNodeId))
+      );
+      if (relatedMerge && !clearedNodesRef.current.has(relatedMerge.id)) {
+        console.log('[DEBUG] Related merged node visible, clearing drag visual state:', relatedMerge.id);
+        clearedNodesRef.current.add(relatedMerge.id);
+        setDragVisualState(null);
+      }
+    }
+  }, [nodes, dragVisualState]);
+
+  // Initialize tracking hooks
+  useNavigationTracking();
+  useFormTracking(analysisFormRef, 'analysis_intent_form');
+  useUserActionTracking(explorationContainerRef, 'visualization_svg', {
+    trackHover: false, // Disable hover tracking on the container
+    trackClick: false, // Disable click tracking on the container
+    trackScroll: false, // Disable scroll tracking to avoid interference
+    trackDrag: false
+  });
 
   // Track view changes
   const previousViewRef = useRef(currentView); // Initialize with current view
@@ -463,9 +792,21 @@ const TreePlotVisualization = () => {
 
     // Only track actual view changes (not initial render)
     if (previousViewRef.current !== currentView) {
+      userActionTracker.trackAction('view_change', currentView, {
+        previousView: previousViewRef.current
+      });
       previousViewRef.current = currentView;
     }
   }, [currentView]);
+
+  // 清理旋转吸附计时器
+  useEffect(() => {
+    return () => {
+      if (snapTimerRef.current) {
+        clearTimeout(snapTimerRef.current);
+      }
+    };
+  }, []);
 
   // This effect will measure the dashboard container and update the width state
   useEffect(() => {
@@ -479,16 +820,419 @@ const TreePlotVisualization = () => {
       return () => resizeObserver.disconnect();
     }
   }, []); // Run only once on mount
-  // X/Y 轴指标（仅在 Evaluation View 用）
-  const [xAxisMetric, setXAxisMetric] = useState('feasibilityScore');
-  const [yAxisMetric, setYAxisMetric] = useState('noveltyScore');
+  // X/Y 轴指标（仅在 Plot View 用）
+  // 注意：现在不再使用固定的 feasibilityScore/noveltyScore/impactScore
+  // 而是使用 selectedDimensionPairs 中的维度对名称作为 key
+  // 例如：node.scores["HCI-AI"] = 75
+  const [xAxisMetric] = useState('feasibilityScore'); // 保留作为 fallback，不再修改
+  const [yAxisMetric] = useState('noveltyScore'); // 保留作为 fallback，不再修改
+  // Evaluation metric scaling via external control lines (one per axis) with movable block (Option A1 refined)
+  // Control block at center (0.5) => scale=1.0.
+  const [xScalingCenter, setXScalingCenter] = useState(50); // Center point for X-axis scaling (0-100)
+  const [yScalingCenter, setYScalingCenter] = useState(50); // Center point for Y-axis scaling (0-100)
 
-  // ID 计数器
-  const idCounterRef = useRef(0);
-  const generateUniqueId = () => {
-    idCounterRef.current += 1;
-    return `node-${idCounterRef.current}`;
+  // Unified scale control for both axes (replaces individual xScaleControl/yScaleControl)
+  const [unifiedScale, setUnifiedScale] = useState(1.0); // 1.0 = normal, >1 = zoomed in, <1 = zoomed out
+  const [userHasInteractedWithScale, setUserHasInteractedWithScale] = useState(false); // Track if user has manually adjusted scale
+
+  // Calculate dynamic midpoints from current nodes
+  const calculateNodeMidpoints = useCallback(() => {
+    const visibleNodes = nodes.filter(n => {
+      const xVal = getNodeX(n);
+      const yVal = getNodeY(n);
+      return xVal !== undefined && yVal !== undefined && !n.isGhost;
+    });
+
+    if (visibleNodes.length === 0) {
+      return { xCenter: 70, yCenter: 70 }; // fallback to default
+    }
+
+    const xValues = visibleNodes.map(n => getNodeX(n));
+    const yValues = visibleNodes.map(n => getNodeY(n));
+
+    const xMin = Math.min(...xValues);
+    const xMax = Math.max(...xValues);
+    const yMin = Math.min(...yValues);
+    const yMax = Math.max(...yValues);
+
+    const xCenter = (xMin + xMax) / 2;
+    const yCenter = (yMin + yMax) / 2;
+
+    return { xCenter, yCenter };
+  }, [nodes, selectedDimensionPairs, xAxisMetric, yAxisMetric, currentFaceIndex]);
+
+  // ============== Fragment 节点相关函数 ==============
+  const clearSelection = useCallback(() => {
+    const selection = window.getSelection && window.getSelection();
+    if (selection && selection.removeAllRanges) {
+      selection.removeAllRanges();
+    }
+  }, []);
+
+  /**
+   * 隐藏 Fragment 菜单
+   */
+  const hideFragmentMenu = useCallback(() => {
+    setFragmentMenuState(null);
+    clearSelection();
+  }, [clearSelection]);
+
+  /**
+   * 显示 Fragment 菜单
+   */
+  const showFragmentMenu = useCallback((x, y, selectedText, parentNodeId) => {
+    setFragmentMenuState({ x, y, text: selectedText, parentNodeId });
+  }, []);
+
+  /**
+   * 创建 Fragment 节点
+   * @param {string} selectedText - 用户选中的文本
+   * @param {string} parentNodeId - 父节点 ID
+   */
+  const createFragmentNode = useCallback((selectedText, parentNodeId) => {
+    const cleanText = (selectedText || '').trim();
+    if (!cleanText || !parentNodeId) return;
+
+    // 计算当前父节点已有的 Fragment 数量
+    const existingFragments = fragmentNodes.filter(fn =>
+      fn.id.startsWith(parentNodeId + '-S')
+    );
+    const nextIndex = existingFragments.length + 1;
+    const fragmentId = `${parentNodeId}-S${nextIndex}`;
+
+    // 创建 Fragment 节点（与正常节点结构一样，但无评分）
+    const fragmentNode = {
+      id: fragmentId,
+      title: cleanText.length > 50 ? cleanText.substring(0, 50) + '...' : cleanText,
+      content: cleanText,
+      type: 'fragment',
+      parentId: parentNodeId,
+      timestamp: Date.now(),
+      // 无评分字段
+    };
+
+    setFragmentNodes(prev => [...prev, fragmentNode]);
+
+    userActionTracker.trackAction('create_fragment', 'fragment_node', {
+      fragmentId,
+      parentNodeId,
+      textLength: selectedText.length,
+      text: cleanText,
+      title: fragmentNode.title
+    });
+  }, [fragmentNodes]);
+
+  /**
+   * 确认创建 Fragment 节点
+   */
+  const handleFragmentConfirm = useCallback(() => {
+    if (!fragmentMenuState) return;
+
+    createFragmentNode(fragmentMenuState.text, fragmentMenuState.parentNodeId);
+    hideFragmentMenu();
+    clearSelection();
+  }, [fragmentMenuState, createFragmentNode, hideFragmentMenu, clearSelection]);
+
+  /**
+   * 删除 Fragment 节点
+   */
+  const deleteFragmentNode = useCallback((fragmentId) => {
+    setFragmentNodes(prev => prev.filter(fn => fn.id !== fragmentId));
+
+    userActionTracker.trackAction('delete_fragment', 'fragment_node', {
+      fragmentId
+    });
+  }, []);
+
+  // Clear user drag targets when axis metrics change
+  useEffect(() => {
+    setUserDragTargets(prev => {
+      const filtered = {};
+      Object.entries(prev).forEach(([nodeId, target]) => {
+        // Only keep targets that match current axis metrics
+        if (target.xAxisMetric === xAxisMetric && target.yAxisMetric === yAxisMetric) {
+          filtered[nodeId] = target;
+        }
+      });
+      return filtered;
+    });
+  }, [xAxisMetric, yAxisMetric]);
+
+  // 点击外部关闭 Fragment 菜单
+  useEffect(() => {
+    if (!fragmentMenuState) return;
+
+    const handleClickOutside = (e) => {
+      // 检查点击是否在 Fragment 菜单外部
+      const target = e.target;
+      const isMenuClick = target.closest('[data-fragment-menu]');
+
+      if (!isMenuClick) {
+        hideFragmentMenu();
+      }
+    };
+
+    // 延迟添加监听器，避免立即触发
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [fragmentMenuState, hideFragmentMenu]);
+
+  // Backend now issues hierarchical IDs; simple merge helper kept for legacy fallback
+  const createMergeId = (nodeAId, nodeBId) => `${nodeAId}-Y-${nodeBId}-Y`;
+
+  // Helper function to extract comprehensive node information for tracking
+  const getNodeTrackingInfo = (node) => {
+    return {
+      nodeId: node.id,
+      nodeTitle: node.title,
+      nodeContent: buildNodeContent(node)
+    };
   };
+
+  // ============== 新增：辅助函数获取节点在动态维度系统下的分数 ==============
+  /**
+   * 获取节点在指定维度对上的分数
+   * @param {Object} node - 节点对象
+   * @param {Object} dimensionPair - 维度对对象 { dimensionA, dimensionB }
+   * @returns {number|undefined} - 分数值 (0-100)，如果不存在则返回 undefined
+   */
+  const getNodeDimensionScore = (node, dimensionPair) => {
+    if (!node || !dimensionPair) return undefined;
+
+    const extractScoreValue = (scoreEntry) => {
+      if (scoreEntry === null || scoreEntry === undefined) return undefined;
+      if (typeof scoreEntry === 'number') return scoreEntry;
+      if (typeof scoreEntry === 'object' && scoreEntry.value !== undefined) return scoreEntry.value;
+      return undefined;
+    };
+
+    const orientScoreValue = (value, flipped) => {
+      if (!flipped || typeof value !== 'number') return value;
+      if (value >= -50 && value <= 50) return -value;
+      if (value >= 0 && value <= 100) return 100 - value;
+      return -value;
+    };
+
+    const getScoreEntry = (key) => {
+      if (!key) return undefined;
+      if (node.scores && node.scores[key] !== undefined) return node.scores[key];
+      if (node.originalData && node.originalData.scores && node.originalData.scores[key] !== undefined) {
+        return node.originalData.scores[key];
+      }
+      return undefined;
+    };
+
+    // 新系统：从 node.scores 对象中获取
+    const key = `${dimensionPair.dimensionA}-${dimensionPair.dimensionB}`;
+    const primaryValue = extractScoreValue(getScoreEntry(key));
+    if (primaryValue !== undefined) {
+      return primaryValue;
+    }
+    // Fallback：如果用户交换了维度方向，尝试反向 key，并翻转符号
+    const reverseKey = `${dimensionPair.dimensionB}-${dimensionPair.dimensionA}`;
+    const reverseValue = extractScoreValue(getScoreEntry(reverseKey));
+    if (reverseValue !== undefined) {
+      return orientScoreValue(reverseValue, true);
+    }
+
+    // Fallback：如果是旧的三维度系统，尝试从直接属性获取
+    // 这里为了向后兼容，保留对 feasibilityScore/noveltyScore/impactScore 的支持
+    const legacyKey = `${dimensionPair.dimensionA}-${dimensionPair.dimensionB}`.toLowerCase();
+    if (legacyKey.includes('feasibility') && node.feasibilityScore !== undefined) {
+      return node.feasibilityScore;
+    }
+    if (legacyKey.includes('novelty') && node.noveltyScore !== undefined) {
+      return node.noveltyScore;
+    }
+    if (legacyKey.includes('impact') && node.impactScore !== undefined) {
+      return node.impactScore;
+    }
+
+    return undefined;
+  };
+
+  /**
+   * 获取当前选中的维度对（X轴和Y轴）
+   * @returns {{ xDimension: Object|null, yDimension: Object|null }}
+   */
+  const getCurrentDimensions = (faceIndexOverride = currentFaceIndex) => {
+    if (!selectedDimensionPairs || selectedDimensionPairs.length === 0) {
+      return { xDimension: null, yDimension: null, faceIndex: 0, faceName: '', xFlip: false, yFlip: false };
+    }
+
+    // Cube faces: 0 (Front), 1 (Right), 2 (Top), 3 (Back), 4 (Left), 5 (Bottom)
+    if (selectedDimensionPairs.length >= 3) {
+      const makeFace = (xPair, yPair, idx, isBack = false) => ({
+        xDimension: xPair,
+        yDimension: yPair,
+        faceIndex: idx,
+        faceName: `Face ${idx}: ${xPair.dimensionA}-${xPair.dimensionB} vs ${yPair.dimensionA}-${yPair.dimensionB}${isBack ? ' (Back)' : ''}`,
+        xFlip: isBack, // Use xFlip only for coordinate inversion, NOT for text mirroring
+        yFlip: false   // Never flip Y for now, unless we want upside down
+      });
+
+      // Face 0 (Front): Pair 0 vs Pair 1
+      // Face 1 (Right): Pair 1 vs Pair 2
+      // Face 2 (Top): Pair 2 vs Pair 0
+      // Face 3 (Back): Pair 0 vs Pair 1 (inverted X)
+      // Face 4 (Left): Pair 1 vs Pair 2 (inverted X)
+      // Face 5 (Bottom): Pair 2 vs Pair 0 (inverted X)
+
+      const faces = [
+        makeFace(selectedDimensionPairs[0], selectedDimensionPairs[1], 0, false),
+        makeFace(selectedDimensionPairs[1], selectedDimensionPairs[2], 1, false),
+        makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 2, false),
+        makeFace(selectedDimensionPairs[0], selectedDimensionPairs[1], 3, true),
+        makeFace(selectedDimensionPairs[1], selectedDimensionPairs[2], 4, true),
+        makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 5, true),
+      ];
+
+      const idx = ((faceIndexOverride % faces.length) + faces.length) % faces.length;
+      return faces[idx];
+    }
+
+    // Fallback: only two pairs selected
+    if (selectedDimensionPairs.length === 2) {
+      return {
+        xDimension: selectedDimensionPairs[0],
+        yDimension: selectedDimensionPairs[1],
+        faceIndex: 0,
+        faceName: `Face 0: ${selectedDimensionPairs[0].dimensionA}-${selectedDimensionPairs[0].dimensionB} vs ${selectedDimensionPairs[1].dimensionA}-${selectedDimensionPairs[1].dimensionB}`,
+        xFlip: false,
+        yFlip: false
+      };
+    }
+
+    // Single pair fallback
+    return {
+      xDimension: selectedDimensionPairs[0],
+      yDimension: selectedDimensionPairs[0],
+      faceIndex: 0,
+      faceName: `Face 0: ${selectedDimensionPairs[0].dimensionA}-${selectedDimensionPairs[0].dimensionB}`,
+      xFlip: false,
+      yFlip: false
+    };
+  };
+
+  /**
+   * 获取节点的 X 坐标值（基于当前选中的维度对）
+   * @param {Object} node - 节点对象
+   * @returns {number|undefined} - X 坐标值
+   */
+  const getNodeX = (node) => {
+    const { xDimension } = getCurrentDimensions();
+    if (xDimension) {
+      return getNodeDimensionScore(node, xDimension);
+    }
+    // Fallback 到旧系统
+    return node[xAxisMetric];
+  };
+
+  /**
+   * 获取节点的 Y 坐标值（基于当前选中的维度对）
+   * @param {Object} node - 节点对象
+   * @returns {number|undefined} - Y 坐标值
+   */
+  const getNodeY = (node) => {
+    const { yDimension } = getCurrentDimensions();
+    if (yDimension) {
+      return getNodeDimensionScore(node, yDimension);
+    }
+    // Fallback 到旧系统
+    return node[yAxisMetric];
+  };
+
+  // Reset face to the first plane when dimension selection changes
+
+
+  /**
+   * 从象限内的像素坐标反向计算分数
+   * @param {number} pixelX - 象限内的 X 像素坐标
+   * @param {number} pixelY - 象限内的 Y 像素坐标
+   * @param {number} quadrantWidth - 象限宽度
+   * @param {number} quadrantHeight - 象限高度
+   * @param {number} xMin - X 轴最小分数
+   * @param {number} xMax - X 轴最大分数
+   * @param {number} yMin - Y 轴最小分数
+   * @param {number} yMax - Y 轴最大分数
+   * @returns {{ xScore: number, yScore: number }} - 计算出的分数 (0-100)
+   */
+  const pixelToScore = (pixelX, pixelY, quadrantWidth, quadrantHeight, xMin, xMax, yMin, yMax) => {
+    // 反向计算：从90%空间映射回去（对应正向映射的90%容器空间）
+    const rawX = (pixelX - quadrantWidth * 0.05) / (quadrantWidth * 0.9);
+    const rawY = (pixelY - quadrantHeight * 0.05) / (quadrantHeight * 0.9);
+
+    // 将像素坐标归一化到 0-1 范围
+    const normalizedX = Math.max(0, Math.min(1, rawX));
+    const normalizedY = Math.max(0, Math.min(1, 1 - rawY)); // Y 轴翻转
+
+    // 映射到分数区间 (支持 signed ranges e.g., -50..50)
+    const xScoreRaw = xMin + normalizedX * (xMax - xMin);
+    const yScoreRaw = yMin + normalizedY * (yMax - yMin);
+
+    // 四舍五入并在提供的区间内截断
+    const xScore = Math.round(xScoreRaw);
+    const yScore = Math.round(yScoreRaw);
+
+    const clamp = (v, a, b) => Math.max(Math.min(v, Math.max(a, b)), Math.min(a, b));
+
+    return {
+      xScore: clamp(xScore, xMin, xMax),
+      yScore: clamp(yScore, yMin, yMax)
+    };
+  };
+
+  /**
+   * 检测拖动节点是否与其他节点碰撞(用于 Merge 检测)
+   * @param {number} dragX - 拖动节点中心的屏幕 X 坐标
+   * @param {number} dragY - 拖动节点中心的屏幕 Y 坐标
+   * @param {string} dragNodeId - 拖动节点的 ID
+   * @param {Array} allNodes - 所有节点列表
+   * @param {number} threshold - 碰撞检测阈值(像素)
+   * @returns {Object|null} - 碰撞的目标节点,如果没有碰撞返回 null
+   */
+  const detectNodeCollision = (dragX, dragY, dragNodeId, allNodes, threshold = 30) => {
+    for (const node of allNodes) {
+      if (node.id === dragNodeId) continue; // 跳过自己
+
+      const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`);
+      if (!nodeElement) continue;
+
+      const rect = nodeElement.getBoundingClientRect();
+      const nodeCenterX = rect.left + rect.width / 2;
+      const nodeCenterY = rect.top + rect.height / 2;
+
+      const distance = Math.sqrt(
+        Math.pow(dragX - nodeCenterX, 2) +
+        Math.pow(dragY - nodeCenterY, 2)
+      );
+
+      if (distance < threshold) {
+        return node;
+      }
+    }
+    return null;
+  };
+
+  // 获取节点中心相对于容器的坐标（用于在 merge 过程中维持视觉状态）
+  const getNodeCenterRelativeToContainer = (nodeId) => {
+    const container = (currentView === 'evaluation' ? evaluationContainerRef : explorationContainerRef).current;
+    const nodeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!container || !nodeElement) return null;
+    const containerRect = container.getBoundingClientRect();
+    const rect = nodeElement.getBoundingClientRect();
+    return {
+      x: rect.left - containerRect.left + rect.width / 2,
+      y: rect.top - containerRect.top + rect.height / 2
+    };
+  };
+
 
   // 配色映射
   const colorMap = {
@@ -496,30 +1240,17 @@ const TreePlotVisualization = () => {
     simple: '#45B649',
     complex: '#FF6B6B',
   };
-  const handleUpdateTable = (nodeId, tableName, newContent) => {
-    setNodes(prevNodes =>
-      prevNodes.map(node => {
-        if (node.id === nodeId) {
-          // Create a deep copy to avoid direct state mutation, which can cause bugs.
-          const updatedNode = JSON.parse(JSON.stringify(node));
-          if (!updatedNode.originalData) {
-            updatedNode.originalData = {};
-          }
-          updatedNode.originalData[tableName] = newContent;
-          console.log(`Updated table '${tableName}' for node ${nodeId}`);
-          return updatedNode;
-        }
-        return node;
-      })
-    );
-  };
   // ============== 配置模型和API Key ==============
   const modelOptions = [
+    { value: 'gpt-5.2', label: 'GPT-5.2' },
+    { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
+    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
     { value: 'deepseek-chat', label: 'DeepSeek Chat' },
     { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'o1-2024-12-17', label: 'GPT-o1' },
-    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
+    { value: 'gemini-3-flash', label: 'Gemini 3 Flash' },
   ];
   useEffect(() => {
     const fetchPrompts = async () => {
@@ -553,7 +1284,6 @@ const TreePlotVisualization = () => {
       return;
     }
 
-
     setConfigError('');
     setOperationStatus('Configuring model...');
 
@@ -576,47 +1306,10 @@ const TreePlotVisualization = () => {
 
       setIsConfigured(true);
       setOperationStatus('');
-      setCurrentView('exploration'); // Auto-switch to exploration view
+      setCurrentView('exploration'); // Auto-switch to tree view
+
     } catch (err) {
       console.error('Configuration error:', err);
-      setConfigError(err.message);
-      setOperationStatus('');
-    }
-  };
-
-  // Quick setup handler for GPT-4o with pre-configured API key
-  const handleQuickSetup = async () => {
-    // Pre-configured API key from environment variable
-    const preConfiguredApiKey = process.env.REACT_APP_OPENAI_API_KEY || 'your-openai-api-key-here';
-
-    // Auto-configure with GPT-4o
-    setSelectedModel('gpt-4o');
-    setApiKey(preConfiguredApiKey);
-    setConfigError('');
-    setOperationStatus('Configuring model...');
-
-    try {
-      const response = await fetch('/api/configure', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          api_key: preConfiguredApiKey,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to configure model');
-      }
-
-      setIsConfigured(true);
-      setOperationStatus('');
-      setCurrentView('exploration'); // Auto-switch to exploration view
-    } catch (err) {
-      console.error('Quick setup error:', err);
       setConfigError(err.message);
       setOperationStatus('');
     }
@@ -625,6 +1318,8 @@ const TreePlotVisualization = () => {
   // Overview Component
   const OverviewPage = () => (
     <div
+      data-uatrack-suppress-hover="true"
+      data-uatrack-suppress-click="true"
       style={{
         display: 'flex',
         justifyContent: 'center',
@@ -719,15 +1414,6 @@ const TreePlotVisualization = () => {
                 boxSizing: 'border-box',
               }}
             />
-            <p style={{
-              fontSize: '0.75rem',
-              color: '#ef4444',
-              marginTop: '4px',
-              marginBottom: '0',
-              fontStyle: 'italic'
-            }}>
-              *We will not save the API key, it is only used for your following usage
-            </p>
           </div>
 
           {/* Error Message */}
@@ -767,37 +1453,87 @@ const TreePlotVisualization = () => {
             {operationStatus === 'Configuring model...' ? 'Configuring...' : 'Start Session'}
           </button>
 
-          {/* Quick Setup Button */}
-          {!isConfigured && (
-            <div style={{ marginTop: '12px', textAlign: 'center' }}>
-              <button
-                type="button"
-                onClick={handleQuickSetup}
-                disabled={operationStatus === 'Configuring model...'}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  cursor: operationStatus === 'Configuring model...' ? 'not-allowed' : 'pointer',
-                  opacity: operationStatus === 'Configuring model...' ? 0.7 : 1,
-                }}
-              >
-                🚀 Quick Setup with GPT-4o
-              </button>
-              <div style={{
-                marginTop: '4px',
-                fontSize: '0.7rem',
-                color: '#6b7280',
-                fontStyle: 'italic'
-              }}>
-                Auto-configure with recommended settings
-              </div>
-            </div>
-          )}
+          {/* GPT-4 Quick Configuration Button */}
+          <button
+            onClick={async () => {
+              try {
+                const response = await fetch('/api/configure', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    model: 'gpt-5.2',
+                  }),
+                });
+
+                if (response.ok) {
+                  setIsConfigured(true);
+                  setConfigError(null);
+                  setCurrentView('exploration');
+                } else {
+                  const errorData = await response.json();
+                  setConfigError(errorData.error || 'Failed to configure GPT-5.2');
+                }
+              } catch (err) {
+                setConfigError('Network error while configuring GPT-5.2');
+              }
+            }}
+            style={{
+              width: '100%',
+              padding: '12px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              marginTop: '12px',
+            }}
+          >
+            Quick Setup: GPT-5.2 with Our Key
+          </button>
+
+          {/* GPT-5.2 Quick Configuration Button
+          <button
+            onClick={async () => {
+              try {
+                const response = await fetch('/api/configure', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    model: 'gpt-5.2',
+                  }),
+                });
+
+                if (response.ok) {
+                  setIsConfigured(true);
+                  setConfigError(null);
+                  setCurrentView('exploration');
+                } else {
+                  const errorData = await response.json();
+                  setConfigError(errorData.error || 'Failed to configure GPT-5.2');
+                }
+              } catch (err) {
+                setConfigError('Network error while configuring GPT-5.2');
+              }
+            }}
+            style={{
+              width: '100%',
+              padding: '12px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              marginTop: '8px',
+            }}
+          >
+            Quick Setup: GPT-5.2 with Our Key
+          </button> */}
 
           {/* Status for already configured */}
           {isConfigured && (
@@ -914,6 +1650,7 @@ const TreePlotVisualization = () => {
         onClick={onClose}
       >
         <div
+          data-panel-root="edit-modal"
           style={{
             position: 'absolute',
             top: position.top,
@@ -962,6 +1699,9 @@ const TreePlotVisualization = () => {
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexShrink: 0 }}>
             <button
               onClick={() => {
+                userActionTracker.trackAction('prompt_edit_reset', title.toLowerCase().replace(/\s+/g, '_'), {
+                  promptType: title.toLowerCase().replace(/\s+/g, '_')
+                });
                 setCurrentValue('');
               }}
               style={{
@@ -978,6 +1718,9 @@ const TreePlotVisualization = () => {
             </button>
             <button
               onClick={() => {
+                userActionTracker.trackAction('prompt_edit_cancel', title.toLowerCase().replace(/\s+/g, '_'), {
+                  promptType: title.toLowerCase().replace(/\s+/g, '_')
+                });
                 onClose();
               }}
               style={{
@@ -1037,25 +1780,117 @@ const TreePlotVisualization = () => {
     </svg>
   );
   // ============== 段落3：评估假设（evaluateIdeas） ==============
-  const evaluateIdeas = async (ideas) => {
+  // Helper: determine which ideas need evaluation (missing scores)
+  const getIdeasNeedingEvaluation = useCallback((ideasArr) => {
+    return ideasArr.filter(i => {
+      // 新系统：检查是否有 scores 对象且包含维度分数
+      if (i.scores && typeof i.scores === 'object' && Object.keys(i.scores).length > 0) {
+        // 确保所有选中的维度都有分数
+        if (selectedDimensionPairs && selectedDimensionPairs.length > 0) {
+          const hasAll = selectedDimensionPairs.every(pair => {
+            const val = getNodeDimensionScore(i, pair);
+            return val !== undefined && val !== null;
+          });
+          if (hasAll) return false;
+        } else {
+          return false; // 没有选中的维度则认为已评分
+        }
+      }
+      // 旧系统 fallback：检查旧的三维度分数
+      if (i.noveltyScore != null && i.feasibilityScore != null && i.impactScore != null) {
+        return false; // 已有旧分数
+      }
+      return true; // 需要评估
+    }).map(i => i.id);
+  }, [selectedDimensionPairs]);
+
+  const evaluateIdeas = async (ideas, { mode = 'incremental', allowAutoCenter = false, dimensionPairs = null } = {}) => {
+
+    if (!ideas || !Array.isArray(ideas) || ideas.length === 0) {
+      return;
+    }
+
+    // Don't clear drag targets at start - they should persist during evaluation
 
     setIsEvaluating(true);
     setOperationStatus('Evaluating ideas...');
     setError(null);
-    setShowLogs(true); // Show logs when starting idea evaluation
 
     try {
+      // Prepare the request body - ensuring merged ideas use their originalData properly
+      console.log('[DEBUG] Before filtering ideas:', {
+        totalIdeas: ideas.length,
+        ideaStructure: ideas.map(h => ({
+          id: h.id,
+          title: h.title,
+          hasOriginalData: !!h.originalData,
+          originalDataFields: h.originalData ? Object.keys(h.originalData) : []
+        }))
+      });
+
+      // Log each idea separately for easier debugging
+      ideas.forEach((idea, index) => {
+        console.log(`[DEBUG] Idea ${index}:`, {
+          id: idea.id,
+          title: idea.title,
+          hasOriginalData: !!idea.originalData,
+          originalData: idea.originalData
+        });
+      });
+
+      const requestIdeas = ideas
+        .filter(h => {
+          // Exclude root node (level 0) from evaluation
+          if (h.level === 0) {
+            console.log('[DEBUG] Excluding root node from evaluation:', h.id);
+            return false;
+          }
+          // For ideas from ideasList, they are already the original data
+          // For ideas from nodes, they need originalData
+          return h.originalData || (h.id && h.title && !h.level); // level indicates it's a node, not an idea
+        })
+        .map(h => {
+          if (h.originalData) {
+            // This is a node with originalData
+            const od = h.originalData;
+            return {
+              ...od,
+              id: od.id || h.id,
+              Title: od.Title || od.Name || h.title || h.name || '',
+              Name: od.Name || od.Title || h.title || h.name || ''
+            };
+          } else {
+            // This is already an idea from ideasList
+            return {
+              ...h,
+              Title: h.Title || h.Name || h.title || h.name || '',
+              Name: h.Name || h.Title || h.title || h.name || ''
+            };
+          }
+        });
+
+      console.log('[DEBUG] After filtering and mapping:', {
+        requestIdeasCount: requestIdeas.length,
+        requestIdeaIds: requestIdeas.map(i => i.id),
+        requestIdeaTitles: requestIdeas.map(i => i.Title || i.Name)
+      });
+
+      // Use selectedDimensionPairs if provided via parameter, otherwise use component state
+      const effectiveDimensionPairs = dimensionPairs || selectedDimensionPairs;
+
       const requestBody = {
-        ideas: ideas.map(h => ({
-          ...(h.originalData || {}),
-          id: h.id,  // Always include the frontend node ID
-          // Don't overwrite the original Title field - use it for evaluation
-          // title: h.title,
-          // content: h.content
-        })),
-        intent: analysisIntent
+        ideas: requestIdeas,
+        intent: analysisIntent,
+        userScoreCorrections: userScoreCorrections,
+        mode,
+        // Only send explicit targetIds when incremental; backend will infer otherwise.
+        targetIds: mode === 'incremental' ? getIdeasNeedingEvaluation(requestIdeas) : undefined,
+        // Add dimension_pairs to request if available
+        dimension_pairs: effectiveDimensionPairs && effectiveDimensionPairs.length > 0 ? effectiveDimensionPairs : undefined
       };
 
+
+      // 1. Make the API call.
       const response = await fetch('/api/evaluate', {
         method: 'POST',
         headers: {
@@ -1066,32 +1901,259 @@ const TreePlotVisualization = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to evaluate ideas');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const evaluatedIdeas = await response.json();
+      // 2. Wait for the full response body to arrive as text.
+      const responseText = await response.text();
+      console.log('[DEBUG] Evaluation response text length:', responseText.length);
+      console.log('[DEBUG] Evaluation response text preview:', responseText.substring(0, 1000));
+      console.log('[DEBUG] Evaluation response text end:', responseText.substring(responseText.length - 500));
 
+      // 3. Parse the text string into JSON.
+      const parsed = JSON.parse(responseText);
+      let evaluatedIdeas = [];
+      let metaMode = mode;
+      if (Array.isArray(parsed)) {
+        evaluatedIdeas = parsed; // legacy array shape
+      } else if (parsed.ideas) {
+        evaluatedIdeas = parsed.ideas; // new shape {ideas, meta}
+        if (parsed.meta && parsed.meta.mode) metaMode = parsed.meta.mode;
+      } else if (parsed.scores) {
+        evaluatedIdeas = parsed.scores; // older shape
+      }
+
+      // Debug: Log evaluation response structure
+      console.log('[DEBUG] Parsed evaluation response:', {
+        evaluatedIdeasCount: evaluatedIdeas.length,
+        evaluatedIdeas: evaluatedIdeas.map(ev => ({
+          id: ev.id,
+          title: ev.title,
+          hasScores: !!(ev.scores && Object.keys(ev.scores).length > 0) || !!(ev.noveltyScore && ev.feasibilityScore && ev.impactScore),
+          hasReasoning: !!(ev.ImpactReason || ev.FeasibilityReason || ev.NoveltyReason),
+          ImpactReason: ev.ImpactReason,
+          FeasibilityReason: ev.FeasibilityReason,
+          NoveltyReason: ev.NoveltyReason,
+          // Debug: Show all keys to see what's actually available
+          allKeys: Object.keys(ev),
+          // Debug: Check for any reasoning-related fields
+          reasoningFields: Object.keys(ev).filter(key => key.toLowerCase().includes('reason'))
+        }))
+      });
+
+      // Debug: Log the raw evaluatedIdeas for custom ideas
+      const customIdeas = evaluatedIdeas.filter(ev => ev.id && (ev.id.includes('-CUSTOM-') || /^C-\d+$/.test(ev.id)));
+      if (customIdeas.length > 0) {
+        console.log('[DEBUG] Custom ideas in evaluation response:', customIdeas.map(ev => ({
+          id: ev.id,
+          title: ev.title,
+          allKeys: Object.keys(ev),
+          reasoningFields: Object.keys(ev).filter(key => key.toLowerCase().includes('reason')),
+          rawData: ev
+        })));
+      }
+
+      // 4. Check if the backend returned a specific error message.
+      if (evaluatedIdeas.error) {
+        throw new Error(evaluatedIdeas.error);
+      }
+
+
+      // 5. Success! The data is ready. Log it and update the state.
+      console.log("Evaluation successful:", evaluatedIdeas);
+
+      // This logic now correctly runs inside the same block where 'evaluatedIdeas' is defined.
       setNodes((prevNodes) => {
+        // Build map keyed by backend idea id (each evaluated idea.id is backend id)
+        const evalMap = new Map(evaluatedIdeas.map(h => [h.id, h]));
+        const existingBackendIds = new Set(prevNodes.map(n => n.originalData && n.originalData.id).filter(Boolean));
 
-        const updatedNodes = prevNodes.map((node) => {
-          const evalIdea = evaluatedIdeas.find((h) => h.id === node.id);
-          if (evalIdea) {
-            const noveltyScore = evalIdea.noveltyScore;
-            const feasibilityScore = evalIdea.feasibilityScore;
-            const impactScore = evalIdea.impactScore;
-
-            return {
-              ...node,
-              noveltyScore,
-              feasibilityScore,
-              impactScore,
-              noveltyReason: evalIdea.noveltyReason || '(No reason provided)',
-              feasibilityReason: evalIdea.feasibilityReason || '(No reason provided)',
-              impactReason: evalIdea.impactReason || '(No reason provided)',
-            };
-          }
-          return node;
+        console.log('[DEBUG] Frontend evaluation mapping:', {
+          evaluatedIdeas: evaluatedIdeas.map(e => ({
+            id: e.id,
+            title: e.title,
+            hasScores: !!(e.scores && Object.keys(e.scores).length > 0) || !!(e.noveltyScore && e.feasibilityScore && e.impactScore)
+          })),
+          nodes: prevNodes.map(n => ({
+            nodeId: n.id,
+            backendId: n.originalData?.id,
+            title: n.title,
+            hasExistingScores: !!(n.scores && Object.keys(n.scores).length > 0) || !!(n.noveltyScore && n.feasibilityScore && n.impactScore)
+          }))
         });
+
+        const updatedNodes = prevNodes.map(node => {
+          const backendId = node.originalData && (node.originalData.id || node.originalData.ID);
+          let ev = backendId ? evalMap.get(backendId) : evalMap.get(node.id);
+
+          // Additional fallback: try finding by title if ID doesn't match
+          if (!ev && node.title) {
+            ev = evaluatedIdeas.find(e =>
+              e.title === node.title ||
+              e.Title === node.title ||
+              (e.title && e.title.toLowerCase() === node.title.toLowerCase())
+            );
+          }
+
+          if (!ev) {
+            console.log(`[DEBUG] No evaluation match for node: ${node.id} (backend: ${backendId}, title: "${node.title}")`);
+            console.log(`[DEBUG] Available evaluations:`, evaluatedIdeas.map(e => ({ id: e.id, title: e.title })));
+            return node;
+          }
+
+          console.log(`[DEBUG] Matched node ${node.id} with eval ${ev.id}, scores:`,
+            ev.scores ? `Dynamic: ${JSON.stringify(ev.scores)}` : `Legacy: N=${ev.noveltyScore}, F=${ev.feasibilityScore}, I=${ev.impactScore}`
+          );
+
+          // Debug: Check if this is a custom idea and log reasoning fields
+          const isCustomIdea = node.id && (node.id.includes('-CUSTOM-') || /^C-\d+$/.test(node.id));
+          if (isCustomIdea) {
+            console.log(`[DEBUG] Custom idea ${node.id} evaluation data:`, {
+              // 旧系统
+              ImpactReason: ev.ImpactReason,
+              FeasibilityReason: ev.FeasibilityReason,
+              NoveltyReason: ev.NoveltyReason,
+              // 新系统
+              Dimension1Reason: ev.Dimension1Reason,
+              Dimension2Reason: ev.Dimension2Reason,
+              Dimension3Reason: ev.Dimension3Reason,
+              Dimension1Score: ev.Dimension1Score,
+              Dimension2Score: ev.Dimension2Score,
+              Dimension3Score: ev.Dimension3Score,
+              DimensionReasons: ev.Dimension1Reason || ev.Dimension2Reason || ev.Dimension3Reason,
+              hasImpactReason: !!ev.ImpactReason,
+              hasFeasibilityReason: !!ev.FeasibilityReason,
+              hasNoveltyReason: !!ev.NoveltyReason,
+              hasDimension1Reason: !!ev.Dimension1Reason,
+              hasDimension2Reason: !!ev.Dimension2Reason,
+              hasDimension3Reason: !!ev.Dimension3Reason,
+              // Debug: Show all available fields
+              allEvKeys: Object.keys(ev),
+              reasoningFields: Object.keys(ev).filter(key => key.toLowerCase().includes('reason'))
+            });
+          }
+
+          // Calculate correct position based on actual scores (new or old system)
+          const updatedNode = {
+            ...node,
+            // 新系统分数
+            scores: ev.scores || node.scores,
+            dimension1Score: ev.dimension1Score ?? node.dimension1Score,
+            dimension2Score: ev.dimension2Score ?? node.dimension2Score,
+            dimension3Score: ev.dimension3Score ?? node.dimension3Score,
+            // 旧系统分数（向后兼容）
+            noveltyScore: ev.noveltyScore,
+            feasibilityScore: ev.feasibilityScore,
+            impactScore: ev.impactScore,
+            // Preserve original content and title from the node (don't overwrite with evaluation data)
+            title: node.title || ev.title || ev.Title || ev.Name,
+            content: node.content || ev.content || ev.Problem || '',
+            problemHighlights: node.problemHighlights || node.originalData?.problem_highlights || ev.problem_highlights || ev.problemHighlights || [],
+            // Store evaluation reasoning for custom ideas
+            evaluationReasoning: {
+              impactReasoning: ev.ImpactReason || '',
+              feasibilityReasoning: ev.FeasibilityReason || '',
+              noveltyReasoning: ev.NoveltyReason || ''
+            },
+            // Update originalData to include reasoning fields for all ideas
+            originalData: {
+              ...(node.originalData || {}),
+              // 旧系统字段
+              ImpactReason: ev.ImpactReason || '',
+              FeasibilityReason: ev.FeasibilityReason || '',
+              NoveltyReason: ev.NoveltyReason || '',
+              // 新系统字段 - 维度评分原因
+              Dimension1Reason: ev.Dimension1Reason || '',
+              Dimension2Reason: ev.Dimension2Reason || '',
+              Dimension3Reason: ev.Dimension3Reason || '',
+              Dimension3Score: ev.Dimension3Score || ev.dimension3Score,
+              scores: ev.scores || node.scores, // 重要: 也存到 originalData
+            },
+            // Explicitly preserve userDragTarget for visualization
+            userDragTarget: node.userDragTarget,
+            // Reveal ghost nodes when they receive scores (turn off ghost mode)
+            isGhost: false,
+            // Clear pending evaluation status
+            isPendingEvaluation: false
+          };
+
+          // Debug: Log userDragTarget preservation
+          if (node.userDragTarget) {
+            console.log('[DEBUG] Preserved userDragTarget for node:', node.id, node.userDragTarget);
+          }
+
+          // Debug: Log the updated node for custom ideas
+          if (isCustomIdea) {
+            console.log(`[DEBUG] Custom idea ${node.id} updated node:`, {
+              evaluationReasoning: updatedNode.evaluationReasoning,
+              hasImpactReasoning: !!updatedNode.evaluationReasoning?.impactReasoning,
+              hasFeasibilityReasoning: !!updatedNode.evaluationReasoning?.feasibilityReasoning,
+              hasNoveltyReasoning: !!updatedNode.evaluationReasoning?.noveltyReasoning
+            });
+          }
+
+          // If this was a ghost node, clear explicit coordinates to use score-based positioning
+          if (node.isGhost) {
+            console.log(`[DEBUG] Converting ghost node ${node.id} to scored node - clearing explicit coordinates`);
+            // Clear explicit coordinates so the node positions based on its scores
+            delete updatedNode.x;
+            delete updatedNode.y;
+            delete updatedNode._tmpViewX;
+            delete updatedNode._tmpViewY;
+          }
+
+          // DON'T delete userDragTarget here - keep it for visualization until next evaluation
+          // delete updatedNode.userDragTarget;
+
+          return updatedNode;
+        });
+
+        // If full mode, ensure every evaluated idea has a node; if missing, append (edge safety)
+        if (metaMode === 'full') {
+          evaluatedIdeas.forEach(ev => {
+            if (!existingBackendIds.has(ev.id)) {
+              updatedNodes.push({
+                id: ev.id, // fallback to backend id (no lineage info available)
+                level: 1,
+                title: ev.title || ev.Title || 'Untitled',
+                content: ev.content || '',
+                problemHighlights: ev.problem_highlights || ev.problemHighlights || [],
+                type: 'complex',
+                x: 0,
+                y: 0,
+                originalData: ev,
+                // 新系统分数
+                scores: ev.scores || {},
+                dimension1Score: ev.dimension1Score,
+                dimension2Score: ev.dimension2Score,
+                dimension3Score: ev.dimension3Score,
+                // 旧系统分数（向后兼容）
+                noveltyScore: ev.noveltyScore,
+                feasibilityScore: ev.feasibilityScore,
+                impactScore: ev.impactScore,
+                // Store evaluation reasoning for custom ideas
+                evaluationReasoning: {
+                  impactReasoning: ev.ImpactReason || '',
+                  feasibilityReasoning: ev.FeasibilityReason || '',
+                  noveltyReasoning: ev.NoveltyReason || ''
+                },
+              });
+            }
+          });
+        }
+
+        // Track evaluation updates
+        plotStatusTracker.trackNodesUpdate(updatedNodes, 'evaluation_complete');
+
+        // Auto-center after evaluation completion (only if user hasn't manually adjusted scale and auto-centering is allowed)
+        if (!userHasInteractedWithScale && allowAutoCenter) {
+          setTimeout(() => {
+            // Keep xy scale at 0-100 for initial generation, don't auto-adjust to node midpoints
+            setXScalingCenter(50);
+            setYScalingCenter(50);
+            console.log(`[DEBUG] Kept scale centered at 50,50 for stable 0-100 view`);
+          }, 100);
+        }
 
         return updatedNodes;
       });
@@ -1101,24 +2163,117 @@ const TreePlotVisualization = () => {
     } finally {
       setIsEvaluating(false);
       setOperationStatus('');
+
+      // Clear temporary view coordinates so nodes use score-based positioning
+      setNodes(prev => {
+        const updatedNodes = prev.map(node => {
+          const updatedNode = { ...node };
+          delete updatedNode._tmpViewX;
+          delete updatedNode._tmpViewY;
+          return updatedNode;
+        });
+
+        return updatedNodes;
+      });
+
+      // Clear ALL drag targets at evaluation end, then regenerate only the most recent one
+      console.log('[DEBUG] Clearing ALL drag targets at evaluation end');
+      setUserDragTargets({});
+
+      // Find the most recently modified node (highest timestamp)
+      let mostRecentDragTarget = null;
+      let mostRecentNodeId = null;
+      let mostRecentTimestamp = 0;
+
+      setNodes(currentNodes => {
+        // First pass: find the most recent drag target
+        currentNodes.forEach(node => {
+          if (node.userDragTarget && node.userDragTarget.timestamp > mostRecentTimestamp) {
+            mostRecentTimestamp = node.userDragTarget.timestamp;
+            mostRecentDragTarget = node.userDragTarget;
+            mostRecentNodeId = node.id;
+          }
+        });
+
+        console.log('[DEBUG] Most recent drag target:', mostRecentNodeId, 'timestamp:', mostRecentTimestamp);
+
+        // Second pass: clear ALL userDragTarget from ALL nodes
+        const clearedNodes = currentNodes.map(node => {
+          if (node.userDragTarget) {
+            const cleanedNode = { ...node };
+            delete cleanedNode.userDragTarget;
+            console.log('[DEBUG] Cleared userDragTarget from node:', node.id);
+            return cleanedNode;
+          }
+          return node;
+        });
+
+        return clearedNodes;
+      });
+
+      // Regenerate drag target only for the most recently modified node
+      setTimeout(() => {
+        if (mostRecentDragTarget && mostRecentNodeId) {
+          console.log('[DEBUG] Restoring drag target only for most recent node:', mostRecentNodeId);
+
+          // Restore userDragTarget only to the most recent node
+          setNodes(currentNodes => currentNodes.map(node => {
+            if (node.id === mostRecentNodeId) {
+              console.log('[DEBUG] Restoring userDragTarget for node:', node.id);
+              return {
+                ...node,
+                userDragTarget: mostRecentDragTarget
+              };
+            }
+            return node;
+          }));
+
+          // Set visualization for only this node
+          setUserDragTargets({
+            [mostRecentNodeId]: mostRecentDragTarget
+          });
+        } else {
+          console.log('[DEBUG] No recent drag targets to restore');
+        }
+      }, 50);
     }
   };
+
+  // New: re-evaluate all ideas handler
+  const reEvaluateAll = useCallback(() => {
+    if (isEvaluating || nodes.length === 0) return;
+    evaluateIdeas(nodes, { mode: 'full', allowAutoCenter: true });
+  }, [isEvaluating, nodes, evaluateIdeas]);
 
   // ============== 段落4：分析意图提交处理 (handleAnalysisIntentSubmit) ==============
   const handleAnalysisIntentSubmit = async (e) => {
     e.preventDefault();
     if (!analysisIntent.trim()) return;
 
+    userActionTracker.trackAction('submit_analysis_intent', 'analysis_intent', {
+      intentLength: analysisIntent.length,
+      intent: analysisIntent
+    });
 
     if (!isConfigured) {
       setError('Please configure the model first');
       return;
     }
 
+    // 保存 intent 并打开下拉面板让用户选择维度
+    setCurrentIntent(analysisIntent);
+    setShowDimensionPanel(true);
+  };
+
+  // ============== 新增：维度确认后生成 Ideas ==============
+  const handleDimensionConfirm = async (dimensionPairs) => {
+    setSelectedDimensionPairs(dimensionPairs);
+    setCurrentFaceIndex(0); // Reset to front face
+    setShowDimensionPanel(false); // 关闭面板
+
     setIsGenerating(true);
     setOperationStatus('Generating initial ideas...');
     setError(null);
-    setShowLogs(true); // Show logs when starting idea generation
 
     try {
       // Call Flask backend
@@ -1130,7 +2285,8 @@ const TreePlotVisualization = () => {
         credentials: 'include',
         body: JSON.stringify({
           intent: analysisIntent,
-          num_ideas: 3
+          num_ideas: 3,
+          dimension_pairs: dimensionPairs // 传递维度对
         }),
       });
       console.log("Response status:", response.status);
@@ -1141,17 +2297,19 @@ const TreePlotVisualization = () => {
         throw new Error(`Failed to generate ideas: ${errorText}`);
       }
 
-      const data = await response.json();
+      // Wait for the full response as text (handles heartbeat stream)
+      const responseText = await response.text();
+
+      // Parse the text into JSON, ignoring heartbeats
+      const data = JSON.parse(responseText);
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
       console.log("Received data from API:", data);
 
       const ideas = data.ideas;
-
-      // Create IDs using the existing method
-      const ideasWithId = ideas.map((idea) => {
-        const id = generateUniqueId();
-        return { id, ...idea };
-      });
-
+      const ideasWithId = ideas; // backend already provides hierarchical ids
       const updatedIdeasList = [...ideasList, ...ideasWithId];
       setIdeasList(updatedIdeasList);
 
@@ -1179,7 +2337,8 @@ const TreePlotVisualization = () => {
         type: 'complex',
         x: startX + i * childSpacing,
         y: rootNode.y + 150,
-        originalData: hyp.originalData, // Preserve original data for coder/writer
+        originalData: hyp.originalData,
+        problemHighlights: hyp.problemHighlights || hyp.originalData?.problem_highlights || []
       }));
 
       const newNodes = [rootNode, ...childNodes];
@@ -1187,11 +2346,12 @@ const TreePlotVisualization = () => {
       setNodes(newNodes);
       setLinks(newLinks);
 
-      setAnalysisIntent('');
+      // Track initial tree creation will happen after evaluation
+
       setIsAnalysisSubmitted(true);
 
-      // 评估
-      await evaluateIdeas(updatedIdeasList);
+      // Full evaluation after initial generation to ensure scores populate
+      await evaluateIdeas(updatedIdeasList, { mode: 'full', allowAutoCenter: true, dimensionPairs });
       setIsGenerating(false);
       setOperationStatus('');
     } catch (err) {
@@ -1208,7 +2368,6 @@ const TreePlotVisualization = () => {
     setIsGenerating(true);
     setOperationStatus('Generating child ideas...');
     setError(null);
-    setShowLogs(true); // Show logs when generating child ideas
 
     try {
       const response = await fetch('/api/generate-children', {
@@ -1219,6 +2378,7 @@ const TreePlotVisualization = () => {
         credentials: 'include',
         body: JSON.stringify({
           parent_content: selectedNode.content,
+          parent_id: selectedNode.id,
           context: userInput
         }),
       });
@@ -1227,14 +2387,17 @@ const TreePlotVisualization = () => {
         throw new Error('Failed to generate child ideas');
       }
 
-      const data = await response.json();
+      // Wait for the full response as text (handles heartbeat stream)
+      const responseText = await response.text();
+
+      // Parse the text into JSON, ignoring heartbeats
+      const data = JSON.parse(responseText);
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
       const ideas = data.ideas;
-
-      const newIdeasWithId = ideas.map((hyp) => {
-        const id = generateUniqueId();
-        return { id, ...hyp };
-      });
-
+      const newIdeasWithId = ideas; // backend already supplied hierarchical ids
       const updatedIdeasList = [...ideasList, ...newIdeasWithId];
       setIdeasList(updatedIdeasList);
 
@@ -1251,15 +2414,18 @@ const TreePlotVisualization = () => {
         type: 'complex',
         x: startX + i * childSpacing + Math.random() * 20 - 10,
         y: selectedNode.y + 150 + Math.random() * 20 - 10,
-        originalData: hyp.originalData, // Preserve original data for coder/writer
+        originalData: hyp.originalData,
+        problemHighlights: hyp.problemHighlights || hyp.originalData?.problem_highlights || []
       }));
 
-      const newLinks = newNodes.map((nd) => ({ source: selectedNode.id, target: nd.id, isParentChild: true }));
+      const newLinks = newNodes.map((nd) => ({ source: selectedNode.id, target: nd.id }));
       setNodes((prev) => [...prev, ...newNodes]);
       setLinks((prev) => [...prev, ...newLinks]);
 
-      // 评估
-      await evaluateIdeas(updatedIdeasList);
+      // Track child nodes generation will happen after evaluation
+
+      // 评估 - 传递维度对
+      await evaluateIdeas(updatedIdeasList, { allowAutoCenter: true });
 
       setIsGenerating(false);
       setOperationStatus('');
@@ -1273,22 +2439,31 @@ const TreePlotVisualization = () => {
   };
 
   // ============== 段落6：根据拖拽修改假设 (modifyIdeaBasedOnModifications) ==============
-  const modifyIdeaBasedOnModifications = async (
-    originalNode,
-    ghostNode,
-    modifications,
-    behindNode
-  ) => {
-    setError(null);
+  const modifyIdeaBasedOnModifications = async (originalNode, ghostNode, modifications, behindNode) => {
+    const deepClone = (value) => {
+      if (value === null || value === undefined) return value;
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch (err) {
+        console.warn('[WARN] Failed to deep clone value, returning original reference.', err);
+        return value;
+      }
+    };
+    console.log('[DEBUG] modifyIdeaBasedOnModifications called with:', {
+      originalNodeId: originalNode?.id,
+      ghostNodeId: ghostNode?.id,
+      modifications,
+      behindNodeId: behindNode?.id
+    });
 
+    setError(null);
+    setIsGenerating(true);
+    setOperationStatus('Modifying idea...');
     try {
-      setIsGenerating(true);
-      setOperationStatus('Modifying idea...');
+      console.log('[DEBUG] About to call /api/modify...');
       const response = await fetch('/api/modify', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           original_idea: originalNode.originalData || {
@@ -1296,67 +2471,231 @@ const TreePlotVisualization = () => {
             title: originalNode.title,
             content: originalNode.content
           },
-          modifications: modifications,
+          modifications,
           behind_idea: behindNode ? (behindNode.originalData || {
             id: behindNode.id,
             title: behindNode.title,
             content: behindNode.content
-          }) : null
-        }),
+          }) : null,
+          dimension_pairs: selectedDimensionPairs && selectedDimensionPairs.length > 0 ? selectedDimensionPairs : undefined
+        })
       });
+      console.log('[DEBUG] /api/modify response status:', response.status);
+      if (!response.ok) throw new Error('Failed to modify idea');
+      const responseText = await response.text();
+      console.log('[DEBUG] /api/modify response received, parsing...');
+      const data = JSON.parse(responseText);
+      if (data.error) throw new Error(data.error);
+      console.log('[DEBUG] /api/modify successful, data:', { id: data.id, title: data.title, scores: data.scores });
 
-      if (!response.ok) {
-        throw new Error('Failed to modify idea');
+      // Update ghost node to show as modified
+      const oldGhostId = ghostNode.id;
+      const backendId = data.id || (data.originalData && data.originalData.id) || oldGhostId;
+      const resolvedLevel = Number.isFinite(originalNode.level)
+        ? originalNode.level + 1
+        : (Number.isFinite(ghostNode.level) ? ghostNode.level : 1);
+
+      // Create a new updated ghost node object (don't mutate existing object)
+      const originalSnapshot = originalNode ? {
+        id: originalNode.id,
+        title: originalNode.title,
+        content: originalNode.content,
+        type: originalNode.type,
+        level: originalNode.level,
+        scores: deepClone(originalNode.scores),
+        dimension1Score: originalNode.dimension1Score,
+        dimension2Score: originalNode.dimension2Score,
+        noveltyScore: originalNode.noveltyScore,
+        feasibilityScore: originalNode.feasibilityScore,
+        impactScore: originalNode.impactScore,
+        evaluationReasoning: deepClone(originalNode.evaluationReasoning),
+        originalData: deepClone(originalNode.originalData)
+      } : null;
+
+      const updatedGhostNode = {
+        ...ghostNode,
+        id: backendId,
+        title: data.title,
+        content: data.content,
+        problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || ghostNode.problemHighlights || originalNode?.problemHighlights || [],
+        isModified: true,
+        previousState: originalSnapshot,
+        isGhost: false, // Show the modified node
+        isPendingEvaluation: false, // Has been evaluated by backend
+        level: resolvedLevel, // Keep it directly under the original node
+        isNewlyGenerated: true, // Always highlight modified result
+        // Apply scores from backend (already evaluated by modify_idea)
+        scores: data.scores || ghostNode.scores || {},
+        dimension1Score: data.dimension1Score ?? ghostNode.dimension1Score,
+        dimension2Score: data.dimension2Score ?? ghostNode.dimension2Score,
+        noveltyScore: data.noveltyScore ?? ghostNode.noveltyScore,
+        feasibilityScore: data.feasibilityScore ?? ghostNode.feasibilityScore,
+        impactScore: data.impactScore ?? ghostNode.impactScore,
+        originalData: {
+          id: backendId,
+          ...(data.originalData || {}),
+          Title: data.title,
+          Name: data.title,
+          content: data.content
+        }
+      };
+
+      const modifiedSnapshot = {
+        id: backendId,
+        title: updatedGhostNode.title,
+        content: updatedGhostNode.content,
+        type: updatedGhostNode.type,
+        level: updatedGhostNode.level,
+        scores: deepClone(updatedGhostNode.scores),
+        dimension1Score: updatedGhostNode.dimension1Score,
+        dimension2Score: updatedGhostNode.dimension2Score,
+        noveltyScore: updatedGhostNode.noveltyScore,
+        feasibilityScore: updatedGhostNode.feasibilityScore,
+        impactScore: updatedGhostNode.impactScore,
+        evaluationReasoning: deepClone(updatedGhostNode.evaluationReasoning),
+        originalData: deepClone(updatedGhostNode.originalData)
+      };
+
+      // Preserve user drag target for visualization
+      const originalNodeId = originalNode.id;
+      console.log('[DEBUG] Checking userDragTargets for originalNodeId:', originalNodeId, 'oldGhostId:', oldGhostId, userDragTargets);
+
+      if (userDragTargets[originalNodeId]) {
+        console.log('[DEBUG] Found userDragTarget for', originalNodeId, ':', userDragTargets[originalNodeId]);
+        updatedGhostNode.userDragTarget = userDragTargets[originalNodeId];
+
+        // Update userDragTargets key to use new backend ID
+        setUserDragTargets(prev => {
+          const newTargets = { ...prev };
+          newTargets[backendId] = newTargets[originalNodeId];
+          delete newTargets[originalNodeId];
+          console.log('[DEBUG] Updated userDragTargets keys:', Object.keys(newTargets));
+          return newTargets;
+        });
+        console.log('[DEBUG] Assigned userDragTarget to updatedGhostNode:', updatedGhostNode.userDragTarget);
+      } else {
+        console.log('[DEBUG] No userDragTarget found for originalNodeId:', originalNodeId);
+        console.log('[DEBUG] Available userDragTargets keys:', Object.keys(userDragTargets));
       }
 
-      const data = await response.json();
-
-      ghostNode.content = data.content;
-      ghostNode.title = data.title;
-      ghostNode.isModified = true;
-      ghostNode.previousState = originalNode;
-      ghostNode.isGhost = false;
-      ghostNode.originalData = data.originalData; // Preserve original data for coder/writer
-
+      // Create newIdea with scores already applied (from backend evaluation)
       const newIdea = {
-        id: ghostNode.id,
-        title: ghostNode.title,
-        content: data.content,
+        id: updatedGhostNode.id,
+        title: updatedGhostNode.title,
+        content: updatedGhostNode.content,
+        problemHighlights: updatedGhostNode.problemHighlights || [],
+        originalData: updatedGhostNode.originalData,
+        // Include scores so it won't be re-evaluated
+        scores: updatedGhostNode.scores,
+        dimension1Score: updatedGhostNode.dimension1Score,
+        dimension2Score: updatedGhostNode.dimension2Score,
+        noveltyScore: updatedGhostNode.noveltyScore,
+        feasibilityScore: updatedGhostNode.feasibilityScore,
+        impactScore: updatedGhostNode.impactScore
       };
-      setIdeasList((prevList) => [...prevList, newIdea]);
 
-      setNodes((prevNodes) => prevNodes.map((n) => (n.id === ghostNode.id ? ghostNode : n)));
-      setIsGenerating(false);
-      setIsEvaluating(true);
+      // Replace ghost node entry and relink edges
+      console.log('[DEBUG] Replacing ghost node:', { oldGhostId, newId: updatedGhostNode.id, isGhost: updatedGhostNode.isGhost, isModified: updatedGhostNode.isModified, scores: updatedGhostNode.scores });
+      setNodes(prev => {
+        let replaced = false;
+        const updated = prev.map(n => {
+          if (n.id === oldGhostId) {
+            replaced = true;
+            return updatedGhostNode;
+          }
+          if (n.id === originalNode.id) {
+            return {
+              ...n,
+              modifiedState: modifiedSnapshot
+            };
+          }
+          return n;
+        });
 
-      await evaluateIdeas([...ideasList, newIdea]);
+        if (!replaced) {
+          console.warn('[WARN] Ghost node missing during modify replacement, appending modified node directly:', oldGhostId, '→', updatedGhostNode.id);
+          return [...updated, updatedGhostNode];
+        }
+
+        console.log('[DEBUG] Nodes after replacement:', updated.map(n => ({ id: n.id, isGhost: n.isGhost, isModified: n.isModified, scores: n.scores })));
+        return updated;
+      });
+      setLinks(prev => {
+        let rewiredParentLink = false;
+        const updatedLinks = prev.map(l => {
+          if (l.source === oldGhostId) {
+            return { ...l, source: backendId };
+          }
+          if (l.target === oldGhostId) {
+            rewiredParentLink = true;
+            return { ...l, target: backendId };
+          }
+          return l;
+        });
+
+        if (!rewiredParentLink && originalNode?.id) {
+          console.warn('[WARN] Missing parent link for modified node, creating fallback link:', originalNode.id, '→', backendId);
+          updatedLinks.push({ source: originalNode.id, target: backendId });
+        }
+
+        return updatedLinks;
+      });
+
+      // Add to idea list for evaluation - use current ideasList + newIdea directly
+      console.log('[DEBUG] Starting modify evaluation process...');
+      console.log('[DEBUG] New idea for evaluation:', { id: newIdea.id, title: newIdea.title, hasOriginalData: !!newIdea.originalData });
+      console.log('[DEBUG] Current ideas list count:', ideasList.length);
+
+      const updatedIdeasList = [...ideasList, newIdea];
+      console.log('[DEBUG] Updated ideas count:', updatedIdeasList.length);
+      console.log('[DEBUG] Updated ideas IDs:', updatedIdeasList.map(i => i.id));
+
+      setIdeasList(updatedIdeasList);
+
+      // Check if there are other ideas that need evaluation
+      const ideasNeedingEval = getIdeasNeedingEvaluation(updatedIdeasList);
+      console.log('[DEBUG] Ideas needing evaluation:', ideasNeedingEval);
+
+      if (ideasNeedingEval.length > 0) {
+        setOperationStatus('Evaluating remaining ideas...');
+        console.log('[DEBUG] About to call evaluateIdeas for remaining ideas...');
+
+        try {
+          // Use the updated list for evaluation
+          await evaluateIdeas(updatedIdeasList, { mode: 'incremental' });
+          console.log('[DEBUG] Evaluation completed successfully');
+        } catch (evalError) {
+          console.error('[DEBUG] Evaluation failed:', evalError);
+          throw evalError;
+        }
+      } else {
+        console.log('[DEBUG] All ideas already have scores, skipping evaluation');
+      }
+
+      // Node will be revealed automatically by evaluation when scores are applied
+      setOperationStatus('');
     } catch (err) {
       console.error('Error modifying idea:', err);
       setError(err.message);
-      setIsGenerating(false);
-      setOperationStatus('');
+      // Clear drag visual state on error
+      setDragVisualState(null);
     } finally {
       setIsGenerating(false);
-      setIsEvaluating(false);
-      setOperationStatus('');
     }
   };
 
   const mergeIdeas = async (nodeA, nodeB) => {
-    /* ------- ① 先打动画标记：后节点放大 ------- */
-    setNodes((prev) =>
-      prev.map((n) => {
-        if (n.id === nodeA.id) {
-          // Make nodeA disappear
-          return { ...n, evaluationOpacity: 0 };
-        } else if (n.id === nodeB.id) {
-          // Make nodeB bigger
-          return { ...n, isBeingMerged: true };
-        }
-        return n;
-      })
-    );
-
+    // Animation already applied when dragging, just proceed with merge
+    if (!mergeAnimationState) {
+      const ghostPos =
+        getNodeCenterRelativeToContainer(nodeA.id) ||
+        getNodeCenterRelativeToContainer(nodeB.id);
+      setMergeAnimationState({
+        sourceId: nodeA.id,
+        targetId: nodeB.id,
+        ghostPosition: ghostPos
+      });
+    }
     setIsGenerating(true);
     setOperationStatus('Merging ideas...');
     setError(null);
@@ -1386,17 +2725,36 @@ const TreePlotVisualization = () => {
         throw new Error('Failed to merge ideas');
       }
 
-      const data = await response.json();
+      // Wait for the full response as text (handles heartbeat stream)
+      const responseText = await response.text();
 
-      /* ---------- ③ 生成新节点（深红）并连线 ---------- */
-      const newId = generateUniqueId();
+      // Parse the text into JSON, ignoring heartbeats
+      const data = JSON.parse(responseText);
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      /* ---------- ③ Create merged node (hidden until evaluated) ---------- */
+      const backendId = data.id || createMergeId(nodeA.id, nodeB.id);
+      const mergedOriginalData = normalizeIdeaOriginalData(
+        data.originalData,
+        {
+          id: backendId,
+          title: data.title,
+          content: data.content,
+          problemHighlights: data.problemHighlights
+        }
+      );
       const newIdea = {
-        id: newId,
+        id: backendId,
         title: data.title,
-        content: data.content
+        content: data.content,
+        problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || [],
+        originalData: mergedOriginalData
       };
       const newNode = {
-        id: newId,
+        id: backendId,
         level: Math.min(nodeA.level, nodeB.level) + 1,
         title: data.title.trim(),
         content: data.content.trim(),
@@ -1404,41 +2762,41 @@ const TreePlotVisualization = () => {
         x: (nodeA.x + nodeB.x) / 2,
         y: (nodeA.y + nodeB.y) / 2,
         isMergedResult: true,
-        originalData: data.originalData, // Preserve original data for coder/writer
+        isGhost: true,
+        parentIds: [nodeA.id, nodeB.id],
+        originalData: mergedOriginalData,
+        problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || []
       };
 
-      setIdeasList((p) => [...p, newIdea]);
-      // Animation Step 2: Make nodeA reappear and nodeB normal size again
-      setNodes((prev) => [
-        ...prev.map((n) => {
-          if (n.id === nodeA.id) {
-            // Make nodeA reappear
-            return { ...n, evaluationOpacity: 1 };
-          } else if (n.id === nodeB.id) {
-            // Reset nodeB to normal size
-            return { ...n, isBeingMerged: false };
-          }
+      setNodes(prev => [
+        ...prev.map(n => {
+          if (n.id === nodeA.id) return { ...n, evaluationOpacity: 1 };
+          if (n.id === nodeB.id) return { ...n, isBeingMerged: false };
           return n;
         }),
-        newNode, // Add the new merged node
+        newNode
       ]);
-      setLinks((prev) => [
+      setLinks(prev => [
         ...prev,
-        { source: newId, target: nodeA.id },
-        { source: newId, target: nodeB.id },
+        { source: backendId, target: nodeA.id },
+        { source: backendId, target: nodeB.id }
       ]);
+      const updatedIdeasList = [...ideasList, newIdea];
+      setIdeasList(updatedIdeasList);
 
       setMergeTargetId(null);
       setIsGenerating(false);
+      setOperationStatus('Evaluating merged idea...');
+      await evaluateIdeas(updatedIdeasList, { mode: 'incremental' });
+      // Node will be revealed automatically by evaluation when scores are applied
       setOperationStatus('');
-      setIsEvaluating(true);
-      await evaluateIdeas([...ideasList, newIdea]);
     } catch (err) {
       console.error('[merge] Error merging ideas:', err);
       setError(err.message);
     } finally {
       setIsGenerating(false);
       setOperationStatus('');
+      setMergeAnimationState(null);
     }
   };
 
@@ -1446,6 +2804,232 @@ const TreePlotVisualization = () => {
   // Note: Hover events are now handled by unified tracker to prevent duplicates
 
   const zoomTransformRef = useRef(null);
+  // Separate zoom state for evaluation (scatter) view so tree zoom persists independently
+  const evaluationZoomTransformRef = useRef(d3.zoomIdentity);
+  const layoutNodesRef = useRef([]);
+
+  // Merge functionality handlers
+  const handleMergeConfirm = useCallback(async (overrideFirst = null, overrideSecond = null) => {
+    const firstNode = overrideFirst || mergeMode.firstNode;
+    const secondNode = overrideSecond || mergeMode.secondNode;
+
+    if (firstNode && secondNode) {
+      // Store references before clearing merge mode
+
+      // Check if either node is a fragment
+      const isFirstFragment = firstNode.type === 'fragment';
+      const isSecondFragment = secondNode.type === 'fragment';
+
+      if (!mergeAnimationState) {
+        const ghostPos =
+          getNodeCenterRelativeToContainer(firstNode.id) ||
+          getNodeCenterRelativeToContainer(secondNode.id);
+        setMergeAnimationState({
+          sourceId: firstNode.id,
+          targetId: secondNode.id,
+          ghostPosition: ghostPos
+        });
+      }
+
+      // Immediately hide the merge dialog and dashed circles
+      setMergeMode({
+        active: false,
+        firstNode: null,
+        secondNode: null,
+        cursorPosition: { x: 0, y: 0 },
+        showDialog: false
+      });
+
+      setIsGenerating(true);
+      setOperationStatus('Merging ideas...');
+      setError(null);
+
+      try {
+        // Call backend merge API
+        const response = await fetch('/api/merge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            idea_a: firstNode.originalData || {
+              id: firstNode.id,
+              title: firstNode.title,
+              content: firstNode.content
+            },
+            idea_b: secondNode.originalData || {
+              id: secondNode.id,
+              title: secondNode.title,
+              content: secondNode.content
+            }
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to merge ideas');
+        }
+
+        // Wait for the full response as text (handles heartbeat stream)
+        const responseText = await response.text();
+
+        // Parse the text into JSON, ignoring heartbeats
+        const data = JSON.parse(responseText);
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Create merged node with AI-generated content
+        const mergedNodeId = createMergeId(firstNode.id, secondNode.id);
+        const mergedOriginalData = normalizeIdeaOriginalData(
+          data.originalData,
+          {
+            id: mergedNodeId,
+            title: data.title,
+            content: data.content,
+            problemHighlights: data.problemHighlights
+          }
+        );
+        const mergedNode = {
+          id: mergedNodeId,
+          title: data.title.trim(),
+          content: data.content.trim(),
+          level: Math.max(firstNode.level || 0, secondNode.level || 0) + 1,
+          type: 'complex',
+          isMergedResult: true,
+          parentIds: [firstNode.id, secondNode.id],
+          mergeTimestamp: Date.now(),
+          problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || [],
+          originalData: mergedOriginalData,
+          x: (firstNode.x || 0 + secondNode.x || 0) / 2,
+          y: Math.max(firstNode.y || 0, secondNode.y || 0) + 150
+        };
+
+        // Add the merged node to the nodes list and reset parent node visuals
+        setNodes(prevNodes => {
+          const cleaned = prevNodes.map(n => {
+            if (n.id === firstNode.id || n.id === secondNode.id) {
+              const updated = { ...n };
+              delete updated.evaluationOpacity;
+              delete updated.isBeingMerged;
+              return updated;
+            }
+            return n;
+          });
+          return [...cleaned, mergedNode];
+        });
+
+        // Delete fragment nodes if they were merged
+        if (isFirstFragment) {
+          setFragmentNodes(prev => prev.filter(f => f.id !== firstNode.id));
+        }
+        if (isSecondFragment) {
+          setFragmentNodes(prev => prev.filter(f => f.id !== secondNode.id));
+        }
+
+        // Add to ideas list for evaluation (same structure as original ideas)
+        const newIdea = {
+          id: mergedNodeId,
+          title: data.title,
+          content: data.content,
+          problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || [],
+          originalData: mergedOriginalData
+        };
+        setIdeasList(prevIdeas => [...prevIdeas, newIdea]);
+
+
+        // Create links from both parent nodes to the merged node
+        const newLinks = [
+          {
+            source: firstNode.id,
+            target: mergedNode.id,
+            type: 'merge'
+          },
+          {
+            source: secondNode.id,
+            target: mergedNode.id,
+            type: 'merge'
+          }
+        ];
+        setLinks(prevLinks => [...prevLinks, ...newLinks]);
+
+        // Track the merge action
+        userActionTracker.trackAction('merge_nodes', 'node_merge', {
+          firstNode: getNodeTrackingInfo(firstNode),
+          secondNode: getNodeTrackingInfo(secondNode),
+          mergedNode: { id: mergedNode.id, title: mergedNode.title },
+          currentView: currentView
+        });
+
+        // Select the new merged node
+        setSelectedNode(mergedNode);
+
+        // Evaluate the new merged idea with full context
+        const updatedIdeasList = [...ideasList, newIdea];
+        setIdeasList(updatedIdeasList);
+        await evaluateIdeas(updatedIdeasList, { mode: 'incremental' });
+
+      } catch (err) {
+        console.error('Error merging ideas:', err);
+        setError(err.message);
+      } finally {
+        setIsGenerating(false);
+        setOperationStatus('');
+        setMergeAnimationState(null);
+
+        // Reset merge animation states for nodes
+        setNodes((prev) =>
+          prev.map((n) => {
+            if (n.evaluationOpacity === 0 || n.isBeingMerged) {
+              const updated = { ...n };
+              delete updated.evaluationOpacity;
+              delete updated.isBeingMerged;
+              return updated;
+            }
+            return n;
+          })
+        );
+
+        // Reset merge animation states for fragments (in case of error)
+        setFragmentNodes((prev) =>
+          prev.map((f) => {
+            if (f.evaluationOpacity === 0 || f.isPendingMerge) {
+              const updated = { ...f };
+              delete updated.evaluationOpacity;
+              delete updated.isPendingMerge;
+              return updated;
+            }
+            return f;
+          })
+        );
+
+        setMergeTargetId(null);
+      }
+
+      // Merge mode already reset at the beginning
+    }
+  }, [createMergeId, getNodeTrackingInfo, ideasList, evaluateIdeas, currentView, mergeMode, mergeAnimationState]);
+
+  const handleMergeCancel = useCallback(() => {
+    // Track the cancel action
+    if (mergeMode.firstNode && mergeMode.secondNode) {
+      userActionTracker.trackAction('cancel_merge', 'node_merge', {
+        firstNode: getNodeTrackingInfo(mergeMode.firstNode),
+        secondNode: getNodeTrackingInfo(mergeMode.secondNode),
+        currentView: currentView
+      });
+    }
+
+    // Reset merge mode
+    setMergeMode({
+      active: false,
+      firstNode: null,
+      secondNode: null,
+      cursorPosition: { x: 0, y: 0 },
+      showDialog: false
+    });
+  }, [mergeMode, currentView]);
 
   // Cleanup is handled by D3's selectAll('*').remove() in the main useEffect
 
@@ -1456,8 +3040,12 @@ const TreePlotVisualization = () => {
     const width = 800;
     const height = 600;
 
-    // 清空 SVG
-    d3.select(svgRef.current).selectAll('*').remove();
+    // 清空 SVG and remove all event listeners to prevent duplicates
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+    svg.on('.tree-tracking', null); // Remove all tree-tracking events
+    svg.on('.scatter-tracking', null); // Remove all scatter-tracking events
+    svg.on('.tree-merge', null); // Remove tree merge events
 
     if (currentView === 'exploration') {
       /* ------------------- Exploration (Tree) View ------------------- */
@@ -1488,6 +3076,11 @@ const TreePlotVisualization = () => {
         .scaleExtent([0.3, 3]) // Min and max zoom levels
         .on('zoom', (event) => {
           zoomGroup.attr('transform', event.transform);
+          // Also transform merge UI layer if it exists
+          const mergeUILayer = svg.select('.merge-ui-layer');
+          if (!mergeUILayer.empty()) {
+            mergeUILayer.attr('transform', event.transform);
+          }
           zoomTransformRef.current = event.transform;
         });
 
@@ -1497,6 +3090,25 @@ const TreePlotVisualization = () => {
       // Set initial transform
       const transformToUse = zoomTransformRef.current || initialTransform;
       svg.call(zoom.transform, transformToUse);
+
+      // Add mouse move listener for merge mode cursor tracking
+      svg.on('mousemove.merge', (event) => {
+        if (mergeMode.active && mergeMode.firstNode && !mergeMode.secondNode) {
+          const [x, y] = d3.pointer(event, zoomGroup.node());
+          setMergeMode(prev => ({
+            ...prev,
+            cursorPosition: { x, y }
+          }));
+        }
+      });
+
+      // Add click-outside handler to cancel merge mode
+      svg.on('click.merge-cancel', (event) => {
+        // Check if click was on background (not on a node)
+        if (mergeMode.active && event.target === svg.node()) {
+          handleMergeCancel();
+        }
+      });
 
       // Add invisible rect for better drag interaction
       svg
@@ -1541,6 +3153,13 @@ const TreePlotVisualization = () => {
         nodesAtLevel.sort((a, b) => {
           // Get parent X positions for sorting
           const getParentX = (node) => {
+            // Check if this is a custom idea (no parent links)
+            const hasParentLink = links.some(link => link.target === node.id);
+            if (!hasParentLink && node.level === 1) {
+              // Custom ideas without parents should be sorted after regular nodes
+              return 1000; // Large value to put them at the end
+            }
+
             if (node.isMergedResult) {
               // For merged nodes, find average of parent positions
               const parentLinks = links.filter(link => link.source === node.id);
@@ -1592,8 +3211,16 @@ const TreePlotVisualization = () => {
         });
       });
 
-      /* 连线 */
-      links.forEach((lk) => {
+      // Store layoutNodes in ref for merge UI useEffect
+      layoutNodesRef.current = layoutNodes;
+
+      /* 连线 - filter out links to temporary ghost nodes in tree view */
+      const visibleLinks = links.filter(lk => {
+        const targetNode = layoutNodes.find(n => n.id === lk.target);
+        return !targetNode || !(targetNode.isGhost && !targetNode.isModified);
+      });
+
+      visibleLinks.forEach((lk) => {
         const s = layoutNodes.find((n) => n.id === lk.source);
         const t = layoutNodes.find((n) => n.id === lk.target);
         if (!s || !t) return;
@@ -1607,38 +3234,126 @@ const TreePlotVisualization = () => {
           .style('stroke-width', 2);
       });
 
-      /* 节点 */
+      /* 节点 - filter out only temporary ghost nodes in tree view */
+      const visibleNodes = layoutNodes.filter(node => !(node.isGhost && !node.isModified));
       const nodeG = g
         .selectAll('.node')
-        .data(layoutNodes)
+        .data(visibleNodes)
         .enter()
         .append('g')
         .attr('class', 'node')
         .attr('transform', (d) => `translate(${d.x},${d.y})`);
 
-      // Add event listeners with unique namespaces to prevent duplicates
+      // Add event listeners with unified tracking (no duplicates)
       nodeG
-        .on('mouseenter.exploration-tracking', function (event, d) {
-          // Don't track hover if any node is being dragged or events are suppressed after drag
-          if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag) {
+        .on('mouseenter.tree-tracking', function (event, d) {
+          // Don't track hover if any node is being dragged, events are suppressed after drag, just clicked, or in merge mode
+          if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag && !d._justClicked && !mergeMode.active) {
+            // Prevent duplicate tracking by checking if this exact same hover was just tracked
+            if (!d._lastHoverTime || Date.now() - d._lastHoverTime > 100) {
+              d._lastHoverTime = Date.now();
+              userActionTracker.trackAction('hover_start', 'node', {
+                ...getNodeTrackingInfo(d),
+                currentView: currentView
+              });
+            }
           }
           // UI functionality
           setHoveredNode(d);
-          d3.select(this).raise();
+          // Add hover styling directly to circle only
+          // Note: z-ordering is handled by selectedNode useEffect
+          d3.select(this).select('circle').style('stroke', '#000').style('stroke-width', 4);
         })
-        .on('mouseleave.exploration-tracking', function (event, d) {
-          // Don't track hover if any node is being dragged or events are suppressed after drag
-          if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag) {
+        .on('mouseleave.tree-tracking', function (event, d) {
+          // Don't track hover if any node is being dragged, events are suppressed after drag, or in merge mode
+          if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag && !mergeMode.active) {
+            userActionTracker.trackAction('hover_end', 'node', {
+              ...getNodeTrackingInfo(d),
+              currentView: currentView
+            });
           }
           // UI functionality
           setHoveredNode(null);
+          // Restore original styling to circle only (check if selected)
+          const isSelected = selectedNode?.id === d.id;
+          d3.select(this).select('circle').style('stroke', isSelected ? '#000' : '#fff').style('stroke-width', isSelected ? 4 : 2);
         })
-        .on('click.tracking', (_, d) => {
+        .on('click.tree-tracking', (_, d) => {
           // Don't track click if events are suppressed after drag
           if (!d._suppressEventsAfterDrag) {
+            // Set flag to prevent hover tracking immediately after click
+            d._justClicked = true;
+            setTimeout(() => { d._justClicked = false; }, 200);
+
+            // Clear any existing single click timeout
+            if (d._singleClickTimeout) {
+              clearTimeout(d._singleClickTimeout);
+              d._singleClickTimeout = null;
+            }
+
+            // Delay single click tracking to distinguish from double click
+            d._singleClickTimeout = setTimeout(() => {
+              userActionTracker.trackAction('click', 'node', {
+                ...getNodeTrackingInfo(d),
+                currentView: currentView
+              });
+              d._singleClickTimeout = null;
+            }, 300); // 300ms delay to detect double clicks
           }
           // UI functionality
           setSelectedNode(d);
+        })
+        .on('dblclick.tree-merge', (event, d) => {
+          event.stopPropagation();
+
+          // Cancel any pending single click tracking since this is a double click
+          if (d._singleClickTimeout) {
+            clearTimeout(d._singleClickTimeout);
+            d._singleClickTimeout = null;
+          }
+
+          if (!mergeMode.active) {
+            // First node selected - enter merge mode
+            setMergeMode({
+              active: true,
+              firstNode: d,
+              secondNode: null,
+              cursorPosition: { x: d.x || 0, y: d.y || 0 },
+              showDialog: false
+            });
+
+            userActionTracker.trackAction('double_click', 'node_merge_start', {
+              ...getNodeTrackingInfo(d),
+              currentView: currentView
+            });
+          } else if (mergeMode.firstNode && mergeMode.firstNode.id !== d.id) {
+            // Second node selected - complete merge selection
+            setMergeMode(prev => ({
+              ...prev,
+              secondNode: d,
+              showDialog: true
+            }));
+
+            userActionTracker.trackAction('double_click', 'node_merge_complete', {
+              firstNode: getNodeTrackingInfo(mergeMode.firstNode),
+              secondNode: getNodeTrackingInfo(d),
+              currentView: currentView
+            });
+          } else if (mergeMode.firstNode && mergeMode.firstNode.id === d.id) {
+            // Same node double-clicked - cancel merge mode
+            setMergeMode({
+              active: false,
+              firstNode: null,
+              secondNode: null,
+              cursorPosition: { x: 0, y: 0 },
+              showDialog: false
+            });
+
+            userActionTracker.trackAction('double_click', 'node_merge_cancel', {
+              ...getNodeTrackingInfo(d),
+              currentView: currentView
+            });
+          }
         });
 
       nodeG
@@ -1654,10 +3369,10 @@ const TreePlotVisualization = () => {
           return d.isGhost ? 0.5 : 1;
         })
         .style('stroke', (d) =>
-          selectedNode?.id === d.id ? '#000' : hoveredNode?.id === d.id ? '#555' : '#fff'
+          selectedNode?.id === d.id ? '#000' : '#fff'
         )
         .style('stroke-width', (d) =>
-          selectedNode?.id === d.id ? 4 : hoveredNode?.id === d.id ? 3 : 2
+          selectedNode?.id === d.id ? 4 : 2
         )
         .style('cursor', 'pointer');
 
@@ -1667,7 +3382,7 @@ const TreePlotVisualization = () => {
         .style('pointer-events', 'none'); // The label should not capture mouse events
 
       // Add text first to measure it
-      const text = label.append('text')
+      label.append('text')
         .attr('y', -40) // Position above the circle node (radius is 25)
         .attr('text-anchor', 'middle')
         .style('font-family', 'Arial, sans-serif')
@@ -1696,6 +3411,19 @@ const TreePlotVisualization = () => {
         }
       });
 
+      // Create or get persistent merge UI layer
+      let mergeUILayer = svg.select('.merge-ui-layer');
+      if (mergeUILayer.empty()) {
+        mergeUILayer = svg.append('g').attr('class', 'merge-ui-layer');
+      }
+      // Note: We no longer clear merge UI elements here to prevent flickering
+
+      // Apply current zoom transform to merge UI layer
+      if (zoomTransformRef.current) {
+        mergeUILayer.attr('transform', zoomTransformRef.current);
+      }
+
+      // Merge UI is now handled by a separate useEffect to prevent flickering
 
       // Add zoom controls (vertical layout)
       const controls = svg.append('g')
@@ -1713,7 +3441,10 @@ const TreePlotVisualization = () => {
         .style('stroke', '#d1d5db')
         .style('cursor', 'pointer')
         .on('click', () => {
-          svg.transition().call(zoom.scaleBy, 1.3);
+          userActionTracker.trackAction('click', 'zoom_in_button', {
+            currentView: currentView
+          });
+          svg.transition().call(zoom.scaleBy, 1.1);
         });
 
       controls.append('text')
@@ -1736,7 +3467,10 @@ const TreePlotVisualization = () => {
         .style('stroke', '#d1d5db')
         .style('cursor', 'pointer')
         .on('click', () => {
-          svg.transition().call(zoom.scaleBy, 0.7);
+          userActionTracker.trackAction('click', 'zoom_out_button', {
+            currentView: currentView
+          });
+          svg.transition().call(zoom.scaleBy, 0.9);
         });
 
       controls.append('text')
@@ -1759,6 +3493,9 @@ const TreePlotVisualization = () => {
         .style('stroke', '#d1d5db')
         .style('cursor', 'pointer')
         .on('click', () => {
+          userActionTracker.trackAction('click', 'zoom_reset_button', {
+            currentView: currentView
+          });
           svg.transition().call(zoom.transform, initialTransform);
           zoomTransformRef.current = initialTransform;
         });
@@ -1772,26 +3509,18 @@ const TreePlotVisualization = () => {
         .style('pointer-events', 'none')
         .text('⟲');
 
-      if (operationStatus && operationStatus.toLowerCase().includes('generating')) {
-        svg
-          .append('rect')
-          .attr('x', 2)
-          .attr('y', 2)
-          .attr('width', width - 4)
-          .attr('height', height - 4)
-          .attr('rx', 8)
-          .attr('ry', 8)
-          .style('fill', 'rgba(255, 255, 255, 0.7)')
-          .style('pointer-events', 'none');
+      if (operationStatus && (operationStatus.toLowerCase().includes('generating') || (hideEvaluationView && (operationStatus.toLowerCase().includes('merging') || operationStatus.toLowerCase().includes('evaluating') || operationStatus.toLowerCase().includes('modifying'))))) {
+        // Add status text at top of plot instead of overlay
         svg
           .append('text')
           .attr('x', width / 2)
-          .attr('y', height / 2)
+          .attr('y', 30)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'middle')
           .style('font-size', '1.2rem')
           .style('font-weight', '600')
           .style('fill', '#374151')
+          .style('background', 'rgba(255, 255, 255, 0.9)')
           .text(operationStatus);
       }
     } else {
@@ -1812,335 +3541,1122 @@ const TreePlotVisualization = () => {
         .style('stroke-width', 1)
         .style('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))');
 
-      /* 坐标轴下拉 */
-      const axisFO = svg
-        .append('foreignObject')
-        .attr('x', width - 210)
-        .attr('y', 20)
-        .attr('width', 200)
-        .attr('height', 60);
+      /* 获取当前维度对 */
+      const { xDimension, yDimension } = getCurrentDimensions();
 
-      axisFO
-        .append('xhtml:div')
-        .style('display', 'flex')
-        .style('flexDirection', 'column')
-        .style('gap', '6px')
-        .html(`
-          <div>
-            <div style="display:flex;align-items:center;">
-              <label style="margin-right:6px;font-size:0.8rem;color:#374151;">X‑Axis:</label>
-              <select id="xSelect" style="padding:4px;border:1px solid #d1d5db;border-radius:4px;">
-                <option value="noveltyScore">Novelty</option>
-                <option value="feasibilityScore">Feasibility</option>
-                <option value="impactScore">Impact</option>
-              </select>
-            </div>
-            <div style="display:flex;align-items:center;margin-top:6px;">
-              <label style="margin-right:6px;font-size:0.8rem;color:#374151;">Y‑Axis:</label>
-              <select id="ySelect" style="padding:4px;border:1px solid #d1d5db;border-radius:4px;">
-                <option value="noveltyScore">Novelty</option>
-                <option value="feasibilityScore">Feasibility</option>
-                <option value="impactScore">Impact</option>
-              </select>
-            </div>
-          </div>`);
+      /* 为每个节点计算并缓存坐标值（兼容新旧系统）*/
+      nodes.forEach(node => {
+        node._evalX = getNodeX(node);
+        node._evalY = getNodeY(node);
+      });
 
-      const xSel = document.getElementById('xSelect');
-      const ySel = document.getElementById('ySelect');
-      if (xSel) xSel.value = xAxisMetric;
-      if (ySel) ySel.value = yAxisMetric;
-      if (xSel) xSel.onchange = (e) => {
-        setXAxisMetric(e.target.value);
-      };
-      if (ySel) ySel.onchange = (e) => {
-        setYAxisMetric(e.target.value);
-      };
+      // 定义获取节点坐标的辅助函数（用于后续代码）
+      const getX = (n) => n._evalX;
+      const getY = (n) => n._evalY;
+
+      /* 显示当前选中的维度对（替代原来的下拉选择器）*/
+      if (xDimension && yDimension) {
+        const dimInfoFO = svg
+          .append('foreignObject')
+          .attr('x', width - 250)
+          .attr('y', 20)
+          .attr('width', 240)
+          .attr('height', 80);
+
+        dimInfoFO
+          .append('xhtml:div')
+          .style('display', 'flex')
+          .style('flexDirection', 'column')
+          .style('gap', '8px')
+          .style('padding', '12px')
+          .style('backgroundColor', '#F9FAFB')
+          .style('border', '1px solid #E5E7EB')
+          .style('borderRadius', '6px')
+          .html(`
+            <div style="font-size:0.75rem;color:#6B7280;font-weight:600;margin-bottom:4px;">Current Dimensions</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:0.7rem;color:#9CA3AF;">X:</span>
+              <span style="font-size:0.75rem;color:#374151;font-weight:500;">${xDimension.dimensionA}</span>
+              <span style="font-size:0.7rem;color:#9CA3AF;">←→</span>
+              <span style="font-size:0.75rem;color:#374151;font-weight:500;">${xDimension.dimensionB}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:0.7rem;color:#9CA3AF;">Y:</span>
+              <span style="font-size:0.75rem;color:#374151;font-weight:500;">${yDimension.dimensionA}</span>
+              <span style="font-size:0.7rem;color:#9CA3AF;">←→</span>
+              <span style="font-size:0.75rem;color:#374151;font-weight:500;">${yDimension.dimensionB}</span>
+            </div>
+          `);
+      }
 
       /* 画布与比例尺 */
       const margin = { top: 100, right: 50, bottom: 80, left: 50 };
       const chartW = width - margin.left - margin.right;
       const chartH = height - margin.top - margin.bottom;
       const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-      const x = d3.scaleLinear().domain([0, 100]).range([0, chartW]);
-      const y = d3.scaleLinear().domain([0, 100]).range([chartH, 0]);
 
-      /* 网格 & 轴 */
-      const xGrid = d3.axisBottom(x).tickValues(d3.range(0, 101, 20)).tickSize(-chartH).tickFormat('');
-      const yGrid = d3.axisLeft(y).tickValues(d3.range(0, 101, 20)).tickSize(-chartW).tickFormat('');
-      g.append('g').attr('class', 'x-grid').attr('transform', `translate(0,${chartH})`).call(xGrid).selectAll('line').style('stroke', '#F1F1F1');
-      g.append('g').attr('class', 'y-grid').call(yGrid).selectAll('line').style('stroke', '#F1F1F1');
-      g.append('g').attr('transform', `translate(0,${chartH})`).call(d3.axisBottom(x));
-      g.append('g').call(d3.axisLeft(y));
+      // Linear zoom-window scaling around centers with uniform grid spacing
+      const scaleX = unifiedScale;
+      const scaleY = unifiedScale;
 
-      /* 轴标签 */
-      g.append('text')
-        .attr('x', chartW / 2)
-        .attr('y', chartH + 40)
-        .style('text-anchor', 'middle')
+      // Compute visible domains based on center + scale (clamped to [0,100])
+      let xMin = Math.max(0, xScalingCenter - 50 / scaleX);
+      let xMax = Math.min(100, xScalingCenter + 50 / scaleX);
+      if (xMax - xMin < 1e-6) { // Avoid degenerate domain
+        const mid = (xMin + xMax) / 2;
+        xMin = Math.max(0, mid - 0.5);
+        xMax = Math.min(100, mid + 0.5);
+      }
+
+      let yMin = Math.max(0, yScalingCenter - 50 / scaleY);
+      let yMax = Math.min(100, yScalingCenter + 50 / scaleY);
+      if (yMax - yMin < 1e-6) {
+        const mid = (yMin + yMax) / 2;
+        yMin = Math.max(0, mid - 0.5);
+        yMax = Math.min(100, mid + 0.5);
+      }
+
+      // View scales map the current visible domain to screen space
+      const xView = d3.scaleLinear().domain([xMin, xMax]).range([0, chartW]);
+      const yView = d3.scaleLinear().domain([yMin, yMax]).range([chartH, 0]);
+
+      // Coordinate functions for nodes and ticks (uniform spacing)
+      const coordX = (raw) => xView(raw);
+      const coordY = (raw) => yView(raw);
+      const tickCoordX = (t) => xView(t);
+      const tickCoordY = (t) => yView(t);
+
+      // Static content layer (removed pan/move feature)
+      const contentLayer = g.append('g').attr('class', 'evaluation-zoom-layer');
+
+      /* 动态网格 & 轴 (reflect scaling + distribution) */
+      const allMajorTicks = d3.range(0, 101, 20);
+      const allMinorTicks = d3.range(0, 101, 10).filter(t => !allMajorTicks.includes(t));
+      // Only show ticks within the visible domain (hide out-of-bounds)
+      const tickMajorX = allMajorTicks.filter(t => t >= xMin && t <= xMax);
+      const tickMinorX = allMinorTicks.filter(t => t >= xMin && t <= xMax);
+      const tickMajorY = allMajorTicks.filter(t => t >= yMin && t <= yMax);
+      const tickMinorY = allMinorTicks.filter(t => t >= yMin && t <= yMax);
+      // X grid lines
+      const xGridGroup = g.append('g').attr('class', 'x-grid');
+      xGridGroup.selectAll('line.major')
+        .data(tickMajorX)
+        .enter().append('line')
+        .attr('class', 'major')
+        .attr('x1', d => tickCoordX(d))
+        .attr('x2', d => tickCoordX(d))
+        .attr('y1', 0)
+        .attr('y2', chartH)
+        .style('stroke', '#E5E7EB').style('stroke-width', 1);
+      xGridGroup.selectAll('line.minor')
+        .data(tickMinorX)
+        .enter().append('line')
+        .attr('class', 'minor')
+        .attr('x1', d => tickCoordX(d))
+        .attr('x2', d => tickCoordX(d))
+        .attr('y1', 0)
+        .attr('y2', chartH)
+        .style('stroke', '#F3F4F6').style('stroke-width', 1);
+      // Y grid lines
+      const yGridGroup = g.append('g').attr('class', 'y-grid');
+      yGridGroup.selectAll('line.major')
+        .data(tickMajorY)
+        .enter().append('line')
+        .attr('class', 'major')
+        .attr('x1', 0)
+        .attr('x2', chartW)
+        .attr('y1', d => tickCoordY(d))
+        .attr('y2', d => tickCoordY(d))
+        .style('stroke', '#E5E7EB').style('stroke-width', 1);
+      yGridGroup.selectAll('line.minor')
+        .data(tickMinorY)
+        .enter().append('line')
+        .attr('class', 'minor')
+        .attr('x1', 0)
+        .attr('x2', chartW)
+        .attr('y1', d => tickCoordY(d))
+        .attr('y2', d => tickCoordY(d))
+        .style('stroke', '#F3F4F6').style('stroke-width', 1);
+      // Custom X axis
+      const xAxisGroup = g.append('g').attr('class', 'dynamic-x-axis').attr('transform', `translate(0,${chartH})`);
+      xAxisGroup.selectAll('line.tick')
+        .data(tickMajorX)
+        .enter().append('line')
+        .attr('class', 'tick')
+        .attr('x1', d => tickCoordX(d))
+        .attr('x2', d => tickCoordX(d))
+        .attr('y1', 0)
+        .attr('y2', 6)
+        .style('stroke', '#374151');
+      xAxisGroup.selectAll('text.tick-label')
+        .data(tickMajorX)
+        .enter().append('text')
+        .attr('class', 'tick-label')
+        .attr('x', d => tickCoordX(d))
+        .attr('y', 20)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '10px')
         .style('fill', '#374151')
-        .style('font-size', '1.2rem')
-        .text(xAxisMetric.replace('Score', ''));
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('x', -chartH / 2)
-        .attr('y', -30)
-        .style('text-anchor', 'middle')
+        .text(d => d);
+      // Edge indicators for X (show true boundary values when 0/100 are out of view)
+      const EDGE_EPS = 1e-6;
+      const fmtEdge = (v) => Math.round(v);
+      // Left border (xMin)
+      if (xMin > 0 + EDGE_EPS) {
+        // Border-aligned grid line (left)
+        xGridGroup.append('line')
+          .attr('class', 'edge-grid')
+          .attr('x1', 0)
+          .attr('x2', 0)
+          .attr('y1', 0)
+          .attr('y2', chartH)
+          .style('stroke', '#E5E7EB').style('stroke-width', 1);
+        // Axis tick and label at border
+        xAxisGroup.append('line')
+          .attr('class', 'edge-tick')
+          .attr('x1', 0)
+          .attr('x2', 0)
+          .attr('y1', 0)
+          .attr('y2', 6)
+          .style('stroke', '#374151');
+        xAxisGroup.append('text')
+          .attr('class', 'edge-tick-label')
+          .attr('x', 0)
+          .attr('y', 20)
+          .attr('text-anchor', 'middle')
+          .style('font-size', '10px')
+          .style('fill', '#374151')
+          .text(fmtEdge(xMin));
+      }
+      // Right border (xMax)
+      if (xMax < 100 - EDGE_EPS) {
+        // Border-aligned grid line (right)
+        xGridGroup.append('line')
+          .attr('class', 'edge-grid')
+          .attr('x1', chartW)
+          .attr('x2', chartW)
+          .attr('y1', 0)
+          .attr('y2', chartH)
+          .style('stroke', '#E5E7EB').style('stroke-width', 1);
+        // Axis tick and label at border
+        xAxisGroup.append('line')
+          .attr('class', 'edge-tick')
+          .attr('x1', chartW)
+          .attr('x2', chartW)
+          .attr('y1', 0)
+          .attr('y2', 6)
+          .style('stroke', '#374151');
+        xAxisGroup.append('text')
+          .attr('class', 'edge-tick-label')
+          .attr('x', chartW)
+          .attr('y', 20)
+          .attr('text-anchor', 'middle')
+          .style('font-size', '10px')
+          .style('fill', '#374151')
+          .text(fmtEdge(xMax));
+      }
+      // Custom Y axis
+      const yAxisGroup = g.append('g').attr('class', 'dynamic-y-axis');
+      yAxisGroup.selectAll('line.tick')
+        .data(tickMajorY)
+        .enter().append('line')
+        .attr('class', 'tick')
+        .attr('x1', -6)
+        .attr('x2', 0)
+        .attr('y1', d => tickCoordY(d))
+        .attr('y2', d => tickCoordY(d))
+        .style('stroke', '#374151');
+      yAxisGroup.selectAll('text.tick-label')
+        .data(tickMajorY)
+        .enter().append('text')
+        .attr('class', 'tick-label')
+        .attr('x', -10)
+        .attr('y', d => tickCoordY(d) + 3)
+        .attr('text-anchor', 'end')
+        .style('font-size', '10px')
         .style('fill', '#374151')
-        .style('font-size', '1.2rem')
-        .text(yAxisMetric.replace('Score', ''));
-      if (!(operationStatus === 'Evaluating ideas...' && isEvaluating)) {
+        .text(d => d);
+      // Edge indicators for Y (show true boundary values when 0/100 are out of view)
+      // Bottom border (yMin)
+      if (yMin > 0 + EDGE_EPS) {
+        // Border-aligned grid line (bottom)
+        yGridGroup.append('line')
+          .attr('class', 'edge-grid')
+          .attr('x1', 0)
+          .attr('x2', chartW)
+          .attr('y1', chartH)
+          .attr('y2', chartH)
+          .style('stroke', '#E5E7EB').style('stroke-width', 1);
+        // Axis tick and label at border
+        yAxisGroup.append('line')
+          .attr('class', 'edge-tick')
+          .attr('x1', -6)
+          .attr('x2', 0)
+          .attr('y1', chartH)
+          .attr('y2', chartH)
+          .style('stroke', '#374151');
+        yAxisGroup.append('text')
+          .attr('class', 'edge-tick-label')
+          .attr('x', -10)
+          .attr('y', chartH + 3)
+          .attr('text-anchor', 'end')
+          .style('font-size', '10px')
+          .style('fill', '#374151')
+          .text(fmtEdge(yMin));
+      }
+      // Top border (yMax)
+      if (yMax < 100 - EDGE_EPS) {
+        // Border-aligned grid line (top)
+        yGridGroup.append('line')
+          .attr('class', 'edge-grid')
+          .attr('x1', 0)
+          .attr('x2', chartW)
+          .attr('y1', 0)
+          .attr('y2', 0)
+          .style('stroke', '#E5E7EB').style('stroke-width', 1);
+        // Axis tick and label at border
+        yAxisGroup.append('line')
+          .attr('class', 'edge-tick')
+          .attr('x1', -6)
+          .attr('x2', 0)
+          .attr('y1', 0)
+          .attr('y2', 0)
+          .style('stroke', '#374151');
+        yAxisGroup.append('text')
+          .attr('class', 'edge-tick-label')
+          .attr('x', -10)
+          .attr('y', 3)
+          .attr('text-anchor', 'end')
+          .style('font-size', '10px')
+          .style('fill', '#374151')
+          .text(fmtEdge(yMax));
+      }
+
+      // Ensure node/content layer is above grids & axes (z-order)
+      contentLayer.raise();
+
+      // Removed pan reset button (no movement allowed now)
+
+      /* 轴标签 - 显示维度对名称 */
+      if (xDimension && yDimension) {
+        // X 轴标签：左侧显示 dimensionA，右侧显示 dimensionB
+        g.append('text')
+          .attr('x', 0)
+          .attr('y', chartH + 60)
+          .style('text-anchor', 'start')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(xDimension.dimensionA);
+
+        g.append('text')
+          .attr('x', chartW / 2)
+          .attr('y', chartH + 60)
+          .style('text-anchor', 'middle')
+          .style('fill', '#9CA3AF')
+          .style('font-size', '0.75rem')
+          .text('←→');
+
+        g.append('text')
+          .attr('x', chartW)
+          .attr('y', chartH + 60)
+          .style('text-anchor', 'end')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(xDimension.dimensionB);
+
+        // Y 轴标签：底部显示 dimensionA，顶部显示 dimensionB
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -chartH)
+          .attr('y', -40)
+          .style('text-anchor', 'start')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(yDimension.dimensionA);
+
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -chartH / 2)
+          .attr('y', -40)
+          .style('text-anchor', 'middle')
+          .style('fill', '#9CA3AF')
+          .style('font-size', '0.75rem')
+          .text('←→');
+
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', 0)
+          .attr('y', -40)
+          .style('text-anchor', 'start')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(yDimension.dimensionB);
+      } else {
+        // Fallback: 显示旧的轴名称
+        g.append('text')
+          .attr('x', chartW / 2)
+          .attr('y', chartH + 40)
+          .style('text-anchor', 'middle')
+          .style('fill', '#374151')
+          .style('font-size', '1.2rem')
+          .text(xAxisMetric.replace('Score', ''));
+
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -chartH / 2)
+          .attr('y', -30)
+          .style('text-anchor', 'middle')
+          .style('fill', '#374151')
+          .style('font-size', '1.2rem')
+          .text(yAxisMetric.replace('Score', ''));
+      }
+
+      // (Zoom controls removed previously)
+      // Remove any previous scaling controls before re-render (avoid duplicates)
+      svg.selectAll('.scaling-controls').remove();
+
+      // Unified scaling controls (similar to tree view)
+      const controlLayer = svg.append('g').attr('class', 'scaling-controls');
+
+      // Check if there are visible nodes to enable/disable buttons
+      const hasVisibleNodes = nodes.some(n => getX(n) !== undefined && getY(n) !== undefined && !n.isGhost);
+      // Unified scaling controls positioned in top-right like tree view
+      const controls = controlLayer.append('g')
+        .attr('class', 'unified-scale-controls')
+        .attr('transform', `translate(${width - 40}, 20)`);
+
+      // Lock scaling if any node touches the visible border
+      const pixelTol = 10; // include node radius and label padding
+      const lockScaling = hasVisibleNodes && nodes.some(n => {
+        if (getX(n) === undefined || getY(n) === undefined || n.isGhost) return false;
+        const px = coordX(getX(n));
+        const py = coordY(getY(n));
+        return px <= 0 + pixelTol || px >= chartW - pixelTol || py <= 0 + pixelTol || py >= chartH - pixelTol;
+      });
+
+      // Separate disabled states for buttons (restore remains enabled when nodes exist)
+      const upDisabled = !hasVisibleNodes || lockScaling;
+      const downDisabled = !hasVisibleNodes || lockScaling;
+      const restoreDisabled = !hasVisibleNodes;
+      const upOpacity = upDisabled ? 0.3 : 1;
+      const downOpacity = downDisabled ? 0.3 : 1;
+      const restoreOpacity = restoreDisabled ? 0.3 : 1;
+      const upCursor = upDisabled ? 'not-allowed' : 'pointer';
+      const downCursor = downDisabled ? 'not-allowed' : 'pointer';
+      const restoreCursor = restoreDisabled ? 'not-allowed' : 'pointer';
+
+      // Scale up button (+)
+
+      controls.append('rect')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', 28)
+        .attr('height', 28)
+        .attr('rx', 4)
+        .style('fill', '#f3f4f6')
+        .style('stroke', '#d1d5db')
+        .style('opacity', upOpacity)
+        .style('cursor', upCursor)
+        .on('click', () => {
+          if (!upDisabled) {
+            userActionTracker.trackAction('click', 'scale_up_button', {
+              currentView: currentView,
+              currentScale: unifiedScale
+            });
+            // Mark that user has interacted with scale
+            setUserHasInteractedWithScale(true);
+            // Smart zoom: re-center to nodes while scaling up
+            const { xCenter, yCenter } = calculateNodeMidpoints();
+            setXScalingCenter(xCenter);
+            setYScalingCenter(yCenter);
+            setUnifiedScale(prev => Math.min(4.0, prev + 0.1));
+          }
+        });
+      controls.append('text')
+        .attr('x', 14)
+        .attr('y', 16)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .style('font-size', '18px')
+        .style('pointer-events', 'none')
+        .style('opacity', upOpacity)
+        .text('+');
+
+      // Scale down button (-)
+      controls.append('rect')
+        .attr('x', 0)
+        .attr('y', 32)
+        .attr('width', 28)
+        .attr('height', 28)
+        .attr('rx', 4)
+        .style('fill', '#f3f4f6')
+        .style('stroke', '#d1d5db')
+        .style('opacity', downOpacity)
+        .style('cursor', downCursor)
+        .on('click', () => {
+          if (!downDisabled) {
+            userActionTracker.trackAction('click', 'scale_down_button', {
+              currentView: currentView,
+              currentScale: unifiedScale
+            });
+            // Mark that user has interacted with scale
+            setUserHasInteractedWithScale(true);
+            // Smart zoom: re-center to nodes while scaling down
+            const { xCenter, yCenter } = calculateNodeMidpoints();
+            setXScalingCenter(xCenter);
+            setYScalingCenter(yCenter);
+            setUnifiedScale(prev => Math.max(0.25, prev - 0.1));
+          }
+        });
+      controls.append('text')
+        .attr('x', 14)
+        .attr('y', 48)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .style('font-size', '18px')
+        .style('pointer-events', 'none')
+        .style('opacity', downOpacity)
+        .text('−');
+
+      // Restore button (reset to 1.0 with dynamic centering)
+      controls.append('rect')
+        .attr('x', 0)
+        .attr('y', 64)
+        .attr('width', 28)
+        .attr('height', 28)
+        .attr('rx', 4)
+        .style('fill', '#f3f4f6')
+        .style('stroke', '#d1d5db')
+        .style('opacity', restoreOpacity)
+        .style('cursor', restoreCursor)
+        .on('click', () => {
+          if (!restoreDisabled) {
+            userActionTracker.trackAction('click', 'scale_restore_button', {
+              currentView: currentView,
+              currentScale: unifiedScale
+            });
+            // True restore: reset to initial state (full 0-100 view)
+            setUnifiedScale(1.0);
+            setXScalingCenter(50);
+            setYScalingCenter(50);
+            // Reset user interaction flag so auto-centering can work again
+            setUserHasInteractedWithScale(false);
+          }
+        });
+      controls.append('text')
+        .attr('x', 13)
+        .attr('y', 78)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .style('font-size', '18px')
+        .style('pointer-events', 'none')
+        .style('opacity', restoreOpacity)
+        .text('⟲');
+
+      // Reapply stored transform if previously zoomed
+      // Zoom persistence removed
+
+      /* 轴标签 - 显示维度对名称 */
+      if (xDimension && yDimension) {
+        // X 轴标签：左侧显示 dimensionA，右侧显示 dimensionB
+        g.append('text')
+          .attr('x', 0)
+          .attr('y', chartH + 60)
+          .style('text-anchor', 'start')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(xDimension.dimensionA);
+
+        g.append('text')
+          .attr('x', chartW / 2)
+          .attr('y', chartH + 60)
+          .style('text-anchor', 'middle')
+          .style('fill', '#9CA3AF')
+          .style('font-size', '0.75rem')
+          .text('←→');
+
+        g.append('text')
+          .attr('x', chartW)
+          .attr('y', chartH + 60)
+          .style('text-anchor', 'end')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(xDimension.dimensionB);
+
+        // Y 轴标签：底部显示 dimensionA，顶部显示 dimensionB
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -chartH)
+          .attr('y', -40)
+          .style('text-anchor', 'start')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(yDimension.dimensionA);
+
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -chartH / 2)
+          .attr('y', -40)
+          .style('text-anchor', 'middle')
+          .style('fill', '#9CA3AF')
+          .style('font-size', '0.75rem')
+          .text('←→');
+
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', 0)
+          .attr('y', -40)
+          .style('text-anchor', 'start')
+          .style('fill', '#374151')
+          .style('font-size', '0.9rem')
+          .style('font-weight', '600')
+          .text(yDimension.dimensionB);
+      } else {
+        // Fallback: 显示旧的轴名称
+        g.append('text')
+          .attr('x', chartW / 2)
+          .attr('y', chartH + 40)
+          .style('text-anchor', 'middle')
+          .style('fill', '#374151')
+          .style('font-size', '1.2rem')
+          .text(xAxisMetric.replace('Score', ''));
+
+        g.append('text')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -chartH / 2)
+          .attr('y', -30)
+          .style('text-anchor', 'middle')
+          .style('fill', '#374151')
+          .style('font-size', '1.2rem')
+          .text(yAxisMetric.replace('Score', ''));
+      }
+
+      // Ensure node/content layer is above grids & axes (z-order)
+      contentLayer.raise();
+
+      /* 过滤能绘制的节点 - keep all nodes visible during evaluation */
+      const drawable = nodes.filter((n) => {
+        // Must have coordinates to be drawable
+        const hasCoords = getX(n) !== undefined && getY(n) !== undefined;
+        // Always show all nodes with coordinates, even during evaluation
+        return hasCoords;
+      });
+
+      /* ---------- 连线：evaluation + merge ---------- */
+      const hasCoords = (n) => getX(n) !== undefined && getY(n) !== undefined;
+      const isNodeActive = (nodeId) => {
+        if (!nodeId) return false;
+        if (selectedNode && selectedNode.id === nodeId) return true;
+        if (hoveredNode && hoveredNode.id === nodeId) return true;
+        return false;
+      };
+
+      /* 两类连线
+      ① original → modified   （浅灰 #ccc, 1px）  - Always visible
+      ② mergedResult ↔ originals（深灰 #999, 1.5px） - Always visible
+      ③ parent → children (generated ideas) - Only visible on hover */
+      links.forEach((lk) => {
+        const s = nodes.find((n) => n.id === lk.source);
+        const t = nodes.find((n) => n.id === lk.target);
+        if (!s || !t) return;
+        if (!hasCoords(s) || !hasCoords(t)) return; // 任一端缺坐标则跳过
+
+        const isMergeEdge = s.isMergedResult || t.isMergedResult;
+        const isModificationEdge = t.previousState && t.previousState.id === s.id;
+
+        // Check if this is a parent-child generation link (hide by default, show on hover)
+        const isParentChildGeneration = !isMergeEdge && !isModificationEdge;
+
+        // Modification edges: only show when either endpoint is hovered or selected
+        if (isModificationEdge && !isNodeActive(s.id) && !isNodeActive(t.id)) {
+          return;
+        }
+
+        // Show parent-child generation edges only when one endpoint selected
+        if (isParentChildGeneration &&
+          (!selectedNode || (selectedNode.id !== lk.source && selectedNode.id !== lk.target))) {
+          return;
+        }
+
+        contentLayer.append('line')
+          .attr('x1', coordX(getX(s)))
+          .attr('y1', coordY(getY(s)))
+          .attr('x2', coordX(getX(t)))
+          .attr('y2', coordY(getY(t)))
+          .style('stroke', (() => {
+            if (isModificationEdge) return '#fbbf24';
+            return isMergeEdge ? '#999' : '#ccc';
+          })())
+          .style('stroke-width', isModificationEdge ? 2 : (isMergeEdge ? 1.5 : 1))
+          .style('stroke-dasharray', isModificationEdge ? '6,4' : 'none')
+          .style('opacity', isParentChildGeneration ? 0.8 : 1);
+      });
+
+      /* 节点绘制 & 拖拽 */
+      const nodeG = contentLayer
+        .selectAll('.node-group')
+        .data(drawable, (d) => d.id)
+        .enter()
+        .append('g')
+        .attr('class', 'node-group')
+        .attr('transform', (d) => {
+          if (d._tmpViewX !== undefined && d._tmpViewY !== undefined) {
+            return `translate(${d._tmpViewX},${d._tmpViewY})`;
+          }
+          return `translate(${coordX(getX(d))},${coordY(getY(d))})`;
+        })
+        .style('cursor', 'pointer');
+
+      // Add event listeners with unified tracking (no duplicates)
+      nodeG
+        .on('mouseenter.scatter-tracking', function (e, d) {
+          // Don't track hover if any node is being dragged, events are suppressed after drag, or just clicked
+          if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag && !d._justClicked) {
+            // Prevent duplicate tracking by checking if this exact same hover was just tracked
+            if (!d._lastHoverTime || Date.now() - d._lastHoverTime > 100) {
+              d._lastHoverTime = Date.now();
+              userActionTracker.trackAction('hover_start', 'node', {
+                ...getNodeTrackingInfo(d),
+                currentView: currentView
+              });
+            }
+          }
+          // UI functionality
+          setHoveredNode(d);
+          // Add hover styling directly to circle only
+          // Note: z-ordering is handled by selectedNode useEffect
+          d3.select(this).select('circle').style('stroke', '#000').style('stroke-width', 4);
+        })
+        .on('mouseleave.scatter-tracking', function (e, d) {
+          // Don't track hover if any node is being dragged or events are suppressed after drag
+          if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag) {
+            userActionTracker.trackAction('hover_end', 'node', {
+              ...getNodeTrackingInfo(d),
+              currentView: currentView
+            });
+          }
+          // UI functionality
+          setHoveredNode(null);
+          // Restore original styling to circle only (check if selected)
+          const isSelected = selectedNode?.id === d.id;
+          d3.select(this).select('circle').style('stroke', isSelected ? '#000' : '#fff').style('stroke-width', isSelected ? 4 : 2);
+          // Selected node z-ordering is handled by useEffect
+        })
+        .on('click.scatter-tracking', function (e, d) {
+          // Don't track click if events are suppressed after drag
+          if (!d._suppressEventsAfterDrag) {
+            // Set flag to prevent hover tracking immediately after click
+            d._justClicked = true;
+            setTimeout(() => { d._justClicked = false; }, 200);
+
+            // Clear any existing single click timeout
+            if (d._singleClickTimeout) {
+              clearTimeout(d._singleClickTimeout);
+              d._singleClickTimeout = null;
+            }
+
+            // Delay single click tracking to distinguish from double click
+            d._singleClickTimeout = setTimeout(() => {
+              userActionTracker.trackAction('click', 'node', {
+                ...getNodeTrackingInfo(d),
+                currentView: currentView
+              });
+              d._singleClickTimeout = null;
+            }, 300); // 300ms delay to detect double clicks
+          }
+          // UI functionality
+          setSelectedNode(d);
+          // Note: z-ordering is handled by selectedNode useEffect
+        })
+        .call(
+          d3
+            .drag()
+            .on('start', function (event, d) {
+              if (isGenerating || isEvaluating) return;
+              // Disable dragging when zoomed (non-identity) to avoid coordinate confusion
+              if (evaluationZoomTransformRef.current && evaluationZoomTransformRef.current.k !== 1) {
+                return;
+              }
+              // Mark drag start but don't track yet - wait for actual movement
+              d._dragStarted = false;
+              d._dragStartValues = {
+                x: getNodeX(d),
+                y: getNodeY(d),
+                xAxisMetric: xAxisMetric,
+                yAxisMetric: yAxisMetric
+              };
+              d3.select(this).raise();
+            })
+            .on('drag', function (event, d) {
+              if (isGenerating || isEvaluating) return;
+              if (evaluationZoomTransformRef.current && evaluationZoomTransformRef.current.k !== 1) {
+                return;
+              }
+
+              if (!d._dragStarted) {
+                d._dragStarted = true;
+              }
+              const [cx, cy] = d3.pointer(event, g.node());
+              d3.select(this).attr('transform', `translate(${cx},${cy})`);
+              d._tmpViewX = cx;
+              d._tmpViewY = cy;
+            })
+            .on('end', function (event, d) {
+              if (isGenerating || isEvaluating) return;
+              if (evaluationZoomTransformRef.current && evaluationZoomTransformRef.current.k !== 1) {
+                return;
+              }
+              const endX = d._tmpViewX ?? d3.pointer(event, g.node())[0];
+              const endY = d._tmpViewY ?? d3.pointer(event, g.node())[1];
+
+              // Only track drag if dragging actually occurred
+              if (d._dragStarted) {
+                // Convert screen coordinates back to metric values (account for metric scaling)
+                const endXValue = xView.invert(endX);
+                const endYValue = yView.invert(endY);
+
+                userActionTracker.trackAction('drag', 'node', {
+                  nodeId: d.id,
+                  nodeTitle: d.title,
+                  nodeType: d.type,
+                  startValues: d._dragStartValues,
+                  endValues: {
+                    x: endXValue,
+                    y: endYValue,
+                    xAxisMetric: xAxisMetric,
+                    yAxisMetric: yAxisMetric
+                  },
+                  currentView: currentView
+                });
+
+                // Record user drag target for visualization (with safety checks)
+                if (d.id && !isNaN(endXValue) && !isNaN(endYValue) && xAxisMetric && yAxisMetric) {
+                  setUserDragTargets(prev => ({
+                    ...prev,
+                    [d.id]: {
+                      x: endXValue,
+                      y: endYValue,
+                      xAxisMetric: xAxisMetric,
+                      yAxisMetric: yAxisMetric,
+                      timestamp: Date.now()
+                    }
+                  }));
+                }
+
+                // Set flag to suppress automatic events after drag
+                d._suppressEventsAfterDrag = true;
+                // Clear the flag after a short delay to allow manual interactions
+                setTimeout(() => {
+                  delete d._suppressEventsAfterDrag;
+                }, 100);
+              }
+
+              // Clean up temporary variables
+              delete d._tmpViewX;
+              delete d._tmpViewY;
+              delete d._dragStarted;
+              delete d._dragStartValues;
+
+              /* ---------- ① 重叠检测：触发合并 ---------- */
+              const overlap = drawable.find((n) =>
+                n.id !== d.id &&
+                Math.hypot(coordX(getX(n)) - endX, coordY(getY(n)) - endY) < 10
+              );
+              if (overlap) {
+                setMergeTargetId(overlap.id);
+
+                // Apply merge animation immediately when dragging A to B
+                setNodes((prev) =>
+                  prev.map((n) => {
+                    if (n.id === d.id) {
+                      // Make nodeA (dragged node) disappear
+                      return { ...n, evaluationOpacity: 0 };
+                    } else if (n.id === overlap.id) {
+                      // Make nodeB (target node) bigger
+                      return { ...n, isBeingMerged: true };
+                    }
+                    return n;
+                  })
+                );
+
+                setPendingMerge({
+                  nodeA: d,
+                  nodeB: overlap,
+                  screenX: event.sourceEvent.clientX + 10,
+                  screenY: event.sourceEvent.clientY + 10,
+                });
+
+                // 回到原位
+                d3.select(this).attr('transform', `translate(${coordX(getX(d))},${coordY(getY(d))})`);
+                return;
+              }
+
+              // Keep the node at the dropped position visually
+              d3.select(this).attr('transform', `translate(${endX},${endY})`);
+
+              /* ---------- ② 原有拖拽修改逻辑 ---------- */
+              const newXVal = xView.invert(endX);
+              const newYVal = yView.invert(endY);
+              const deltaX = newXVal - getX(d);
+              const deltaY = newYVal - getY(d);
+
+              let mods = [];
+              let behind = null;
+              const TOLERANCE = 5; // Only record changes larger than 5 points
+
+              if (Math.abs(deltaX) > TOLERANCE) {
+                mods.push({
+                  metric: xAxisMetric,
+                  previousScore: Math.round(getX(d)),
+                  newScore: Math.round(newXVal),
+                  change: Math.round(deltaX)
+                });
+                behind = nodes
+                  .filter(
+                    (n) => n.id !== d.id && getX(n) !== undefined && getX(n) < newXVal
+                  )
+                  .sort((a, b) => getX(b) - getX(a))[0];
+              }
+              if (Math.abs(deltaY) > TOLERANCE) {
+                mods.push({
+                  metric: yAxisMetric,
+                  previousScore: Math.round(getY(d)),
+                  newScore: Math.round(newYVal),
+                  change: Math.round(deltaY)
+                });
+                behind =
+                  behind ||
+                  nodes
+                    .filter(
+                      (n) =>
+                        n.id !== d.id && getY(n) !== undefined && getY(n) < newYVal
+                    )
+                    .sort((a, b) => getY(b) - getY(a))[0];
+              }
+
+              // After a short delay, snap back if no modification is triggered.
+              setTimeout(() => {
+                const currentDOMNode = d3.select(this);
+                if (mods.length === 0) {
+                  currentDOMNode.transition().duration(300)
+                    .attr('transform', `translate(${coordX(getX(d))},${coordY(getY(d))})`);
+                }
+              }, 100);
 
 
-        /* 过滤能绘制的节点 */
-        const drawable = nodes.filter(
-          (n) => n[xAxisMetric] !== undefined && n[yAxisMetric] !== undefined
+              if (mods.length > 0) {
+                // Snap the original node back; the ghost represents the drag target.
+                d3.select(this).attr('transform', `translate(${coordX(getX(d))},${coordY(getY(d))})`);
+
+                // Update _evalX and _evalY for the ghost node
+                const ghost = {
+                  ...d,
+                  id: `${d.id}-Xghost-${Date.now()}`,
+                  x: d.x,
+                  y: d.y,
+                  _evalX: newXVal,
+                  _evalY: newYVal,
+                  isGhost: true,
+                  isNewlyGenerated: true,
+                  level: d.level + 1,
+                  _tmpViewX: endX,
+                  _tmpViewY: endY,
+                };
+                setNodes((prev) => [...prev, ghost]);
+
+                // Track ghost node creation
+                plotStatusTracker.trackNodesUpdate([...nodes, ghost], 'create_ghost_node');
+                setLinks((prev) => [...prev, { source: d.id, target: ghost.id }]);
+                setPendingChange({
+                  originalNode: d,
+                  ghostNode: ghost,
+                  modifications: mods,
+                  behindNode: behind,
+                  screenX: event.sourceEvent.clientX + 10,
+                  screenY: event.sourceEvent.clientY + 10,
+                });
+              }
+              // Track click and set selected node
+              // Set flag to prevent hover tracking immediately after click
+              d._justClicked = true;
+              setTimeout(() => { d._justClicked = false; }, 200);
+
+              userActionTracker.trackAction('click', 'node', {
+                ...getNodeTrackingInfo(d),
+                currentView: currentView
+              });
+              setSelectedNode(d);
+            })
         );
 
-        /* ---------- 连线：evaluation + merge ---------- */
-        const hasCoords = (n) =>
-          n[xAxisMetric] !== undefined && n[yAxisMetric] !== undefined;
+      // Add titles first (so they appear behind nodes by default)
+      const label = nodeG.append('g')
+        .attr('class', 'label-group')
+        .style('pointer-events', 'none'); // The label should not capture mouse events
 
-        /* 两类连线
-        ① original → modified   （浅灰 #ccc, 1px）
-        ② mergedResult ↔ originals（深灰 #999, 1.5px） */
-        links.forEach((lk) => {
-          const s = nodes.find((n) => n.id === lk.source);
-          const t = nodes.find((n) => n.id === lk.target);
-          if (!s || !t) return;
-          if (!hasCoords(s) || !hasCoords(t)) return; // 任一端缺坐标则跳过
+      // Add text first to measure it
+      label.append('text')
 
-          const isMergeEdge = s.isMergedResult || t.isMergedResult;
-          g.append('line')
-            .attr('x1', x(s[xAxisMetric]))
-            .attr('y1', y(s[yAxisMetric]))
-            .attr('x2', x(t[xAxisMetric]))
-            .attr('y2', y(t[yAxisMetric]))
-            .style('stroke', isMergeEdge ? '#999' : '#ccc')
-            .style('stroke-width', isMergeEdge ? 1.5 : 1)
-            .style('stroke-dasharray', lk.isParentChild ? '5,5' : 'none');
+        .attr('y', -20) // Position above the circle node (radius is 8, so -20 gives good spacing)
+        .attr('text-anchor', 'middle')
+        .style('font-family', 'Arial, sans-serif')
+        .style('font-size', '12px')
+        .style('font-weight', '600')
+        .style('fill', '#1f2937') // A dark gray for good contrast
+        .style('opacity', d => {
+          // Default transparency in plot view, solid when hovered or selected
+          const isHovered = hoveredNode && hoveredNode.id === d.id;
+          const isSelected = selectedNode && selectedNode.id === d.id;
+          return isHovered || isSelected ? 1.0 : 0.2;
+        })
+        .text(d => d.title);
+
+      // Add a backing rectangle for each text element
+      label.each(function (d) {
+        const textNode = d3.select(this).select('text').node();
+        if (textNode) {
+          const bbox = textNode.getBBox();
+          const padding = { x: 8, y: 4 };
+
+          d3.select(this).insert('rect', 'text') // Insert rect before text
+            .attr('x', bbox.x - padding.x)
+            .attr('y', bbox.y - padding.y)
+            .attr('width', bbox.width + 2 * padding.x)
+            .attr('height', bbox.height + 2 * padding.y)
+            .attr('rx', 4)
+            .attr('ry', 4)
+            .style('fill', 'rgba(255, 255, 255, 0.9)')
+            .style('stroke', '#e5e7eb')
+            .style('stroke-width', 1)
+            .style('opacity', () => {
+              // Match the text opacity for backing rectangle
+              const isHovered = hoveredNode && hoveredNode.id === d.id;
+              const isSelected = selectedNode && selectedNode.id === d.id;
+              return isHovered || isSelected ? 0.7 : 0.2;
+            });
+        }
+      });
+
+      // Add circles after labels (so they appear on top by default)
+      nodeG
+        .append('circle')
+        .attr('r', (d) =>
+          d.isBeingMerged ? 16 : d.id === mergeTargetId ? 12 : 8
+        )
+        .style('fill', (d) => getNodeColor(d))
+        .style('opacity', (d) => {
+          // Check if custom opacity is set
+          if (d.evaluationOpacity !== undefined) return d.evaluationOpacity;
+          // Otherwise use the default logic
+          return d.isGhost ? 0.5 : 1;
+        })
+        .style('stroke', (d) =>
+          selectedNode?.id === d.id ? '#000' : '#fff'
+        )
+        .style('stroke-width', (d) =>
+          selectedNode?.id === d.id ? 4 : 2
+        );
+
+      // Add user drag target visualization
+      const dragTargetData = nodes.filter(d => {
+        if (!d || !d.userDragTarget) return false;
+
+        // Check for data integrity
+        if (typeof d.userDragTarget.x !== 'number' ||
+          typeof d.userDragTarget.y !== 'number' ||
+          !d.userDragTarget.xAxisMetric ||
+          !d.userDragTarget.yAxisMetric) {
+          console.log('[DEBUG] Invalid userDragTarget data for node:', d.id, d.userDragTarget);
+          return false;
+        }
+
+        // Check if the axis metrics match what was recorded during drag
+        if (d.userDragTarget.xAxisMetric !== xAxisMetric ||
+          d.userDragTarget.yAxisMetric !== yAxisMetric) {
+          console.log('[DEBUG] Axis metrics mismatch for node:', d.id,
+            'recorded:', d.userDragTarget.xAxisMetric, d.userDragTarget.yAxisMetric,
+            'current:', xAxisMetric, yAxisMetric);
+          return false; // Don't show if axis metrics have changed
+        }
+
+        // Get current position using dynamic axis metrics
+        const currentXValue = getX(d) || 0;
+        const currentYValue = getY(d) || 0;
+
+        const xDiff = Math.abs(currentXValue - d.userDragTarget.x);
+        const yDiff = Math.abs(currentYValue - d.userDragTarget.y);
+
+        console.log('[DEBUG] Drag target check for node:', d.id, {
+          currentPos: [currentXValue, currentYValue],
+          dragTarget: [d.userDragTarget.x, d.userDragTarget.y],
+          differences: [xDiff, yDiff],
+          willShow: xDiff > 1 || yDiff > 1
         });
 
-        /* 节点绘制 & 拖拽 */
-        const nodeG = g
-          .selectAll('.node-group')
-          .data(drawable, (d) => d.id)
-          .enter()
-          .append('g')
-          .attr('class', 'node-group')
-          .attr('transform', (d) => `translate(${x(d[xAxisMetric])},${y(d[yAxisMetric])})`)
-          .style('cursor', 'pointer');
+        // Only show if current position differs from drag target
+        return xDiff > 1 || yDiff > 1;
+      });
 
-        // Add event listeners with unique namespaces to prevent duplicates
-        nodeG
-          .on('mouseenter.eval-tracking', (e, d) => {
-            // Don't track hover if any node is being dragged or events are suppressed after drag
-            if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag) {
-            }
-            // UI functionality
-            setHoveredNode(d);
-          })
-          .on('mouseleave.eval-tracking', (e, d) => {
-            // Don't track hover if any node is being dragged or events are suppressed after drag
-            if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag) {
-            }
-            // UI functionality
-            setHoveredNode(null);
-          })
-          .on('click.eval-tracking', (e, d) => {
-            // Don't track click if events are suppressed after drag
-            if (!d._suppressEventsAfterDrag) {
-            }
-            // UI functionality
-            setSelectedNode(d);
-          })
-          .call(
-            d3
-              .drag()
-              .on('start', function (event, d) {
-                if (isGenerating || isEvaluating) return;
-                // Mark drag start but don't track yet - wait for actual movement
-                d._dragStarted = false;
-                d._dragStartValues = {
-                  x: d[xAxisMetric],
-                  y: d[yAxisMetric],
-                  xAxisMetric: xAxisMetric,
-                  yAxisMetric: yAxisMetric
-                };
-                d3.select(this).raise();
-              })
-              .on('drag', function (event, d) {
-                if (isGenerating || isEvaluating) return;
+      console.log('[DEBUG] dragTargetData count:', dragTargetData.length,
+        'nodeIds:', dragTargetData.map(d => d.id));
 
-                // Track drag_start only when actual dragging begins
-                if (!d._dragStarted) {
-                  d._dragStarted = true;
-                }
+      // Debug: Check all nodes for userDragTarget
+      const nodesWithDragTargets = nodes.filter(d => d.userDragTarget);
+      console.log('[DEBUG] Total nodes with userDragTarget:', nodesWithDragTargets.length);
+      nodesWithDragTargets.forEach(d => {
+        console.log('[DEBUG] Node with userDragTarget:', d.id, d.userDragTarget);
+      });
 
-                const [cx, cy] = d3.pointer(event, g.node());
-                d3.select(this).attr('transform', `translate(${cx},${cy})`);
-                d._tmpX = cx;
-                d._tmpY = cy;
-              })
-              .on('end', function (event, d) {
-                if (isGenerating || isEvaluating) return;
-                const endX = d._tmpX ?? d3.pointer(event, g.node())[0];
-                const endY = d._tmpY ?? d3.pointer(event, g.node())[1];
+      // Draw user drag target circles (where user originally wanted the node)
+      if (dragTargetData.length > 0 && xView && yView) {
+        g.selectAll('.drag-target-circle')
+          .data(dragTargetData, d => d.id)
+          .join('circle')
+          .attr('class', 'drag-target-circle')
+          .attr('cx', d => xView(d.userDragTarget.x))  // User's original target position
+          .attr('cy', d => yView(d.userDragTarget.y))
+          .attr('r', 6)
+          .style('fill', 'none')
+          .style('stroke', '#666')
+          .style('stroke-width', 2)
+          .style('stroke-dasharray', '4,4')
+          .style('opacity', 0.85);
 
-                // Only track drag_end if dragging actually occurred
-                if (d._dragStarted) {
-                  // Convert screen coordinates back to metric values
-                  const endXValue = x.invert(endX);
-                  const endYValue = y.invert(endY);
-
-
-                  // Set flag to suppress automatic events after drag
-                  d._suppressEventsAfterDrag = true;
-                  // Clear the flag after a short delay to allow manual interactions
-                  setTimeout(() => {
-                    delete d._suppressEventsAfterDrag;
-                  }, 100);
-                }
-
-                // Clean up temporary variables
-                delete d._tmpX;
-                delete d._tmpY;
-                delete d._dragStarted;
-                delete d._dragStartValues;
-
-                /* ---------- ① 重叠检测：触发合并 ---------- */
-                const overlap = drawable.find(
-                  (n) =>
-                    n.id !== d.id &&
-                    Math.hypot(x(n[xAxisMetric]) - endX, y(n[yAxisMetric]) - endY) < 10
-                );
-                if (overlap) {
-                  setMergeTargetId(overlap.id);
-                  setPendingMerge({
-                    nodeA: d,
-                    nodeB: overlap,
-                    screenX: event.sourceEvent.clientX + 10,
-                    screenY: event.sourceEvent.clientY + 10,
-                  });
-
-                  // 回到原位
-                  d3.select(this).attr(
-                    'transform',
-                    `translate(${x(d[xAxisMetric])},${y(d[yAxisMetric])})`
-                  );
-                  return;
-                }
-
-                /* ---------- ② 原有拖拽修改逻辑 ---------- */
-                const newXVal = x.invert(endX);
-                const newYVal = y.invert(endY);
-                const deltaX = newXVal - d[xAxisMetric];
-                const deltaY = newYVal - d[yAxisMetric];
-
-                let mods = [];
-                let behind = null;
-                if (Math.abs(deltaX) > 5) {
-                  mods.push({ metric: xAxisMetric, direction: deltaX > 0 ? 'increase' : 'decrease' });
-                  behind = nodes
-                    .filter(
-                      (n) => n.id !== d.id && n[xAxisMetric] !== undefined && n[xAxisMetric] < newXVal
-                    )
-                    .sort((a, b) => b[xAxisMetric] - a[xAxisMetric])[0];
-                }
-                if (Math.abs(deltaY) > 5) {
-                  mods.push({ metric: yAxisMetric, direction: deltaY > 0 ? 'increase' : 'decrease' });
-                  behind =
-                    behind ||
-                    nodes
-                      .filter(
-                        (n) =>
-                          n.id !== d.id && n[yAxisMetric] !== undefined && n[yAxisMetric] < newYVal
-                      )
-                      .sort((a, b) => b[yAxisMetric] - a[yAxisMetric])[0];
-                }
-
-                // 回弹
-                d3.select(this).attr(
-                  'transform',
-                  `translate(${x(d[xAxisMetric])},${y(d[yAxisMetric])})`
-                );
-
-                if (mods.length > 0) {
-                  const ghostId = generateUniqueId();
-                  const ghost = {
-                    ...d,
-                    id: ghostId,
-                    x: d.x,
-                    y: d.y,
-                    [xAxisMetric]: newXVal,
-                    [yAxisMetric]: newYVal,
-                    isGhost: true,
-                    isNewlyGenerated: true,
-                    level: d.level + 1,
-                  };
-                  setNodes((prev) => [...prev, ghost]);
-                  setLinks((prev) => [...prev, { source: d.id, target: ghostId }]);
-                  setPendingChange({
-                    originalNode: d,
-                    ghostNode: ghost,
-                    modifications: mods,
-                    behindNode: behind,
-                    screenX: event.sourceEvent.clientX + 10,
-                    screenY: event.sourceEvent.clientY + 10,
-                  });
-                }
-                // Track click and set selected node
-                setSelectedNode(d);
-              })
-          );
-
-        nodeG
-          .append('circle')
-          .attr('r', (d) =>
-            d.isBeingMerged ? 16 : d.id === mergeTargetId ? 12 : 8
-          )
-          .style('fill', (d) =>
-            d.isMergedResult
-              ? '#B22222'
-              : d.isNewlyGenerated
-                ? '#FFD700'
-                : colorMap[d.type]
-          )
-          .style('opacity', (d) => {
-            // Check if custom opacity is set
-            if (d.evaluationOpacity !== undefined) return d.evaluationOpacity;
-            // Otherwise use the default logic
-            return d.isGhost ? 0.5 : 1;
-          })
-          .style('stroke', (d) =>
-            selectedNode?.id === d.id ? '#000' : hoveredNode?.id === d.id ? '#555' : '#fff'
-          )
-          .style('stroke-width', (d) =>
-            selectedNode?.id === d.id ? 4 : hoveredNode?.id === d.id ? 3 : 2
-          );
+        // Draw connection lines from evaluation result (current node position) to user's original target
+        g.selectAll('.drag-target-line')
+          .data(dragTargetData, d => d.id)
+          .join('line')
+          .attr('class', 'drag-target-line')
+          .attr('x1', d => xView(getX(d) || 0))  // Current evaluation position
+          .attr('y1', d => yView(getY(d) || 0))
+          .attr('x2', d => xView(d.userDragTarget.x))   // User's original target position
+          .attr('y2', d => yView(d.userDragTarget.y))
+          .style('stroke', '#666')
+          .style('stroke-width', 1.5)
+          .style('stroke-dasharray', '4,2')
+          .style('opacity', 0.7);
       }
-      if (operationStatus) {
-        svg
-          .append('rect')
-          .attr('x', 2)
-          .attr('y', 2)
-          .attr('width', width - 4)
-          .attr('height', height - 4)
-          .attr('rx', 8)
-          .attr('ry', 8)
-          .style('fill', 'rgba(255, 255, 255, 0.7)')
-          .style('pointer-events', 'none');
-        svg
-          .append('text')
-          .attr('x', width / 2)
-          .attr('y', height / 2)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'middle')
-          .style('font-size', '1.2rem')
-          .style('font-weight', '600')
-          .style('fill', '#374151')
-          .text(operationStatus);
-      }
+    }
+    if (operationStatus) {
+      // Add status text at top of plot instead of overlay
+      svg
+        .append('text')
+        .attr('x', width / 2)
+        .attr('y', 30)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .style('font-size', '1.2rem')
+        .style('font-weight', '600')
+        .style('fill', '#374151')
+        .style('background', 'rgba(255, 255, 255, 0.9)')
+        .text(operationStatus);
     }
   }, [
     currentView,
@@ -2151,23 +4667,266 @@ const TreePlotVisualization = () => {
     isGenerating,
     isEvaluating,
     operationStatus,
-    // selectedNode and hoveredNode handled by separate useEffect for styling updates only
+    selectedNode, // Added to trigger re-render when selecting to show/hide links
+    mergeMode, // Added to trigger re-render when merge mode state changes
+    unifiedScale, // re-render when unified scale changes
+    xScalingCenter, // re-render when X scaling center changes
+    yScalingCenter, // re-render when Y scaling center changes
+    handleMergeConfirm,
+    handleMergeCancel,
+    hideEvaluationView, // trigger re-render when plot view visibility changes
+    userDragTargets, // trigger re-render when drag targets change
+    hoveredNode
   ]);
 
   // Separate useEffect for updating node hover/selection styling without recreating event listeners
   useEffect(() => {
     if (!svgRef.current || currentView === 'home_view') return;
 
-    // Update circle styling for hover and selection states
+    // Update circle styling for selection states only
     d3.select(svgRef.current)
       .selectAll('circle')
       .style('stroke', (d) =>
-        selectedNode?.id === d.id ? '#000' : hoveredNode?.id === d.id ? '#555' : '#fff'
+        d && d.id ? (selectedNode?.id === d.id ? '#000' : '#fff') : '#fff'
       )
       .style('stroke-width', (d) =>
-        selectedNode?.id === d.id ? 4 : hoveredNode?.id === d.id ? 3 : 2
+        d && d.id ? (selectedNode?.id === d.id ? 4 : 2) : 2
       );
-  }, [selectedNode, hoveredNode, currentView]);
+  }, [selectedNode, currentView]);
+
+  // Separate useEffect for merge UI updates to prevent flickering
+  useEffect(() => {
+    if (!svgRef.current || currentView === 'home_view') return;
+
+    const svg = d3.select(svgRef.current);
+    let mergeUILayer = svg.select('.merge-ui-layer');
+
+    // Clear existing merge UI elements
+    if (!mergeUILayer.empty()) {
+      mergeUILayer.selectAll('*').remove();
+    }
+
+    // Only render merge UI if in merge mode and in tree view
+    if (mergeMode.active && mergeMode.firstNode && nodes.length > 0 && currentView === 'exploration') {
+      // Ensure merge UI layer exists
+      if (mergeUILayer.empty()) {
+        mergeUILayer = svg.append('g').attr('class', 'merge-ui-layer');
+      }
+
+      // Apply current zoom transform to merge UI layer
+      if (zoomTransformRef.current) {
+        mergeUILayer.attr('transform', zoomTransformRef.current);
+      }
+
+      // Get the positioned layout nodes from ref
+      const layoutNodes = layoutNodesRef.current;
+      const firstNodeElement = layoutNodes ? layoutNodes.find(n => n.id === mergeMode.firstNode.id) : null;
+
+
+      if (firstNodeElement) {
+        // Always add special stroke around the first selected node
+        mergeUILayer.append('circle')
+          .attr('class', 'merge-first-node')
+          .attr('cx', firstNodeElement.x)
+          .attr('cy', firstNodeElement.y)
+          .attr('r', 32)
+          .style('fill', 'none')
+          .style('stroke', 'rgb(192,192,192)')
+          .style('stroke-width', 4)
+          .style('pointer-events', 'none')
+          .style('opacity', 1)
+          .style('z-index', 1000);
+
+        if (!mergeMode.secondNode) {
+          // Draw line from first node to cursor
+          mergeUILayer.append('path')
+            .attr('class', 'merge-cursor-line')
+            .attr('d', `M${firstNodeElement.x},${firstNodeElement.y} L${mergeMode.cursorPosition.x},${mergeMode.cursorPosition.y}`)
+            .style('stroke', 'rgb(192,192,192)')
+            .style('stroke-width', 2)
+            .style('pointer-events', 'none')
+            .style('opacity', 0.7);
+        } else {
+          // Draw line between first and second node
+          const secondNodeElement = layoutNodes.find(n => n.id === mergeMode.secondNode.id);
+          if (secondNodeElement) {
+            // Add special stroke around second selected node
+            mergeUILayer.append('circle')
+              .attr('class', 'merge-second-node')
+              .attr('cx', secondNodeElement.x)
+              .attr('cy', secondNodeElement.y)
+              .attr('r', 32)
+              .style('fill', 'none')
+              .style('stroke', 'rgb(192,192,192)')
+              .style('stroke-width', 4)
+              .style('pointer-events', 'none')
+              .style('opacity', 1)
+              .style('z-index', 1000);
+
+            // Dashed line between nodes
+            mergeUILayer.append('path')
+              .attr('class', 'merge-connection-line')
+              .attr('d', `M${firstNodeElement.x},${firstNodeElement.y} L${secondNodeElement.x},${secondNodeElement.y}`)
+              .style('stroke', 'rgb(192,192,192)')
+              .style('stroke-width', 3)
+              .style('pointer-events', 'none');
+
+            // Merge dialog in the middle
+            if (mergeMode.showDialog) {
+              const midX = (firstNodeElement.x + secondNodeElement.x) / 2;
+              const midY = (firstNodeElement.y + secondNodeElement.y) / 2;
+
+              // Dialog background with dashed border
+              const dialogGroup = mergeUILayer.append('g')
+                .attr('class', 'merge-dialog')
+                .attr('data-panel-root', 'merge-dialog')
+                .attr('transform', `translate(${midX}, ${midY})`);
+
+              dialogGroup.append('rect')
+                .attr('x', -50)
+                .attr('y', -35)
+                .attr('width', 100)
+                .attr('height', 70)
+                .attr('rx', 8)
+                .style('fill', 'white')
+                .style('stroke', 'rgb(192,192,192)')
+                .style('stroke-width', 2)
+                .style('filter', 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))');
+
+              // Merge button (top)
+              const mergeButton = dialogGroup.append('g')
+                .attr('class', 'merge-button')
+                .style('cursor', 'pointer');
+
+              mergeButton.append('rect')
+                .attr('x', -35)
+                .attr('y', -25)
+                .attr('width', 70)
+                .attr('height', 20)
+                .attr('rx', 4)
+                .style('fill', '#4CAF50')
+                .style('stroke', 'none');
+
+              mergeButton.append('text')
+                .attr('x', 0)
+                .attr('y', -15)
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'middle')
+                .style('fill', 'white')
+                .style('font-size', '12px')
+                .style('font-weight', 'bold')
+                .style('pointer-events', 'none')
+                .text('Merge');
+
+              // Cancel button (bottom)
+              const cancelButton = dialogGroup.append('g')
+                .attr('class', 'cancel-button')
+                .style('cursor', 'pointer');
+
+              cancelButton.append('rect')
+                .attr('x', -35)
+                .attr('y', 5)
+                .attr('width', 70)
+                .attr('height', 20)
+                .attr('rx', 4)
+                .style('fill', '#f44336')
+                .style('stroke', 'none');
+
+              cancelButton.append('text')
+                .attr('x', 0)
+                .attr('y', 15)
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'middle')
+                .style('fill', 'white')
+                .style('font-size', '12px')
+                .style('font-weight', 'bold')
+                .style('pointer-events', 'none')
+                .text('Cancel');
+
+              // Add click handlers for buttons
+              mergeButton.on('click', () => {
+                handleMergeConfirm(mergeMode.firstNode, mergeMode.secondNode);
+              });
+
+              cancelButton.on('click', () => {
+                handleMergeCancel();
+              });
+            }
+          }
+        }
+      }
+    }
+  }, [
+    mergeMode.active,
+    mergeMode.firstNode,
+    mergeMode.secondNode,
+    mergeMode.showDialog,
+    mergeMode.cursorPosition,
+    nodes,
+    currentView,
+    handleMergeConfirm,
+    handleMergeCancel
+  ]);
+
+  // Keyboard event listener for merge mode cancellation
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && mergeMode.active) {
+        event.preventDefault();
+        handleMergeCancel();
+      }
+    };
+
+    if (mergeMode.active) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mergeMode.active, handleMergeCancel]);
+
+  // Unified useEffect for node and title layering
+  useEffect(() => {
+    // Exit early if the SVG isn't ready or we are in the home view
+    if (!svgRef.current || currentView === 'home_view') return;
+
+    const svg = d3.select(svgRef.current);
+
+    // --- Tree View Logic ---
+    // This logic remains unchanged.
+    if (currentView === 'exploration') {
+      if (selectedNode) {
+        svg.selectAll('.node')
+          .filter(d => d && d.id === selectedNode.id)
+          .raise();
+      }
+      return; // End execution for tree view
+    }
+
+    // --- Plot View Logic ---
+    // This simplified logic correctly prioritizes the layering rules.
+    if (currentView === 'evaluation') {
+      const allNodeGroups = svg.selectAll('.node-group');
+      if (allNodeGroups.empty()) return;
+
+      // --- Hover State (The Exception) ---
+      // If a node is hovered, its entire group (title and circle) is
+      // brought to the absolute front. This is the highest-priority action.
+      if (hoveredNode) {
+        allNodeGroups
+          .filter(d => d && d.id === hoveredNode.id)
+          .raise();
+      } else {
+        // --- Default & Selected State (The Rule) ---
+        // In all non-hover states, the primary rule is that all circles
+        // must be on top of all titles. This single line enforces that rule.
+        // The selected node is distinguished by its stroke color, not by
+        // layering its title over other circles.
+        allNodeGroups.selectAll('circle').raise();
+      }
+    }
+  }, [hoveredNode, selectedNode, currentView]);
 
   const handleAddCustomIdea = async (e) => {
     e.preventDefault();
@@ -2178,36 +4937,59 @@ const TreePlotVisualization = () => {
     setError(null);
 
     try {
-      const newId = generateUniqueId();
+      // Generate custom idea ID in C-1, C-2, C-3 format
+      const newId = `C-${customIdeaCounter}`;
+      setCustomIdeaCounter(prev => prev + 1);
+
       const newIdea = {
         id: newId,
         ...customIdea,
+        // Add required fields for evaluation API
+        Name: customIdea.title.trim(),
+        Title: customIdea.title.trim(),
+        Problem: customIdea.content.trim(),
+        Importance: '',
+        Difficulty: '',
+        NoveltyComparison: '',
+        Approach: ''
       };
 
       // 添加到假设列表
       const updatedIdeasList = [...ideasList, newIdea];
       setIdeasList(updatedIdeasList);
 
-      // 创建新节点
+      // 创建新节点 - custom idea始终在第一层，不连接任何节点
       const newNode = {
         id: newId,
-        level: selectedNode ? selectedNode.level + 1 : 1,
+        level: 1, // 始终在第一层
         title: customIdea.title.trim(),
         content: customIdea.content.trim(),
         type: 'complex',
-        x: selectedNode ? selectedNode.x + Math.random() * 20 - 10 : 0,
-        y: selectedNode ? selectedNode.y + 150 + Math.random() * 20 - 10 : 150,
-        originalData: newIdea, // Preserve original data for coder/writer
+        x: 0, // 初始位置，后续会通过布局算法调整
+        y: 150, // 初始位置，后续会通过布局算法调整
+        originalData: newIdea,
+        // Initialize evaluation reasoning for custom ideas
+        evaluationReasoning: {
+          impactReasoning: '',
+          feasibilityReasoning: '',
+          noveltyReasoning: ''
+        }
       };
 
-      // 添加节点和连接
+      console.log('[DEBUG] Created custom idea node:', {
+        id: newNode.id,
+        title: newNode.title,
+        evaluationReasoning: newNode.evaluationReasoning,
+        originalData: newNode.originalData
+      });
+
+      // 添加节点（不添加任何连接）
       setNodes((prev) => [...prev, newNode]);
-      if (selectedNode) {
-        setLinks((prev) => [...prev, { source: selectedNode.id, target: newId }]);
-      }
+
+      // Custom idea不连接任何节点，保持独立
 
       // 评估新假设
-      await evaluateIdeas(updatedIdeasList);
+      await evaluateIdeas(updatedIdeasList, { allowAutoCenter: true });
 
       // 重置表单
       setCustomIdea({ title: '', content: '' });
@@ -2221,1486 +5003,1444 @@ const TreePlotVisualization = () => {
     }
   };
 
-  // Load generated files from public directory
-  const loadGeneratedFiles = async (experimentDir) => {
-    try {
-      const fileUrls = {
-        'experiment.py': `/api/files/${experimentDir}/experiment.py`,
-        'notes.txt': `/api/files/${experimentDir}/notes.txt`,
-        'experiment_results.txt': `/api/files/${experimentDir}/experiment_results.txt`,
-      };
-
-      const loadedFiles = {};
-      for (const [fileName, url] of Object.entries(fileUrls)) {
-        try {
-          console.log(`Attempting to fetch: ${fileName} from ${url}`);
-          const response = await fetch(url);
-          console.log(`Response for ${fileName}:`, response.status, response.statusText);
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.content) {
-              loadedFiles[fileName] = data.content;
-              console.log(`Loaded ${fileName} successfully.`);
-            }
-          } else {
-            console.log(`Could not load ${fileName}, but this might be expected (e.g., no notes).`);
-          }
-        } catch (err) {
-          console.error(`Error fetching ${fileName}:`, err);
-        }
-      }
-
-      // Update state all at once
-      setExperimentFiles(prev => ({ ...prev, ...loadedFiles }));
-
-      // Set the code content for the editor if experiment.py was loaded
-      if (loadedFiles['experiment.py']) {
-        setCodeContent(loadedFiles['experiment.py']);
-        setActiveCodeTab('experiment.py');
-      }
-
-    } catch (err) {
-      console.log("Error loading generated files:", err);
-      setCodeContent(`# Generated experiment code\n# Files are being generated in: ${experimentDir}\n\n# Please check the directory for the actual code files.`);
-    }
-  };
-
-  // Manual file loading function for debugging
-  const handleManualLoadFiles = async () => {
-    try {
-      console.log("Manually loading generated files...");
-
-      // Stop any ongoing code generation polling
-      setIsGeneratingCode(false);
-      setIsGeneratingPaper(false);
-      setOperationStatus('');
-
-      await loadGeneratedFiles("experiments");
-      setCurrentView('code_view');
-      console.log("Manual file loading completed");
-
-      // Set a fake successful result to satisfy the UI
-      setCodeResult({
-        status: true,
-        success: true,
-        experiment_dir: "experiments"
-      });
-
-    } catch (err) {
-      console.log("Manual file loading failed:", err);
-    }
-  };
-
-  // Handler for Retry Code Generation button
-  const handleRetryCodeGeneration = async (node) => {
-    if (!node || !node.originalData) {
-      console.log("ERROR: Missing node or originalData for retry");
-      return;
-    }
-
-    console.log("Retrying code generation for idea:", node.originalData.Title);
-    setIsGeneratingCode(true);
-    setOperationStatus('Retrying code generation...');
-    setCodeResult(null);
-    setExperimentFiles({});
-    setShowLogs(true); // Show logs when starting code generation
-
-    try {
-      const codeResponse = await fetch('/api/code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          idea: node.originalData
-        })
-      });
-
-      if (!codeResponse.ok) {
-        const errorText = await codeResponse.text();
-        throw new Error(`Failed to generate code: ${codeResponse.status} ${errorText}`);
-      }
-
-      const codeData = await codeResponse.json();
-      console.log("Retry code generation completed:", codeData);
-      setCodeResult(codeData);
-
-      if (!codeData.success) {
-        throw new Error(codeData.error || 'Code generation failed');
-      }
-
-      // Load generated files
-      setOperationStatus('Loading generated files...');
-      await loadGeneratedFiles(codeData.experiment_dir);
-      setOperationStatus('Code generation retry completed successfully!');
-
-    } catch (error) {
-      console.error("Retry code generation failed:", error);
-      setOperationStatus('Retry code generation failed: ' + error.message);
-      setCodeResult({
-        success: false,
-        error: error.message,
-        error_details: error.message
-      });
-    } finally {
-      setIsGeneratingCode(false);
-    }
-  };
-
-  // Handler for Generate Paper button
-  const handleGeneratePaper = async (node, experimentDir) => {
-    if (!node || !node.originalData) {
-      console.log("ERROR: Missing node or originalData for paper generation");
-      return;
-    }
-
-    // Only require experiment directory for experimental ideas
-    const isExperimental = node.originalData.is_experimental;
-    if (isExperimental && !experimentDir) {
-      console.log("ERROR: Missing experiment directory for experimental idea");
-      return;
-    }
-
-    console.log("Generating paper for idea:", node.originalData.Title);
-    setIsGeneratingPaper(true);
-    setOperationStatus('Generating paper...');
-    setShowLogs(true); // Show logs when starting paper generation
-
-    try {
-      // Get S2 API key from localStorage or prompt user
-      let s2ApiKey = localStorage.getItem('s2_api_key');
-      if (!s2ApiKey) {
-        s2ApiKey = prompt('Please enter your Semantic Scholar API Key:');
-        if (!s2ApiKey) {
-          throw new Error('Semantic Scholar API key is required for paper generation');
-        }
-        localStorage.setItem('s2_api_key', s2ApiKey);
-      }
-
-      const paperResponse = await fetch('/api/write', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          idea: node.originalData,
-          experiment_dir: experimentDir,
-          s2_api_key: s2ApiKey
-        })
-      });
-
-      if (!paperResponse.ok) {
-        const errorText = await paperResponse.text();
-        throw new Error(`Failed to generate paper: ${paperResponse.status} ${errorText}`);
-      }
-
-      const paperData = await paperResponse.json();
-      console.log("Paper generation completed:", paperData);
-
-      if (!paperData.success) {
-        throw new Error(paperData.error || 'Paper generation failed');
-      }
-
-      // Set the paper result and switch to paper view
-      setPaperResult(paperData);
-      setCurrentView('paper_view');
-      setOperationStatus('Paper generated successfully!');
-
-    } catch (error) {
-      console.error("Paper generation failed:", error);
-      setOperationStatus('Paper generation failed: ' + error.message);
-    } finally {
-      setIsGeneratingPaper(false);
-    }
-  };
-
-  // Handler for Proceed button - with confirmation dialog
+  // Simplified proceed function (removed code/paper generation)
   const handleProceedWithSelectedIdea = () => {
-    console.log("=== PROCEED BUTTON CLICKED ===");
-    console.log("selectedNode:", selectedNode);
-    console.log("selectedNode.originalData:", selectedNode?.originalData);
-
-    if (!selectedNode || !selectedNode.originalData) {
-      console.log("ERROR: Missing selectedNode or originalData");
-      setProceedError('Please select an idea to proceed');
-      return;
-    }
-
-    console.log("Showing proceed confirmation dialog");
-    setShowProceedConfirm(true);
+    console.log('Proceed functionality has been simplified - this version only supports idea generation and evaluation');
+    setOperationStatus('Proceed functionality is not available in this simplified version - focus on idea exploration and evaluation');
   };
 
-  // Handler for confirmed proceed action
-  const handleConfirmProceed = async () => {
-    console.log("=== PROCEED CONFIRMED ===");
-    console.log("selectedNode.originalData:", selectedNode?.originalData);
+  // === 拖放处理函数 ===
+  const handleNodeDropOnEvaluation = (e, targetNode) => {
+    e.preventDefault();
+    const draggedNodeId = e.dataTransfer.getData('nodeId');
+    const sourceView = e.dataTransfer.getData('sourceView');
+    const isFragment = e.dataTransfer.getData('isFragment') === 'true';
 
-    if (!selectedNode?.originalData) {
-      console.log("ERROR: No originalData available");
-      setProceedError('No idea selected');
-      setShowProceedConfirm(true); // Show dialog again to display error
+    if (!draggedNodeId) return;
+
+    // 从 nodes 或 fragmentNodes 查找被拖动的节点
+    const draggedNode = nodes.find(n => n.id === draggedNodeId) ||
+      fragmentNodes.find(f => f.id === draggedNodeId);
+
+    if (!draggedNode) return;
+
+    // Fragment 只能拖到节点上进行 merge，不能拖到空白区域
+    if (isFragment && !targetNode) {
+      console.log('[Fragment] Cannot drop fragment on empty space - fragments can only merge with nodes');
       return;
     }
 
-    // Check if the idea is experimental to determine S2 API key requirement
-    const isExperimental = selectedNode.originalData.is_experimental === true;
-
-    // Validate Semantic Scholar API key only for non-experimental ideas
-    if (!isExperimental && !s2ApiKey.trim()) {
-      setProceedError('Semantic Scholar API key is required for non-experimental ideas');
-      return;
-    }
-
-    setShowProceedConfirm(false);
-    setProceedError(null);
-
-    // // Set the Semantic Scholar API key as environment variable
-    // try {
-    //   console.log("Setting Semantic Scholar API key...");
-    //   const apiKeyResponse = await fetch('/api/set-env', {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     credentials: 'include',
-    //     body: JSON.stringify({
-    //       key: 'S2_API_KEY',
-    //       value: s2ApiKey.trim()
-    //     }),
-    //   });
-
-    //   if (!apiKeyResponse.ok) {
-    //     throw new Error('Failed to set Semantic Scholar API key');
-    //   }
-
-    //   console.log("Semantic Scholar API key set successfully");
-    // } catch (error) {
-    //   console.error("Error setting Semantic Scholar API key:", error);
-    //   setProceedError('Failed to set Semantic Scholar API key: ' + error.message);
-    //   setShowProceedConfirm(true); // Show dialog again to display error
-    //   return;
-    // }
-
-    // Check if the idea is experimental (AI-related) or not
-    const idea = selectedNode.originalData;
-
-    console.log(`Idea is experimental: ${isExperimental}`);
-    console.log(`Idea details:`, {
-      title: idea.Title || idea.Name,
-      is_experimental: idea.is_experimental
+    userActionTracker.trackAction('drop_complete', isFragment ? 'fragment_on_evaluation' : 'node_on_evaluation', {
+      draggedNodeId,
+      targetNodeId: targetNode ? targetNode.id : 'empty_space',
+      sourceView,
+      isFragment
     });
 
-    try {
-      // Check if backend is configured first
-      console.log("Checking backend configuration...");
-      setOperationStatus('Checking configuration...');
+    // 如果是 fragment 拖到另一个节点上，触发 merge
+    if (isFragment && targetNode) {
+      // 计算目标节点在屏幕上的位置(象限正下方)
+      const targetElement = document.querySelector(`[data-node-id="${targetNode.id}"]`);
+      let screenX = e.clientX; // Default to mouse position for 3D
+      let screenY = e.clientY; // Default to mouse position for 3D
 
-      const configCheck = await fetch('/api/get-prompts', {
-        credentials: 'include'
+      if (targetElement) {
+        const rect = targetElement.getBoundingClientRect();
+        screenX = rect.left + rect.width / 2; // Center of node
+        screenY = rect.bottom + 10; // 节点下方10px
+      }
+
+      // Adjust for modal width (centered)
+      screenX = screenX - 150;
+
+      const container = evaluationContainerRef.current;
+      let ghostPosition = fragmentDragOriginRef.current;
+      if (!ghostPosition && container) {
+        const containerRect = container.getBoundingClientRect();
+        ghostPosition = {
+          x: e.clientX - containerRect.left,
+          y: e.clientY - containerRect.top
+        };
+      }
+
+      setDragVisualState({
+        type: 'merge',
+        sourceNodeId: draggedNode.id,
+        targetNodeId: targetNode.id,
+        ghostPosition
       });
 
-      if (!configCheck.ok) {
-        console.log("Backend not configured, attempting to reconfigure...");
-        setOperationStatus('Reconfiguring backend...');
-
-        if (!apiKey.trim()) {
-          throw new Error('Backend not configured and no API key available. Please configure the API key and model first.');
-        }
-
-        // Auto-reconfigure the backend
-        const reconfigResponse = await fetch('/api/configure', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            model: selectedModel,
-            api_key: apiKey,
-          }),
-        });
-
-        if (!reconfigResponse.ok) {
-          throw new Error('Failed to reconfigure backend');
-        }
-
-        console.log("Backend reconfigured successfully");
-      }
-
-      if (isExperimental) {
-        // For experimental (AI-related) ideas: Generate code first, then paper
-        console.log("Processing experimental idea - generating code first...");
-        setIsGeneratingCode(true);
-        setOperationStatus('Generating experiment code...');
-        setShowLogs(true); // Show logs when starting code generation
-
-        let codeData = null;
-        let timeoutOccurred = false;
-
-        try {
-          // Try with a manual timeout using Promise.race
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
-
-          const codeResponse = await fetch('/api/code', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              idea: selectedNode.originalData
-            }),
-            signal: controller.signal
-          });
-
-          clearTimeout(timeoutId);
-
-          if (!codeResponse.ok) {
-            const errorText = await codeResponse.text();
-            throw new Error(`Failed to generate code: ${codeResponse.status} ${errorText}`);
-          }
-
-          codeData = await codeResponse.json();
-          console.log("Code generation completed:", codeData);
-          setCodeResult(codeData);
-
-          if (!codeData.success) {
-            throw new Error(codeData.error || 'Code generation failed');
-          }
-        } catch (error) {
-          if (error.name === 'AbortError' || error.name === 'TimeoutError' ||
-            error.message.includes('ECONNRESET') || error.message.includes('socket hang up') ||
-            error.message.includes('Proxy error') || error.message.includes('network')) {
-            console.log("Request failed due to connection issue, checking for completed files...");
-            console.log("Error details:", error.message);
-            setOperationStatus('Connection lost, checking if code generation completed...');
-
-            // Single check for existing files (backend may have completed despite connection issue)
-            const expectedFileUrl = '/api/files/experiments/experiment.py';
-            try {
-              const fileCheck = await fetch(expectedFileUrl);
-              if (fileCheck.ok) {
-                const fileData = await fileCheck.json();
-                if (fileData.content && fileData.content.length > 50) {
-                  console.log("Generated files found! Code generation was completed.");
-                  codeData = {
-                    success: true,
-                    experiment_dir: "experiments",
-                    status: true,
-                    message: "Code generation completed (files found after connection issue)"
-                  };
-                } else {
-                  throw new Error('Code generation failed - connection lost and no files generated');
-                }
-              } else {
-                throw new Error('Code generation failed - connection lost and no files generated');
-              }
-            } catch (fileError) {
-              throw new Error('Code generation failed - connection lost and no files generated');
-            }
-          } else {
-            throw error;
-          }
-        }
-
-        // Store results
-        setCodeResult(codeData);
-        const finalExperimentDir = codeData.experiment_dir;
-
-        // Load generated files
-        setOperationStatus('Loading generated files...');
-        await loadGeneratedFiles(finalExperimentDir);
-
-        // Mark that code has been generated (this will show Code View tab)
-        setHasGeneratedCode(true);
-
-        // Automatically switch to Code View
-        setCurrentView('code_view');
-        console.log("Switched to Code View to display generated files");
-        setOperationStatus('Code generation completed successfully!');
-
-        // Code generation completed successfully
-        setIsGeneratingCode(false);
-        setOperationStatus('Code generation completed successfully! You can now generate a paper if needed.');
-
-      } else {
-        // For non-experimental (non-AI-related) ideas: Generate paper directly since S2 key is already provided
-        console.log("Processing non-experimental idea - generating paper directly...");
-        setIsGeneratingPaper(true);
-        setOperationStatus('Generating paper...');
-        setShowLogs(true); // Show logs when starting paper generation
-
-        const paperResponse = await fetch('/api/write', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            idea: selectedNode.originalData,
-            experiment_dir: null, // No experiment directory for non-experimental papers
-            s2_api_key: s2ApiKey.trim(),
-          }),
-        });
-
-        if (!paperResponse.ok) {
-          throw new Error('Failed to generate paper');
-        }
-
-        const paperData = await paperResponse.json();
-        console.log("Paper generation completed:", paperData);
-        setPaperResult(paperData);
-
-        if (!paperData.success) {
-          throw new Error(paperData.error || 'Paper generation failed');
-        }
-
-        // Switch to paper view to show results for non-experimental idea
-        setCurrentView('paper_view');
-        setOperationStatus('Paper generated successfully!');
-      }
-
-    } catch (err) {
-      console.error('=== ERROR IN PROCEED WORKFLOW ===');
-      console.error('Error details:', err);
-      console.error('Error message:', err.message);
-      console.error('Error stack:', err.stack);
-      setProceedError(err.message);
-
-      // Show Code View even when coder fails so user can see error and retry
-      if (isExperimental) {
-        console.log("Switching to Code View to show error details");
-        setCurrentView('code_view');
-        setHasGeneratedCode(true); // Enable Code View tab
-      }
-    } finally {
-      setIsGeneratingCode(false);
-      setIsGeneratingPaper(false);
-      setOperationStatus('');
+      setPendingMerge({
+        action: 'merge',
+        sourceNode: draggedNode,
+        targetNode: targetNode,
+        isFragmentMerge: true,
+        screenX,
+        screenY
+      });
+      fragmentDragOriginRef.current = null;
+    } else {
+      // 显示操作选择：New Idea 或 Modify Eval
+      setMergeTargetId(null);
+      setPendingMerge({
+        sourceNode: draggedNode,
+        targetNode: targetNode, // 可能是 null（空白区域）
+        action: 'evaluation_drag',
+        isFragment
+      });
     }
   };
 
-  // PDF Comment functions
-  const addComment = (pageNumber = 1) => {
-    if (newComment.trim()) {
-      const comment = {
-        id: Date.now(),
-        text: newComment,
-        pageNumber,
-        timestamp: new Date().toLocaleString(),
-        author: 'User'
+  // ============== 3D Cube Navigation Logic ==============
+
+  const clampPitch = (value) => Math.max(-90, Math.min(90, value));
+
+  const normalizeYaw = (value) => {
+    let v = value % 360;
+    if (v > 180) v -= 360;
+    if (v <= -180) v += 360;
+    return v;
+  };
+
+  const snapRotation = (rotation) => {
+    const snappedYaw = normalizeYaw(Math.round(rotation.yaw / 90) * 90);
+    const snappedPitch = clampPitch(Math.round(rotation.pitch / 90) * 90);
+    return { yaw: snappedYaw, pitch: snappedPitch };
+  };
+
+  const getFaceFromRotation = (rotation) => {
+    const yaw = normalizeYaw(rotation.yaw);
+    const pitch = clampPitch(rotation.pitch);
+
+    if (pitch > 45) return 2; // Top
+    if (pitch < -45) return 5; // Bottom
+    if (yaw >= 45 && yaw < 135) return 1; // Right
+    if (yaw <= -45 && yaw > -135) return 4; // Left
+    if (yaw >= 135 || yaw < -135) return 3; // Back
+    return 0; // Front
+  };
+
+  const beginSnapToFace = useCallback((rotation) => {
+    const snapped = snapRotation(rotation);
+    setIsSnapping(true);
+    setCubeRotation(snapped);
+    setCurrentFaceIndex(getFaceFromRotation(snapped));
+    if (snapTimerRef.current) {
+      clearTimeout(snapTimerRef.current);
+    }
+    snapTimerRef.current = setTimeout(() => setIsSnapping(false), 350);
+  }, []);
+
+  const trackCubeRotate = useCallback((source, fromRotation, toRotation) => {
+    userActionTracker.trackAction(
+      'cube_rotate',
+      'cube',
+      {
+        source,
+        from: { yaw: fromRotation.yaw, pitch: fromRotation.pitch },
+        to: { yaw: toRotation.yaw, pitch: toRotation.pitch }
+      },
+      {
+        dedupWindowMs: 0,
+        dedupKey: `cube_rotate:${source}:${fromRotation.yaw}:${fromRotation.pitch}->${toRotation.yaw}:${toRotation.pitch}`
+      }
+    );
+  }, []);
+
+  const handleStepRotation = useCallback((direction, source = 'unknown') => {
+    let deltaYaw = 0;
+    let deltaPitch = 0;
+    if (direction === 'right') deltaYaw = 90;
+    if (direction === 'left') deltaYaw = -90;
+    if (direction === 'up') deltaPitch = 90;
+    if (direction === 'down') deltaPitch = -90;
+
+    const next = {
+      yaw: cubeRotation.yaw + deltaYaw,
+      pitch: clampPitch(cubeRotation.pitch + deltaPitch)
+    };
+
+    const snapped = snapRotation(next);
+    trackCubeRotate(source, cubeRotation, snapped);
+    beginSnapToFace(next);
+  }, [beginSnapToFace, cubeRotation, trackCubeRotate]);
+
+  // Add keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (currentView !== 'exploration') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case 'ArrowRight': handleStepRotation('right', 'keyboard'); break;
+        case 'ArrowLeft': handleStepRotation('left', 'keyboard'); break;
+        case 'ArrowUp': handleStepRotation('up', 'keyboard'); break;
+        case 'ArrowDown': handleStepRotation('down', 'keyboard'); break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentView, handleStepRotation]);
+
+  // Pointer Drag Handlers (use pointer capture so we always get the "up" event)
+  const handleFacePointerDown = (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('[data-node-id]')) return;
+    e.preventDefault();
+
+    cubeDragRef.current = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      startYaw: cubeRotation.yaw,
+      startPitch: cubeRotation.pitch,
+      currentYaw: cubeRotation.yaw,
+      currentPitch: cubeRotation.pitch,
+      moved: false
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setIsSnapping(false);
+  };
+
+  const handleFacePointerMove = (e) => {
+    if (!cubeDragRef.current) return;
+    if (cubeDragRef.current.pointerId !== e.pointerId) return;
+    e.preventDefault();
+
+    const dx = e.clientX - cubeDragRef.current.x;
+    const dy = e.clientY - cubeDragRef.current.y;
+    const sensitivity = 0.4;
+    const yaw = normalizeYaw(cubeDragRef.current.startYaw + dx * sensitivity);
+    const pitch = clampPitch(cubeDragRef.current.startPitch - dy * sensitivity);
+    cubeDragRef.current.moved = true;
+    cubeDragRef.current.currentYaw = yaw;
+    cubeDragRef.current.currentPitch = pitch;
+    setCubeRotation({ yaw, pitch });
+  };
+
+  const handleFacePointerUp = (e) => {
+    if (!cubeDragRef.current) return;
+    if (cubeDragRef.current.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+
+    const { moved, startYaw, startPitch, currentYaw, currentPitch } = cubeDragRef.current;
+    cubeDragRef.current = null;
+    if (!moved) return;
+
+    const endRotation = {
+      yaw: typeof currentYaw === 'number' ? currentYaw : cubeRotation.yaw,
+      pitch: typeof currentPitch === 'number' ? currentPitch : cubeRotation.pitch
+    };
+    const snapped = snapRotation(endRotation);
+    trackCubeRotate('drag', { yaw: startYaw, pitch: startPitch }, snapped);
+    beginSnapToFace(endRotation);
+  };
+
+  const handleFacePointerCancel = (e) => {
+    if (!cubeDragRef.current) return;
+    if (cubeDragRef.current.pointerId !== e.pointerId) return;
+    cubeDragRef.current = null;
+  };
+
+  // Render navigation buttons
+  const renderNavigationButtons = () => (
+    <>
+      <div onClick={() => handleStepRotation('right', 'button')} style={navBtnStyle('right')}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+      </div>
+      <div onClick={() => handleStepRotation('left', 'button')} style={navBtnStyle('left')}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+      </div>
+      <div onClick={() => handleStepRotation('up', 'button')} style={navBtnStyle('top')}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
+      </div>
+      <div onClick={() => handleStepRotation('down', 'button')} style={navBtnStyle('bottom')}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+      </div>
+    </>
+  );
+
+  const navBtnStyle = (pos) => {
+    const base = {
+      position: 'absolute',
+      backgroundColor: '#ffffff',
+      borderRadius: '4px', // Flatter
+      display: 'flex', justifyContent: 'center', alignItems: 'center',
+      cursor: 'pointer',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      zIndex: 200,
+      fontSize: '16px',
+      userSelect: 'none',
+      color: '#6b7280',
+      transition: 'all 0.2s ease',
+      border: '1px solid #e5e7eb'
+    };
+
+    // Flat, space-saving bars outside the cube
+    if (pos === 'right') return {
+      ...base,
+      width: '24px', height: '60px',
+      top: '50%', right: '-34px',
+      transform: 'translateY(-50%)'
+    };
+    if (pos === 'left') return {
+      ...base,
+      width: '24px', height: '60px',
+      top: '50%', left: '-34px',
+      transform: 'translateY(-50%)'
+    };
+    if (pos === 'top') return {
+      ...base,
+      width: '60px', height: '24px',
+      top: '-34px', left: '50%',
+      transform: 'translateX(-50%)'
+    };
+    if (pos === 'bottom') return {
+      ...base,
+      width: '60px', height: '24px',
+      bottom: '-34px', left: '50%',
+      transform: 'translateX(-50%)'
+    };
+    return base;
+  };
+
+  // === CSS Grid 四象限布局渲染函数 (Planning.md 要求) ===
+  const renderQuadrantLayout = () => {
+    const { xDimension, yDimension } = getCurrentDimensions();
+
+    if (!xDimension || !yDimension) {
+      return (
+        <div style={{
+          width: '100%',
+          height: '600px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px',
+          border: '2px dashed #d1d5db'
+        }}>
+          <div style={{ textAlign: 'center', color: '#6b7280' }}>
+            <div style={{ fontSize: '1.2rem', marginBottom: '8px' }}>📊</div>
+            <div>Please select 3 dimension pairs to visualize</div>
+          </div>
+        </div>
+      );
+    }
+
+    const containerWidth = 800;
+    const containerHeight = 600;
+
+    // Helper to render a single face content
+    const renderFaceContent = (faceIdx, isAnimating = false) => {
+      // Re-calculate dimensions for this specific face index
+      const targetFaceInfo = getCurrentDimensions(faceIdx);
+      const { xDimension: xDim, yDimension: yDim } = targetFaceInfo;
+
+      // Filter nodes for this face
+      const faceNodes = nodes.filter(n => {
+        const xScore = getNodeDimensionScore(n, xDim);
+        const yScore = getNodeDimensionScore(n, yDim);
+        return xScore !== undefined && yScore !== undefined && !n.isGhost;
+      });
+
+      const getArrowPoints = (from, to, size = 10, spread = 5) => {
+        const dx = to.pixelX - from.pixelX;
+        const dy = to.pixelY - from.pixelY;
+        const len = Math.hypot(dx, dy);
+        if (!len) return '';
+        const ux = dx / len;
+        const uy = dy / len;
+        const baseX = to.pixelX - ux * size;
+        const baseY = to.pixelY - uy * size;
+        const perpX = -uy * spread;
+        const perpY = ux * spread;
+        return `${to.pixelX},${to.pixelY} ${baseX + perpX},${baseY + perpY} ${baseX - perpX},${baseY - perpY}`;
       };
-      setPdfComments([...pdfComments, comment]);
-      setNewComment('');
+
+      const billboardTransform = `rotateX(${-cubeRotation.pitch}deg) rotateY(${-cubeRotation.yaw}deg)`;
+      const axisLabelBase = {
+        position: 'absolute',
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        padding: '4px 10px',
+        borderRadius: '10px',
+        fontSize: '12px',
+        color: '#374151',
+        zIndex: 2,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        backfaceVisibility: 'hidden',
+        transformStyle: 'preserve-3d',
+        pointerEvents: 'none',
+        whiteSpace: 'nowrap'
+      };
+
+      // Precompute positions so merge visuals can reference targets
+      const positionedNodes = faceNodes.map(node => {
+        const baseXScore = getNodeDimensionScore(node, xDim);
+        const baseYScore = getNodeDimensionScore(node, yDim);
+
+        const finalXScore = baseXScore;
+        const finalYScore = baseYScore;
+
+        const normalizedX = (finalXScore + 50) / 100;
+        const normalizedY = (finalYScore + 50) / 100;
+
+        const pixelX = normalizedX * containerWidth * 0.9 + containerWidth * 0.05;
+        const is1D = activeDimensionIndices.length === 1;
+        const pixelY = is1D
+          ? containerHeight / 2
+          : (1 - normalizedY) * containerHeight * 0.9 + containerHeight * 0.05;
+
+        return { node, pixelX, pixelY };
+      });
+
+      return (
+        <div style={{
+          width: '100%', height: '100%', position: 'absolute', top: 0, left: 0,
+          backgroundColor: '#ffffff',
+          backgroundImage: 'linear-gradient(135deg, rgba(240,244,255,0.9), #fff)',
+          boxSizing: 'border-box',
+          padding: '20px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: '1fr 1fr',
+          gap: '2px',
+          backfaceVisibility: 'hidden', // Important for 3D
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          boxShadow: '0 18px 40px rgba(0,0,0,0.12), inset 0 0 0 1px rgba(255,255,255,0.5)',
+          pointerEvents: isAnimating ? 'none' : 'auto' // Disable interaction during animation
+        }}>
+          {/* Quadrant Lines */}
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', backgroundColor: '#e5e7eb', zIndex: 0 }} />
+          {activeDimensionIndices.length > 1 && (
+            <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', backgroundColor: '#e5e7eb', zIndex: 0 }} />
+          )}
+
+          {/* Labels */}
+          {activeDimensionIndices.length > 1 && (
+            <div style={{
+              ...axisLabelBase,
+              top: '-8px',
+              left: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              writingMode: 'vertical-rl',
+              transform: `translate(-50%, 0) ${billboardTransform}`
+            }}>
+              {yDim.dimensionB}
+            </div>
+          )}
+          {activeDimensionIndices.length > 1 && (
+            <div style={{
+              ...axisLabelBase,
+              bottom: '-8px',
+              left: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              writingMode: 'vertical-rl',
+              transform: `translate(-50%, 0) ${billboardTransform}`
+            }}>
+              {yDim.dimensionA}
+            </div>
+          )}
+          <div style={{
+            ...axisLabelBase,
+            left: '-8px',
+            top: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: `translate(0, -50%) ${billboardTransform}`
+          }}>
+            {xDim.dimensionA}
+          </div>
+          <div style={{
+            ...axisLabelBase,
+            right: '-8px',
+            top: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: `translate(0, -50%) ${billboardTransform}`
+          }}>
+            {xDim.dimensionB}
+          </div>
+
+          {/* Nodes */}
+          {positionedNodes.map(({ node, pixelX, pixelY }) => {
+            const isSelected = selectedNode && selectedNode.id === node.id;
+            const isHovered = hoveredNode && hoveredNode.id === node.id;
+
+            // Drag Visual State Checks
+            const activeMergeSourceId = dragVisualState?.type === 'merge'
+              ? dragVisualState.sourceNodeId
+              : mergeAnimationState?.sourceId;
+            const activeMergeTargetId = dragVisualState?.type === 'merge'
+              ? dragVisualState.targetNodeId
+              : mergeAnimationState?.targetId;
+            const activeGhostPosition = dragVisualState?.ghostPosition || mergeAnimationState?.ghostPosition;
+            const isFragmentMergeSource = activeMergeSourceId
+              ? fragmentNodes.some(f => f.id === activeMergeSourceId)
+              : false;
+            const targetPosition = activeMergeTargetId
+              ? positionedNodes.find(p => p.node.id === activeMergeTargetId)
+              : null;
+            const isMergeSource = activeMergeSourceId === node.id;
+            const isMergeTarget = activeMergeTargetId === node.id;
+            const isModifySource = dragVisualState && dragVisualState.type === 'modify' && dragVisualState.sourceNodeId === node.id;
+            const isMergeGrow = isMergeTarget;
+
+            const overridePosition = (isModifySource && dragVisualState?.newPosition)
+              ? { left: dragVisualState.newPosition.x - 25, top: dragVisualState.newPosition.y - 25 }
+              : null;
+
+            const shouldShowGhost = activeGhostPosition && (isMergeSource || (isMergeTarget && isFragmentMergeSource));
+            const showModifyLine = isModifySource && dragVisualState?.ghostPosition && dragVisualState?.newPosition;
+            const showMergeLine = activeGhostPosition && targetPosition && (isMergeSource || (isMergeTarget && isFragmentMergeSource));
+            const circleBaseSize = 50;
+            const circleHoverSize = 58;
+            const circleMergeSize = 64;
+            const circleSize = isMergeGrow ? circleMergeSize : (dragHoverTarget === node.id ? circleHoverSize : circleBaseSize);
+            const circleOffset = isMergeGrow
+              ? -(circleSize - circleBaseSize) / 2
+              : (dragHoverTarget === node.id ? -(circleHoverSize - circleBaseSize) / 2 : 0);
+
+            return (
+              <React.Fragment key={node.id}>
+                {/* Ghost Circle */}
+                {shouldShowGhost && (
+                  <div style={{
+                    position: 'absolute',
+                    left: activeGhostPosition.x - 25,
+                    top: activeGhostPosition.y - 25,
+                    width: '50px', height: '50px',
+                    zIndex: 50, pointerEvents: 'none'
+                  }}>
+                    <div style={{
+                      width: '100%', height: '100%', borderRadius: '50%',
+                      border: '2px dashed #9ca3af', backgroundColor: 'rgba(156, 163, 175, 0.1)', opacity: 0.6
+                    }} />
+                  </div>
+                )}
+
+                {/* Modify Line */}
+                {showModifyLine && (
+                  <svg style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 55 }}>
+                    <line
+                      x1={dragVisualState.ghostPosition.x} y1={dragVisualState.ghostPosition.y}
+                      x2={dragVisualState.newPosition.x} y2={dragVisualState.newPosition.y}
+                      stroke="#fbbf24" strokeWidth={2} strokeDasharray="6,6"
+                    />
+                  </svg>
+                )}
+                {/* Merge Line */}
+                {showMergeLine && targetPosition && (
+                  <svg style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 55 }}>
+                    <line
+                      x1={activeGhostPosition.x} y1={activeGhostPosition.y}
+                      x2={targetPosition.pixelX} y2={targetPosition.pixelY}
+                      stroke="#9ca3af" strokeWidth={2} strokeDasharray="6,6"
+                    />
+                  </svg>
+                )}
+
+                {/* Actual Node */}
+                <div
+                  data-node-id={node.id}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragHoverTarget(node.id); }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragHoverTarget(null); }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDragHoverTarget(null); handleNodeDropOnEvaluation(e, node); }}
+                  style={{
+                    position: 'absolute',
+                    left: overridePosition ? overridePosition.left : pixelX - 25,
+                    top: overridePosition ? overridePosition.top : pixelY - 25,
+                    width: '50px', height: '50px',
+                    zIndex: draggingNodeId === node.id ? 9999 : 100,
+                    cursor: 'grab',
+                    opacity: isMergeSource ? 0 : 1,
+                    transform: billboardTransform,
+                    transformStyle: 'preserve-3d',
+                    backfaceVisibility: 'hidden'
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    setDraggingNodeId(node.id);
+
+                    const nodeElement = e.currentTarget;
+                    const initialRect = nodeElement.getBoundingClientRect();
+                    // We use fixed positioning for dragging to escape the container's transform context if needed,
+                    // but here we are inside a 3D transformed container.
+                    // Fixed positioning might break the 3D illusion or coordinate system.
+                    // However, the original code used fixed positioning.
+                    // Let's stick to absolute within the face for now to keep it simple and 3D-compatible.
+                    // If we use fixed, it will pop out of the 3D face.
+
+                    // Actually, if we want to drag ACROSS faces, we might need fixed.
+                    // But for now, let's assume dragging is within the face.
+
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startLeft = parseFloat(nodeElement.style.left);
+                    const startTop = parseFloat(nodeElement.style.top);
+
+                    let isDragging = true;
+                    let hasMoved = false;
+
+                    const handleMouseMove = (moveEvent) => {
+                      if (!isDragging) return;
+                      hasMoved = true;
+                      const deltaX = moveEvent.clientX - startX;
+                      const deltaY = moveEvent.clientY - startY;
+                      nodeElement.style.left = `${startLeft + deltaX}px`;
+                      nodeElement.style.top = `${startTop + deltaY}px`;
+                      nodeElement.style.cursor = 'grabbing';
+                    };
+
+                    const handleMouseUp = (upEvent) => {
+                      isDragging = false;
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                      nodeElement.style.cursor = 'grab';
+
+                      if (hasMoved) {
+                        // Logic for drop (Merge or Modify)
+                        // We need to calculate collision based on screen coordinates or relative coordinates
+                        // The original code used screen coordinates for collision detection
+                        const screenX = upEvent.clientX;
+                        const screenY = upEvent.clientY;
+                        const targetNode = detectNodeCollision(screenX, screenY, node.id, nodes);
+
+                        if (targetNode) {
+                          // Merge
+                          setDragVisualState({ type: 'merge', sourceNodeId: node.id, targetNodeId: targetNode.id, ghostPosition: { x: startLeft + 25, y: startTop + 25 } });
+                          setPendingMerge({ action: 'merge', sourceNode: node, targetNode: targetNode, screenX: screenX, screenY: screenY });
+                          // Reset position
+                          nodeElement.style.left = `${startLeft}px`;
+                          nodeElement.style.top = `${startTop}px`;
+                        } else {
+                          // Modify
+                          const currentLeft = parseFloat(nodeElement.style.left) + 25;
+                          const currentTop = parseFloat(nodeElement.style.top) + 25;
+
+                          // Convert back to score
+                          const newScores = pixelToScore(currentLeft, currentTop, containerWidth, containerHeight, -50, 50, -50, 50);
+
+                          // ... (Modify logic similar to original) ...
+                          // Simplified for brevity, assuming pixelToScore works
+                          const oldBaseXScore = getNodeDimensionScore(node, xDim);
+                          const oldBaseYScore = getNodeDimensionScore(node, yDim);
+
+                          const actualNewX = newScores.xScore;
+                          const actualNewY = newScores.yScore;
+
+                          setDragVisualState({ type: 'modify', sourceNodeId: node.id, ghostPosition: { x: startLeft + 25, y: startTop + 25 }, newPosition: { x: currentLeft, y: currentTop } });
+
+                          const modifications = [
+                            { metric: `${xDim.dimensionA}-${xDim.dimensionB}`, previousScore: oldBaseXScore, newScore: actualNewX, change: actualNewX - (oldBaseXScore ?? 0) },
+                            { metric: `${yDim.dimensionA}-${yDim.dimensionB}`, previousScore: oldBaseYScore, newScore: actualNewY, change: actualNewY - (oldBaseYScore ?? 0) }
+                          ];
+
+                          const ghostId = `${node.id}-Xghost-${Date.now()}`;
+                          const ghostNode = { ...node, id: ghostId, scores: { ...node.scores, [`${xDim.dimensionA}-${xDim.dimensionB}`]: actualNewX, [`${yDim.dimensionA}-${yDim.dimensionB}`]: actualNewY }, isGhost: true, isModified: true };
+
+                          setPendingChange({ originalNode: node, ghostNode: ghostNode, modifications: modifications, behindNode: null, screenX: screenX, screenY: screenY, draggedElement: nodeElement, finalPosition: { x: currentLeft, y: currentTop } });
+                        }
+                      } else {
+                        setSelectedNode(node);
+                      }
+                      setDraggingNodeId(null);
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                  onMouseEnter={() => setHoveredNode(node)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                >
+                  {/* Title */}
+                  <div style={{
+                    position: 'absolute', left: '50%', top: '-36px', transform: 'translateX(-50%)',
+                    fontSize: '12px', fontWeight: '600', color: '#1f2937', backgroundColor: '#f3f4f6',
+                    border: '1.5px solid #d1d5db', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap',
+                    boxShadow: isHovered || isSelected ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                    pointerEvents: 'none', zIndex: 102, display: 'block'
+                  }}>
+                    {node.title.substring(0, 20)}
+                  </div>
+                  {/* Circle */}
+                  <div style={{
+                    width: `${circleSize}px`,
+                    height: `${circleSize}px`,
+                    borderRadius: '50%',
+                    backgroundColor: node.isMergedResult ? '#B22222' : (node.isNewlyGenerated ? '#FFD700' : (colorMap[node.type] || '#FF6B6B')),
+                    border: (dragHoverTarget === node.id ? '3px solid #fbbf24' : (isSelected ? '4px solid #000' : '2px solid #fff')),
+                    boxShadow: (dragHoverTarget === node.id ? '0 0 20px rgba(251, 191, 36, 0.8)' : '0 2px 4px rgba(0,0,0,0.1)'),
+                    transition: 'all 0.2s ease',
+                    opacity: node.isGhost ? 0.5 : 1,
+                    transform: circleOffset ? `translate(${circleOffset}px, ${circleOffset}px)` : 'none'
+                  }} />
+                </div>
+              </React.Fragment>
+            );
+          })}
+
+          {/* Merge connectors after merge is done (selection based) */}
+          {(() => {
+            if (!selectedNode) return null;
+            const selectedId = selectedNode.id;
+
+            const mergedInfos = nodes
+              .filter(n => n.isMergedResult)
+              .map(m => {
+                const parents = new Set();
+                if (Array.isArray(m.parentIds)) {
+                  m.parentIds.forEach(id => parents.add(id));
+                }
+                links.forEach(lk => {
+                  if (lk.target === m.id) parents.add(lk.source);
+                  if (lk.source === m.id) parents.add(lk.target);
+                });
+                return { mergedId: m.id, parentIds: Array.from(parents) };
+              });
+
+            let relation = mergedInfos.find(info => info.mergedId === selectedId && info.parentIds.length > 0);
+            if (!relation) {
+              relation = mergedInfos.find(info => info.parentIds.includes(selectedId));
+            }
+            if (!relation) return null;
+
+            const mergedPos = positionedNodes.find(p => p.node.id === relation.mergedId);
+            if (!mergedPos) return null;
+            const parentPositions = relation.parentIds
+              .map(pid => positionedNodes.find(p => p.node.id === pid))
+              .filter(Boolean);
+            if (parentPositions.length === 0) return null;
+
+            return (
+              <svg style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 60 }}>
+                {parentPositions.map((p, idx) => (
+                  <g key={`${p.node.id}-${idx}`}>
+                    <line
+                      x1={p.pixelX} y1={p.pixelY}
+                      x2={mergedPos.pixelX} y2={mergedPos.pixelY}
+                      stroke="#9ca3af" strokeWidth={2}
+                    />
+                    <polygon points={getArrowPoints(p, mergedPos)} fill="#9ca3af" opacity={0.9} />
+                  </g>
+                ))}
+              </svg>
+            );
+          })()}
+        </div>
+      );
+    };
+
+    // Determine mode
+    const numActive = activeDimensionIndices.length;
+    const is3D = numActive >= 3;
+    const is2D = numActive === 2;
+    const is1D = numActive === 1;
+
+    // For 2D/1D, we only show the first active dimension pair
+    const targetFaceIndex = is3D ? currentFaceIndex : activeDimensionIndices[0];
+
+    const containerStyle = {
+      width: containerWidth,
+      height: containerHeight,
+      position: 'relative',
+      perspective: '1200px', // Perspective on the container
+      margin: '0 auto', // Center it
+      touchAction: is3D ? 'none' : undefined
+    };
+
+    const cubeWrapperStyle = {
+      width: '100%',
+      height: '100%',
+      position: 'absolute',
+      transformStyle: 'preserve-3d',
+      transition: isSnapping ? 'transform 0.35s ease-out' : 'transform 0s linear',
+      transform: (() => {
+        const baseTransform = `translateZ(-${containerWidth / 2}px)`;
+        return `${baseTransform} rotateY(${cubeRotation.yaw}deg) rotateX(${cubeRotation.pitch}deg)`;
+      })()
+    };
+
+    const translateZ_X = containerWidth / 2;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '50px' }}>
+        <div style={{ position: 'relative', width: '100%', height: containerHeight, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'visible' }}>
+          {/* Cube Container */}
+          <div style={containerStyle}
+            data-uatrack-suppress-drag={is3D ? 'true' : undefined}
+            onPointerDown={is3D ? handleFacePointerDown : undefined}
+            onPointerUp={is3D ? handleFacePointerUp : undefined}
+            onPointerMove={is3D ? handleFacePointerMove : undefined}
+            onPointerCancel={is3D ? handleFacePointerCancel : undefined}
+          >
+            {/* Navigation Buttons - Only show in 3D mode */}
+            {is3D && renderNavigationButtons()}
+
+            <div style={is3D ? cubeWrapperStyle : { width: '100%', height: '100%', position: 'relative' }}>
+              {/* Current Face (or the only face in 2D/1D) */}
+              <div style={is3D ? {
+                position: 'absolute', width: '100%', height: '100%',
+                transform: `translateZ(${translateZ_X}px)`,
+                backfaceVisibility: 'hidden'
+              } : { width: '100%', height: '100%', position: 'absolute' }}>
+                {renderFaceContent(targetFaceIndex, isSnapping)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Fragment Bar */}
+        <div style={{
+          width: containerWidth,
+          minHeight: '120px',
+          maxHeight: '300px',
+          marginTop: '0', // Controlled by parent flex gap/margin
+          backgroundColor: '#fffbeb',
+          border: '2px dashed #f59e0b',
+          borderRadius: '8px',
+          padding: '12px',
+          display: 'flex',
+          gap: '12px',
+          overflowX: 'auto',
+          overflowY: 'auto',
+          alignItems: 'flex-start',
+          boxSizing: 'border-box'
+        }}>
+          {fragmentNodes.length === 0 ? (
+            <div style={{ fontSize: '0.875rem', color: '#92400e', fontStyle: 'italic', margin: 'auto', textAlign: 'center' }}>
+              Select text in any idea card and click "Fragment" to create quick notes here
+            </div>
+          ) : (
+            fragmentNodes.map(fragment => {
+              const isExpanded = expandedFragmentId === fragment.id;
+              const parentNode = nodes.find(n => n.id === fragment.parentId);
+              const parentTitle = parentNode ? parentNode.title : fragment.parentId;
+              const isMergeSource = dragVisualState && dragVisualState.type === 'merge' && dragVisualState.sourceNodeId === fragment.id;
+              const showPendingOutline = isMergeSource || fragment.isPendingMerge;
+
+              return (
+                <div key={fragment.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px', maxWidth: isExpanded ? '220px' : '60px', flexShrink: 0, transition: 'max-width 0.3s ease' }}>
+                  <div
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('nodeId', fragment.id);
+                      e.dataTransfer.setData('isFragment', 'true');
+                      const container = evaluationContainerRef.current;
+                      if (container) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const containerRect = container.getBoundingClientRect();
+                        fragmentDragOriginRef.current = {
+                          x: rect.left - containerRect.left + rect.width / 2,
+                          y: rect.top - containerRect.top + rect.height / 2
+                        };
+                      } else {
+                        fragmentDragOriginRef.current = null;
+                      }
+                      const dragImage = document.createElement('div');
+                      dragImage.style.width = '50px'; dragImage.style.height = '50px'; dragImage.style.backgroundColor = '#fef08a';
+                      dragImage.style.border = '2px solid #f59e0b'; dragImage.style.borderRadius = '50%';
+                      dragImage.style.display = 'flex'; dragImage.style.alignItems = 'center'; dragImage.style.justifyContent = 'center';
+                      dragImage.style.fontSize = '0.875rem'; dragImage.style.fontWeight = '700'; dragImage.style.color = '#92400e';
+                      dragImage.style.position = 'fixed'; dragImage.style.top = '-1000px'; dragImage.style.left = '-1000px';
+                      document.body.appendChild(dragImage);
+                      e.dataTransfer.setDragImage(dragImage, 25, 25);
+                      setTimeout(() => { document.body.removeChild(dragImage); }, 0);
+                    }}
+                    onDragEnd={() => {
+                      fragmentDragOriginRef.current = null;
+                    }}
+                    onClick={() => {
+                      setExpandedFragmentId(isExpanded ? null : fragment.id);
+                      if (!isExpanded && parentNode) setSelectedNode(parentNode);
+                    }}
+                    style={{
+                      minWidth: '50px', width: '50px', height: '50px', backgroundColor: '#fef08a',
+                      border: showPendingOutline ? '3px dashed #fbbf24' : '2px solid #f59e0b',
+                      borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', fontSize: '0.875rem', fontWeight: '700', color: '#92400e',
+                      position: 'relative', flexShrink: 0, marginBottom: isExpanded ? '8px' : '0',
+                      opacity: showPendingOutline ? 0.3 : (fragment.evaluationOpacity !== undefined ? fragment.evaluationOpacity : 1),
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteFragmentNode(fragment.id); if (expandedFragmentId === fragment.id) setExpandedFragmentId(null); }}
+                      style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: '#ef4444', color: 'white', border: 'none', cursor: 'pointer', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontWeight: 'bold' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ width: '100%', padding: '10px', backgroundColor: 'white', border: '1px solid #fbbf24', borderRadius: '6px', fontSize: '0.75rem', lineHeight: 1.4, color: '#374151', maxHeight: '150px', overflowY: 'auto', wordBreak: 'break-word', cursor: 'default', animation: 'fadeIn 0.2s ease-in' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#78716c', marginBottom: '6px', fontWeight: '600' }}>Fragment of {parentTitle}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#6b7280', lineHeight: 1.5 }}>{fragment.content}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // === 3D Drag Handler ===
+  const handle3DNodeDragEnd = (nodeId, payload, event) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    const { scoresMap = {}, mergeTargetId = null, clientX = event?.clientX, clientY = event?.clientY, cancelHold = false } = payload || {};
+
+    // Determine active dimensions
+    let dims = [];
+    if (selectedDimensionPairs && selectedDimensionPairs.length >= 1) {
+      dims = selectedDimensionPairs.slice(0, 3);
+    }
+
+    const modifications = [];
+
+    // Helper to get old score
+    const getScore = (dimObj) => {
+      if (!dimObj) return 50;
+      const key = `${dimObj.dimensionA}-${dimObj.dimensionB}`;
+      if (node.scores && node.scores[key] !== undefined) return node.scores[key];
+      const legacyKey = key.toLowerCase();
+      if (legacyKey.includes('novelty')) return node.noveltyScore ?? 50;
+      if (legacyKey.includes('feasibility')) return node.feasibilityScore ?? 50;
+      if (legacyKey.includes('impact')) return node.impactScore ?? 50;
+      return 50;
+    };
+
+    // Check modifications for each dimension
+    dims.forEach((dim, index) => {
+      if (!dim) return;
+      const dimKey = `${dim.dimensionA}-${dim.dimensionB}`;
+      const newValue = scoresMap[dimKey];
+
+      if (newValue !== undefined) {
+        const oldVal = getScore(dim);
+        if (Math.abs(newValue - oldVal) > 2) {
+          modifications.push({
+            metric: dimKey,
+            previousScore: Math.round(oldVal),
+            newScore: Math.round(newValue),
+            change: Math.round(newValue - oldVal)
+          });
+        }
+      }
+    });
+
+    if (!cancelHold) {
+      userActionTracker.trackAction('drag', 'node_3d', {
+        ...getNodeTrackingInfo(node),
+        mergeTargetId,
+        modifications,
+        scoresMap,
+        outcome: mergeTargetId ? 'merge' : modifications.length > 0 ? 'modify' : 'noop',
+        currentView
+      });
+    }
+
+    if (cancelHold) {
+      setPendingChange(null);
+      setPendingMerge(null);
+      setDragVisualState(null); // Clear drag visual on cancel
+    } else if (mergeTargetId) {
+      const targetNode = nodes.find(n => n.id === mergeTargetId);
+      if (targetNode) {
+        setPendingMerge({
+          action: 'merge',
+          sourceNode: node,
+          targetNode,
+          isFragmentMerge: false,
+          screenX: clientX ?? window.innerWidth / 2,
+          screenY: clientY ?? window.innerHeight / 2
+        });
+      }
+    } else if (modifications.length > 0) {
+      // Create ghost node
+      const ghostId = `${node.id}-Xghost-${Date.now()}`;
+      const ghostNode = {
+        ...node,
+        id: ghostId,
+        scores: { ...(node.scores || {}) },
+        isGhost: true,
+        isModified: true
+      };
+
+      // Update ghost scores
+      modifications.forEach(mod => {
+        ghostNode.scores[mod.metric] = mod.newScore;
+      });
+
+      // Use event coordinates for popup
+      const screenX = event ? event.clientX : window.innerWidth / 2;
+      const screenY = event ? event.clientY : window.innerHeight / 2;
+
+      // Add ghost node to state so it renders
+      setNodes(prev => [...prev, ghostNode]);
+
+      setPendingChange({
+        originalNode: node,
+        ghostNode: ghostNode,
+        modifications: modifications,
+        behindNode: null,
+        screenX: screenX,
+        screenY: screenY
+      });
+    } else {
+      // No modifications - clear drag visual state
+      setDragVisualState(null);
     }
   };
 
-  const deleteComment = (commentId) => {
-    setPdfComments(pdfComments.filter(c => c.id !== commentId));
-  };
+  const cancelPendingChange = useCallback((change, { reason = 'manual' } = {}) => {
+    if (!change) return;
 
-  const downloadPDF = async (pdfPath) => {
-    try {
-      // Fetch the PDF as a blob to force download
-      const response = await fetch(`http://localhost:5000${pdfPath}`);
+    userActionTracker.trackAction('drag_choice_selected', 'cancel_drag', {
+      ...getNodeTrackingInfo(change.originalNode),
+      modifications: change.modifications,
+      choice: 'cancel_drag',
+      cancelReason: reason,
+      currentView
+    });
 
-      if (!response.ok) {
-        throw new Error(`Failed to download PDF: ${response.status}`);
+    const nodeElement = change.draggedElement || document.querySelector(`[data-node-id="${change.originalNode.id}"]`);
+    if (nodeElement) {
+      nodeElement.style.position = 'absolute';
+      if (dragVisualState?.ghostPosition) {
+        nodeElement.style.left = `${dragVisualState.ghostPosition.x - 25}px`;
+        nodeElement.style.top = `${dragVisualState.ghostPosition.y - 25}px`;
+      }
+      nodeElement.style.zIndex = '100';
+    }
+
+    setDragVisualState(null);
+
+    if (change.ghostNode?.id) {
+      const updatedNodesAfterCancel = nodes.filter((nd) => nd.id !== change.ghostNode.id);
+      setNodes(updatedNodesAfterCancel);
+      plotStatusTracker.trackNodesUpdate(updatedNodesAfterCancel, 'cancel_drag_modification');
+      setLinks((prev) => prev.filter((lk) => lk.target !== change.ghostNode.id));
+    }
+
+    setPendingChange(null);
+
+    if (currentView === 'exploration') {
+      handle3DNodeDragEnd(change.originalNode.id, { cancelHold: true });
+    }
+  }, [currentView, dragVisualState, getNodeTrackingInfo, handle3DNodeDragEnd, nodes, plotStatusTracker]);
+
+  const cancelPendingMerge = useCallback((merge) => {
+    if (!merge) return;
+
+    const sourceNode = merge.sourceNode || merge.nodeA;
+    const targetNode = merge.targetNode || merge.nodeB;
+
+    if (merge.action === 'evaluation_drag') {
+      if (sourceNode && dragVisualState?.ghostPosition) {
+        const nodeElement = document.querySelector(`[data-node-id="${sourceNode.id}"]`);
+        if (nodeElement) {
+          nodeElement.style.left = `${dragVisualState.ghostPosition.x - 25}px`;
+          nodeElement.style.top = `${dragVisualState.ghostPosition.y - 25}px`;
+        }
       }
 
-      const blob = await response.blob();
+      if (sourceNode || targetNode) {
+        setNodes((prev) =>
+          prev.map((n) => {
+            if (n.id === sourceNode?.id && n.evaluationOpacity === 0) {
+              return { ...n, evaluationOpacity: 1 };
+            }
+            if (n.id === targetNode?.id && n.isBeingMerged) {
+              return { ...n, isBeingMerged: false };
+            }
+            return n;
+          })
+        );
+      }
 
-      // Extract filename from path or use default
-      const filename = pdfPath.split('/').pop() || 'research_paper.pdf';
-
-      // Create download link
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Clean up the object URL
-      URL.revokeObjectURL(link.href);
-
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF. Please try again.');
-    }
-  };
-
-  const reviewPaper = async (pdfPath) => {
-    if (!pdfPath) {
-      console.error('No PDF path provided for review');
+      setDragVisualState(null);
+      setMergeAnimationState(null);
+      setPendingMerge(null);
       return;
     }
 
-    setIsReviewing(true);
-    setReviewResult(null);
+    setDragVisualState(null);
+
+    if (sourceNode && targetNode) {
+      const isSourceFragment = fragmentNodes.some(f => f.id === sourceNode.id);
+
+      if (isSourceFragment) {
+        setFragmentNodes(prev => prev.map(f => {
+          if (f.id === sourceNode.id) {
+            const updated = { ...f, evaluationOpacity: 1 };
+            delete updated.isPendingMerge;
+            return updated;
+          }
+          return f;
+        }));
+        setNodes(prev => prev.map(n => {
+          if (n.id === targetNode.id) {
+            return { ...n, isBeingMerged: false };
+          }
+          return n;
+        }));
+      } else {
+        const updatedNodesAfterCancelMerge = nodes.map(n => {
+          if (n.id === sourceNode.id) {
+            return { ...n, evaluationOpacity: 1 };
+          }
+          if (n.id === targetNode.id) {
+            return { ...n, isBeingMerged: false };
+          }
+          return n;
+        });
+        setNodes(updatedNodesAfterCancelMerge);
+        plotStatusTracker.trackNodesUpdate(updatedNodesAfterCancelMerge, 'cancel_merge_operation');
+      }
+    }
+
+    setMergeTargetId(null);
+    setPendingMerge(null);
+    setMergeAnimationState(null);
+  }, [dragVisualState, fragmentNodes, nodes, plotStatusTracker]);
+
+  const last3DHoverIdRef = useRef(null);
+  const handle3DNodeHover = (node) => {
+    const nextId = node?.id || null;
+    const prevId = last3DHoverIdRef.current;
+    if (prevId && prevId !== nextId) {
+      const prevNode = nodes.find(n => n.id === prevId);
+      if (prevNode) {
+        userActionTracker.trackAction('hover_end', 'node_3d', {
+          ...getNodeTrackingInfo(prevNode),
+          currentView
+        });
+      }
+    }
+    if (nextId && prevId !== nextId) {
+      userActionTracker.trackAction('hover_start', 'node_3d', {
+        ...getNodeTrackingInfo(node),
+        currentView
+      });
+    }
+    last3DHoverIdRef.current = nextId;
+    setHoveredNode(node);
+  };
+
+  const handle3DNodeClick = (node) => {
+    if (!node) return;
+    userActionTracker.trackAction('click', 'node_3d', {
+      ...getNodeTrackingInfo(node),
+      currentView
+    });
+    setSelectedNode(node);
+  };
+
+  const activeDimensions = getCurrentDimensions();
+
+  // Toggle dimension index active state
+  const toggleDimensionIndex = (index) => {
+    setActiveDimensionIndices(prev => {
+      if (prev.includes(index)) {
+        // Don't allow unchecking the last one (at least 1 dimension needed)
+        if (prev.length <= 1) return prev;
+        return prev.filter(i => i !== index);
+      } else {
+        return [...prev, index].sort();
+      }
+    });
+  };
+
+  const extractScoreValue = (scoreEntry) => {
+    if (scoreEntry === null || scoreEntry === undefined) return undefined;
+    if (typeof scoreEntry === 'number') return scoreEntry;
+    if (typeof scoreEntry === 'string' && scoreEntry.trim() !== '' && !Number.isNaN(Number(scoreEntry))) {
+      return Number(scoreEntry);
+    }
+    if (typeof scoreEntry === 'object' && scoreEntry.value !== undefined) {
+      if (typeof scoreEntry.value === 'number') return scoreEntry.value;
+      if (typeof scoreEntry.value === 'string' && scoreEntry.value.trim() !== '' && !Number.isNaN(Number(scoreEntry.value))) {
+        return Number(scoreEntry.value);
+      }
+    }
+    return undefined;
+  };
+
+  const orientScoreValue = (value, flipped) => {
+    if (!flipped || typeof value !== 'number') return value;
+    if (value >= -50 && value <= 50) return -value;
+    if (value >= 0 && value <= 100) return 100 - value;
+    return -value;
+  };
+
+  const cloneWithSwappedScore = (node, fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return node;
+    let updatedNode = node;
+
+    const maybeUpdateScores = (scoresObj) => {
+      if (!scoresObj || scoresObj[toKey] !== undefined || scoresObj[fromKey] === undefined) return scoresObj;
+      const baseEntry = scoresObj[fromKey];
+      const baseValue = extractScoreValue(baseEntry);
+      if (baseValue === undefined) return scoresObj;
+
+      const flippedValue = orientScoreValue(baseValue, true);
+      const newEntry = (typeof baseEntry === 'object' && baseEntry !== null && baseEntry.value !== undefined)
+        ? { ...baseEntry, value: flippedValue }
+        : flippedValue;
+      return { ...scoresObj, [toKey]: newEntry };
+    };
+
+    const newScores = maybeUpdateScores(node.scores);
+    const newOriginalScores = maybeUpdateScores(node.originalData?.scores);
+
+    if (newScores !== node.scores || newOriginalScores !== node.originalData?.scores) {
+      updatedNode = { ...node };
+      if (newScores !== node.scores) {
+        updatedNode.scores = newScores;
+      }
+      if (newOriginalScores !== node.originalData?.scores) {
+        updatedNode.originalData = { ...(node.originalData || {}), scores: newOriginalScores };
+      }
+    }
+
+    return updatedNode;
+  };
+
+  // Swap the direction of a dimension pair (A ↔ B)
+  const swapDimensionDirection = (pairIndex) => {
+    setSelectedDimensionPairs(prev => {
+      const updated = [...prev];
+      const pair = updated[pairIndex];
+      if (!pair) return prev;
+
+      const swapped = {
+        ...pair,
+        dimensionA: pair.dimensionB,
+        dimensionB: pair.dimensionA
+      };
+      updated[pairIndex] = swapped;
+
+      const fromKey = `${pair.dimensionA}-${pair.dimensionB}`;
+      const toKey = `${swapped.dimensionA}-${swapped.dimensionB}`;
+
+      // Ensure all nodes carry the swapped key so downstream code that expects the "primary" key still works
+      setNodes(prevNodes => prevNodes.map(n => cloneWithSwappedScore(n, fromKey, toKey)));
+      setFragmentNodes(prevFragments => prevFragments.map(f => cloneWithSwappedScore(f, fromKey, toKey)));
+
+      return updated;
+    });
+  };
+
+  // *** 维度编辑相关函数 ***
+  const handleEditDimension = (pairIndex, anchorRect) => {
+    setEditingDimensionIndex(pairIndex);
+    setDimensionDropdownAnchor(anchorRect);
+  };
+
+  const handleCloseDimensionEdit = () => {
+    setEditingDimensionIndex(null);
+    setDimensionDropdownAnchor(null);
+  };
+
+  const cancelActivePanels = useCallback((reason = 'auto') => {
+    if (pendingChange) cancelPendingChange(pendingChange, { reason });
+    if (pendingMerge) cancelPendingMerge(pendingMerge);
+    if (mergeMode.showDialog) handleMergeCancel();
+    if (fragmentMenuState) hideFragmentMenu();
+    if (showDimensionPanel) setShowDimensionPanel(false);
+    if (editingDimensionIndex !== null) handleCloseDimensionEdit();
+    if (isEditingSystemPrompt) {
+      setIsEditingSystemPrompt(false);
+      setModalAnchorEl(null);
+    }
+    if (editingCriteria !== null) {
+      setEditingCriteria(null);
+      setModalAnchorEl(null);
+    }
+  }, [
+    cancelPendingChange,
+    cancelPendingMerge,
+    fragmentMenuState,
+    handleCloseDimensionEdit,
+    handleMergeCancel,
+    hideFragmentMenu,
+    isEditingSystemPrompt,
+    editingCriteria,
+    editingDimensionIndex,
+    mergeMode.showDialog,
+    pendingChange,
+    pendingMerge,
+    showDimensionPanel
+  ]);
+
+  const hasActivePanel = Boolean(
+    pendingChange ||
+      pendingMerge ||
+      mergeMode.showDialog ||
+      fragmentMenuState ||
+      showDimensionPanel ||
+      editingDimensionIndex !== null ||
+      isEditingSystemPrompt ||
+      editingCriteria !== null
+  );
+
+  useEffect(() => {
+    if (!hasActivePanel) return;
+
+    const handlePointerDown = (event) => {
+      const rawTarget = event.target;
+      const target = rawTarget && rawTarget.nodeType === 3 ? rawTarget.parentElement : rawTarget;
+      if (target?.closest?.('[data-panel-root]')) return;
+      cancelActivePanels('auto');
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+  }, [cancelActivePanels, hasActivePanel]);
+
+  const handleDimensionEditConfirm = async (newPair, pairIndex) => {
+    const oldPair = selectedDimensionPairs[pairIndex];
+    if (!oldPair) return;
+
+    const hasChanges = oldPair.dimensionA !== newPair.dimensionA ||
+      oldPair.dimensionB !== newPair.dimensionB ||
+      oldPair.descriptionA !== newPair.descriptionA ||
+      oldPair.descriptionB !== newPair.descriptionB;
+
+    // 1. 更新 selectedDimensionPairs
+    const updatedPairs = [...selectedDimensionPairs];
+    updatedPairs[pairIndex] = newPair;
+    setSelectedDimensionPairs(updatedPairs);
+
+    // 2. 迁移 score key
+    // Note: If description changed but dimension name didn't, key remains same, but we still re-evaluate
+    if (hasChanges) {
+      const oldKey = `${oldPair.dimensionA}-${oldPair.dimensionB}`;
+      const newKey = `${newPair.dimensionA}-${newPair.dimensionB}`;
+
+      if (oldKey !== newKey) {
+        setNodes(prevNodes => prevNodes.map(node => {
+          if (!node.scores || node.scores[oldKey] === undefined) return node;
+          const newScores = { ...node.scores };
+          newScores[newKey] = newScores[oldKey];
+          delete newScores[oldKey];
+          return {
+            ...node,
+            scores: newScores,
+            originalData: node.originalData ? {
+              ...node.originalData,
+              scores: newScores,
+            } : node.originalData,
+          };
+        }));
+      }
+
+      // 3. 调用单维度评分 API
+      await evaluateSingleDimension(newPair, pairIndex);
+    }
+
+    // 4. 关闭弹窗
+    handleCloseDimensionEdit();
+  };
+
+  const evaluateSingleDimension = async (dimensionPair, dimensionIndex) => {
+    setIsSingleDimensionEvaluating(true);
 
     try {
-      console.log('Starting paper review for:', pdfPath);
+      const requestIdeas = nodes
+        .filter(n => n.level !== 0 && n.type !== 'fragment')
+        .map(n => ({
+          ...n.originalData,
+          id: n.originalData?.id || n.id,
+          Title: n.originalData?.Title || n.title,
+        }));
 
-      const response = await fetch('http://localhost:5000/api/review', {
+      const response = await fetch('/api/evaluate-dimension', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          pdf_path: pdfPath
+          ideas: requestIdeas,
+          intent: currentIntent || analysisIntent,
+          dimension_pair: dimensionPair,
+          dimension_index: dimensionIndex,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Review failed');
+        throw new Error(`Failed to evaluate dimension: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('Review completed:', data);
-      setReviewResult(data.review);
-      setRightPanelTab('review'); // Switch to review tab to show results
+      const result = await response.json();
+      const dimKey = `${dimensionPair.dimensionA}-${dimensionPair.dimensionB}`;
+      const dimScoreKey = `Dimension${dimensionIndex + 1}Score`;
+      const dimReasonKey = `Dimension${dimensionIndex + 1}Reason`;
+
+      // 更新 nodes 中的单维度分数
+      setNodes(prevNodes => prevNodes.map(node => {
+        const evalResult = result.scores?.find(s => s.id === (node.originalData?.id || node.id));
+        if (!evalResult) return node;
+
+        return {
+          ...node,
+          scores: {
+            ...node.scores,
+            [dimKey]: evalResult.score,
+          },
+          [dimScoreKey]: evalResult.score,
+          [dimReasonKey]: evalResult.reason,
+          originalData: node.originalData ? {
+            ...node.originalData,
+            scores: {
+              ...(node.originalData.scores || {}),
+              [dimKey]: evalResult.score,
+            },
+            [dimReasonKey]: evalResult.reason,
+          } : node.originalData,
+        };
+      }));
 
     } catch (err) {
-      console.error('Error reviewing paper:', err);
-      setReviewResult({ error: err.message });
+      console.error('Error evaluating single dimension:', err);
+      setError(`Failed to evaluate dimension: ${err.message}`);
     } finally {
-      setIsReviewing(false);
+      setIsSingleDimensionEvaluating(false);
     }
   };
 
-  // Enhanced code editing functions
-  const switchCodeTab = (tabName) => {
-    // Save current content before switching
-    if (activeCodeTab && experimentFiles[activeCodeTab] !== undefined) {
-      setExperimentFiles(prev => ({
-        ...prev,
-        [activeCodeTab]: codeContent
-      }));
-    }
-
-    // Switch to new tab
-    setActiveCodeTab(tabName);
-    setCodeFileName(tabName);
-    setCodeContent(experimentFiles[tabName] || '');
-  };
-
-
-
-  const downloadExperimentFiles = async () => {
-    // Create a zip file with all experiment files
-    const filesToDownload = Object.entries(experimentFiles);
-    if (filesToDownload.length === 0) {
-      alert('No experiment files to download');
-      return;
-    }
-
-    try {
-      const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
-
-      // Add all experiment files to the zip
-      filesToDownload.forEach(([fileName, content]) => {
-        zip.file(fileName, content);
-      });
-
-      // Generate the zip file
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-
-      // Create download link
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(zipBlob);
-      link.download = 'experiment_files.zip';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Clean up the object URL
-      URL.revokeObjectURL(link.href);
-    } catch (error) {
-      console.error('Error creating zip file:', error);
-      alert('Failed to create zip file. Please try again.');
-    }
-  };
-
-
-  // ============== 段落11：整体布局，渲染主界面 JSX ==============
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', position: 'relative' }}>
+      {/* User Action Tracking Panel */}
+      <UserActionTrackingPanel
+        hideEvaluationView={hideEvaluationView}
+        setHideEvaluationView={setHideEvaluationView}
+        currentNodes={nodes}
+      />
+
       {/* 把 showTree 与 setShowTree 传给 TopNav，解决 setShowTree is not a function */}
-      <TopNav currentView={currentView} setCurrentView={setCurrentView} showCodeView={hasGeneratedCode} />
+      <TopNav
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        hideEvaluationView={hideEvaluationView}
+        onReEvaluateAll={() => reEvaluateAll()}
+        isEvaluating={isEvaluating}
+      />
 
       {currentView === 'home_view' ? (
         <OverviewPage />
-      ) : currentView === 'code_view' ? (
-        /* Enhanced Code View - Full Screen */
-        <div style={{ padding: '20px', backgroundColor: '#f9fafb', minHeight: '90vh' }}>
-          <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
-                Experiment Code Editor
-              </h1>
-
-              {/* Enhanced Toolbar */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-
-                {/* Retry Code Generation Button */}
-                <button
-                  onClick={() => handleRetryCodeGeneration(selectedNode)}
-                  disabled={!selectedNode || isGeneratingCode}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: !selectedNode || isGeneratingCode ? '#9CA3AF' : '#F59E0B',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: !selectedNode || isGeneratingCode ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  🔄 Retry Code Generation
-                </button>
-
-                {/* Generate Paper Button */}
-                <button
-                  onClick={() => handleGeneratePaper(selectedNode, codeResult?.experiment_dir)}
-                  disabled={!selectedNode || isGeneratingPaper || (selectedNode?.originalData?.is_experimental && (!codeResult || !codeResult.success))}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: (!selectedNode || isGeneratingPaper || (selectedNode?.originalData?.is_experimental && (!codeResult || !codeResult.success))) ? '#9CA3AF' : '#10B981',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: (!selectedNode || isGeneratingPaper || (selectedNode?.originalData?.is_experimental && (!codeResult || !codeResult.success))) ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  {isGeneratingPaper ? '⏳ Generating...' : '📄 Generate Paper'}
-                </button>
-
-                {/* Download All Button */}
-                <button
-                  onClick={downloadExperimentFiles}
-                  disabled={Object.keys(experimentFiles).length === 0}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: Object.keys(experimentFiles).length > 0 ? '#4C84FF' : '#9CA3AF',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: Object.keys(experimentFiles).length > 0 ? 'pointer' : 'not-allowed',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  💾 Download All
-                </button>
-
-              </div>
-            </div>
-            {codeResult && !codeResult.success && codeResult.error_details && (
-              <div style={{
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '20px',
-                color: '#b91c1c',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '1.2rem' }}>❌</span>
-                  <strong style={{ fontSize: '1rem', color: '#991b1b' }}>Code Generation Failed</strong>
-                </div>
-                <p style={{ margin: '0 0 8px 0', color: '#374151' }}>The system failed to generate a runnable script. The final error message was:</p>
-                <pre style={{
-                  backgroundColor: '#1f2937',
-                  color: '#f3f4f6',
-                  padding: '12px',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-all',
-                  fontFamily: 'monospace',
-                  maxHeight: '200px', // Prevents huge error messages from taking over the screen
-                  overflowY: 'auto', // Add a scrollbar if the error is long
-                }}>
-                  {codeResult.error_details}
-                </pre>
-              </div>
-            )}
-            {isGeneratingCode && (
-              <div style={{
-                padding: '20px',
-                backgroundColor: '#eff6ff',
-                borderRadius: '8px',
-                marginBottom: '20px',
-                textAlign: 'center'
-              }}>
-                <div style={{ color: '#1d4ed8', fontSize: '1rem', fontWeight: 500 }}>
-                  🔄 Generating experimental code...
-                </div>
-                <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '8px' }}>
-                  This may take several minutes, please wait...
-                </div>
-              </div>
-            )}
-
-            {codeResult && codeResult.success && (
-              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ color: '#16a34a', fontSize: '1.1rem' }}>✅</span>
-                  <strong style={{ color: '#166534' }}>Experiment Generated Successfully</strong>
-                </div>
-                <div style={{ display: 'flex', gap: '20px', fontSize: '0.875rem', color: '#166534' }}>
-                  <div>
-                    <strong>Directory:</strong>
-                    <code style={{ backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px' }}>
-                      {codeResult.experiment_dir}
-                    </code>
-                  </div>
-                  <div>
-                    <strong>Files:</strong> {Object.keys(experimentFiles).length} loaded
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Main Layout with Sidebar */}
-            <div style={{ display: 'flex', gap: '20px', height: '700px' }}>
-              {/* File Explorer Sidebar */}
-              <div style={{
-                width: '250px',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                display: 'flex',
-                flexDirection: 'column'
-              }}>
-                <div style={{
-                  backgroundColor: '#f8fafc',
-                  padding: '12px 16px',
-                  borderBottom: '1px solid #e5e7eb',
-                  fontSize: '0.875rem',
-                  color: '#64748b',
-                  fontWeight: 500
-                }}>
-                  📁 Experiment Files
-                </div>
-
-                <div style={{ flex: 1, padding: '8px' }}>
-                  {Object.keys(experimentFiles).length === 0 ? (
-                    <div style={{
-                      textAlign: 'center',
-                      padding: '20px',
-                      color: '#6b7280',
-                      fontSize: '0.875rem'
-                    }}>
-                      No files loaded
-                    </div>
-                  ) : (
-                    Object.keys(experimentFiles).map((fileName) => (
-                      <div
-                        key={fileName}
-                        onClick={() => switchCodeTab(fileName)}
-                        style={{
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          marginBottom: '4px',
-                          backgroundColor: activeCodeTab === fileName ? '#eff6ff' : 'transparent',
-                          color: activeCodeTab === fileName ? '#1d4ed8' : '#374151',
-                          fontSize: '0.875rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        {fileName.endsWith('.py') ? '🐍' : fileName.endsWith('.txt') ? '📄' : '📝'}
-                        {fileName}
-                      </div>
-                    ))
-                  )}
-
-                  {experimentRuns.length > 0 && (
-                    <>
-                      <div style={{
-                        padding: '8px 12px',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        color: '#64748b',
-                        borderTop: '1px solid #e5e7eb',
-                        marginTop: '8px',
-                        paddingTop: '12px'
-                      }}>
-                        📊 Experiment Runs
-                      </div>
-                      {experimentRuns.map((run, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            marginBottom: '4px',
-                            backgroundColor: '#f9fafb',
-                            fontSize: '0.875rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}
-                        >
-                          {run.success ? '✅' : '❌'} Run {index + 1}
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Main Editor Area */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {/* File Tabs */}
-                {Object.keys(experimentFiles).length > 0 && (
-                  <div style={{
-                    display: 'flex',
-                    backgroundColor: 'white',
-                    borderRadius: '8px 8px 0 0',
-                    border: '1px solid #e5e7eb',
-                    borderBottom: 'none'
-                  }}>
-                    {Object.keys(experimentFiles).map((fileName) => (
-                      <div
-                        key={fileName}
-                        onClick={() => switchCodeTab(fileName)}
-                        style={{
-                          padding: '8px 16px',
-                          cursor: 'pointer',
-                          backgroundColor: activeCodeTab === fileName ? '#f8fafc' : 'transparent',
-                          borderBottom: activeCodeTab === fileName ? '2px solid #4C84FF' : '2px solid transparent',
-                          fontSize: '0.875rem',
-                          fontWeight: activeCodeTab === fileName ? 500 : 400,
-                          color: activeCodeTab === fileName ? '#1f2937' : '#6b7280'
-                        }}
-                      >
-                        {fileName}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Monaco Editor */}
-                <div style={{
-                  flex: 1,
-                  backgroundColor: 'white',
-                  borderRadius: Object.keys(experimentFiles).length > 0 ? '0 0 8px 8px' : '8px',
-                  border: '1px solid #e5e7eb',
-                  overflow: 'hidden',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                }}>
-                  <Editor
-                    height="100%"
-                    language={activeCodeTab.endsWith('.py') ? 'python' : activeCodeTab.endsWith('.js') ? 'javascript' : activeCodeTab.endsWith('.ts') ? 'typescript' : activeCodeTab.endsWith('.json') ? 'json' : activeCodeTab.endsWith('.md') ? 'markdown' : 'plaintext'}
-                    value={codeContent}
-                    onChange={(value) => setCodeContent(value || '')}
-                    theme="vs-dark"
-                    options={{
-                      minimap: { enabled: true },
-                      fontSize: 14,
-                      lineNumbers: 'on',
-                      wordWrap: 'on',
-                      automaticLayout: true,
-                      scrollBeyondLastLine: false,
-                      folding: true,
-                      renderLineHighlight: 'all',
-                      selectOnLineNumbers: true
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Console Output Panel */}
-              <div style={{
-                width: '300px',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                display: 'flex',
-                flexDirection: 'column'
-              }}>
-                <div style={{
-                  backgroundColor: '#f8fafc',
-                  padding: '12px 16px',
-                  borderBottom: '1px solid #e5e7eb',
-                  fontSize: '0.875rem',
-                  color: '#64748b',
-                  fontWeight: 500,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  💻 Console Output
-                  <button
-                    onClick={() => setConsoleOutput('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#6b7280',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem'
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                <div style={{
-                  flex: 1,
-                  padding: '12px',
-                  fontSize: '0.75rem',
-                  fontFamily: 'monospace',
-                  backgroundColor: '#1a1a1a',
-                  color: '#e5e7eb',
-                  overflow: 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {consoleOutput || 'No output yet...'}
-                </div>
-              </div>
-            </div>
-
-            {proceedError && (
-              <div style={{
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '8px',
-                padding: '16px',
-                color: '#dc2626',
-                marginTop: '20px'
-              }}>
-                <strong>Error:</strong> {proceedError}
-              </div>
-            )}
-
-            {!codeResult && !isGeneratingCode && !proceedError && Object.keys(experimentFiles).length === 0 && (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px',
-                color: '#6b7280',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                border: '2px dashed #d1d5db'
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🧪</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 500, marginBottom: '8px' }}>No experiment loaded</div>
-                <div style={{ fontSize: '0.875rem' }}>
-                  Use the "Proceed" button in Exploration View to generate an experiment, or upload files to get started
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : currentView === 'paper_view' ? (
-        /* Paper View - Full Screen */
-        <div style={{ padding: '20px', backgroundColor: '#f9fafb', minHeight: '90vh' }}>
-          <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
-                Research Paper Viewer
-              </h1>
-
-              {paperResult && paperResult.pdf_path && (
-                <button
-                  onClick={() => downloadPDF(paperResult.pdf_path)}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#4C84FF',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  📄 Download PDF
-                </button>
-              )}
-            </div>
-
-            {isGeneratingPaper && (
-              <div style={{
-                padding: '20px',
-                backgroundColor: '#eff6ff',
-                borderRadius: '8px',
-                marginBottom: '20px',
-                textAlign: 'center'
-              }}>
-                <div style={{ color: '#1d4ed8', fontSize: '1rem', fontWeight: 500 }}>
-                  📄 Generating research paper...
-                </div>
-                <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '8px' }}>
-                  This may take several minutes
-                </div>
-              </div>
-            )}
-
-            {paperResult && paperResult.success && (
-              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ color: '#16a34a', fontSize: '1.1rem' }}>✅</span>
-                  <strong style={{ color: '#166534' }}>Paper Generated Successfully</strong>
-                </div>
-                <div style={{ display: 'flex', gap: '20px', fontSize: '0.875rem', color: '#166534' }}>
-                  {paperResult.pdf_path && (
-                    <div>
-                      <strong>PDF:</strong>
-                      <code style={{ backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px' }}>
-                        {paperResult.pdf_path.split('/').pop()}
-                      </code>
-                    </div>
-                  )}
-                  {paperResult.latex_path && (
-                    <div>
-                      <strong>LaTeX:</strong>
-                      <code style={{ backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px' }}>
-                        {paperResult.latex_path.split('/').pop()}
-                      </code>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {paperResult && paperResult.pdf_path && (
-              <div style={{ display: 'flex', gap: '20px', height: '800px' }}>
-                {/* PDF Viewer */}
-                <div style={{
-                  flex: '1',
-                  backgroundColor: 'white',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  overflow: 'hidden',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                }}>
-                  <div style={{
-                    backgroundColor: '#f8fafc',
-                    padding: '12px 16px',
-                    borderBottom: '1px solid #e5e7eb',
-                    fontSize: '0.875rem',
-                    color: '#64748b',
-                    fontWeight: 500,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <span>📄 Research Paper</span>
-                    <button
-                      onClick={() => reviewPaper(paperResult.pdf_path)}
-                      disabled={isReviewing}
-                      style={{
-                        backgroundColor: isReviewing ? '#9ca3af' : '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '6px 12px',
-                        fontSize: '0.75rem',
-                        cursor: isReviewing ? 'not-allowed' : 'pointer',
-                        fontWeight: 500
-                      }}
-                    >
-                      {isReviewing ? '🔄 Reviewing...' : '📝 Review Paper'}
-                    </button>
-                  </div>
-                  <iframe
-                    src={`http://localhost:5000${paperResult.pdf_path}#toolbar=1&navpanes=1&scrollbar=1&page=1&view=FitH&zoom=100`}
-                    style={{
-                      width: '100%',
-                      height: 'calc(100% - 45px)',
-                      border: 'none',
-                      minHeight: '600px'
-                    }}
-                    title="Research Paper PDF"
-                    onError={(e) => {
-                      console.error('PDF iframe load error:', e);
-                      console.log('PDF path:', paperResult.pdf_path);
-                    }}
-                    onLoad={() => {
-                      console.log('PDF loaded successfully:', paperResult.pdf_path);
-                    }}
-                  />
-                </div>
-
-                {/* Comments/Review Panel */}
-                <div style={{
-                  width: '400px',
-                  backgroundColor: 'white',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  {/* Tab Header */}
-                  <div style={{
-                    backgroundColor: '#f8fafc',
-                    borderBottom: '1px solid #e5e7eb',
-                    display: 'flex'
-                  }}>
-                    <button
-                      onClick={() => setRightPanelTab('comments')}
-                      style={{
-                        flex: 1,
-                        padding: '12px 16px',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        border: 'none',
-                        backgroundColor: rightPanelTab === 'comments' ? 'white' : 'transparent',
-                        color: rightPanelTab === 'comments' ? '#1f2937' : '#64748b',
-                        cursor: 'pointer',
-                        borderBottom: rightPanelTab === 'comments' ? '2px solid #3b82f6' : 'none'
-                      }}
-                    >
-                      💬 Comments ({pdfComments.length})
-                    </button>
-                    <button
-                      onClick={() => setRightPanelTab('review')}
-                      style={{
-                        flex: 1,
-                        padding: '12px 16px',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        border: 'none',
-                        backgroundColor: rightPanelTab === 'review' ? 'white' : 'transparent',
-                        color: rightPanelTab === 'review' ? '#1f2937' : '#64748b',
-                        cursor: 'pointer',
-                        borderBottom: rightPanelTab === 'review' ? '2px solid #3b82f6' : 'none'
-                      }}
-                    >
-                      📝 Review {reviewResult ? '✅' : ''}
-                    </button>
-                  </div>
-
-                  {/* Tab Content */}
-                  {rightPanelTab === 'comments' ? (
-                    <>
-                      {/* Add Comment */}
-                      <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb' }}>
-                        <textarea
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="Add a comment about the paper..."
-                          style={{
-                            width: '100%',
-                            height: '80px',
-                            padding: '8px 12px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '6px',
-                            fontSize: '0.875rem',
-                            resize: 'vertical',
-                            fontFamily: 'inherit'
-                          }}
-                        />
-                        <button
-                          onClick={() => addComment()}
-                          disabled={!newComment.trim()}
-                          style={{
-                            marginTop: '8px',
-                            padding: '6px 12px',
-                            backgroundColor: newComment.trim() ? '#4C84FF' : '#9CA3AF',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: newComment.trim() ? 'pointer' : 'not-allowed',
-                            fontSize: '0.8rem',
-                            fontWeight: 500
-                          }}
-                        >
-                          Add Comment
-                        </button>
-                      </div>
-
-                      {/* Comments List */}
-                      <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
-                        {pdfComments.length === 0 ? (
-                          <div style={{
-                            textAlign: 'center',
-                            padding: '40px 20px',
-                            color: '#6b7280',
-                            fontSize: '0.875rem'
-                          }}>
-                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>💭</div>
-                            No comments yet. Add your thoughts about the paper!
-                          </div>
-                        ) : (
-                          pdfComments.map((comment) => (
-                            <div key={comment.id} style={{
-                              backgroundColor: '#f9fafb',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '6px',
-                              padding: '12px',
-                              marginBottom: '8px'
-                            }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                                  <strong>{comment.author}</strong> • {comment.timestamp}
-                                </div>
-                                <button
-                                  onClick={() => deleteComment(comment.id)}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#dc2626',
-                                    cursor: 'pointer',
-                                    fontSize: '0.75rem',
-                                    padding: '2px'
-                                  }}
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                              <div style={{ fontSize: '0.875rem', color: '#374151', lineHeight: '1.4' }}>
-                                {comment.text}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    /* Review Tab Content */
-                    <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-                      {isReviewing ? (
-                        <div style={{
-                          textAlign: 'center',
-                          padding: '40px 20px',
-                          color: '#6b7280',
-                          fontSize: '0.875rem'
-                        }}>
-                          <div style={{ fontSize: '2rem', marginBottom: '16px' }}>🔄</div>
-                          <div style={{ fontWeight: 500, marginBottom: '8px' }}>Reviewing Paper...</div>
-                          <div>This may take a few moments. The AI reviewer is analyzing the paper's content, novelty, and quality.</div>
-                        </div>
-                      ) : reviewResult ? (
-                        reviewResult.error ? (
-                          <div style={{
-                            backgroundColor: '#fef2f2',
-                            border: '1px solid #fecaca',
-                            borderRadius: '6px',
-                            padding: '12px',
-                            color: '#dc2626',
-                            fontSize: '0.875rem'
-                          }}>
-                            <strong>Review Error:</strong> {reviewResult.error}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '0.875rem', lineHeight: '1.5' }}>
-                            {/* Review Summary */}
-                            {reviewResult.Summary && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '8px', color: '#1f2937' }}>Summary</h4>
-                                <p style={{ color: '#374151' }}>{reviewResult.Summary}</p>
-                              </div>
-                            )}
-
-                            {/* Overall Score */}
-                            {reviewResult.Overall && (
-                              <div style={{ marginBottom: '16px', backgroundColor: '#f3f4f6', padding: '12px', borderRadius: '6px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 600 }}>Overall Score:</span>
-                                  <span style={{
-                                    backgroundColor: reviewResult.Overall >= 6 ? '#10b981' : reviewResult.Overall >= 4 ? '#f59e0b' : '#ef4444',
-                                    color: 'white',
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
-                                    fontWeight: 600
-                                  }}>
-                                    {reviewResult.Overall}/10
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Decision */}
-                            {reviewResult.Decision && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 600 }}>Decision:</span>
-                                  <span style={{
-                                    backgroundColor: reviewResult.Decision === 'Accept' ? '#10b981' : '#ef4444',
-                                    color: 'white',
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
-                                    fontWeight: 600
-                                  }}>
-                                    {reviewResult.Decision}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Scores Grid */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-                              {['Originality', 'Quality', 'Clarity', 'Significance', 'Soundness', 'Presentation', 'Contribution', 'Confidence'].map(metric => (
-                                reviewResult[metric] && (
-                                  <div key={metric} style={{ backgroundColor: '#f9fafb', padding: '8px', borderRadius: '4px', fontSize: '0.75rem' }}>
-                                    <div style={{ fontWeight: 600, color: '#374151' }}>{metric}</div>
-                                    <div style={{ color: '#6b7280' }}>{reviewResult[metric]}/4</div>
-                                  </div>
-                                )
-                              ))}
-                            </div>
-
-                            {/* Strengths */}
-                            {reviewResult.Strengths && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#10b981' }}>Strengths</h4>
-                                {Array.isArray(reviewResult.Strengths) ? (
-                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
-                                    {reviewResult.Strengths.map((strength, index) => (
-                                      <li key={index} style={{ marginBottom: '4px' }}>{strength}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p style={{ color: '#374151' }}>{reviewResult.Strengths}</p>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Weaknesses */}
-                            {reviewResult.Weaknesses && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#ef4444' }}>Weaknesses</h4>
-                                {Array.isArray(reviewResult.Weaknesses) ? (
-                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
-                                    {reviewResult.Weaknesses.map((weakness, index) => (
-                                      <li key={index} style={{ marginBottom: '4px' }}>{weakness}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p style={{ color: '#374151' }}>{reviewResult.Weaknesses}</p>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Questions */}
-                            {reviewResult.Questions && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#3b82f6' }}>Questions</h4>
-                                {Array.isArray(reviewResult.Questions) ? (
-                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
-                                    {reviewResult.Questions.map((question, index) => (
-                                      <li key={index} style={{ marginBottom: '4px' }}>{question}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p style={{ color: '#374151' }}>{reviewResult.Questions}</p>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Limitations */}
-                            {reviewResult.Limitations && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: '#f59e0b' }}>Limitations</h4>
-                                {Array.isArray(reviewResult.Limitations) ? (
-                                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#374151' }}>
-                                    {reviewResult.Limitations.map((limitation, index) => (
-                                      <li key={index} style={{ marginBottom: '4px' }}>{limitation}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p style={{ color: '#374151' }}>{reviewResult.Limitations}</p>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Ethical Concerns */}
-                            {reviewResult['Ethical Concerns'] !== undefined && (
-                              <div style={{ marginBottom: '16px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 600 }}>Ethical Concerns:</span>
-                                  <span style={{
-                                    backgroundColor: reviewResult['Ethical Concerns'] ? '#ef4444' : '#10b981',
-                                    color: 'white',
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
-                                    fontSize: '0.75rem'
-                                  }}>
-                                    {reviewResult['Ethical Concerns'] ? 'Yes' : 'No'}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      ) : (
-                        <div style={{
-                          textAlign: 'center',
-                          padding: '40px 20px',
-                          color: '#6b7280',
-                          fontSize: '0.875rem'
-                        }}>
-                          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📝</div>
-                          No review yet. Click the "Review Paper" button above to get an AI-generated peer review of this paper.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {proceedError && (
-              <div style={{
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '8px',
-                padding: '16px',
-                color: '#dc2626',
-                marginBottom: '20px'
-              }}>
-                <strong>Error:</strong> {proceedError}
-              </div>
-            )}
-
-            {!paperResult && !isGeneratingPaper && !proceedError && (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px',
-                color: '#6b7280',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                border: '2px dashed #d1d5db'
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📄</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 500, marginBottom: '8px' }}>No paper generated</div>
-                <div style={{ fontSize: '0.875rem' }}>
-                  Use the "Proceed" button in Exploration View to generate a research paper
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       ) : (
         <>
           {currentView === 'exploration' && !isAnalysisSubmitted && (
@@ -3708,10 +6448,12 @@ const TreePlotVisualization = () => {
               style={{
                 backgroundColor: '#1f2937',
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: 'column',
                 padding: '10px 20px',
+                position: 'relative', // 重要: 让下拉面板相对于此容器定位
               }}
             >
+              {/* Intent 输入表单 */}
               <form
                 ref={analysisFormRef}
                 onSubmit={handleAnalysisIntentSubmit}
@@ -3720,8 +6462,10 @@ const TreePlotVisualization = () => {
                 <input
                   type="text"
                   value={analysisIntent}
-                  onChange={(e) => setAnalysisIntent(e.target.value)}
-                  placeholder="Enter analysis intent"
+                  onChange={(e) => {
+                    setAnalysisIntent(e.target.value);
+                  }}
+                  placeholder="Enter research intent"
                   style={{
                     padding: '6px 10px',
                     borderRadius: '4px',
@@ -3751,6 +6495,9 @@ const TreePlotVisualization = () => {
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
+                    userActionTracker.trackAction('prompt_edit_open', 'system_prompt', {
+                      promptType: 'system_prompt'
+                    });
                     setModalAnchorEl(systemPromptButtonRef);
                     setIsEditingSystemPrompt(true);
                   }}
@@ -3775,7 +6522,7 @@ const TreePlotVisualization = () => {
                   <div
                     style={{
                       marginLeft: '16px',
-                      color: '#dc2626',
+                      color: '#ef4444',
                       fontSize: '0.875rem',
                     }}
                   >
@@ -3783,26 +6530,169 @@ const TreePlotVisualization = () => {
                   </div>
                 )}
               </form>
+
+              {/* 下拉展开的维度选择面板 */}
+              <DimensionSelectorPanel
+                isOpen={showDimensionPanel}
+                onClose={() => setShowDimensionPanel(false)}
+                onConfirm={handleDimensionConfirm}
+                intent={currentIntent}
+              />
             </div>
           )}
 
           <div
             style={{
               display: 'flex',
-              padding: '20px',
+              alignItems: 'flex-start', // Prevent stretching
+              padding: '40px 20px 20px 20px', // Push down slightly for top button
               maxWidth: '1600px',
               margin: '0 auto',
               boxSizing: 'border-box',
             }}
           >
-            {/* 左侧图 */}
-            <div ref={svgContainerRef} style={{ flexBasis: '60%', marginRight: '20px' }}>
+            {/* 左侧图 - Plot View 使用 CSS Grid 四象限，Tree View 使用 SVG */}
+
+            {/* === 3D Plot View === */}
+            <div
+              ref={evaluationContainerRef}
+              style={{
+                width: '60%',
+                marginRight: '20px',
+                position: 'relative',
+                display: currentView === 'evaluation' ? 'flex' : 'none',
+                flexDirection: 'column',
+                gap: '20px'
+              }}
+            >
+              <div style={{ height: '800px', width: '100%' }}>
+                <Evaluation3D
+                  nodes={nodes}
+                  selectedDimensionPairs={selectedDimensionPairs}
+                  activeDimensionIndices={activeDimensionIndices}
+                  onNodeDragEnd={handle3DNodeDragEnd}
+                  selectedNode={selectedNode}
+                  onNodeClick={handle3DNodeClick}
+                  hoveredNode={hoveredNode}
+                  onNodeHover={handle3DNodeHover}
+                  dragHoverTarget={dragHoverTarget}
+                  onDragHover={setDragHoverTarget}
+                  pendingChange={pendingChange}
+                  pendingMerge={pendingMerge}
+                  dragVisualState={dragVisualState}
+                  setDragVisualState={setDragVisualState}
+                  mergeAnimationState={mergeAnimationState}
+                  operationStatus={operationStatus}
+                  isGenerating={isGenerating}
+                  onDropExternal={handleNodeDropOnEvaluation}
+                />
+              </div>
+
+              {/* Fragment Bar */}
+              <div style={{
+                width: '100%',
+                minHeight: '120px',
+                maxHeight: '300px',
+                backgroundColor: '#fffbeb',
+                border: '2px dashed #f59e0b',
+                borderRadius: '8px',
+                padding: '12px',
+                display: 'flex',
+                gap: '12px',
+                overflowX: 'auto',
+                overflowY: 'auto',
+                alignItems: 'flex-start',
+                boxSizing: 'border-box'
+              }}>
+                {fragmentNodes.length === 0 ? (
+                  <div style={{ fontSize: '0.875rem', color: '#92400e', fontStyle: 'italic', margin: 'auto', textAlign: 'center' }}>
+                    Select text in any idea card and click "Fragment" to create quick notes here
+                  </div>
+                ) : (
+                  fragmentNodes.map(fragment => {
+                    const isExpanded = expandedFragmentId === fragment.id;
+                    const parentNode = nodes.find(n => n.id === fragment.parentId);
+                    const parentTitle = parentNode ? parentNode.title : fragment.parentId;
+                    const isMergeSource = dragVisualState && dragVisualState.type === 'merge' && dragVisualState.sourceNodeId === fragment.id;
+                    const showPendingOutline = isMergeSource || fragment.isPendingMerge;
+
+                    return (
+                      <div key={fragment.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px', maxWidth: isExpanded ? '220px' : '60px', flexShrink: 0, transition: 'max-width 0.3s ease' }}>
+                        <div
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('nodeId', fragment.id);
+                            e.dataTransfer.setData('isFragment', 'true');
+                            const container = evaluationContainerRef.current;
+                            if (container) {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const containerRect = container.getBoundingClientRect();
+                              fragmentDragOriginRef.current = {
+                                x: rect.left - containerRect.left + rect.width / 2,
+                                y: rect.top - containerRect.top + rect.height / 2
+                              };
+                            } else {
+                              fragmentDragOriginRef.current = null;
+                            }
+                            setDraggingNodeId(fragment.id);
+                            // Use a default style or transparent image if needed, but browser default is usually okay if opacity is handled
+                            const dragImage = document.createElement('div');
+                            dragImage.style.width = '50px'; dragImage.style.height = '50px'; dragImage.style.backgroundColor = '#fef08a';
+                            dragImage.style.border = '2px solid #f59e0b'; dragImage.style.borderRadius = '50%';
+                            dragImage.style.display = 'flex'; dragImage.style.alignItems = 'center'; dragImage.style.justifyContent = 'center';
+                            dragImage.style.fontSize = '0.875rem'; dragImage.style.fontWeight = '700'; dragImage.style.color = '#92400e';
+                            dragImage.style.position = 'fixed'; dragImage.style.top = '-1000px'; dragImage.style.left = '-1000px';
+                            document.body.appendChild(dragImage);
+                            e.dataTransfer.setDragImage(dragImage, 25, 25);
+                            setTimeout(() => { document.body.removeChild(dragImage); }, 0);
+                          }}
+                          onDragEnd={() => {
+                            fragmentDragOriginRef.current = null;
+                            setDraggingNodeId(null);
+                          }}
+                          onClick={() => {
+                            setExpandedFragmentId(isExpanded ? null : fragment.id);
+                            if (!isExpanded && parentNode) setSelectedNode(parentNode);
+                          }}
+                          style={{
+                            minWidth: '50px', width: '50px', height: '50px', backgroundColor: '#fef08a',
+                            border: showPendingOutline ? '3px dashed #fbbf24' : '2px solid #f59e0b',
+                            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', fontSize: '0.875rem', fontWeight: '700', color: '#92400e',
+                            position: 'relative', flexShrink: 0, marginBottom: isExpanded ? '8px' : '0',
+                            opacity: draggingNodeId === fragment.id ? 0.4 : (showPendingOutline ? 0.3 : (fragment.evaluationOpacity !== undefined ? fragment.evaluationOpacity : 1)),
+                            transition: 'all 0.2s ease'
+                          }}
+                        >                          <button
+                          onClick={(e) => { e.stopPropagation(); deleteFragmentNode(fragment.id); if (expandedFragmentId === fragment.id) setExpandedFragmentId(null); }}
+                          style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: '#ef4444', color: 'white', border: 'none', cursor: 'pointer', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontWeight: 'bold' }}
+                        >
+                            ×
+                          </button>
+                        </div>
+                        {isExpanded && (
+                          <div style={{ width: '100%', padding: '10px', backgroundColor: 'white', border: '1px solid #fbbf24', borderRadius: '6px', fontSize: '0.75rem', lineHeight: 1.4, color: '#374151', maxHeight: '150px', overflowY: 'auto', wordBreak: 'break-word', cursor: 'default', animation: 'fadeIn 0.2s ease-in' }}>
+                            <div style={{ fontSize: '0.7rem', color: '#78716c', marginBottom: '6px', fontWeight: '600' }}>Fragment of {parentTitle}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#6b7280', lineHeight: 1.5 }}>{fragment.content}</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* === D3.js SVG (Tree View) === */}
+            <div
+              ref={explorationContainerRef}
+              style={{
+                flexBasis: '60%',
+                marginRight: '20px',
+                display: currentView === 'exploration' ? 'block' : 'none'
+              }}
+            >
               <svg ref={svgRef} />
-              {/* Log Display Panel - positioned directly under the plot */}
-              <LogDisplay
-                isVisible={showLogs}
-                onToggle={() => setShowLogs(!showLogs)}
-              />
             </div>
 
             {/* 右侧 Dashboard */}
@@ -3810,6 +6700,7 @@ const TreePlotVisualization = () => {
               <Dashboard
                 nodeId={hoveredNode?.id || selectedNode?.id}
                 nodes={nodes}
+                fragmentNodes={fragmentNodes}
                 isEvaluating={isEvaluating}
                 showTree={currentView === 'exploration'}
                 setModalAnchorEl={setModalAnchorEl}
@@ -3829,114 +6720,273 @@ const TreePlotVisualization = () => {
                 setIsEditingSystemPrompt={setIsEditingSystemPrompt}
                 editIcon={editIcon}
                 handleProceedWithSelectedIdea={handleProceedWithSelectedIdea}
-                onUpdateTable={handleUpdateTable} // Pass the new handler here
+                getNodeTrackingInfo={getNodeTrackingInfo}
+                // Props for score modification
+                onModifyScore={handleScoreModification}
+                showModifyButton={currentView === 'exploration'}
+                pendingChanges={pendingChange}
+                currentView={currentView}
+                selectedDimensionPairs={selectedDimensionPairs}
+                activeDimensions={activeDimensions}
+                onShowFragmentMenu={showFragmentMenu}
+                activeDimensionIndices={activeDimensionIndices}
+                onToggleDimensionIndex={toggleDimensionIndex}
+                onCreateFragmentFromHighlight={(text, parentId) => createFragmentNode(text, parentId || selectedNode?.id)}
+                onSwapDimension={swapDimensionDirection}
+                onEditDimension={handleEditDimension}
               />
+
+              {/* Re-eval All Button */}
+              {currentView === 'evaluation' && (
+                <div style={{
+                  padding: '16px',
+                  borderTop: '1px solid #e5e7eb',
+                  display: 'flex',
+                  justifyContent: 'flex-start'
+                }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      reEvaluateAll && reEvaluateAll();
+                    }}
+                    disabled={isEvaluating}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: isEvaluating ? '#f3f4f6' : '#2563EB',
+                      color: isEvaluating ? '#9ca3af' : '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: isEvaluating ? 'not-allowed' : 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease',
+                      boxShadow: isEvaluating ? 'none' : '0 1px 2px rgba(0, 0, 0, 0.05)',
+                    }}
+                    title="Re-evaluate all ideas with current criteria"
+                  >
+                    {isEvaluating ? 'Re-evaluating...' : 'Re-evaluate All'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-
         </>)}
 
       {/* ========== 段落12：悬浮确认修改的按钮 (pendingChange) ========== */}
       {pendingChange && (
-        <div
-          style={{
-            position: 'absolute',
-            left: pendingChange.screenX,
-            top: pendingChange.screenY,
-            backgroundColor: '#f3f4f6',
-            border: '1px solid #d1d5db',
-            borderRadius: '4px',
-            padding: '6px 8px',
-            zIndex: 999,
-          }}
-        >
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {/* Generate New Idea */}
-            <button
-              style={{
-                padding: '4px 8px',
-                backgroundColor: '#4C84FF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                modifyIdeaBasedOnModifications(
-                  pendingChange.originalNode,
-                  pendingChange.ghostNode,
-                  pendingChange.modifications,
-                  pendingChange.behindNode
-                );
-                setPendingChange(null);
-              }}
-            >
-              New Idea
-            </button>
-            {/* Modify Original */}
-            <button
-              style={{
-                padding: '4px 8px',
-                backgroundColor: '#4C84FF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                const modifiedOriginal = {
-                  ...pendingChange.originalNode,
-                  x: pendingChange.ghostNode.x,
-                  y: pendingChange.ghostNode.y,
-                  [xAxisMetric]: pendingChange.ghostNode[xAxisMetric],
-                  [yAxisMetric]: pendingChange.ghostNode[yAxisMetric],
-                };
-                // Remove the ghost node and update the original node
-                setNodes((prev) =>
-                  prev
-                    .filter((n) => n.id !== pendingChange.ghostNode.id)
-                    .map((n) => (n.id === modifiedOriginal.id ? modifiedOriginal : n))
-                );
-                setLinks((prev) =>
-                  prev.filter((lk) => lk.target !== pendingChange.ghostNode.id)
-                );
-                setPendingChange(null);
-              }}
-            >
-              Modify Eval
-            </button>
-            {/* Cancel */}
-            <button
-              style={{
-                padding: '4px 8px',
-                backgroundColor: '#fff',
-                color: '#374151',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setNodes((prev) =>
-                  prev.filter((nd) => nd.id !== pendingChange.ghostNode.id)
-                );
-                setLinks((prev) =>
-                  prev.filter((lk) => lk.target !== pendingChange.ghostNode.id)
-                );
-                setPendingChange(null);
-              }}
-            >
-              Cancel
-            </button>
+        currentView === 'exploration' ? (
+          // Tree View Modal - Smaller, simpler, positioned lower
+          <div
+            className="modify-popup"
+            data-panel-root="pending-change"
+            style={{
+              position: 'absolute',
+              left: pendingChange.screenX - 60, // Center the smaller modal
+              top: pendingChange.screenY + 20, // Position lower to avoid covering score
+              backgroundColor: '#ffffff',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              padding: '8px',
+              zIndex: 1000,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              minWidth: '120px'
+            }}
+          >
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {/* New Idea */}
+              <button
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#4C84FF',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: '500'
+                }}
+                onClick={() => {
+                  userActionTracker.trackAction('drag_choice_selected', 'generate_new_idea', {
+                    ...getNodeTrackingInfo(pendingChange.originalNode),
+                    modifications: pendingChange.modifications,
+                    choice: 'generate_new_idea',
+                    currentView: currentView
+                  });
+                  modifyIdeaBasedOnModifications(
+                    pendingChange.originalNode,
+                    pendingChange.ghostNode,
+                    pendingChange.modifications,
+                    pendingChange.behindNode
+                  );
+                  setPendingChange(null);
+                }}
+              >
+                New Idea
+              </button>
+              {/* Modify Eval */}
+              <button
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#4C84FF',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: '500'
+                }}
+                onClick={() => {
+                  if (!pendingChange) return;
+
+                  userActionTracker.trackAction('drag_choice_selected', 'modify_evaluation', {
+                    ...getNodeTrackingInfo(pendingChange.originalNode),
+                    modifications: pendingChange.modifications,
+                    choice: 'modify_evaluation',
+                    currentView: currentView
+                  });
+
+                  // 在应用修改前，先恢复节点到absolute定位的正确位置
+                  const nodeElement = pendingChange.draggedElement || document.querySelector(`[data-node-id="${pendingChange.originalNode.id}"]`);
+                  if (nodeElement && pendingChange.finalPosition) {
+                    nodeElement.style.position = 'absolute';
+                    nodeElement.style.left = `${pendingChange.finalPosition.x - 25}px`;
+                    nodeElement.style.top = `${pendingChange.finalPosition.y - 25}px`;
+                    nodeElement.style.zIndex = '100';
+                  }
+
+                  applyModifyEvaluation(pendingChange);
+                }}
+              >
+                Modify Eval
+              </button>
+              {/* Cancel */}
+              <button
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#fff',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: '500'
+                }}
+                onClick={() => {
+                  cancelPendingChange(pendingChange, { reason: 'manual' });
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          // Plot View Modal - Original design
+          <div
+            className="modify-popup"
+            data-panel-root="pending-change"
+            style={{
+              position: 'absolute',
+              left: pendingChange.screenX,
+              top: pendingChange.screenY,
+              backgroundColor: '#f3f4f6',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '6px 8px',
+              zIndex: 999,
+            }}
+          >
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {/* Generate New Idea */}
+              <button
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#4C84FF',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  userActionTracker.trackAction('drag_choice_selected', 'generate_new_idea', {
+                    ...getNodeTrackingInfo(pendingChange.originalNode),
+                    modifications: pendingChange.modifications,
+                    choice: 'generate_new_idea',
+                    currentView: currentView
+                  });
+                  modifyIdeaBasedOnModifications(
+                    pendingChange.originalNode,
+                    pendingChange.ghostNode,
+                    pendingChange.modifications,
+                    pendingChange.behindNode
+                  );
+                  setPendingChange(null);
+                }}
+              >
+                New Idea
+              </button>
+              {/* Modify Original */}
+              <button
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#4C84FF',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  if (!pendingChange) return;
+
+                  userActionTracker.trackAction('drag_choice_selected', 'modify_evaluation', {
+                    ...getNodeTrackingInfo(pendingChange.originalNode),
+                    modifications: pendingChange.modifications,
+                    choice: 'modify_evaluation',
+                    currentView: currentView
+                  });
+
+                  // 在应用修改前，先恢复节点到absolute定位的正确位置
+                  const nodeElement = pendingChange.draggedElement || document.querySelector(`[data-node-id="${pendingChange.originalNode.id}"]`);
+                  if (nodeElement && pendingChange.finalPosition) {
+                    nodeElement.style.position = 'absolute';
+                    nodeElement.style.left = `${pendingChange.finalPosition.x - 25}px`;
+                    nodeElement.style.top = `${pendingChange.finalPosition.y - 25}px`;
+                    nodeElement.style.zIndex = '100';
+                  }
+
+                  applyModifyEvaluation(pendingChange);
+                }}
+              >
+                Modify Eval
+              </button>
+              {/* Cancel */}
+              <button
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#fff',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  cancelPendingChange(pendingChange, { reason: 'manual' });
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )
       )}
 
       {pendingMerge && (
         <div
+          className="merge-popup"
+          data-panel-root="pending-merge"
           style={{
             position: 'absolute',
-            left: pendingMerge.screenX,
-            top: pendingMerge.screenY,
+            left: pendingMerge.screenX || window.innerWidth / 2 - 150,
+            top: pendingMerge.screenY || window.innerHeight / 2 - 80,
             backgroundColor: '#f3f4f6',
             border: '1px solid #d1d5db',
             borderRadius: '4px',
@@ -3944,53 +6994,172 @@ const TreePlotVisualization = () => {
             zIndex: 1000,
           }}
         >
-          <div style={{ marginBottom: '6px', fontSize: '0.8rem', color: '#374151' }}>
-            Merge these two ideas?
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              style={{
-                padding: '4px 12px',
-                backgroundColor: '#4C84FF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                mergeIdeas(pendingMerge.nodeA, pendingMerge.nodeB);
-                setPendingMerge(null);
-              }}
-            >
-              Merge
-            </button>
-            <button
-              style={{
-                padding: '4px 12px',
-                backgroundColor: '#fff',
-                color: '#374151',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setNodes(prev =>
-                  prev.map(n => {
-                    if (n.id === pendingMerge.nodeA.id) {
-                      return { ...n, evaluationOpacity: 1 };
-                    } else if (n.id === pendingMerge.nodeB.id) {
-                      return { ...n, isBeingMerged: false };
+          {pendingMerge.action === 'evaluation_drag' ? (
+            // Plot View 拖放选项
+            <>
+              <div style={{ marginBottom: '6px', fontSize: '0.8rem', color: '#374151' }}>
+                What would you like to do with "{pendingMerge.sourceNode.title}"?
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#4C84FF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    // 生成子节点
+                    generateChildNodes(pendingMerge.sourceNode);
+                    setPendingMerge(null);
+                  }}
+                >
+                  New Idea
+                </button>
+                <button
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    // 选中节点供用户查看详情
+                    setSelectedNode(pendingMerge.sourceNode);
+                    setPendingMerge(null);
+                    // TODO: 实现修改评分的UI界面
+                  }}
+                >
+                  Modify Eval
+                </button>
+                <button
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#fff',
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    cancelPendingMerge(pendingMerge);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            // 原有的 Merge 对话框
+            <>
+              <div style={{ marginBottom: '6px', fontSize: '0.8rem', color: '#374151' }}>
+                {pendingMerge.isFragmentMerge
+                  ? `Merge fragment with "${pendingMerge.targetNode?.title}"?`
+                  : 'Merge these two ideas?'}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#4C84FF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={async () => {
+                    const nodeA = pendingMerge.sourceNode || pendingMerge.nodeA;
+                    const nodeB = pendingMerge.targetNode || pendingMerge.nodeB;
+
+                    // Apply merge animation before starting merge
+                    // Check if source is a fragment
+                    const isSourceFragment = fragmentNodes.some(f => f.id === nodeA.id);
+                    const ghostPos =
+                      dragVisualState?.ghostPosition ||
+                      getNodeCenterRelativeToContainer(nodeA.id) ||
+                      getNodeCenterRelativeToContainer(nodeB.id);
+                    setMergeAnimationState({
+                      sourceId: nodeA.id,
+                      targetId: nodeB.id,
+                      ghostPosition: ghostPos
+                    });
+
+                    if (isSourceFragment) {
+                      // If source is fragment, update fragmentNodes for nodeA and nodes for nodeB
+                      setFragmentNodes((prev) =>
+                        prev.map((f) => {
+                          if (f.id === nodeA.id) {
+                            return { ...f, evaluationOpacity: 0, isPendingMerge: true };
+                          }
+                          return f;
+                        })
+                      );
+
+                      setNodes((prev) =>
+                        prev.map((n) => {
+                          if (n.id === nodeB.id) {
+                            return { ...n, isBeingMerged: true };
+                          }
+                          return n;
+                        })
+                      );
+                    } else {
+                      // Normal node merge
+                      setNodes((prev) =>
+                        prev.map((n) => {
+                          if (n.id === nodeA.id) {
+                            return { ...n, evaluationOpacity: 0 };
+                          } else if (n.id === nodeB.id) {
+                            return { ...n, isBeingMerged: true };
+                          }
+                          return n;
+                        })
+                      );
                     }
-                    return n;
-                  })
-                );
-                setMergeTargetId(null);
-                setPendingMerge(null)
-              }}
-            >
-              Cancel
-            </button>
-          </div>
+
+                    // 清理 pending 状态
+                    setPendingMerge(null);
+                    setDragVisualState(null);
+
+                    // 直接触发合并 - 通过设置 mergeMode 的方式
+                    setMergeMode({
+                      active: false,
+                      firstNode: nodeA,
+                      secondNode: nodeB,
+                      cursorPosition: { x: 0, y: 0 },
+                      showDialog: false
+                    });
+
+                    // 使用 setTimeout 确保状态已更新
+                    setTimeout(() => {
+                      handleMergeConfirm(nodeA, nodeB);
+                    }, 0);
+                  }}
+                >
+                  Merge
+                </button>
+                <button
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#fff',
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    cancelPendingMerge(pendingMerge);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
       {/* System Prompt Edit Modal */}
@@ -4005,6 +7174,11 @@ const TreePlotVisualization = () => {
         initialValue={systemPrompt}
         onSave={async (finalValue) => {
           const promptToSave = finalValue || defaultPrompts.system_prompt;
+          userActionTracker.trackAction('prompt_save', 'system_prompt', {
+            promptType: 'system_prompt',
+            content: promptToSave,
+            wasModified: finalValue !== systemPrompt
+          });
           const success = await updateSystemPrompt(promptToSave);
           if (success) {
             setSystemPrompt(promptToSave);
@@ -4040,6 +7214,11 @@ const TreePlotVisualization = () => {
             editingCriteria === 'feasibility' ? feasibilityCriteria :
               noveltyCriteria;
 
+          userActionTracker.trackAction('prompt_save', `${editingCriteria}_criteria`, {
+            promptType: `${editingCriteria}_criteria`,
+            content: criteriaToSave,
+            wasModified: finalValue !== currentCriteria
+          });
 
           const success = await updateCriteria(editingCriteria, criteriaToSave);
           if (success) {
@@ -4054,146 +7233,75 @@ const TreePlotVisualization = () => {
         width={dashboardWidth}
       />
 
-      {/* Proceed Confirmation Dialog */}
-      {showProceedConfirm && (
-        <>
-          {/* Modal Backdrop */}
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              zIndex: 999,
-            }}
-            onClick={() => {
-              setShowProceedConfirm(false);
-              setProceedError(null);
-            }}
-          />
-
-          {/* Modal Content */}
-          <div
-            style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              backgroundColor: 'white',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              padding: '20px',
-              zIndex: 1000,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-              minWidth: '400px',
-            }}
-          >
-            <div style={{ marginBottom: '16px', fontSize: '1rem', color: '#374151', fontWeight: 500 }}>
-              Generate Code and Paper
-            </div>
-            <div style={{ marginBottom: '16px', fontSize: '0.875rem', color: '#6B7280', lineHeight: '1.5' }}>
-              This will generate experimental code and write a research paper for the selected idea.
-              This process may take several minutes to complete.
-            </div>
-
-            {/* Semantic Scholar API Key Input */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '0.875rem',
-                color: '#374151',
-                fontWeight: 500
-              }}>
-                Semantic Scholar API Key {!selectedNode?.originalData?.is_experimental ? '*' : '(Optional for now)'}
-              </label>
-              <input
-                type="password"
-                value={s2ApiKey}
-                onChange={(e) => setS2ApiKey(e.target.value)}
-                placeholder={selectedNode?.originalData?.is_experimental ?
-                  "Enter your Semantic Scholar API key (can be provided later for paper generation)" :
-                  "Enter your Semantic Scholar API key"}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  color: '#374151',
-                  backgroundColor: '#fff',
-                  boxSizing: 'border-box'
-                }}
-              />
-              <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#6B7280' }}>
-                {selectedNode?.originalData?.is_experimental ?
-                  'For experimental ideas: Required only when generating paper. You can provide it later.' :
-                  'Required for paper generation.'
-                } Get your API key from{' '}
-                <a
-                  href="https://www.semanticscholar.org/product/api"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: '#4C84FF', textDecoration: 'underline' }}
-                >
-                  Semantic Scholar API
-                </a>
-              </div>
-            </div>
-
-            {proceedError && (
-              <div style={{
-                marginBottom: '16px',
-                padding: '8px 12px',
-                backgroundColor: '#FEF2F2',
-                border: '1px solid #FECACA',
-                borderRadius: '4px',
-                fontSize: '0.875rem',
-                color: '#DC2626'
-              }}>
-                {proceedError}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#fff',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                }}
-                onClick={() => {
-                  setShowProceedConfirm(false);
-                  setProceedError(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: ((!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper) ? '#9CA3AF' : '#4C84FF',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: ((!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper) ? 'not-allowed' : 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                }}
-                onClick={handleConfirmProceed}
-                disabled={(!selectedNode?.originalData?.is_experimental && !s2ApiKey.trim()) || isGeneratingCode || isGeneratingPaper}
-              >
-                {isGeneratingCode || isGeneratingPaper ? 'Processing...' : 'Yes, Proceed'}
-              </button>
-            </div>
+      {/* Fragment Menu */}
+      {fragmentMenuState && (
+        <div
+          data-fragment-menu
+          data-panel-root="fragment-menu"
+          style={{
+            position: 'fixed',
+            left: fragmentMenuState.x,
+            top: fragmentMenuState.y,
+            backgroundColor: 'white',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            borderRadius: '8px',
+            padding: '8px',
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            minWidth: '150px'
+          }}
+        >
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', padding: '0 4px' }}>
+            Create Fragment Node
           </div>
-        </>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleFragmentConfirm}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#4C84FF',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+            >
+              Fragment
+            </button>
+            <button
+              onClick={hideFragmentMenu}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#fff',
+                color: '#374151',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
+
+      {/* Dimension Edit Dropdown */}
+      <DimensionEditDropdown
+        isOpen={editingDimensionIndex !== null}
+        anchorPosition={dimensionDropdownAnchor}
+        currentPair={editingDimensionIndex !== null ? selectedDimensionPairs[editingDimensionIndex] : null}
+        pairIndex={editingDimensionIndex}
+        onClose={handleCloseDimensionEdit}
+        onConfirm={handleDimensionEditConfirm}
+        isLoading={isSingleDimensionEvaluating}
+      />
+
     </div>
 
   );

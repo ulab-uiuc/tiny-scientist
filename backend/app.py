@@ -2,6 +2,7 @@ import builtins
 import io
 import os
 import sys
+import uuid
 from typing import Any, Dict, Optional, Union
 
 from flask import Flask, Response, jsonify, request, send_file, session
@@ -140,6 +141,48 @@ coder: Optional[Coder] = None
 writer: Optional[Writer] = None
 reviewer: Optional[Reviewer] = None
 global_cost_tracker: Optional[BudgetChecker] = None
+
+global_idea_storage: Dict[str, Any] = {}
+
+
+def _store_or_update_idea(idea: Dict[str, Any]) -> None:
+    iid = idea.get("id")
+    if not iid:
+        return
+    existing = global_idea_storage.get(iid, {})
+    merged = {**existing, **idea}
+    global_idea_storage[iid] = merged
+
+
+def _list_stored_ideas() -> list[Dict[str, Any]]:
+    return list(global_idea_storage.values())
+
+
+def _bulk_update_scores(scored_payloads: list[Dict[str, Any]]) -> None:
+    for s in scored_payloads:
+        iid = s.get("id")
+        if not iid or iid not in global_idea_storage:
+            continue
+
+        update_dict = {}
+
+        if s.get("scores"):
+            update_dict["scores"] = s.get("scores")
+            update_dict["Dimension1Score"] = s.get("dimension1Score")
+            update_dict["Dimension2Score"] = s.get("dimension2Score")
+            update_dict["Dimension3Score"] = s.get("dimension3Score")
+            update_dict["Dimension1Reason"] = s.get("Dimension1Reason", "")
+            update_dict["Dimension2Reason"] = s.get("Dimension2Reason", "")
+            update_dict["Dimension3Reason"] = s.get("Dimension3Reason", "")
+
+        update_dict["NoveltyScore"] = s.get("noveltyScore")
+        update_dict["FeasibilityScore"] = s.get("feasibilityScore")
+        update_dict["ImpactScore"] = s.get("impactScore")
+        update_dict["NoveltyReason"] = s.get("NoveltyReason", "")
+        update_dict["FeasibilityReason"] = s.get("FeasibilityReason", "")
+        update_dict["ImpactReason"] = s.get("ImpactReason", "")
+
+        global_idea_storage[iid].update(update_dict)
 
 
 def format_name_for_display(name: Optional[str]) -> str:
@@ -386,6 +429,71 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
     return jsonify(response)
 
 
+@app.route("/api/suggest-dimensions", methods=["POST"])
+def suggest_dimensions() -> Union[Response, tuple[Response, int]]:
+    """Suggest dimension pairs for evaluating ideas based on research intent."""
+    data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
+    intent = data.get("intent")
+    if not intent:
+        return jsonify({"error": "Intent is required"}), 400
+
+    dimension_pairs = thinker.suggest_dimensions(intent=intent)
+    return jsonify({"dimension_pairs": dimension_pairs})
+
+
+@app.route("/api/evaluate-dimension", methods=["POST"])
+def evaluate_single_dimension() -> Union[Response, tuple[Response, int]]:
+    """Evaluate ideas on a single dimension pair only."""
+    data = request.json
+    if data is None:
+        return jsonify({"error": "No JSON data provided"}), 400
+    if thinker is None:
+        return jsonify({"error": "Thinker not configured"}), 400
+
+    ideas = data.get("ideas", [])
+    intent = data.get("intent")
+    dimension_pair = data.get("dimension_pair")
+    dimension_index = data.get("dimension_index", 0)
+
+    print("[DEBUG] Single dimension evaluation request:")
+    print(f"  - Ideas count: {len(ideas)}")
+    print(f"  - Dimension pair: {dimension_pair}")
+    print(f"  - Dimension index: {dimension_index}")
+
+    if not dimension_pair:
+        return jsonify({"error": "dimension_pair is required"}), 400
+
+    try:
+        scores = thinker.rank_single_dimension(
+            ideas=ideas,
+            intent=intent,
+            dimension_pair=dimension_pair,
+            dimension_index=dimension_index,
+        )
+        print(f"[DEBUG] Single dimension evaluation returned {len(scores)} scores")
+        return jsonify(
+            {
+                "scores": scores,
+                "dimension_pair": dimension_pair,
+                "dimension_index": dimension_index,
+            }
+        )
+    except Exception as e:
+        print(f"[ERROR] Single dimension evaluation failed: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return (
+            jsonify({"error": f"Error during single dimension evaluation: {str(e)}"}),
+            500,
+        )
+
+
 @app.route("/api/modify", methods=["POST"])
 def modify_idea() -> Union[Response, tuple[Response, int]]:
     """Modify an idea (modifyIdeaBasedOnModifications)"""
@@ -457,43 +565,313 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
 
 @app.route("/api/evaluate", methods=["POST"])
 def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
-    """Evaluate ideas (evaluateIdeas)"""
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
-    ideas = data.get("ideas")
+
+    incoming_ideas = data.get("ideas", [])
     intent = data.get("intent")
+    dimension_pairs = data.get("dimension_pairs", [])
+    user_score_corrections = data.get("userScoreCorrections", [])
+    mode = data.get("mode", "incremental")
+    explicit_target_ids = set(data.get("targetIds", []) or [])
 
-    # Use original data directly (no conversion needed)
-    thinker_ideas = ideas
+    print("[DEBUG] Evaluation request received:")
+    print(f"  - Mode: {mode}")
+    print(f"  - Incoming ideas count: {len(incoming_ideas)}")
+    print(f"  - Incoming idea IDs: {[i.get('id', 'NO_ID') for i in incoming_ideas]}")
+    print(f"  - Intent: {intent[:50] if intent else 'None'}...")
+    print(f"  - Target IDs: {list(explicit_target_ids)}")
+    print(f"  - Dimension pairs: {len(dimension_pairs)}")
 
-    # Store original IDs in order - LLM doesn't preserve titles, use index mapping
-    original_ids = [idea.get("id") for idea in ideas]
+    existing_ids = {i["id"] for i in _list_stored_ideas()}
+    new_ids = []
+    for inc in incoming_ideas:
+        inc_id = inc.get("id") or str(uuid.uuid4())
+        inc["id"] = inc_id
+        if inc_id not in existing_ids:
+            new_ids.append(inc_id)
+        _store_or_update_idea({**inc})
 
-    # Rank ideas
-    scored_ideas = thinker.rank(ideas=thinker_ideas, intent=intent)
+    stored_list = _list_stored_ideas()
 
-    # Return in the format expected by TreePlot
-    # Use index-based mapping since LLM changes titles but preserves order
-    response = []
-    for i, idea in enumerate(scored_ideas):
-        # Use index to map back to original ID
-        original_id = original_ids[i] if i < len(original_ids) else f"idea_{i}"
+    if mode == "full":
+        target_ids_local = {idea.get("id") for idea in stored_list}
+    else:
+        target_ids_local = set(new_ids) | explicit_target_ids
+        if not explicit_target_ids:
+            for idea in stored_list:
+                if not (
+                    idea.get("NoveltyScore") is not None
+                    and idea.get("FeasibilityScore") is not None
+                    and idea.get("ImpactScore") is not None
+                ):
+                    target_ids_local.add(idea.get("id"))
 
-        response.append(
-            {
-                "id": original_id,  # Use index-based mapping
-                "noveltyScore": idea.get("NoveltyScore"),
-                "noveltyReason": idea.get("NoveltyReason", ""),
-                "feasibilityScore": idea.get("FeasibilityScore"),
-                "feasibilityReason": idea.get("FeasibilityReason", ""),
-                "impactScore": idea.get("ImpactScore"),
-                "impactReason": idea.get("ImpactReason", ""),
-            }
+    if mode == "full":
+        evaluation_input = stored_list
+    else:
+        evaluation_input = []
+        for idea in stored_list:
+            iid = idea.get("id")
+            has_scores = (
+                idea.get("NoveltyScore") is not None
+                and idea.get("FeasibilityScore") is not None
+                and idea.get("ImpactScore") is not None
+            )
+            idea_copy = idea.copy()
+            if iid in target_ids_local:
+                idea_copy.pop("AlreadyScored", None)
+                evaluation_input.append(idea_copy)
+            else:
+                if has_scores:
+                    idea_copy["AlreadyScored"] = True
+                evaluation_input.append(idea_copy)
+
+    print("[DEBUG] About to call thinker.rank with:")
+    print(f"  - Evaluation input count: {len(evaluation_input)}")
+    print(f"  - Evaluation input IDs: {[i.get('id') for i in evaluation_input]}")
+    print(f"  - Intent length: {len(intent) if intent else 0}")
+    print(f"  - Partial mode: {mode != 'full'}")
+
+    try:
+        scored_ideas = thinker.rank(
+            ideas=evaluation_input,
+            intent=intent,
+            dimension_pairs=dimension_pairs if dimension_pairs else None,
+            user_score_corrections=user_score_corrections,
+            partial=(mode != "full"),
         )
-    return jsonify(response)
+        print(
+            f"[DEBUG] thinker.rank returned {len(scored_ideas) if scored_ideas else 0} scored ideas"
+        )
+        if scored_ideas:
+            print(
+                f"[DEBUG] First scored idea: {scored_ideas[0].get('Title', 'NO_TITLE')}"
+            )
+    except Exception as e:
+        print(f"[ERROR] thinker.rank failed: {str(e)}")
+        print(f"[ERROR] Exception type: {type(e).__name__}")
+        import traceback
+
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        scored_ideas = []
+
+    title_maps = [{}, {}, {}]
+    for idea in stored_list:
+        iid = idea.get("id")
+        if not iid:
+            continue
+
+        for key in [idea.get("Title"), idea.get("Name"), idea.get("title")]:
+            if key and key.strip():
+                title_maps[0][key.strip()] = iid
+
+        for raw_name in [idea.get("Name"), idea.get("Title")]:
+            if raw_name and raw_name.strip():
+                formatted = format_name_for_display(raw_name)
+                title_maps[1][formatted] = iid
+
+        for key in [idea.get("Title"), idea.get("Name")]:
+            if key and key.strip():
+                variations = [
+                    key.strip().lower(),
+                    key.strip().replace(" ", "_").lower(),
+                    key.strip().replace("_", " ").lower(),
+                ]
+                for variation in variations:
+                    title_maps[2][variation] = iid
+
+    print("[DEBUG] Title maps built:")
+    print(f"  - Map 0 (original): {list(title_maps[0].keys())}")
+    print(f"  - Map 1 (formatted): {list(title_maps[1].keys())}")
+    print(f"  - Map 2 (variations): {list(title_maps[2].keys())}")
+
+    def find_idea_id(scored_idea):
+        scored_titles = [
+            scored_idea.get("Title", "").strip(),
+            scored_idea.get("Name", "").strip(),
+            scored_idea.get("title", "").strip(),
+        ]
+
+        print(f"[DEBUG] Finding ID for scored idea with titles: {scored_titles}")
+
+        for title in scored_titles:
+            if not title:
+                continue
+
+            for i, title_map in enumerate(title_maps):
+                if title in title_map:
+                    print(
+                        f"[DEBUG] Found exact match in map {i}: '{title}' -> {title_map[title]}"
+                    )
+                    return title_map[title]
+
+            title_lower = title.lower()
+            for i, title_map in enumerate(title_maps):
+                for stored_title, stored_id in title_map.items():
+                    if stored_title.lower() == title_lower:
+                        print(
+                            f"[DEBUG] Found case-insensitive match in map {i}: '{title}' -> {stored_id}"
+                        )
+                        return stored_id
+
+        print(f"[DEBUG] No match found for titles: {scored_titles}")
+        return None
+
+    payloads = []
+    unmatched_ideas = []
+    matched_ids = set()
+
+    pair_count = len(dimension_pairs) if dimension_pairs else 0
+    use_dimension_pairs = pair_count >= 2
+
+    for i, scored in enumerate(scored_ideas):
+        iid = find_idea_id(scored)
+
+        if not iid and mode == "incremental" and i < len(new_ids):
+            potential_id = new_ids[i]
+            if potential_id in target_ids_local and potential_id not in matched_ids:
+                iid = potential_id
+                print(f"[DEBUG] Fallback ID match: scored[{i}] -> {iid}")
+
+        if not iid:
+            unmatched_ideas.append(
+                {
+                    "title": scored.get("Title", scored.get("Name", "Unknown")),
+                    "scored_keys": list(scored.keys()),
+                    "index": i,
+                }
+            )
+            continue
+
+        if mode == "incremental" and iid not in target_ids_local:
+            continue
+
+        matched_ids.add(iid)
+        if iid and ("-CUSTOM-" in iid or iid.startswith("C-")):
+            print(f"[DEBUG] Custom idea {iid} reasoning fields:")
+            if use_dimension_pairs:
+                print(f"  Dimension1Reason: {scored.get('Dimension1Reason', '')}")
+                print(f"  Dimension2Reason: {scored.get('Dimension2Reason', '')}")
+                if pair_count >= 3:
+                    print(f"  Dimension3Reason: {scored.get('Dimension3Reason', '')}")
+            else:
+                print(f"  NoveltyReason: {scored.get('NoveltyReason', '')}")
+                print(f"  FeasibilityReason: {scored.get('FeasibilityReason', '')}")
+                print(f"  ImpactReason: {scored.get('ImpactReason', '')}")
+            print(f"  All scored keys: {list(scored.keys())}")
+
+        if use_dimension_pairs:
+            payload = {
+                "id": iid,
+                "scores": scored.get("scores", {}),
+            }
+            payload["dimension1Score"] = scored.get("Dimension1Score")
+            payload["dimension2Score"] = scored.get("Dimension2Score")
+            payload["Dimension1Reason"] = scored.get("Dimension1Reason", "")
+            payload["Dimension2Reason"] = scored.get("Dimension2Reason", "")
+            if pair_count >= 3:
+                payload["dimension3Score"] = scored.get("Dimension3Score")
+                payload["Dimension3Reason"] = scored.get("Dimension3Reason", "")
+            payloads.append(payload)
+        else:
+            payloads.append(
+                {
+                    "id": iid,
+                    "noveltyScore": scored.get("NoveltyScore"),
+                    "feasibilityScore": scored.get("FeasibilityScore"),
+                    "impactScore": scored.get("ImpactScore"),
+                    "NoveltyReason": scored.get("NoveltyReason", ""),
+                    "FeasibilityReason": scored.get("FeasibilityReason", ""),
+                    "ImpactReason": scored.get("ImpactReason", ""),
+                }
+            )
+
+    print("[DEBUG] Evaluation matching results:")
+    print(f"  - Mode: {mode}")
+    print(f"  - Stored ideas: {len(stored_list)}")
+    print(f"  - Scored ideas from LLM: {len(scored_ideas)}")
+    print(f"  - Target IDs: {list(target_ids_local)}")
+    print(f"  - New IDs: {new_ids}")
+    print(f"  - Successful matches: {len(payloads)}")
+    print(f"  - Failed matches: {len(unmatched_ideas)}")
+
+    if unmatched_ideas:
+        print(f"[WARNING] Could not match {len(unmatched_ideas)} ideas:")
+        for um in unmatched_ideas[:3]:
+            print(
+                f"  - [{um.get('index', '?')}] Title: '{um['title']}', Keys: {um['scored_keys']}"
+            )
+        print(f"[DEBUG] Available stored titles: {list(title_maps[0].keys())}")
+
+    if payloads:
+        print("[DEBUG] Matched payloads:")
+        for p in payloads[:2]:
+            print(
+                f"  - ID: {p['id']}, Scores: N={p.get('noveltyScore')}, F={p.get('feasibilityScore')}, I={p.get('impactScore')}, "
+                f"D1={p.get('dimension1Score')}, D2={p.get('dimension2Score')}, D3={p.get('dimension3Score')}"
+            )
+            if p["id"] and ("-CUSTOM-" in p["id"] or p["id"].startswith("C-")):
+                print(
+                    f"    Custom idea reasoning: N={p.get('NoveltyReason', 'MISSING')[:50]}..., F={p.get('FeasibilityReason', 'MISSING')[:50]}..., I={p.get('ImpactReason', 'MISSING')[:50]}..."
+                )
+
+    _bulk_update_scores(payloads)
+
+    updated_all = _list_stored_ideas()
+
+    client_return = []
+    for i in updated_all:
+        item = {
+            "id": i.get("id"),
+            "title": format_name_for_display(i.get("Name") or i.get("Title")),
+            "content": format_idea_content(i),
+            "originalData": i,
+        }
+
+        if i.get("scores"):
+            item["scores"] = i.get("scores")
+            item["dimension1Score"] = i.get("Dimension1Score")
+            item["dimension2Score"] = i.get("Dimension2Score")
+            item["dimension3Score"] = i.get("Dimension3Score")
+            item["Dimension1Reason"] = i.get("Dimension1Reason", "")
+            item["Dimension2Reason"] = i.get("Dimension2Reason", "")
+            item["Dimension3Reason"] = i.get("Dimension3Reason", "")
+
+        item["noveltyScore"] = i.get("NoveltyScore")
+        item["feasibilityScore"] = i.get("FeasibilityScore")
+        item["impactScore"] = i.get("ImpactScore")
+        item["NoveltyReason"] = i.get("NoveltyReason", "")
+        item["FeasibilityReason"] = i.get("FeasibilityReason", "")
+        item["ImpactReason"] = i.get("ImpactReason", "")
+
+        client_return.append(item)
+
+    custom_ideas_in_return = [
+        item
+        for item in client_return
+        if item["id"] and ("-CUSTOM-" in item["id"] or item["id"].startswith("C-"))
+    ]
+    if custom_ideas_in_return:
+        print("[DEBUG] Custom ideas in client return:")
+        for item in custom_ideas_in_return:
+            print(f"  - ID: {item['id']}")
+            print(f"    NoveltyReason: {item.get('NoveltyReason', 'MISSING')[:50]}...")
+            print(
+                f"    FeasibilityReason: {item.get('FeasibilityReason', 'MISSING')[:50]}..."
+            )
+            print(f"    ImpactReason: {item.get('ImpactReason', 'MISSING')[:50]}...")
+
+    meta = {
+        "mode": mode,
+        "scoredCount": len(payloads),
+        "totalIdeas": len(updated_all),
+        "targets": list(target_ids_local),
+    }
+    return jsonify({"ideas": client_return, "meta": meta})
 
 
 def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
