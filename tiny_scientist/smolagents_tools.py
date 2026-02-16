@@ -5,14 +5,12 @@ This module contains all tools migrated from MCP/FastMCP to smolagents Tool form
 
 from __future__ import annotations
 
-import abc
 import ast
 import json
 import os
 import os.path as osp
 import re
 import shutil
-import sys
 import tempfile
 import time
 from importlib import resources
@@ -159,7 +157,9 @@ class PaperSearchTool(Tool):
                 if result:
                     return result
                 elif not self.disable_fallback:
-                    print("[INFO] Semantic Scholar returned no results, trying arXiv...")
+                    print(
+                        "[INFO] Semantic Scholar returned no results, trying arXiv..."
+                    )
             except Exception as e:
                 if not self.disable_fallback:
                     print(f"[WARNING] Semantic Scholar failed: {e}, trying arXiv...")
@@ -180,7 +180,9 @@ class PaperSearchTool(Tool):
                 if result:
                     return result
                 elif not self.disable_fallback:
-                    print("[WARNING] OpenAlex returned no results, trying Semantic Scholar...")
+                    print(
+                        "[WARNING] OpenAlex returned no results, trying Semantic Scholar..."
+                    )
             except Exception as e:
                 if not self.disable_fallback:
                     print(f"[WARNING] OpenAlex failed: {e}, trying Semantic Scholar...")
@@ -353,9 +355,7 @@ class PaperSearchTool(Tool):
         import xml.etree.ElementTree as ET
 
         search_query = urllib.parse.quote(paper_title)
-        arxiv_api_url = (
-            f"http://export.arxiv.org/api/query?search_query=ti:{search_query}&max_results=1"
-        )
+        arxiv_api_url = f"http://export.arxiv.org/api/query?search_query=ti:{search_query}&max_results=1"
 
         response = requests.get(arxiv_api_url, timeout=10)
         if response.status_code != 200:
@@ -574,7 +574,7 @@ class CodeSearchTool(Tool):
 
     @staticmethod
     def _extract_github_code_info(
-        code_results: List[Dict[str, Any]]
+        code_results: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         return [
             {
@@ -695,6 +695,7 @@ class DrawerTool(Tool):
         return self._extract_diagram(llm_response)
 
     def _extract_diagram(self, response: str) -> Dict[str, Any]:
+        """Extract SVG diagram from LLM response (works for all models)."""
         result: Dict[str, Any] = {"summary": "", "svg": "", "full_response": response}
 
         try:
@@ -788,9 +789,25 @@ class DockerExperimentRunner:
         }
 
         stdlib_modules = {
-            "os", "sys", "json", "time", "datetime", "random", "math",
-            "collections", "itertools", "functools", "pathlib", "argparse",
-            "subprocess", "tempfile", "shutil", "glob", "re", "typing", "abc",
+            "os",
+            "sys",
+            "json",
+            "time",
+            "datetime",
+            "random",
+            "math",
+            "collections",
+            "itertools",
+            "functools",
+            "pathlib",
+            "argparse",
+            "subprocess",
+            "tempfile",
+            "shutil",
+            "glob",
+            "re",
+            "typing",
+            "abc",
         }
 
         try:
@@ -1047,7 +1064,9 @@ class RunExperimentTool(Tool):
     """Run the experiment in Docker or locally."""
 
     name = "run_experiment"
-    description = "Run the experiment.py script in Docker or locally and return the result."
+    description = (
+        "Run the experiment.py script in Docker or locally and return the result."
+    )
     inputs = {
         "run_num": {
             "type": "integer",

@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, Match
+from typing import Any, Dict, Match, Optional
 
 import requests
 from rich import print
@@ -25,6 +25,7 @@ class BaseOutputFormatter(abc.ABC):
         output_pdf_path: str,
         name: str,
         timeout: int = 30,
+        diagrams: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> None:
         pass
 
@@ -293,8 +294,10 @@ class BaseOutputFormatter(abc.ABC):
 
         return content
 
-    def _assemble_body(self, contents: Dict[str, str]) -> str:
-        """Enhanced body assembly with better text flow"""
+    def _assemble_body(
+        self, contents: Dict[str, str], diagrams: Dict[str, Dict[str, str]]
+    ) -> str:
+        """Enhanced body assembly with diagram support"""
         section_order = [
             "Abstract",
             "Introduction",
@@ -323,16 +326,11 @@ class BaseOutputFormatter(abc.ABC):
             content = contents.get(section, "")
 
             if content:
-                # Clean the content
                 cleaned_content = self._clean_latex_content(content)
-
-                # Wrap tables
                 cleaned_content = self._wrap_tables_in_latex(cleaned_content)
 
-                # Add section title if needed
                 section_title = section_titles[section]
                 if section_title is not None:
-                    # Check if section title is already present
                     starts_with_section = re.match(
                         rf"\\section\{{{re.escape(section_title)}\}}",
                         cleaned_content,
@@ -343,21 +341,36 @@ class BaseOutputFormatter(abc.ABC):
                             f"\\section{{{section_title}}}\n\n{cleaned_content}"
                         )
 
+                diagram_latex = self._generate_diagram_latex(
+                    section, diagrams.get(section, {})
+                )
+                if diagram_latex:
+                    cleaned_content += f"\n\n{diagram_latex}"
+
                 body_parts.append(cleaned_content)
 
-        # Join all parts with proper spacing
         body = "\n\n".join(body_parts)
-
-        # Apply table width adjustments
         body = self._adjust_table_width_in_latex(body)
-
-        # Add bibliography
         body += "\n\n\\bibliography{custom}"
-
-        # Final cleanup
         body = self._final_cleanup(body)
 
         return body
+
+    def _generate_diagram_latex(self, section: str, diagram: Dict[str, str]) -> str:
+        if not diagram or "svg" not in diagram:
+            return ""
+
+        svg_content = diagram["svg"]
+        summary = diagram.get("summary", f"Diagram for {section}")
+
+        return f"""\\begin{{figure}}[h]
+\\centering
+\\resizebox{{\\columnwidth}}{{!}}{{%
+{svg_content}
+}}
+\\caption{{{summary}}}
+\\label{{fig:{section.lower()}}}
+\\end{{figure}}"""
 
     def _final_cleanup(self, content: str) -> str:
         content = re.sub(r"\n\s*\n\s*\n+", "\n\n", content)
@@ -549,8 +562,10 @@ class ACLOutputFormatter(BaseOutputFormatter):
         output_pdf_path: str,
         name: str,
         timeout: int = 30,
+        diagrams: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> None:
-        body_content = self._assemble_body(content)
+        diagrams = diagrams or {}
+        body_content = self._assemble_body(content, diagrams)
         body_content = self._clean_body_content(body_content)
         dest_template_dir = TemplateDownloader.download_acl_template(output_dir)
 
@@ -831,8 +846,10 @@ class ICLROutputFormatter(BaseOutputFormatter):
         output_pdf_path: str,
         name: str,
         timeout: int = 30,
+        diagrams: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> None:
-        body_content = self._assemble_body(content)
+        diagrams = diagrams or {}
+        body_content = self._assemble_body(content, diagrams)
         body_content = self._clean_body_content(body_content)
         dest_template_dir = TemplateDownloader.download_iclr_template(output_dir)
 

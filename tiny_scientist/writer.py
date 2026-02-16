@@ -78,6 +78,7 @@ class Writer:
         cost_tracker: Optional[BudgetChecker] = None,
         s2_api_key: Optional[str] = None,
         num_refinement_rounds: int = 2,
+        drawer_model: Optional[str] = None,
     ) -> None:
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
@@ -93,7 +94,13 @@ class Writer:
             s2_api_key=s2_api_key,
             engine="semanticscholar",
         )
-        self.drawer: DrawerTool = DrawerTool(model, prompt_template_dir, temperature)
+        drawer_model_to_use = drawer_model or model
+        self.drawer: DrawerTool = DrawerTool(
+            drawer_model_to_use,
+            prompt_template_dir,
+            temperature,
+            output_dir=output_dir,
+        )
 
         # Prompts & config (load first)
         self.config = Config(prompt_template_dir)
@@ -120,6 +127,7 @@ class Writer:
         # Runtime state
         self.generated_sections: Dict[str, str] = {}
         self.references: Dict[str, Any] = {}
+        self.diagrams: Dict[str, Dict[str, str]] = {}
 
     # ---- Public API ---------------------------------------------------------
 
@@ -160,6 +168,7 @@ class Writer:
         self.formatter.run(
             content=self.generated_sections,
             references=self.references,
+            diagrams=self.diagrams,
             output_dir=self.output_dir,
             output_pdf_path=output_pdf_path,
             name=self.generated_sections.get("Title", "Research Paper"),
@@ -229,6 +238,35 @@ class Writer:
                 self.generated_sections[section] = enriched
         except Exception as e:
             print(f"[warn] Citation enrichment failed in {section}: {e}")
+            traceback.print_exc()
+
+        # Generate diagram if applicable (non-fatal)
+        self._generate_diagram_for_section(section, content)
+
+    def _generate_diagram_for_section(self, section: str, content: str) -> None:
+        DIAGRAM_SECTIONS = ["Introduction", "Method", "Experimental_Setup", "Results"]
+
+        if section not in DIAGRAM_SECTIONS:
+            return
+
+        try:
+            print(f"[diagram] Generating diagram for {section}...")
+            query = json.dumps(
+                {
+                    "section_name": section,
+                    "section_content": content,
+                }
+            )
+
+            diagram_result = self.drawer.forward(query)
+
+            if diagram_result and "diagram" in diagram_result:
+                self.diagrams[section] = diagram_result["diagram"]
+                print(f"[diagram] Successfully generated diagram for {section}")
+            else:
+                print(f"[warn] No diagram generated for {section}")
+        except Exception as e:
+            print(f"[warn] Diagram generation failed for {section}: {e}")
             traceback.print_exc()
 
     # ---- Refinement & citations --------------------------------------------

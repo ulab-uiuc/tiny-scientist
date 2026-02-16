@@ -52,9 +52,12 @@ AVAILABLE_LLMS = [
     "deepseek-chat",
     "deepseek-coder",
     "deepseek-reasoner",
-    # Google Gemini models
+    # Google Gemini models (text)
     "gemini-1.5-flash",
     "gemini-1.5-pro",
+    # Google Gemini Image models (Nano Banana)
+    "gemini-2.5-flash-image",
+    "gemini-3-pro-image-preview",
     # Together AI models - Meta Llama models
     "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
     "meta-llama/Llama-4-Scout-17B-16E-Instruct",
@@ -818,6 +821,25 @@ def create_client(
         client = Together(api_key=api_key)
         client.together = True  # Add this attribute to identify Together client
 
+        return client, model
+
+    elif "gemini" in model:
+        # Google Gemini client (text and image models)
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            raise ImportError(
+                "To use Gemini models, you need to install the 'google-generativeai' package: pip install google-generativeai"
+            )
+
+        api_key = os.environ.get("GOOGLE_API_KEY", llm_api_key)
+        if not api_key:
+            raise ValueError(
+                f"Missing Google API key to use {model}. Set GOOGLE_API_KEY or llm_api_key in config.toml."
+            )
+
+        genai.configure(api_key=api_key)
+        client = genai.GenerativeModel(model)
         return client, model
 
     else:

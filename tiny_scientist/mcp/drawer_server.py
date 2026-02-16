@@ -79,7 +79,9 @@ class DrawerTool(BaseTool):
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
-    def run(self, query: str) -> Dict[str, Dict[str, str]]:
+    def run(
+        self, query: str, result_limit: Optional[int] = None
+    ) -> Dict[str, Dict[str, str]]:
         try:
             query_dict = json.loads(query)
             section_name = query_dict.get("section_name")
@@ -151,6 +153,7 @@ class DrawerTool(BaseTool):
         return diagram, msg_history
 
     def _extract_diagram(self, response: str) -> Dict[str, Any]:
+        """Extract SVG diagram from LLM response (works for all models)."""
         result = {"summary": "", "svg": "", "full_response": response}
 
         try:
