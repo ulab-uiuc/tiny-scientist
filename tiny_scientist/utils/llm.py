@@ -122,6 +122,7 @@ def get_batch_responses_from_llm(
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-5.2",
+        "gpt-5.2-2025-12-11",
         "gpt-5.2-pro",
         "gpt-5.2-codex",
         # GPT-4.1 family (non-reasoning)
@@ -130,18 +131,39 @@ def get_batch_responses_from_llm(
         "gpt-4.1-nano",
     ]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
+
+        # Prepare completion parameters with model-specific constraints
+        completion_params = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": system_message},
                 *new_msg_history,
             ],
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            stop=None,
-            seed=0,
-        )
+            "n": n_responses,
+            "stop": None,
+        }
+
+        # Apply model-specific parameter constraints
+        if "gpt-5.2" in model:
+            # GPT-5.2 variants use max_completion_tokens instead of max_tokens
+            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
+            completion_params["temperature"] = temperature
+            completion_params["seed"] = 0
+        elif model == "gpt-5-mini":
+            # gpt-5-mini only supports temperature=1
+            completion_params["temperature"] = 1.0
+            completion_params["max_tokens"] = MAX_NUM_TOKENS
+            completion_params["seed"] = 0
+        elif model == "gpt-5":
+            # Base gpt-5 does not support temperature or max_tokens
+            pass
+        else:
+            # Standard GPT models (gpt-5-pro, gpt-5-nano, gpt-4.1 family)
+            completion_params["temperature"] = temperature
+            completion_params["max_tokens"] = MAX_NUM_TOKENS
+            completion_params["seed"] = 0
+
+        response = client.chat.completions.create(**completion_params)
         content = [r.message.content for r in response.choices]
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
@@ -295,6 +317,7 @@ def get_response_from_llm(
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-5.2",
+        "gpt-5.2-2025-12-11",
         "gpt-5.2-pro",
         "gpt-5.2-codex",
         # GPT-4.1 family (non-reasoning)
@@ -303,18 +326,39 @@ def get_response_from_llm(
         "gpt-4.1-nano",
     ]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
+
+        # Prepare completion parameters with model-specific constraints
+        completion_params = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": system_message},
                 *new_msg_history,
             ],
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=1,
-            stop=None,
-            seed=0,
-        )
+            "n": 1,
+            "stop": None,
+        }
+
+        # Apply model-specific parameter constraints
+        if "gpt-5.2" in model:
+            # GPT-5.2 variants use max_completion_tokens instead of max_tokens
+            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
+            completion_params["temperature"] = temperature
+            completion_params["seed"] = 0
+        elif model == "gpt-5-mini":
+            # gpt-5-mini only supports temperature=1
+            completion_params["temperature"] = 1.0
+            completion_params["max_tokens"] = MAX_NUM_TOKENS
+            completion_params["seed"] = 0
+        elif model == "gpt-5":
+            # Base gpt-5 does not support temperature or max_tokens
+            pass
+        else:
+            # Standard GPT models (gpt-5-pro, gpt-5-nano, gpt-4.1 family)
+            completion_params["temperature"] = temperature
+            completion_params["max_tokens"] = MAX_NUM_TOKENS
+            completion_params["seed"] = 0
+
+        response = client.chat.completions.create(**completion_params)
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
         if hasattr(response, "usage"):
