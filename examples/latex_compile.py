@@ -2,8 +2,8 @@ from tiny_scientist.utils.llm import create_client
 from tiny_scientist.utils.output_formatter import ACLOutputFormatter
 from tiny_scientist.utils.water_marker import WaterMarker
 
-client = create_client(model="gpt-4o")
-formatter = ACLOutputFormatter(model="gpt-4o", client=client)
+client = create_client(model="gpt-5-mini")
+formatter = ACLOutputFormatter(model="gpt-5-mini", client=client)
 watermarker = WaterMarker()
 formatter._compile_latex(
     cwd="../latex", output_pdf_path="../latex/output.pdf", timeout=1000

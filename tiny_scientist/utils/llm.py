@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import anthropic
 import backoff
+import google.generativeai as genai
 import openai
 import toml
 import yaml
@@ -24,40 +25,61 @@ else:
 MAX_NUM_TOKENS = 4096
 
 AVAILABLE_LLMS = [
-    # Anthropic models
-    "claude-3-5-sonnet-20240620",
-    "claude-3-5-sonnet-20241022",
-    # OpenAI models
-    "gpt-4o-mini-2024-07-18",
-    "gpt-4o-2024-05-13",
-    "gpt-4o-2024-08-06",
-    "o1-preview-2024-09-12",
-    "o1-mini-2024-09-12",
-    "o1-2024-12-17",
+    # Anthropic models - Latest (Claude 4.6 and 4.5 series)
+    "claude-sonnet-4-5",
+    "claude-sonnet-4-5-20250929",
+    "claude-opus-4-6",
+    "claude-opus-4-6-20260205",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    # Anthropic models - Claude 4 series
+    "claude-opus-4",
+    "claude-sonnet-4",
+    # OpenAI models - GPT-5 family (latest flagship)
+    "gpt-5",
+    "gpt-5-pro",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5.2",
+    "gpt-5.2-2025-12-11",
+    "gpt-5.2-pro",
+    "gpt-5.2-codex",
+    # OpenAI models - GPT-4.1 family (non-reasoning)
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    # OpenAI models - O-series (deep research/reasoning)
+    "o3",
+    "o4-mini-deep-research",
     # OpenRouter models
     "llama3.1-405b",
-    # Anthropic Claude models via Amazon Bedrock
+    # Anthropic Claude models via Amazon Bedrock (Claude 3.x legacy, EOL March 1, 2026)
     "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
     "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
     "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
     "bedrock/anthropic.claude-3-haiku-20240307-v1:0",
     "bedrock/anthropic.claude-3-opus-20240229-v1:0",
-    # Anthropic Claude models Vertex AI
+    # Anthropic Claude models Vertex AI (Claude 3.x legacy, Haiku 3.5 EOL July 5, 2026)
     "vertex_ai/claude-3-opus@20240229",
     "vertex_ai/claude-3-5-sonnet@20240620",
     "vertex_ai/claude-3-5-sonnet-v2@20241022",
     "vertex_ai/claude-3-sonnet@20240229",
     "vertex_ai/claude-3-haiku@20240307",
-    # DeepSeek models
+    # DeepSeek models (V3.2 as of Dec 2025)
     "deepseek-chat",
-    "deepseek-coder",
     "deepseek-reasoner",
-    # Google Gemini models
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    # Google Gemini models - Gemini 3 series (latest flagship, released Nov-Dec 2025)
+    "gemini-3-pro",
+    "gemini-3-flash",
+    # Google Gemini models - Gemini 2.5 series (stable production)
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    # Google Gemini models - Gemini 2.0 series
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-thinking-exp-01-21",
+    "gemini-2.0-flash-exp",
     # Together AI models - Meta Llama models
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-    "meta-llama/Llama-4-Scout-17B-16E-Instruct",
     "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
     "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
     "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
@@ -66,7 +88,6 @@ AVAILABLE_LLMS = [
     # Together AI models - Qwen models
     "Qwen/Qwen2.5-7B-Instruct-Turbo",
     "Qwen/Qwen2.5-72B-Instruct-Turbo",
-    "Qwen/Qwen3-235B-A22B-fp8-tput",
     # Together AI models - DeepSeek models
     "deepseek-ai/DeepSeek-V3",
     # Together AI models - Mistral models
@@ -95,9 +116,18 @@ def get_batch_responses_from_llm(
     output_tokens = 0
     response = None
     if model in [
-        "gpt-4o-2024-05-13",
-        "gpt-4o-mini-2024-07-18",
-        "gpt-4o-2024-08-06",
+        # GPT-5 family (standard chat models)
+        "gpt-5",
+        "gpt-5-pro",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-5.2",
+        "gpt-5.2-pro",
+        "gpt-5.2-codex",
+        # GPT-4.1 family (non-reasoning)
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
     ]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -259,11 +289,18 @@ def get_response_from_llm(
             input_tokens = getattr(response.usage, "input_tokens", 0)
             output_tokens = getattr(response.usage, "output_tokens", 0)
     elif model in [
-        "gpt-4o-mini",
-        "gpt-4o-2024-05-13",
-        "gpt-4o-mini-2024-07-18",
-        "gpt-4o-2024-08-06",
-        "gpt-4o",
+        # GPT-5 family (standard chat models)
+        "gpt-5",
+        "gpt-5-pro",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-5.2",
+        "gpt-5.2-pro",
+        "gpt-5.2-codex",
+        # GPT-4.1 family (non-reasoning)
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
     ]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
@@ -283,7 +320,11 @@ def get_response_from_llm(
         if hasattr(response, "usage"):
             input_tokens = getattr(response.usage, "prompt_tokens", 0)
             output_tokens = getattr(response.usage, "completion_tokens", 0)
-    elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
+    elif model in [
+        # O3/O4 series (latest reasoning models)
+        "o3",
+        "o4-mini-deep-research",
+    ]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -319,7 +360,7 @@ def get_response_from_llm(
         if hasattr(response, "usage"):
             input_tokens = getattr(response.usage, "prompt_tokens", 0)
             output_tokens = getattr(response.usage, "completion_tokens", 0)
-    elif model in ["deepseek-chat", "deepseek-coder"]:
+    elif model in ["deepseek-chat"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -749,7 +790,7 @@ def create_client(
         client = anthropic.AnthropicVertex()
         return client, model.split("/")[-1]
 
-    elif "gpt" in model or model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
+    elif "gpt" in model or "o1" in model or "o3" in model or "o4" in model:
         api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
         if not api_key:
             raise ValueError(
@@ -794,6 +835,16 @@ def create_client(
             )
         base_url = os.environ.get("OPENAI_API_BASE", "http://localhost/v1")
         client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        return client, model
+
+    elif "gemini" in model:
+        api_key = os.environ.get("GOOGLE_API_KEY", llm_api_key)
+        if not api_key:
+            raise ValueError(
+                f"Missing Google API key to use {model}. Set GOOGLE_API_KEY or llm_api_key in config.toml."
+            )
+        genai.configure(api_key=api_key)
+        client = genai.GenerativeModel(model)
         return client, model
 
     elif any(

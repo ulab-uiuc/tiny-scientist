@@ -3,32 +3,39 @@ import math
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 MODEL_PRICING = {
-    # OpenAI models
-    "gpt-3.5-turbo": (0.5, 1.5),
-    "gpt-4o-mini": (0.15, 0.6),
-    "gpt-4o": (2.5, 10),
-    "o1-preview": (15, 60),
-    "o1-mini": (1.1, 4.4),
-    "o1": (15, 60),
+    # OpenAI models - GPT-5 family
+    "gpt-5": (1.25, 10.0),
+    "gpt-5-pro": (21.0, 168.0),
+    "gpt-5-mini": (0.25, 2.0),
+    "gpt-5-nano": (0.03, 0.12),
+    "gpt-5.2": (1.75, 14.0),
+    "gpt-5.2-pro": (21.0, 168.0),
+    "gpt-5.2-codex": (1.75, 14.0),
+    # OpenAI models - GPT-4.1 family
+    "gpt-4.1": (1.25, 10.0),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1-nano": (0.05, 0.20),
+    # OpenAI models - O-series
+    "o3": (10.0, 40.0),
+    "o4-mini-deep-research": (2.0, 8.0),
     # OpenRouter models
     "llama3.1-405b": (3.5, 3.5),
-    # Anthropic models
-    "claude-3-sonnet-v1": (0.8, 4),
-    "claude-3-sonnet": (3, 15),
-    "claude-3-5-sonnet-v2": (3, 15),
-    "claude-3-5-sonnet": (3, 15),
-    "claude-3-5-sonnet-20240620": (3, 15),
-    "claude-3-5-sonnet-20241022": (3, 15),
-    "claude-3-haiku-v1": (0.25, 1.25),
-    "claude-3-haiku": (0.25, 1.25),
-    "claude-3-opus-v1": (15, 75),
-    "claude-3-opus": (15, 75),
+    # Anthropic models - Claude 4.6 and 4.5 series
+    "claude-opus-4-6": (5.0, 25.0),
+    "claude-opus-4-5": (5.0, 25.0),
+    "claude-sonnet-4-5": (3.0, 15.0),
+    "claude-haiku-4-5": (1.0, 5.0),
+    "claude-opus-4": (15.0, 75.0),
+    "claude-sonnet-4": (3.0, 15.0),
     # DeepSeek models
-    "deepseek-chat": (0.07, 0.27),
-    "deepseek-reasoner": (0.14, 0.55),
-    # Google Gemini models
-    "gemini-1.5-flash": (0.01875, 0.075),
-    "gemini-1.5-pro": (0.3125, 1.25),
+    "deepseek-chat": (0.28, 0.42),
+    "deepseek-reasoner": (0.28, 0.42),
+    # Google Gemini models - Gemini 2.5 series
+    "gemini-2.5-pro": (1.25, 5.0),
+    "gemini-2.5-flash": (0.25, 1.0),
+    "gemini-2.5-flash-lite": (0.1, 0.4),
+    # Google Gemini models - Gemini 2.0 series
+    "gemini-2.0-flash": (0.2, 0.8),
 }
 
 

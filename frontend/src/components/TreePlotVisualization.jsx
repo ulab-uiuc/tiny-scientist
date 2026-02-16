@@ -465,7 +465,7 @@ const TreePlotVisualization = () => {
     }
   }, [nodes]);
   // *** 新增：用于主界面模型选择和api-key输入
-  const [selectedModel, setSelectedModel] = useState('gpt-4o');
+  const [selectedModel, setSelectedModel] = useState('gpt-5-mini');
   const [apiKey, setApiKey] = useState('');
   const [isConfigured, setIsConfigured] = useState(false);
   const [configError, setConfigError] = useState('');
@@ -1244,13 +1244,28 @@ const TreePlotVisualization = () => {
   const modelOptions = [
     { value: 'gpt-5.2', label: 'GPT-5.2' },
     { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
+    { value: 'gpt-5.2-codex', label: 'GPT-5.2 Codex' },
+    { value: 'gpt-5', label: 'GPT-5' },
+    { value: 'gpt-5-pro', label: 'GPT-5 Pro' },
     { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
+    { value: 'gpt-4.1', label: 'GPT-4.1' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+    { value: 'o3', label: 'O3' },
+    { value: 'o4-mini-deep-research', label: 'O4 Mini Deep Research' },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+    { value: 'claude-opus-4', label: 'Claude Opus 4' },
+    { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
     { value: 'deepseek-chat', label: 'DeepSeek Chat' },
     { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-    { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
-    { value: 'gemini-3-flash', label: 'Gemini 3 Flash' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
   ];
   useEffect(() => {
     const fetchPrompts = async () => {
@@ -1462,7 +1477,7 @@ const TreePlotVisualization = () => {
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',
                   body: JSON.stringify({
-                    model: 'gpt-5.2',
+                    model: 'gpt-5-mini',
                   }),
                 });
 
@@ -1472,10 +1487,10 @@ const TreePlotVisualization = () => {
                   setCurrentView('exploration');
                 } else {
                   const errorData = await response.json();
-                  setConfigError(errorData.error || 'Failed to configure GPT-5.2');
+                  setConfigError(errorData.error || 'Failed to configure GPT-5 Mini');
                 }
               } catch (err) {
-                setConfigError('Network error while configuring GPT-5.2');
+                setConfigError('Network error while configuring GPT-5 Mini');
               }
             }}
             style={{
@@ -1491,10 +1506,10 @@ const TreePlotVisualization = () => {
               marginTop: '12px',
             }}
           >
-            Quick Setup: GPT-5.2 with Our Key
+            Quick Setup: GPT-5 Mini with Our Key
           </button>
 
-          {/* GPT-5.2 Quick Configuration Button
+          {/* GPT-5 Mini Quick Configuration Button
           <button
             onClick={async () => {
               try {
@@ -1503,7 +1518,7 @@ const TreePlotVisualization = () => {
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',
                   body: JSON.stringify({
-                    model: 'gpt-5.2',
+                    model: 'gpt-5-mini',
                   }),
                 });
 

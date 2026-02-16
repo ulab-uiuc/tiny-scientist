@@ -218,11 +218,15 @@ def configure() -> Union[Response, tuple[Response, int]]:
 
     # Map models to their environment variables
     env_var_map = {
+        "gpt-5.2": "OPENAI_API_KEY",
+        "gpt-5.2-pro": "OPENAI_API_KEY",
+        "gpt-5-mini": "OPENAI_API_KEY",
+        "claude-opus-4-6": "ANTHROPIC_API_KEY",
+        "claude-sonnet-4-5": "ANTHROPIC_API_KEY",
         "deepseek-chat": "DEEPSEEK_API_KEY",
         "deepseek-reasoner": "DEEPSEEK_API_KEY",
-        "gpt-4o": "OPENAI_API_KEY",
-        "gpt-o1": "OPENAI_API_KEY",
-        "claude-3-5-sonnet-20241022": "ANTHROPIC_API_KEY",
+        "gemini-3-pro": "GOOGLE_API_KEY",
+        "gemini-3-flash": "GOOGLE_API_KEY",
     }
 
     # Set the appropriate environment variable
