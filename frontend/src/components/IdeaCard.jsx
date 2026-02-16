@@ -61,23 +61,14 @@ const IdeaCard = ({
   onSwapDimension = null, // 交换维度方向
   onEditDimension = null, // 编辑维度名称 (pairIndex, anchorRect) => void
 }) => {
-  // TODO: Score editing functionality for dynamic dimensions - currently unused
-  // const [pendingScoreChanges, setPendingScoreChanges] = useState({});
-  // Keeping these for future implementation of dimension pair score editing
-  // const [editingScore, setEditingScore] = useState(null);
-  // const [tempScoreValue, setTempScoreValue] = useState('');
-  // const buttonRefs = useRef({});
-  // const scoreContainerRef = useRef({});
-  // const handleModifyScoreClick = (dimensionPairKey, currentScore, event) => { ... }
-  // const handleScoreConfirm = () => { ... }
-  // const handleScoreCancel = () => { ... }
+  const [expandedSections, setExpandedSections] = useState({});
 
-  // Clear pending score changes when modal is closed (if needed in future)
-  // useEffect(() => {
-  //   if (!pendingChanges) {
-  //     setPendingScoreChanges({});
-  //   }
-  // }, [pendingChanges]);
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
 
   // Handle root node differently
   if (node.type === 'root') {
@@ -710,6 +701,364 @@ const IdeaCard = ({
         </div>
       )}
 
+      {/* Collapsible Detail Sections */}
+      {displayNode?.originalData && (
+        <div style={{ marginTop: '15px', borderTop: '1px solid #e5e7eb', paddingTop: '15px' }}>
+          {/* Approach Section */}
+          {displayNode.originalData.Approach && (
+            <div style={{ marginBottom: '10px' }}>
+              <button
+                onClick={() => toggleSection('approach')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#374151',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+              >
+                <span>🔬 Approach</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{
+                    transform: expandedSections.approach ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </button>
+              {expandedSections.approach && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  color: '#4B5563',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {displayNode.originalData.Approach}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Experiment Section */}
+          {displayNode.originalData.Experiment && (
+            <div style={{ marginBottom: '10px' }}>
+              <button
+                onClick={() => toggleSection('experiment')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#374151',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+              >
+                <span>🧪 Experiment</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{
+                    transform: expandedSections.experiment ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </button>
+              {expandedSections.experiment && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  color: '#4B5563'
+                }}>
+                  {typeof displayNode.originalData.Experiment === 'object' ? (
+                    <div>
+                      {displayNode.originalData.Experiment.Model && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong>Model:</strong> {displayNode.originalData.Experiment.Model}
+                        </div>
+                      )}
+                      {displayNode.originalData.Experiment.Dataset && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong>Dataset:</strong>{' '}
+                          {typeof displayNode.originalData.Experiment.Dataset === 'object'
+                            ? JSON.stringify(displayNode.originalData.Experiment.Dataset, null, 2)
+                            : displayNode.originalData.Experiment.Dataset}
+                        </div>
+                      )}
+                      {displayNode.originalData.Experiment.Metric && (
+                        <div>
+                          <strong>Metric:</strong> {displayNode.originalData.Experiment.Metric}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ whiteSpace: 'pre-wrap' }}>
+                      {displayNode.originalData.Experiment}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Importance Section */}
+          {displayNode.originalData.Importance && (
+            <div style={{ marginBottom: '10px' }}>
+              <button
+                onClick={() => toggleSection('importance')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#374151',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+              >
+                <span>⭐ Importance</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{
+                    transform: expandedSections.importance ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </button>
+              {expandedSections.importance && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  color: '#4B5563',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {displayNode.originalData.Importance}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Difficulty Section */}
+          {displayNode.originalData.Difficulty && (
+            <div style={{ marginBottom: '10px' }}>
+              <button
+                onClick={() => toggleSection('difficulty')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#374151',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+              >
+                <span>⚠️ Difficulty</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{
+                    transform: expandedSections.difficulty ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </button>
+              {expandedSections.difficulty && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  color: '#4B5563',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {displayNode.originalData.Difficulty}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* NoveltyComparison Section */}
+          {displayNode.originalData.NoveltyComparison && (
+            <div style={{ marginBottom: '10px' }}>
+              <button
+                onClick={() => toggleSection('noveltyComparison')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#374151',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+              >
+                <span>🆕 Novelty Comparison</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{
+                    transform: expandedSections.noveltyComparison ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </button>
+              {expandedSections.noveltyComparison && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  color: '#4B5563',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {displayNode.originalData.NoveltyComparison}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Description Section */}
+          {displayNode.originalData.Description && (
+            <div style={{ marginBottom: '10px' }}>
+              <button
+                onClick={() => toggleSection('description')}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#374151',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+              >
+                <span>📝 Description</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{
+                    transform: expandedSections.description ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s'
+                  }}
+                >
+                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </button>
+              {expandedSections.description && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  color: '#4B5563',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {displayNode.originalData.Description}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
