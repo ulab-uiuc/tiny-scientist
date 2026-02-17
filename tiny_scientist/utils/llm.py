@@ -150,9 +150,9 @@ def get_batch_responses_from_llm(
             completion_params["temperature"] = temperature
             completion_params["seed"] = 0
         elif model == "gpt-5-mini":
-            # gpt-5-mini only supports temperature=1
+            # gpt-5-mini only supports temperature=1 and max_completion_tokens
             completion_params["temperature"] = 1.0
-            completion_params["max_tokens"] = MAX_NUM_TOKENS
+            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
             completion_params["seed"] = 0
         elif model == "gpt-5":
             # Base gpt-5 does not support temperature or max_tokens
@@ -345,9 +345,9 @@ def get_response_from_llm(
             completion_params["temperature"] = temperature
             completion_params["seed"] = 0
         elif model == "gpt-5-mini":
-            # gpt-5-mini only supports temperature=1
+            # gpt-5-mini only supports temperature=1 and max_completion_tokens
             completion_params["temperature"] = 1.0
-            completion_params["max_tokens"] = MAX_NUM_TOKENS
+            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
             completion_params["seed"] = 0
         elif model == "gpt-5":
             # Base gpt-5 does not support temperature or max_tokens

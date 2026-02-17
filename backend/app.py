@@ -144,6 +144,45 @@ global_cost_tracker: Optional[BudgetChecker] = None
 
 global_idea_storage: Dict[str, Any] = {}
 
+# Hierarchical ID counters
+# root_counter: next number for root-level ideas (1, 2, 3, ...)
+# child_counters: {parent_id: next_child_number}
+# modify_counters: {parent_id: next_X_number}
+_root_counter: int = 0
+_child_counters: Dict[str, int] = {}
+_modify_counters: Dict[str, int] = {}
+
+
+def _next_root_id() -> str:
+    global _root_counter
+    _root_counter += 1
+    return str(_root_counter)
+
+
+def _next_child_id(parent_id: str) -> str:
+    if parent_id not in _child_counters:
+        _child_counters[parent_id] = 0
+    _child_counters[parent_id] += 1
+    return f"{parent_id}-{_child_counters[parent_id]}"
+
+
+def _next_modify_id(parent_id: str) -> str:
+    if parent_id not in _modify_counters:
+        _modify_counters[parent_id] = 0
+    _modify_counters[parent_id] += 1
+    return f"{parent_id}-X{_modify_counters[parent_id]}"
+
+
+def _merge_id(id_a: str, id_b: str) -> str:
+    return f"{id_a}-Y-{id_b}-Y"
+
+
+def _reset_id_counters() -> None:
+    global _root_counter, _child_counters, _modify_counters
+    _root_counter = 0
+    _child_counters = {}
+    _modify_counters = {}
+
 
 def _store_or_update_idea(idea: Dict[str, Any]) -> None:
     iid = idea.get("id")
@@ -292,31 +331,28 @@ def configure() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/generate-initial", methods=["POST"])
 def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
-    emit_buffered_logs()  # Emit any buffered logs from module initialization
+    emit_buffered_logs()
     data = request.json
     if data is None:
         return jsonify({"error": "No JSON data provided"}), 400
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
     intent = data.get("intent")
-    num_ideas = data.get("num_ideas", 3)
 
-    # Generate ideas
-    ideas = thinker.run(intent=intent, num_ideas=num_ideas)
+    idea = thinker.run(intent=intent, num_ideas=1)
 
-    # Return in the format expected by TreePlot
+    if not idea or not isinstance(idea, dict):
+        return jsonify({"error": "Failed to generate idea"}), 500
+
+    new_id = _next_root_id()
     response = {
         "ideas": [
             {
-                "title": format_name_for_display(
-                    idea.get("Name") if isinstance(idea, dict) else None
-                ),
-                "content": (
-                    format_idea_content(idea) if isinstance(idea, dict) else str(idea)
-                ),
-                "originalData": idea,  # Preserve complete thinker JSON for coder/writer
+                "id": new_id,
+                "title": format_name_for_display(idea.get("Name")),
+                "content": format_idea_content(idea),
+                "originalData": idea,
             }
-            for idea in ideas
         ]
     }
 
@@ -408,25 +444,25 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
     if thinker is None:
         return jsonify({"error": "Thinker not configured"}), 400
     parent_content = data.get("parent_content")
+    parent_id = data.get("parent_id", "root")
     context = data.get("context", "")
 
-    # Combine parent content and context as the intent
     combined_intent = f"{parent_content}\nAdditional Context: {context}"
-    ideas = thinker.run(intent=combined_intent, num_ideas=3)
+    idea = thinker.run(intent=combined_intent, num_ideas=1)
 
-    # Return in the format expected by TreePlot
+    if not idea or not isinstance(idea, dict):
+        return jsonify({"error": "Failed to generate idea"}), 500
+
+    child_id = _next_child_id(parent_id)
+
     response = {
         "ideas": [
             {
-                "title": format_name_for_display(
-                    idea.get("Name") if isinstance(idea, dict) else None
-                ),
-                "content": (
-                    format_idea_content(idea) if isinstance(idea, dict) else str(idea)
-                ),
-                "originalData": idea,  # Preserve complete thinker JSON for coder/writer
+                "id": child_id,
+                "title": format_name_for_display(idea.get("Name")),
+                "content": format_idea_content(idea),
+                "originalData": idea,
             }
-            for idea in ideas
         ]
     }
 
@@ -509,6 +545,7 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
     original_idea = data.get("original_idea")
     modifications = data.get("modifications")
     behind_idea = data.get("behind_idea")
+    original_id = data.get("original_id", "")
 
     # Use original data directly (no conversion needed)
     thinker_original = original_idea
@@ -526,8 +563,13 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
         modifications=thinker_mods,
         behind_idea=thinker_behind,
     )
+
+    # Generate hierarchical ID for the modified idea
+    modified_id = _next_modify_id(original_id) if original_id else str(uuid.uuid4())
+
     # Return in the format expected by TreePlot
     response = {
+        "id": modified_id,
         "title": format_name_for_display(modified_idea.get("Name")),
         "content": format_idea_content(modified_idea),
         "originalData": modified_idea,  # Preserve complete thinker JSON for coder/writer
@@ -545,14 +587,23 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
         return jsonify({"error": "Thinker not configured"}), 400
     idea_a = data.get("idea_a")
     idea_b = data.get("idea_b")
+    idea_a_id = data.get("idea_a_id", "")
+    idea_b_id = data.get("idea_b_id", "")
     # Use original data directly (no conversion needed)
     thinker_idea_a = idea_a
     thinker_idea_b = idea_b
     # Merge ideas
     merged_idea = thinker.merge_ideas(idea_a=thinker_idea_a, idea_b=thinker_idea_b)
 
+    # Generate hierarchical merged ID
+    if idea_a_id and idea_b_id:
+        merged_id = _merge_id(idea_a_id, idea_b_id)
+    else:
+        merged_id = str(uuid.uuid4())
+
     # Return in the format expected by TreePlot
     response = {
+        "id": merged_id,
         "title": format_name_for_display(
             merged_idea.get("Name") if isinstance(merged_idea, dict) else None
         ),
@@ -893,7 +944,7 @@ def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
     novelty = idea.get("NoveltyComparison", "")
 
     content_sections = [
-        f"**Description:**\n{description}",
+        f"**Problem:**\n{description}",
         f"**Impact:**\n{importance}",
         f"**Feasibility:**\n{difficulty}",
         f"**Novelty:**\n{novelty}",
@@ -1230,6 +1281,16 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
 
         traceback.print_exc()
         return jsonify({"error": str(e), "success": False}), 500
+
+
+@app.route("/api/clear-session", methods=["POST"])
+def clear_session() -> Union[Response, tuple[Response, int]]:
+    """Clear session state and reset ID counters for a fresh start."""
+    global global_idea_storage
+    global_idea_storage = {}
+    _reset_id_counters()
+    session.clear()
+    return jsonify({"status": "cleared"})
 
 
 if __name__ == "__main__":

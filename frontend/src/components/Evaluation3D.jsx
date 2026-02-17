@@ -12,7 +12,7 @@ const LABEL_COLOR = '#374151';
 const GRID_COLOR = '#e5e7eb';
 const CROSSHAIR_COLOR = '#9ca3af';
 
-// Keep node coloring consistent with Exploration view
+// Keep node coloring consistent with Tree View
 const getNodeColor = (node, colorMap) => {
   if (!node) return '#FF6B6B';
   if (node.isMergedResult) return '#B22222';

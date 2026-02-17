@@ -5,6 +5,61 @@ import './IdeaCard.css';
 
 const escapeRegExp = (str = '') => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Render a Markdown table string as an HTML table
+const MarkdownTable = ({ src }) => {
+  if (!src || typeof src !== 'string') return null;
+  const lines = src.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) return <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem' }}>{src}</pre>;
+
+  const parseRow = (line) =>
+    line.split('|').map(c => c.trim()).filter((_, i, arr) => i !== 0 && i !== arr.length - 1);
+
+  const headers = parseRow(lines[0]);
+  // lines[1] is the separator row (---|---)
+  const dataRows = lines.slice(2).map(parseRow);
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '0.85rem',
+        lineHeight: 1.4,
+      }}>
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th key={i} style={{
+                padding: '6px 10px',
+                backgroundColor: '#F3F4F6',
+                border: '1px solid #E5E7EB',
+                textAlign: 'left',
+                fontWeight: 600,
+                color: '#374151',
+                whiteSpace: 'nowrap',
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {dataRows.map((row, ri) => (
+            <tr key={ri} style={{ backgroundColor: ri % 2 === 0 ? '#fff' : '#F9FAFB' }}>
+              {row.map((cell, ci) => (
+                <td key={ci} style={{
+                  padding: '6px 10px',
+                  border: '1px solid #E5E7EB',
+                  color: '#4B5563',
+                  verticalAlign: 'top',
+                }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const renderWithHighlights = (text, highlights, onClickHighlight) => {
   if (!text || !highlights || highlights.length === 0) return text;
   const sanitized = highlights
@@ -430,10 +485,29 @@ const IdeaCard = ({
         </button>
       )}
 
-      {/* 标题 */}
-      <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-        {displayNode?.title || node.title || 'Untitled'}
-      </h2>
+      {/* 标题 + ID Badge */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '0.5rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, flex: 1 }}>
+          {displayNode?.title || node.title || 'Untitled'}
+        </h2>
+        {node.id && node.id !== 'root' && (
+          <span style={{
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            color: '#6B7280',
+            backgroundColor: '#F3F4F6',
+            border: '1px solid #E5E7EB',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            marginTop: '4px',
+            fontFamily: 'monospace'
+          }}>
+            #{node.id}
+          </span>
+        )}
+      </div>
 
       {/* 问题部分 - 直接显示在标题下方，添加下横线 */}
       {problemSection && problemSection.content ? (
@@ -760,7 +834,7 @@ const IdeaCard = ({
           )}
 
           {/* Experiment Section */}
-          {displayNode.originalData.Experiment && (
+          {(displayNode.originalData.Experiment || displayNode.originalData.ExperimentTable) && (
             <div style={{ marginBottom: '10px' }}>
               <button
                 onClick={() => toggleSection('experiment')}
@@ -782,7 +856,7 @@ const IdeaCard = ({
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
               >
-                <span>🧪 Experiment</span>
+                <span>🧪 Experiment Plan</span>
                 <svg
                   width="16"
                   height="16"
@@ -807,7 +881,10 @@ const IdeaCard = ({
                   lineHeight: 1.6,
                   color: '#4B5563'
                 }}>
-                  {typeof displayNode.originalData.Experiment === 'object' ? (
+                  {/* Prefer the Markdown table if available */}
+                  {displayNode.originalData.ExperimentTable ? (
+                    <MarkdownTable src={displayNode.originalData.ExperimentTable} />
+                  ) : typeof displayNode.originalData.Experiment === 'object' ? (
                     <div>
                       {displayNode.originalData.Experiment.Model && (
                         <div style={{ marginBottom: '8px' }}>
@@ -1003,60 +1080,6 @@ const IdeaCard = ({
             </div>
           )}
 
-          {/* Description Section */}
-          {displayNode.originalData.Description && (
-            <div style={{ marginBottom: '10px' }}>
-              <button
-                onClick={() => toggleSection('description')}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 12px',
-                  backgroundColor: '#f9fafb',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  color: '#374151',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-              >
-                <span>📝 Description</span>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  style={{
-                    transform: expandedSections.description ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s'
-                  }}
-                >
-                  <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
-                </svg>
-              </button>
-              {expandedSections.description && (
-                <div style={{
-                  marginTop: '8px',
-                  padding: '12px',
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '0.9rem',
-                  lineHeight: 1.6,
-                  color: '#4B5563',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {displayNode.originalData.Description}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 

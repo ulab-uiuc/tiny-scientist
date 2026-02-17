@@ -555,7 +555,7 @@ const TreePlotVisualization = () => {
     return normalized;
   };
 
-  // Unified node color helper to keep Exploration/Evaluation views consistent
+  // Unified node color helper to keep Exploration/Cube Views consistent
   const getNodeColor = (node) => {
     if (!node) return '#FF6B6B';
     if (node.isMergedResult) return '#B22222';
@@ -983,7 +983,7 @@ const TreePlotVisualization = () => {
     };
   }, [fragmentMenuState, hideFragmentMenu]);
 
-  // Backend now issues hierarchical IDs; simple merge helper kept for legacy fallback
+  // Fallback merge ID (matches backend _merge_id logic)
   const createMergeId = (nodeAId, nodeBId) => `${nodeAId}-Y-${nodeBId}-Y`;
 
   // Helper function to extract comprehensive node information for tracking
@@ -2300,7 +2300,7 @@ const TreePlotVisualization = () => {
         credentials: 'include',
         body: JSON.stringify({
           intent: analysisIntent,
-          num_ideas: 3,
+          num_ideas: 1,
           dimension_pairs: dimensionPairs // 传递维度对
         }),
       });
@@ -2328,45 +2328,66 @@ const TreePlotVisualization = () => {
       const updatedIdeasList = [...ideasList, ...ideasWithId];
       setIdeasList(updatedIdeasList);
 
-      // Root node
-      const rootNode = {
-        id: 'root',
-        level: 0,
-        title: analysisIntent,
-        content: analysisIntent,
-        type: 'root',
-        x: 0,
-        y: 0,
-      };
+      // Determine if tree already exists (root already set up)
+      const treeAlreadyExists = nodes.some(n => n.id === 'root');
 
-      // Child nodes
-      const childSpacing = 200;
-      const totalWidth = (ideas.length - 1) * childSpacing;
-      const startX = rootNode.x - totalWidth / 2;
+      if (!treeAlreadyExists) {
+        // First idea: create root node + first child
+        const rootNode = {
+          id: 'root',
+          level: 0,
+          title: analysisIntent,
+          content: analysisIntent,
+          type: 'root',
+          x: 0,
+          y: 0,
+        };
 
-      const childNodes = ideasWithId.map((hyp, i) => ({
-        id: hyp.id,
-        level: 1,
-        title: hyp.title.trim(),
-        content: hyp.content.trim(),
-        type: 'complex',
-        x: startX + i * childSpacing,
-        y: rootNode.y + 150,
-        originalData: hyp.originalData,
-        problemHighlights: hyp.problemHighlights || hyp.originalData?.problem_highlights || []
-      }));
+        const childNodes = ideasWithId.map((hyp, i) => ({
+          id: hyp.id,
+          level: 1,
+          title: hyp.title.trim(),
+          content: hyp.content.trim(),
+          type: 'complex',
+          x: i * 200,
+          y: 150,
+          originalData: hyp.originalData,
+          problemHighlights: hyp.problemHighlights || hyp.originalData?.problem_highlights || []
+        }));
 
-      const newNodes = [rootNode, ...childNodes];
-      const newLinks = childNodes.map((nd) => ({ source: rootNode.id, target: nd.id }));
-      setNodes(newNodes);
-      setLinks(newLinks);
+        setNodes([rootNode, ...childNodes]);
+        setLinks(childNodes.map((nd) => ({ source: 'root', target: nd.id })));
+      } else {
+        // Subsequent ideas: add new child nodes connected to root
+        const existingRootX = nodes.find(n => n.id === 'root')?.x ?? 0;
+        const existingLevel1 = nodes.filter(n => n.level === 1);
+        const nextX = existingLevel1.length > 0
+          ? Math.max(...existingLevel1.map(n => n.x || 0)) + 200
+          : existingRootX;
 
-      // Track initial tree creation will happen after evaluation
+        const newChildNodes = ideasWithId.map((hyp, i) => ({
+          id: hyp.id,
+          level: 1,
+          title: hyp.title.trim(),
+          content: hyp.content.trim(),
+          type: 'complex',
+          x: nextX + i * 200,
+          y: 150,
+          originalData: hyp.originalData,
+          problemHighlights: hyp.problemHighlights || hyp.originalData?.problem_highlights || []
+        }));
+
+        setNodes(prev => [...prev, ...newChildNodes]);
+        setLinks(prev => [
+          ...prev,
+          ...newChildNodes.map(nd => ({ source: 'root', target: nd.id }))
+        ]);
+      }
 
       setIsAnalysisSubmitted(true);
 
-      // Full evaluation after initial generation to ensure scores populate
-      await evaluateIdeas(updatedIdeasList, { mode: 'full', allowAutoCenter: true, dimensionPairs });
+      // Incremental evaluation: only score the new idea
+      await evaluateIdeas(updatedIdeasList, { mode: 'incremental', allowAutoCenter: true, dimensionPairs });
       setIsGenerating(false);
       setOperationStatus('');
     } catch (err) {
@@ -2434,7 +2455,11 @@ const TreePlotVisualization = () => {
       }));
 
       const newLinks = newNodes.map((nd) => ({ source: selectedNode.id, target: nd.id }));
-      setNodes((prev) => [...prev, ...newNodes]);
+      setNodes((prev) => {
+        const existingIds = new Set(prev.map(n => n.id));
+        const uniqueNewNodes = newNodes.filter(n => !existingIds.has(n.id));
+        return [...prev, ...uniqueNewNodes];
+      });
       setLinks((prev) => [...prev, ...newLinks]);
 
       // Track child nodes generation will happen after evaluation
@@ -2486,6 +2511,7 @@ const TreePlotVisualization = () => {
             title: originalNode.title,
             content: originalNode.content
           },
+          original_id: originalNode.id,
           modifications,
           behind_idea: behindNode ? (behindNode.originalData || {
             id: behindNode.id,
@@ -2732,7 +2758,9 @@ const TreePlotVisualization = () => {
             id: nodeB.id,
             title: nodeB.title,
             content: nodeB.content
-          }
+          },
+          idea_a_id: nodeA.id,
+          idea_b_id: nodeB.id
         }),
       });
 
@@ -2877,7 +2905,9 @@ const TreePlotVisualization = () => {
               id: secondNode.id,
               title: secondNode.title,
               content: secondNode.content
-            }
+            },
+            idea_a_id: firstNode.id,
+            idea_b_id: secondNode.id
           }),
         });
 
@@ -2896,7 +2926,7 @@ const TreePlotVisualization = () => {
         }
 
         // Create merged node with AI-generated content
-        const mergedNodeId = createMergeId(firstNode.id, secondNode.id);
+        const mergedNodeId = data.id || createMergeId(firstNode.id, secondNode.id);
         const mergedOriginalData = normalizeIdeaOriginalData(
           data.originalData,
           {
@@ -3209,7 +3239,9 @@ const TreePlotVisualization = () => {
               return aIsModified ? 1 : -1;
             }
 
-            return a.id.localeCompare(b.id);
+            const aId = a.id || '';
+            const bId = b.id || '';
+            return aId.localeCompare(bId);
           }
 
           return aParentX - bParentX;
@@ -6303,13 +6335,13 @@ const TreePlotVisualization = () => {
 
   const hasActivePanel = Boolean(
     pendingChange ||
-      pendingMerge ||
-      mergeMode.showDialog ||
-      fragmentMenuState ||
-      showDimensionPanel ||
-      editingDimensionIndex !== null ||
-      isEditingSystemPrompt ||
-      editingCriteria !== null
+    pendingMerge ||
+    mergeMode.showDialog ||
+    fragmentMenuState ||
+    showDimensionPanel ||
+    editingDimensionIndex !== null ||
+    isEditingSystemPrompt ||
+    editingCriteria !== null
   );
 
   useEffect(() => {

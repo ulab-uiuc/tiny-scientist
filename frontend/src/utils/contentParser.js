@@ -1,5 +1,5 @@
 const SECTION_DEFINITIONS = [
-  { title: 'Problem', regex: /\*\*Problem:\*\*|Problem:|Problem\s*\*\*/ },
+  { title: 'Problem', regex: /\*\*Problem:\*\*|Problem:|Problem\s*\*\*|\*\*Description:\*\*|Description:/ },
   { title: 'Approach', regex: /\*\*Approach:\*\*|Approach:|Approach\s*\*\*/ },
   { title: 'Experiment', regex: /\*\*Experiment:\*\*|Experiment:|Experiment\s*\*\*/ },
   { title: 'Impact', regex: /\*\*Impact:\*\*|Impact:|Impact\s*\*\*/ },
