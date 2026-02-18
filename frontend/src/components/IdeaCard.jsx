@@ -1,43 +1,24 @@
 import React, { useState } from 'react';
-import userActionTracker from '../utils/userActionTracker';
 import { extractContentSections } from '../utils/contentParser';
 import './IdeaCard.css';
 
 const escapeRegExp = (str = '') => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Render a Markdown table string as an HTML table
-const MarkdownTable = ({ src }) => {
+const ExperimentTable = ({ src }) => {
   if (!src || typeof src !== 'string') return null;
   const lines = src.trim().split('\n').filter(l => l.trim());
   if (lines.length < 2) return <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem' }}>{src}</pre>;
-
   const parseRow = (line) =>
     line.split('|').map(c => c.trim()).filter((_, i, arr) => i !== 0 && i !== arr.length - 1);
-
   const headers = parseRow(lines[0]);
-  // lines[1] is the separator row (---|---)
   const dataRows = lines.slice(2).map(parseRow);
-
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: '0.85rem',
-        lineHeight: 1.4,
-      }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', lineHeight: 1.4 }}>
         <thead>
           <tr>
             {headers.map((h, i) => (
-              <th key={i} style={{
-                padding: '6px 10px',
-                backgroundColor: '#F3F4F6',
-                border: '1px solid #E5E7EB',
-                textAlign: 'left',
-                fontWeight: 600,
-                color: '#374151',
-                whiteSpace: 'nowrap',
-              }}>{h}</th>
+              <th key={i} style={{ padding: '6px 10px', backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', textAlign: 'left', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -45,12 +26,7 @@ const MarkdownTable = ({ src }) => {
           {dataRows.map((row, ri) => (
             <tr key={ri} style={{ backgroundColor: ri % 2 === 0 ? '#fff' : '#F9FAFB' }}>
               {row.map((cell, ci) => (
-                <td key={ci} style={{
-                  padding: '6px 10px',
-                  border: '1px solid #E5E7EB',
-                  color: '#4B5563',
-                  verticalAlign: 'top',
-                }}>{cell}</td>
+                <td key={ci} style={{ padding: '6px 10px', border: '1px solid #E5E7EB', color: '#4B5563', verticalAlign: 'top' }}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -116,7 +92,7 @@ const IdeaCard = ({
   onSwapDimension = null, // 交换维度方向
   onEditDimension = null, // 编辑维度名称 (pairIndex, anchorRect) => void
 }) => {
-  const [expandedSections, setExpandedSections] = useState({});
+  const [expandedSections, setExpandedSections] = useState({ experiment: false });
 
   const toggleSection = (sectionName) => {
     setExpandedSections(prev => ({
@@ -456,12 +432,6 @@ const IdeaCard = ({
       {(hasPrevious || hasNext) && (
         <button
           onClick={() => {
-            userActionTracker.trackAction('toggle_before_after', 'idea_card', {
-              currentState: showAfter ? 'after' : 'before',
-              newState: showAfter ? 'before' : 'after',
-              nodeId: node.id,
-              nodeTitle: node.title
-            });
             setShowAfter((prev) => !prev);
           }}
           style={{
@@ -881,9 +851,8 @@ const IdeaCard = ({
                   lineHeight: 1.6,
                   color: '#4B5563'
                 }}>
-                  {/* Prefer the Markdown table if available */}
                   {displayNode.originalData.ExperimentTable ? (
-                    <MarkdownTable src={displayNode.originalData.ExperimentTable} />
+                    <ExperimentTable src={displayNode.originalData.ExperimentTable} />
                   ) : typeof displayNode.originalData.Experiment === 'object' ? (
                     <div>
                       {displayNode.originalData.Experiment.Model && (

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import userActionTracker from '../utils/userActionTracker';
 import './DimensionSelectorPanel.css';
 
 /**
@@ -70,14 +69,6 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
         setCustomDimensions(prev => {
             const existingSlot = findPairSlotForSuggestion(pair, prev);
             if (existingSlot) {
-                userActionTracker.trackAction('dimension_toggle', 'dimension_selector', {
-                    action: 'remove',
-                    slot: existingSlot,
-                    dimensionA: pair.dimensionA,
-                    dimensionB: pair.dimensionB,
-                    descriptionA: pair.descriptionA || '',
-                    descriptionB: pair.descriptionB || ''
-                }, { physicalKind: 'semantic' });
                 return {
                     ...prev,
                     [existingSlot]: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' }
@@ -86,15 +77,6 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
 
             const emptySlot = findFirstEmptyPairSlot(prev);
             if (!emptySlot) return prev;
-
-            userActionTracker.trackAction('dimension_toggle', 'dimension_selector', {
-                action: 'add',
-                slot: emptySlot,
-                dimensionA: pair.dimensionA,
-                dimensionB: pair.dimensionB,
-                descriptionA: pair.descriptionA || '',
-                descriptionB: pair.descriptionB || ''
-            }, { physicalKind: 'semantic' });
 
             return {
                 ...prev,
@@ -154,11 +136,6 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
                 descriptionB: pair3.descriptionB
             }
         ];
-
-        userActionTracker.trackAction('dimension_submit', 'dimension_selector', {
-            intent,
-            selectedPairs
-        }, { physicalKind: 'semantic' });
 
         onConfirm(selectedPairs);
 

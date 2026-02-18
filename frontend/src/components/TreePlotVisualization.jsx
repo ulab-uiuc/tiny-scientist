@@ -4,15 +4,11 @@ import * as d3 from 'd3';
 
 import TopNav from './TopNav';
 import IdeaCard from './IdeaCard';
-import UserActionTrackingPanel from './UserActionTrackingPanel';
 import DimensionSelector from './DimensionSelector';
 import DimensionSelectorPanel from './DimensionSelectorPanel';
 import DimensionEditDropdown from './DimensionEditDropdown';
 import Evaluation3D from './Evaluation3D';
-import userActionTracker from '../utils/userActionTracker';
-import plotStatusTracker from '../utils/plotStatusTracker';
 import { buildNodeContent } from '../utils/contentParser';
-import { useUserActionTracking, useFormTracking, useNavigationTracking } from './useUserActionTracking';
 
 
 // Helper components defined outside the main component to preserve state
@@ -42,21 +38,6 @@ const ContextAndGenerateCard = ({
   const customFormRef = useRef(null);
 
   // Track user interactions (disable hover to avoid conflicts with D3 node tracking)
-  useUserActionTracking(generateButtonRef, 'generate_ideas_button', {
-    trackHover: false,
-    additionalDetails: { hasSelectedNode: !!selectedNode }
-  });
-  useUserActionTracking(newEditButtonRef, 'edit_system_prompt_button', {
-    trackHover: false
-  });
-  useUserActionTracking(addCustomButtonRef, 'add_custom_idea_button', {
-    trackHover: false
-  });
-  useUserActionTracking(contextInputRef, 'context_input_field', {
-    trackHover: false,
-    trackFocus: true
-  });
-  useFormTracking(customFormRef, 'custom_idea_form');
 
   return (
     <div
@@ -377,6 +358,38 @@ const Dashboard = ({
         onSwapDimension={onSwapDimension}
         onEditDimension={onEditDimension}
       />
+
+      {/* Proceed button — only for real idea nodes */}
+      {node.type !== 'root' && node.type !== 'fragment' && handleProceedWithSelectedIdea && (
+        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+          <button
+            onClick={() => handleProceedWithSelectedIdea(node)}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              backgroundColor: '#0F172A',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0F172A'}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Proceed with this Idea
+          </button>
+        </div>
+      )}
+
       {showTree ? (
         <ContextAndGenerateCard
           isAddingCustom={isAddingCustom}
@@ -520,6 +533,18 @@ const TreePlotVisualization = () => {
 
   // Toggle for hiding plot view
   const [hideEvaluationView, setHideEvaluationView] = useState(false);
+
+  // ============== Workflow state (Code → Write → Review) ==============
+  const [workflowIdea, setWorkflowIdea] = useState(null); // node being processed
+  const [workflowStep, setWorkflowStep] = useState(null); // 'coding'|'code_done'|'code_error'|'writing'|'paper_done'|'paper_error'|'reviewing'|'review_done'|'review_error'
+  const [workflowError, setWorkflowError] = useState(null);
+  const [codeResult, setCodeResult] = useState(null);
+  const [codeFiles, setCodeFiles] = useState([]); // [{name, path}] list of files in experiment_dir
+  const [selectedCodeFile, setSelectedCodeFile] = useState(null); // {name, path, content}
+  const [showWriterPrompt, setShowWriterPrompt] = useState(false);
+  const [paperResult, setPaperResult] = useState(null);
+  const [reviewResult, setReviewResult] = useState(null);
+  const [s2ApiKey, setS2ApiKey] = useState('');
 
   // Helper function to create modifications array from score change
   const createModificationFromScoreChange = (nodeId, metric, previousScore, newScore) => {
@@ -676,7 +701,6 @@ const TreePlotVisualization = () => {
         return updatedNode;
       });
 
-      plotStatusTracker.trackNodesUpdate(updatedNodes, 'accept_modify_eval');
       return updatedNodes;
     });
 
@@ -728,7 +752,7 @@ const TreePlotVisualization = () => {
     // 清理拖动视觉状态
     setDragVisualState(null);
     setPendingChange(null);
-  }, [plotStatusTracker, setIdeasList, setLinks, setPendingChange, setNodes, setUserScoreCorrections]);
+  }, [setIdeasList, setLinks, setPendingChange, setNodes, setUserScoreCorrections]);
 
   // Clear drag visual state when newly generated node becomes visible (isGhost: false)
   // Use ref to track if we've already cleared for a specific node to avoid repeated clears
@@ -770,14 +794,6 @@ const TreePlotVisualization = () => {
   }, [nodes, dragVisualState]);
 
   // Initialize tracking hooks
-  useNavigationTracking();
-  useFormTracking(analysisFormRef, 'analysis_intent_form');
-  useUserActionTracking(explorationContainerRef, 'visualization_svg', {
-    trackHover: false, // Disable hover tracking on the container
-    trackClick: false, // Disable click tracking on the container
-    trackScroll: false, // Disable scroll tracking to avoid interference
-    trackDrag: false
-  });
 
   // Track view changes
   const previousViewRef = useRef(currentView); // Initialize with current view
@@ -792,9 +808,6 @@ const TreePlotVisualization = () => {
 
     // Only track actual view changes (not initial render)
     if (previousViewRef.current !== currentView) {
-      userActionTracker.trackAction('view_change', currentView, {
-        previousView: previousViewRef.current
-      });
       previousViewRef.current = currentView;
     }
   }, [currentView]);
@@ -913,13 +926,6 @@ const TreePlotVisualization = () => {
 
     setFragmentNodes(prev => [...prev, fragmentNode]);
 
-    userActionTracker.trackAction('create_fragment', 'fragment_node', {
-      fragmentId,
-      parentNodeId,
-      textLength: selectedText.length,
-      text: cleanText,
-      title: fragmentNode.title
-    });
   }, [fragmentNodes]);
 
   /**
@@ -939,9 +945,6 @@ const TreePlotVisualization = () => {
   const deleteFragmentNode = useCallback((fragmentId) => {
     setFragmentNodes(prev => prev.filter(fn => fn.id !== fragmentId));
 
-    userActionTracker.trackAction('delete_fragment', 'fragment_node', {
-      fragmentId
-    });
   }, []);
 
   // Clear user drag targets when axis metrics change
@@ -1090,8 +1093,7 @@ const TreePlotVisualization = () => {
         makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 2, false),
         makeFace(selectedDimensionPairs[0], selectedDimensionPairs[1], 3, true),
         makeFace(selectedDimensionPairs[1], selectedDimensionPairs[2], 4, true),
-        makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 5, true),
-      ];
+        makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 5, true)];
 
       const idx = ((faceIndexOverride % faces.length) + faces.length) % faces.length;
       return faces[idx];
@@ -1265,8 +1267,7 @@ const TreePlotVisualization = () => {
     { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
     { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  ];
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }];
   useEffect(() => {
     const fetchPrompts = async () => {
       if (isConfigured) {
@@ -1714,9 +1715,6 @@ const TreePlotVisualization = () => {
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexShrink: 0 }}>
             <button
               onClick={() => {
-                userActionTracker.trackAction('prompt_edit_reset', title.toLowerCase().replace(/\s+/g, '_'), {
-                  promptType: title.toLowerCase().replace(/\s+/g, '_')
-                });
                 setCurrentValue('');
               }}
               style={{
@@ -1733,9 +1731,6 @@ const TreePlotVisualization = () => {
             </button>
             <button
               onClick={() => {
-                userActionTracker.trackAction('prompt_edit_cancel', title.toLowerCase().replace(/\s+/g, '_'), {
-                  promptType: title.toLowerCase().replace(/\s+/g, '_')
-                });
                 onClose();
               }}
               style={{
@@ -2158,7 +2153,6 @@ const TreePlotVisualization = () => {
         }
 
         // Track evaluation updates
-        plotStatusTracker.trackNodesUpdate(updatedNodes, 'evaluation_complete');
 
         // Auto-center after evaluation completion (only if user hasn't manually adjusted scale and auto-centering is allowed)
         if (!userHasInteractedWithScale && allowAutoCenter) {
@@ -2265,10 +2259,6 @@ const TreePlotVisualization = () => {
     e.preventDefault();
     if (!analysisIntent.trim()) return;
 
-    userActionTracker.trackAction('submit_analysis_intent', 'analysis_intent', {
-      intentLength: analysisIntent.length,
-      intent: analysisIntent
-    });
 
     if (!isConfigured) {
       setError('Please configure the model first');
@@ -3000,12 +2990,6 @@ const TreePlotVisualization = () => {
         setLinks(prevLinks => [...prevLinks, ...newLinks]);
 
         // Track the merge action
-        userActionTracker.trackAction('merge_nodes', 'node_merge', {
-          firstNode: getNodeTrackingInfo(firstNode),
-          secondNode: getNodeTrackingInfo(secondNode),
-          mergedNode: { id: mergedNode.id, title: mergedNode.title },
-          currentView: currentView
-        });
 
         // Select the new merged node
         setSelectedNode(mergedNode);
@@ -3059,11 +3043,6 @@ const TreePlotVisualization = () => {
   const handleMergeCancel = useCallback(() => {
     // Track the cancel action
     if (mergeMode.firstNode && mergeMode.secondNode) {
-      userActionTracker.trackAction('cancel_merge', 'node_merge', {
-        firstNode: getNodeTrackingInfo(mergeMode.firstNode),
-        secondNode: getNodeTrackingInfo(mergeMode.secondNode),
-        currentView: currentView
-      });
     }
 
     // Reset merge mode
@@ -3299,10 +3278,6 @@ const TreePlotVisualization = () => {
             // Prevent duplicate tracking by checking if this exact same hover was just tracked
             if (!d._lastHoverTime || Date.now() - d._lastHoverTime > 100) {
               d._lastHoverTime = Date.now();
-              userActionTracker.trackAction('hover_start', 'node', {
-                ...getNodeTrackingInfo(d),
-                currentView: currentView
-              });
             }
           }
           // UI functionality
@@ -3314,10 +3289,6 @@ const TreePlotVisualization = () => {
         .on('mouseleave.tree-tracking', function (event, d) {
           // Don't track hover if any node is being dragged, events are suppressed after drag, or in merge mode
           if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag && !mergeMode.active) {
-            userActionTracker.trackAction('hover_end', 'node', {
-              ...getNodeTrackingInfo(d),
-              currentView: currentView
-            });
           }
           // UI functionality
           setHoveredNode(null);
@@ -3340,10 +3311,6 @@ const TreePlotVisualization = () => {
 
             // Delay single click tracking to distinguish from double click
             d._singleClickTimeout = setTimeout(() => {
-              userActionTracker.trackAction('click', 'node', {
-                ...getNodeTrackingInfo(d),
-                currentView: currentView
-              });
               d._singleClickTimeout = null;
             }, 300); // 300ms delay to detect double clicks
           }
@@ -3369,10 +3336,6 @@ const TreePlotVisualization = () => {
               showDialog: false
             });
 
-            userActionTracker.trackAction('double_click', 'node_merge_start', {
-              ...getNodeTrackingInfo(d),
-              currentView: currentView
-            });
           } else if (mergeMode.firstNode && mergeMode.firstNode.id !== d.id) {
             // Second node selected - complete merge selection
             setMergeMode(prev => ({
@@ -3381,11 +3344,6 @@ const TreePlotVisualization = () => {
               showDialog: true
             }));
 
-            userActionTracker.trackAction('double_click', 'node_merge_complete', {
-              firstNode: getNodeTrackingInfo(mergeMode.firstNode),
-              secondNode: getNodeTrackingInfo(d),
-              currentView: currentView
-            });
           } else if (mergeMode.firstNode && mergeMode.firstNode.id === d.id) {
             // Same node double-clicked - cancel merge mode
             setMergeMode({
@@ -3396,10 +3354,6 @@ const TreePlotVisualization = () => {
               showDialog: false
             });
 
-            userActionTracker.trackAction('double_click', 'node_merge_cancel', {
-              ...getNodeTrackingInfo(d),
-              currentView: currentView
-            });
           }
         });
 
@@ -3488,9 +3442,6 @@ const TreePlotVisualization = () => {
         .style('stroke', '#d1d5db')
         .style('cursor', 'pointer')
         .on('click', () => {
-          userActionTracker.trackAction('click', 'zoom_in_button', {
-            currentView: currentView
-          });
           svg.transition().call(zoom.scaleBy, 1.1);
         });
 
@@ -3514,9 +3465,6 @@ const TreePlotVisualization = () => {
         .style('stroke', '#d1d5db')
         .style('cursor', 'pointer')
         .on('click', () => {
-          userActionTracker.trackAction('click', 'zoom_out_button', {
-            currentView: currentView
-          });
           svg.transition().call(zoom.scaleBy, 0.9);
         });
 
@@ -3540,9 +3488,6 @@ const TreePlotVisualization = () => {
         .style('stroke', '#d1d5db')
         .style('cursor', 'pointer')
         .on('click', () => {
-          userActionTracker.trackAction('click', 'zoom_reset_button', {
-            currentView: currentView
-          });
           svg.transition().call(zoom.transform, initialTransform);
           zoomTransformRef.current = initialTransform;
         });
@@ -4010,10 +3955,6 @@ const TreePlotVisualization = () => {
         .style('cursor', upCursor)
         .on('click', () => {
           if (!upDisabled) {
-            userActionTracker.trackAction('click', 'scale_up_button', {
-              currentView: currentView,
-              currentScale: unifiedScale
-            });
             // Mark that user has interacted with scale
             setUserHasInteractedWithScale(true);
             // Smart zoom: re-center to nodes while scaling up
@@ -4046,10 +3987,6 @@ const TreePlotVisualization = () => {
         .style('cursor', downCursor)
         .on('click', () => {
           if (!downDisabled) {
-            userActionTracker.trackAction('click', 'scale_down_button', {
-              currentView: currentView,
-              currentScale: unifiedScale
-            });
             // Mark that user has interacted with scale
             setUserHasInteractedWithScale(true);
             // Smart zoom: re-center to nodes while scaling down
@@ -4082,10 +4019,6 @@ const TreePlotVisualization = () => {
         .style('cursor', restoreCursor)
         .on('click', () => {
           if (!restoreDisabled) {
-            userActionTracker.trackAction('click', 'scale_restore_button', {
-              currentView: currentView,
-              currentScale: unifiedScale
-            });
             // True restore: reset to initial state (full 0-100 view)
             setUnifiedScale(1.0);
             setXScalingCenter(50);
@@ -4269,10 +4202,6 @@ const TreePlotVisualization = () => {
             // Prevent duplicate tracking by checking if this exact same hover was just tracked
             if (!d._lastHoverTime || Date.now() - d._lastHoverTime > 100) {
               d._lastHoverTime = Date.now();
-              userActionTracker.trackAction('hover_start', 'node', {
-                ...getNodeTrackingInfo(d),
-                currentView: currentView
-              });
             }
           }
           // UI functionality
@@ -4284,10 +4213,6 @@ const TreePlotVisualization = () => {
         .on('mouseleave.scatter-tracking', function (e, d) {
           // Don't track hover if any node is being dragged or events are suppressed after drag
           if (!d._dragStarted && !nodes.some(n => n._dragStarted) && !d._suppressEventsAfterDrag) {
-            userActionTracker.trackAction('hover_end', 'node', {
-              ...getNodeTrackingInfo(d),
-              currentView: currentView
-            });
           }
           // UI functionality
           setHoveredNode(null);
@@ -4311,10 +4236,6 @@ const TreePlotVisualization = () => {
 
             // Delay single click tracking to distinguish from double click
             d._singleClickTimeout = setTimeout(() => {
-              userActionTracker.trackAction('click', 'node', {
-                ...getNodeTrackingInfo(d),
-                currentView: currentView
-              });
               d._singleClickTimeout = null;
             }, 300); // 300ms delay to detect double clicks
           }
@@ -4369,19 +4290,6 @@ const TreePlotVisualization = () => {
                 const endXValue = xView.invert(endX);
                 const endYValue = yView.invert(endY);
 
-                userActionTracker.trackAction('drag', 'node', {
-                  nodeId: d.id,
-                  nodeTitle: d.title,
-                  nodeType: d.type,
-                  startValues: d._dragStartValues,
-                  endValues: {
-                    x: endXValue,
-                    y: endYValue,
-                    xAxisMetric: xAxisMetric,
-                    yAxisMetric: yAxisMetric
-                  },
-                  currentView: currentView
-                });
 
                 // Record user drag target for visualization (with safety checks)
                 if (d.id && !isNaN(endXValue) && !isNaN(endYValue) && xAxisMetric && yAxisMetric) {
@@ -4519,7 +4427,6 @@ const TreePlotVisualization = () => {
                 setNodes((prev) => [...prev, ghost]);
 
                 // Track ghost node creation
-                plotStatusTracker.trackNodesUpdate([...nodes, ghost], 'create_ghost_node');
                 setLinks((prev) => [...prev, { source: d.id, target: ghost.id }]);
                 setPendingChange({
                   originalNode: d,
@@ -4535,10 +4442,6 @@ const TreePlotVisualization = () => {
               d._justClicked = true;
               setTimeout(() => { d._justClicked = false; }, 200);
 
-              userActionTracker.trackAction('click', 'node', {
-                ...getNodeTrackingInfo(d),
-                currentView: currentView
-              });
               setSelectedNode(d);
             })
         );
@@ -5050,10 +4953,170 @@ const TreePlotVisualization = () => {
     }
   };
 
-  // Simplified proceed function (removed code/paper generation)
-  const handleProceedWithSelectedIdea = () => {
-    console.log('Proceed functionality has been simplified - this version only supports idea generation and evaluation');
-    setOperationStatus('Proceed functionality is not available in this simplified version - focus on idea exploration and evaluation');
+  // ============== Workflow: Code → Write → Review ==============
+  const handleProceedWithSelectedIdea = async (node) => {
+    if (!node || node.type === 'root' || node.type === 'fragment') return;
+    const idea = node.originalData || { id: node.id, title: node.title, content: node.content };
+    setWorkflowIdea(node);
+    setWorkflowStep('coding');
+    setWorkflowError(null);
+    setCodeResult(null);
+    setCodeFiles([]);
+    setSelectedCodeFile(null);
+    setShowWriterPrompt(false);
+    setPaperResult(null);
+    setReviewResult(null);
+    setCurrentView('code_view');
+
+    try {
+      const response = await fetch('/api/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ idea: { originalData: idea } }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Code generation failed');
+      setCodeResult(data);
+      setWorkflowStep('code_done');
+
+      // Fetch file list from the experiment directory
+      if (data.experiment_dir) {
+        await fetchExperimentFiles(data.experiment_dir);
+      }
+    } catch (err) {
+      setWorkflowError(err.message);
+      setWorkflowStep('code_error');
+    }
+  };
+
+  const fetchExperimentFiles = async (expDir) => {
+    // Known files the coder always produces
+    const candidates = [
+      'experiment.py',
+      'experiment_results.txt',
+      'notes.txt',
+    ];
+    // Also check run_N.py variants (up to 5 runs)
+    for (let i = 1; i <= 5; i++) {
+      candidates.push(`run_${i}.py`);
+      candidates.push(`run_${i}/final_info.json`);
+    }
+
+    const found = [];
+    await Promise.all(
+      candidates.map(async (name) => {
+        const path = `${expDir}/${name}`;
+        try {
+          const r = await fetch(`/api/files/${path}`, { credentials: 'include' });
+          if (r.ok) found.push({ name, path });
+        } catch (_) { /* file absent, skip */ }
+      })
+    );
+
+    // Sort: experiment.py first, then alphabetical
+    found.sort((a, b) => {
+      if (a.name === 'experiment.py') return -1;
+      if (b.name === 'experiment.py') return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    setCodeFiles(found);
+
+    // Auto-open experiment.py if present
+    const main = found.find(f => f.name === 'experiment.py') || found[0];
+    if (main) await loadCodeFile(main);
+  };
+
+  const loadCodeFile = async (file) => {
+    try {
+      const r = await fetch(`/api/files/${file.path}`, { credentials: 'include' });
+      const data = await r.json();
+      setSelectedCodeFile({ ...file, content: data.content || '' });
+    } catch (_) {
+      setSelectedCodeFile({ ...file, content: '(failed to load file)' });
+    }
+  };
+
+  const handleRerunCoder = async () => {
+    if (!workflowIdea) return;
+    const idea = workflowIdea.originalData || { id: workflowIdea.id, title: workflowIdea.title, content: workflowIdea.content };
+    setWorkflowStep('coding');
+    setWorkflowError(null);
+    setCodeResult(null);
+    setCodeFiles([]);
+    setSelectedCodeFile(null);
+    setShowWriterPrompt(false);
+    setPaperResult(null);
+    setReviewResult(null);
+
+    try {
+      const response = await fetch('/api/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ idea: { originalData: idea } }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Code generation failed');
+      setCodeResult(data);
+      setWorkflowStep('code_done');
+      if (data.experiment_dir) {
+        await fetchExperimentFiles(data.experiment_dir);
+      }
+    } catch (err) {
+      setWorkflowError(err.message);
+      setWorkflowStep('code_error');
+    }
+  };
+
+  const handleWritePaper = async () => {
+    if (!workflowIdea) return;
+    setShowWriterPrompt(false);
+    setWorkflowStep('writing');
+    setWorkflowError(null);
+    setCurrentView('paper_view');
+    const idea = workflowIdea.originalData || { id: workflowIdea.id, title: workflowIdea.title };
+    try {
+      const response = await fetch('/api/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          idea: { originalData: idea },
+          experiment_dir: codeResult?.experiment_dir || null,
+          s2_api_key: s2ApiKey,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Paper generation failed');
+      setPaperResult(data);
+      setWorkflowStep('paper_done');
+    } catch (err) {
+      setWorkflowError(err.message);
+      setWorkflowStep('paper_error');
+    }
+  };
+
+  const handleReviewPaper = async () => {
+    if (!paperResult?.pdf_path) return;
+    setWorkflowStep('reviewing');
+    setWorkflowError(null);
+    try {
+      const response = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ pdf_path: paperResult.pdf_path, s2_api_key: s2ApiKey }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Review failed');
+      setReviewResult(data.review);
+      setWorkflowStep('review_done');
+    } catch (err) {
+      setWorkflowError(err.message);
+      setWorkflowStep('review_error');
+    }
   };
 
   // === 拖放处理函数 ===
@@ -5077,12 +5140,6 @@ const TreePlotVisualization = () => {
       return;
     }
 
-    userActionTracker.trackAction('drop_complete', isFragment ? 'fragment_on_evaluation' : 'node_on_evaluation', {
-      draggedNodeId,
-      targetNodeId: targetNode ? targetNode.id : 'empty_space',
-      sourceView,
-      isFragment
-    });
 
     // 如果是 fragment 拖到另一个节点上，触发 merge
     if (isFragment && targetNode) {
@@ -5179,19 +5236,6 @@ const TreePlotVisualization = () => {
   }, []);
 
   const trackCubeRotate = useCallback((source, fromRotation, toRotation) => {
-    userActionTracker.trackAction(
-      'cube_rotate',
-      'cube',
-      {
-        source,
-        from: { yaw: fromRotation.yaw, pitch: fromRotation.pitch },
-        to: { yaw: toRotation.yaw, pitch: toRotation.pitch }
-      },
-      {
-        dedupWindowMs: 0,
-        dedupKey: `cube_rotate:${source}:${fromRotation.yaw}:${fromRotation.pitch}->${toRotation.yaw}:${toRotation.pitch}`
-      }
-    );
   }, []);
 
   const handleStepRotation = useCallback((direction, source = 'unknown') => {
@@ -5989,14 +6033,6 @@ const TreePlotVisualization = () => {
     });
 
     if (!cancelHold) {
-      userActionTracker.trackAction('drag', 'node_3d', {
-        ...getNodeTrackingInfo(node),
-        mergeTargetId,
-        modifications,
-        scoresMap,
-        outcome: mergeTargetId ? 'merge' : modifications.length > 0 ? 'modify' : 'noop',
-        currentView
-      });
     }
 
     if (cancelHold) {
@@ -6055,13 +6091,6 @@ const TreePlotVisualization = () => {
   const cancelPendingChange = useCallback((change, { reason = 'manual' } = {}) => {
     if (!change) return;
 
-    userActionTracker.trackAction('drag_choice_selected', 'cancel_drag', {
-      ...getNodeTrackingInfo(change.originalNode),
-      modifications: change.modifications,
-      choice: 'cancel_drag',
-      cancelReason: reason,
-      currentView
-    });
 
     const nodeElement = change.draggedElement || document.querySelector(`[data-node-id="${change.originalNode.id}"]`);
     if (nodeElement) {
@@ -6078,7 +6107,6 @@ const TreePlotVisualization = () => {
     if (change.ghostNode?.id) {
       const updatedNodesAfterCancel = nodes.filter((nd) => nd.id !== change.ghostNode.id);
       setNodes(updatedNodesAfterCancel);
-      plotStatusTracker.trackNodesUpdate(updatedNodesAfterCancel, 'cancel_drag_modification');
       setLinks((prev) => prev.filter((lk) => lk.target !== change.ghostNode.id));
     }
 
@@ -6087,7 +6115,7 @@ const TreePlotVisualization = () => {
     if (currentView === 'exploration') {
       handle3DNodeDragEnd(change.originalNode.id, { cancelHold: true });
     }
-  }, [currentView, dragVisualState, getNodeTrackingInfo, handle3DNodeDragEnd, nodes, plotStatusTracker]);
+  }, [currentView, dragVisualState, getNodeTrackingInfo, handle3DNodeDragEnd, nodes]);
 
   const cancelPendingMerge = useCallback((merge) => {
     if (!merge) return;
@@ -6155,14 +6183,13 @@ const TreePlotVisualization = () => {
           return n;
         });
         setNodes(updatedNodesAfterCancelMerge);
-        plotStatusTracker.trackNodesUpdate(updatedNodesAfterCancelMerge, 'cancel_merge_operation');
       }
     }
 
     setMergeTargetId(null);
     setPendingMerge(null);
     setMergeAnimationState(null);
-  }, [dragVisualState, fragmentNodes, nodes, plotStatusTracker]);
+  }, [dragVisualState, fragmentNodes, nodes]);
 
   const last3DHoverIdRef = useRef(null);
   const handle3DNodeHover = (node) => {
@@ -6171,17 +6198,9 @@ const TreePlotVisualization = () => {
     if (prevId && prevId !== nextId) {
       const prevNode = nodes.find(n => n.id === prevId);
       if (prevNode) {
-        userActionTracker.trackAction('hover_end', 'node_3d', {
-          ...getNodeTrackingInfo(prevNode),
-          currentView
-        });
       }
     }
     if (nextId && prevId !== nextId) {
-      userActionTracker.trackAction('hover_start', 'node_3d', {
-        ...getNodeTrackingInfo(node),
-        currentView
-      });
     }
     last3DHoverIdRef.current = nextId;
     setHoveredNode(node);
@@ -6189,10 +6208,6 @@ const TreePlotVisualization = () => {
 
   const handle3DNodeClick = (node) => {
     if (!node) return;
-    userActionTracker.trackAction('click', 'node_3d', {
-      ...getNodeTrackingInfo(node),
-      currentView
-    });
     setSelectedNode(node);
   };
 
@@ -6470,12 +6485,6 @@ const TreePlotVisualization = () => {
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', position: 'relative' }}>
-      {/* User Action Tracking Panel */}
-      <UserActionTrackingPanel
-        hideEvaluationView={hideEvaluationView}
-        setHideEvaluationView={setHideEvaluationView}
-        currentNodes={nodes}
-      />
 
       {/* 把 showTree 与 setShowTree 传给 TopNav，解决 setShowTree is not a function */}
       <TopNav
@@ -6484,6 +6493,7 @@ const TreePlotVisualization = () => {
         hideEvaluationView={hideEvaluationView}
         onReEvaluateAll={() => reEvaluateAll()}
         isEvaluating={isEvaluating}
+        showCodeView={!!workflowStep}
       />
 
       {currentView === 'home_view' ? (
@@ -6542,9 +6552,6 @@ const TreePlotVisualization = () => {
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
-                    userActionTracker.trackAction('prompt_edit_open', 'system_prompt', {
-                      promptType: 'system_prompt'
-                    });
                     setModalAnchorEl(systemPromptButtonRef);
                     setIsEditingSystemPrompt(true);
                   }}
@@ -6590,7 +6597,7 @@ const TreePlotVisualization = () => {
 
           <div
             style={{
-              display: 'flex',
+              display: (currentView === 'code_view' || currentView === 'paper_view') ? 'none' : 'flex',
               alignItems: 'flex-start', // Prevent stretching
               padding: '40px 20px 20px 20px', // Push down slightly for top button
               maxWidth: '1600px',
@@ -6817,6 +6824,301 @@ const TreePlotVisualization = () => {
               )}
             </div>
           </div>
+
+          {/* ============ Code View ============ */}
+          {currentView === 'code_view' && (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px', gap: '16px', boxSizing: 'border-box' }}>
+
+              {/* Header row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0, gap: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>
+                    Code Generation
+                    {workflowIdea && (
+                      <span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#6B7280', marginLeft: '10px' }}>
+                        {workflowIdea.title}
+                      </span>
+                    )}
+                  </h2>
+                  {codeResult?.experiment_dir && (
+                    <div style={{ fontSize: '0.75rem', color: '#9CA3AF', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {codeResult.experiment_dir}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right-side actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  {/* Spinning indicator while coding */}
+                  {workflowStep === 'coding' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#6B7280', fontSize: '0.82rem' }}>
+                      <div style={{ width: '14px', height: '14px', border: '2px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      Generating…
+                    </div>
+                  )}
+
+                  {/* Status badge */}
+                  {codeResult && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, backgroundColor: codeResult.success ? '#DCFCE7' : '#FEE2E2', color: codeResult.success ? '#15803D' : '#DC2626' }}>
+                      {codeResult.success ? '✅ Success' : '❌ Failed'}
+                    </div>
+                  )}
+
+                  {/* Rerun Coder button — available once we have a result or error */}
+                  {(workflowStep === 'code_done' || workflowStep === 'code_error') && (
+                    <button
+                      onClick={handleRerunCoder}
+                      style={{ padding: '6px 14px', backgroundColor: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Rerun Coder
+                    </button>
+                  )}
+
+                  {/* Proceed to Writer button */}
+                  {(workflowStep === 'code_done' || workflowStep === 'writing' || workflowStep === 'paper_error') && (
+                    workflowStep === 'writing' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#6B7280', fontSize: '0.82rem' }}>
+                        <div style={{ width: '14px', height: '14px', border: '2px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        Writing…
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowWriterPrompt(p => !p)}
+                        style={{ padding: '6px 14px', backgroundColor: '#0F172A', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        {showWriterPrompt ? 'Cancel' : 'Proceed to Writer'}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Expandable S2 key panel — shown below header when writer prompt is open */}
+              {showWriterPrompt && workflowStep !== 'writing' && (
+                <div style={{ padding: '14px 16px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', flexShrink: 0 }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: '#6B7280', marginBottom: '6px' }}>
+                    Semantic Scholar API Key <span style={{ color: '#9CA3AF' }}>(optional — improves citation quality)</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="password"
+                      value={s2ApiKey}
+                      onChange={(e) => setS2ApiKey(e.target.value)}
+                      placeholder="sk-… or leave blank"
+                      style={{ flex: 1, padding: '7px 12px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleWritePaper(); }}
+                    />
+                    <button
+                      onClick={handleWritePaper}
+                      style={{ padding: '7px 16px', backgroundColor: '#0F172A', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      Write Paper
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Loading banner */}
+              {workflowStep === 'coding' && (
+                <div style={{ padding: '14px 16px', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', color: '#1D4ED8', fontSize: '0.875rem', flexShrink: 0 }}>
+                  Generating experiment code — this may take several minutes…
+                </div>
+              )}
+
+              {/* Error banner */}
+              {(workflowStep === 'code_error') && workflowError && (
+                <div style={{ padding: '12px 16px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', color: '#DC2626', fontSize: '0.875rem', flexShrink: 0 }}>
+                  <strong>Error:</strong> {workflowError}
+                </div>
+              )}
+
+              {/* Error details (coder failure but returned 200) */}
+              {codeResult && !codeResult.success && codeResult.error_details && (
+                <details style={{ flexShrink: 0, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 14px' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626', fontWeight: 600 }}>Error details</summary>
+                  <pre style={{ marginTop: '8px', fontSize: '0.75rem', overflow: 'auto', backgroundColor: '#fff', padding: '8px', borderRadius: '4px', maxHeight: '160px', color: '#374151' }}>
+                    {codeResult.error_details}
+                  </pre>
+                </details>
+              )}
+
+              {/* ── Code browser ── */}
+              {codeFiles.length > 0 && (
+                <div style={{ display: 'flex', flex: 1, minHeight: 0, border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', fontFamily: 'monospace' }}>
+
+                  {/* File sidebar */}
+                  <div style={{ width: '190px', flexShrink: 0, borderRight: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', overflowY: 'auto' }}>
+                    <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #E2E8F0' }}>
+                      Files
+                    </div>
+                    {codeFiles.map((file) => {
+                      const isSelected = selectedCodeFile?.path === file.path;
+                      const ext = file.name.split('.').pop();
+                      const icon = ext === 'py' ? '🐍' : ext === 'json' ? '{}' : ext === 'md' ? '📝' : '📄';
+                      return (
+                        <div
+                          key={file.path}
+                          onClick={() => loadCodeFile(file)}
+                          style={{
+                            padding: '7px 12px',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? '#E0E7FF' : 'transparent',
+                            color: isSelected ? '#3730A3' : '#374151',
+                            fontWeight: isSelected ? 600 : 400,
+                            borderLeft: isSelected ? '3px solid #6366F1' : '3px solid transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          <span style={{ flexShrink: 0 }}>{icon}</span>
+                          {file.name}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Code pane */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {/* Tab bar */}
+                    {selectedCodeFile && (
+                      <div style={{ display: 'flex', alignItems: 'center', padding: '6px 14px', borderBottom: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', fontSize: '0.8rem', color: '#374151', gap: '8px', flexShrink: 0 }}>
+                        <span>{selectedCodeFile.name.endsWith('.py') ? '🐍' : selectedCodeFile.name.endsWith('.json') ? '{}' : '📄'}</span>
+                        <span style={{ fontWeight: 600 }}>{selectedCodeFile.name}</span>
+                        <span style={{ color: '#9CA3AF', fontSize: '0.72rem', marginLeft: 'auto' }}>
+                          {selectedCodeFile.content.split('\n').length} lines
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Code content */}
+                    <div style={{ flex: 1, overflow: 'auto', backgroundColor: '#1E1E2E' }}>
+                      {selectedCodeFile ? (
+                        <pre style={{
+                          margin: 0,
+                          padding: '16px',
+                          fontSize: '0.8rem',
+                          lineHeight: 1.6,
+                          color: '#CDD6F4',
+                          whiteSpace: 'pre',
+                          minHeight: '100%',
+                          boxSizing: 'border-box',
+                          counterReset: 'line',
+                        }}>
+                          {selectedCodeFile.content.split('\n').map((line, i) => (
+                            <div key={i} style={{ display: 'flex', gap: '16px' }}>
+                              <span style={{ color: '#585B70', userSelect: 'none', minWidth: '2.5em', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+                              <span style={{ flex: 1 }}>{line || ' '}</span>
+                            </div>
+                          ))}
+                        </pre>
+                      ) : (
+                        <div style={{ padding: '24px', color: '#585B70', fontSize: '0.85rem' }}>Select a file to view</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* ============ Paper View ============ */}
+          {currentView === 'paper_view' && (
+            <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '16px', color: '#0F172A' }}>Paper</h2>
+
+              {workflowStep === 'writing' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 40px', gap: '20px' }}>
+                  <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#0F172A', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: '#0F172A', marginBottom: '6px' }}>Writing paper…</div>
+                    <div style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>This may take a few minutes</div>
+                  </div>
+                </div>
+              ) : !paperResult ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>
+                  No paper generated yet. Use "Proceed with this Idea" from the idea card to start the workflow.
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span>✅</span>
+                      <strong style={{ color: '#15803D' }}>Paper generated: {paperResult.paper_name}</strong>
+                    </div>
+                    <a
+                      href={paperResult.pdf_path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '0.85rem', color: '#2563EB', textDecoration: 'underline' }}
+                    >
+                      View PDF
+                    </a>
+                  </div>
+
+                  {/* Review section */}
+                  <div style={{ padding: '16px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>Review Paper</h3>
+                    {workflowStep === 'reviewing' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6B7280', fontSize: '0.875rem' }}>
+                        <div style={{ width: '16px', height: '16px', border: '2px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        Reviewing paper...
+                      </div>
+                    ) : workflowStep === 'review_done' && reviewResult ? null : (
+                      <button
+                        onClick={handleReviewPaper}
+                        style={{ padding: '8px 16px', backgroundColor: '#0F172A', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Review Paper
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Review results */}
+                  {workflowStep === 'review_done' && reviewResult && (
+                    <div style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>Review Results</h3>
+                      {typeof reviewResult === 'object' ? (
+                        <div>
+                          {reviewResult.Summary && <div style={{ marginBottom: '12px' }}><strong>Summary:</strong><p style={{ margin: '4px 0 0', color: '#4B5563', lineHeight: 1.6 }}>{reviewResult.Summary}</p></div>}
+                          {reviewResult.Strengths && Array.isArray(reviewResult.Strengths) && (
+                            <div style={{ marginBottom: '12px' }}>
+                              <strong>Strengths:</strong>
+                              <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#4B5563' }}>
+                                {reviewResult.Strengths.map((s, i) => <li key={i}>{s}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {reviewResult.Weaknesses && Array.isArray(reviewResult.Weaknesses) && (
+                            <div style={{ marginBottom: '12px' }}>
+                              <strong>Weaknesses:</strong>
+                              <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#4B5563' }}>
+                                {reviewResult.Weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {reviewResult.Decision && (
+                            <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px' }}>
+                              <strong>Decision:</strong> {reviewResult.Decision}
+                              {reviewResult.Rating && <span style={{ marginLeft: '12px', fontWeight: 700 }}>Rating: {reviewResult.Rating}/10</span>}
+                            </div>
+                          )}
+                          {(!reviewResult.Summary && !reviewResult.Decision) && (
+                            <pre style={{ fontSize: '0.8rem', overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify(reviewResult, null, 2)}</pre>
+                          )}
+                        </div>
+                      ) : (
+                        <pre style={{ fontSize: '0.8rem', overflow: 'auto', whiteSpace: 'pre-wrap' }}>{String(reviewResult)}</pre>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </>)}
 
       {/* ========== 段落12：悬浮确认修改的按钮 (pendingChange) ========== */}
@@ -6853,12 +7155,6 @@ const TreePlotVisualization = () => {
                   fontWeight: '500'
                 }}
                 onClick={() => {
-                  userActionTracker.trackAction('drag_choice_selected', 'generate_new_idea', {
-                    ...getNodeTrackingInfo(pendingChange.originalNode),
-                    modifications: pendingChange.modifications,
-                    choice: 'generate_new_idea',
-                    currentView: currentView
-                  });
                   modifyIdeaBasedOnModifications(
                     pendingChange.originalNode,
                     pendingChange.ghostNode,
@@ -6885,12 +7181,6 @@ const TreePlotVisualization = () => {
                 onClick={() => {
                   if (!pendingChange) return;
 
-                  userActionTracker.trackAction('drag_choice_selected', 'modify_evaluation', {
-                    ...getNodeTrackingInfo(pendingChange.originalNode),
-                    modifications: pendingChange.modifications,
-                    choice: 'modify_evaluation',
-                    currentView: currentView
-                  });
 
                   // 在应用修改前，先恢复节点到absolute定位的正确位置
                   const nodeElement = pendingChange.draggedElement || document.querySelector(`[data-node-id="${pendingChange.originalNode.id}"]`);
@@ -6954,12 +7244,6 @@ const TreePlotVisualization = () => {
                   cursor: 'pointer',
                 }}
                 onClick={() => {
-                  userActionTracker.trackAction('drag_choice_selected', 'generate_new_idea', {
-                    ...getNodeTrackingInfo(pendingChange.originalNode),
-                    modifications: pendingChange.modifications,
-                    choice: 'generate_new_idea',
-                    currentView: currentView
-                  });
                   modifyIdeaBasedOnModifications(
                     pendingChange.originalNode,
                     pendingChange.ghostNode,
@@ -6984,12 +7268,6 @@ const TreePlotVisualization = () => {
                 onClick={() => {
                   if (!pendingChange) return;
 
-                  userActionTracker.trackAction('drag_choice_selected', 'modify_evaluation', {
-                    ...getNodeTrackingInfo(pendingChange.originalNode),
-                    modifications: pendingChange.modifications,
-                    choice: 'modify_evaluation',
-                    currentView: currentView
-                  });
 
                   // 在应用修改前，先恢复节点到absolute定位的正确位置
                   const nodeElement = pendingChange.draggedElement || document.querySelector(`[data-node-id="${pendingChange.originalNode.id}"]`);
@@ -7221,11 +7499,6 @@ const TreePlotVisualization = () => {
         initialValue={systemPrompt}
         onSave={async (finalValue) => {
           const promptToSave = finalValue || defaultPrompts.system_prompt;
-          userActionTracker.trackAction('prompt_save', 'system_prompt', {
-            promptType: 'system_prompt',
-            content: promptToSave,
-            wasModified: finalValue !== systemPrompt
-          });
           const success = await updateSystemPrompt(promptToSave);
           if (success) {
             setSystemPrompt(promptToSave);
@@ -7261,11 +7534,6 @@ const TreePlotVisualization = () => {
             editingCriteria === 'feasibility' ? feasibilityCriteria :
               noveltyCriteria;
 
-          userActionTracker.trackAction('prompt_save', `${editingCriteria}_criteria`, {
-            promptType: `${editingCriteria}_criteria`,
-            content: criteriaToSave,
-            wasModified: finalValue !== currentCriteria
-          });
 
           const success = await updateCriteria(editingCriteria, criteriaToSave);
           if (success) {

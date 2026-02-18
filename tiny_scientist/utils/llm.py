@@ -22,7 +22,7 @@ if os.path.exists(config_path):
 else:
     config = {"core": {}}
 
-MAX_NUM_TOKENS = 4096
+MAX_NUM_TOKENS = 8192
 
 AVAILABLE_LLMS = [
     # Anthropic models - Latest (Claude 4.6 and 4.5 series)
@@ -500,6 +500,13 @@ def get_response_from_llm(
 
     if cost_tracker is not None:
         cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
+
+    # Guard: some models (e.g. gpt-5-mini) return None content when truncated
+    if content is None:
+        print(
+            f"[WARN] get_response_from_llm: model={model} returned None content (likely truncated). Returning empty string."
+        )
+        content = ""
 
     if print_debug:
         print()

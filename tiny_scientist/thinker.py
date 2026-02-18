@@ -641,22 +641,21 @@ Respond in JSON format:
             task_name="generate_experiment_plan",
         )
 
-        # Extract both the original JSON and the new Markdown table
+        # Extract experiment plan JSON and optional markdown table
         experiment_plan_json = extract_json_between_markers(text)
         try:
             experiment_plan_table = text.split("```markdown")[1].split("```")[0].strip()
         except IndexError:
             experiment_plan_table = None
 
-        if not experiment_plan_json or not experiment_plan_table:
-            print("Failed to generate one or both parts of the experimental plan.")
-            # Return the original idea if generation fails
+        if not experiment_plan_json:
+            print("Failed to generate experiment plan JSON. Returning original idea.")
             return idea
 
-        # Store the JSON in 'Experiment' and the table in 'ExperimentTable'
         idea_dict["Experiment"] = experiment_plan_json
-        idea_dict["ExperimentTable"] = experiment_plan_table
-        print("Dual-format experimental plan generated successfully.")
+        if experiment_plan_table:
+            idea_dict["ExperimentTable"] = experiment_plan_table
+        print("Experimental plan generated successfully.")
 
         self.cost_tracker.report()
         return json.dumps(idea_dict, indent=2)

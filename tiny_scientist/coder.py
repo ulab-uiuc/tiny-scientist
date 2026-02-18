@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from subprocess import TimeoutExpired
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from rich import print
 from smolagents import CodeAgent
@@ -223,7 +223,12 @@ class Coder:
         current_iter = 0
         run_time = 1
 
-        experiment_spec = idea["Experiment"]
+        experiment_spec = idea.get("Experiment")
+        if not experiment_spec:
+            print(
+                "[System] idea is missing 'Experiment' field; cannot run experiment loop."
+            )
+            return False
         (
             model_kw,
             dataset_kw,

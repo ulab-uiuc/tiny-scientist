@@ -1,5 +1,6 @@
 import builtins
 import io
+import json
 import os
 import sys
 import uuid
@@ -344,6 +345,14 @@ def generate_initial() -> Union[Response, tuple[Response, int]]:
     if not idea or not isinstance(idea, dict):
         return jsonify({"error": "Failed to generate idea"}), 500
 
+    # Ensure experiment plan is generated for experimental ideas (thinker.run may skip it on failure)
+    if idea.get("is_experimental", True) and not idea.get("Experiment"):
+        enriched_json = thinker.generate_experiment_plan(json.dumps(idea))
+        idea = json.loads(enriched_json)
+
+    print(f"[generate-initial] Returning idea keys: {list(idea.keys())}")
+    print(f"[generate-initial] Has Experiment: {'Experiment' in idea}")
+
     new_id = _next_root_id()
     response = {
         "ideas": [
@@ -452,6 +461,11 @@ def generate_children() -> Union[Response, tuple[Response, int]]:
 
     if not idea or not isinstance(idea, dict):
         return jsonify({"error": "Failed to generate idea"}), 500
+
+    # Ensure experiment plan is generated for experimental ideas (thinker.run may skip it on failure)
+    if idea.get("is_experimental", True) and not idea.get("Experiment"):
+        enriched_json = thinker.generate_experiment_plan(json.dumps(idea))
+        idea = json.loads(enriched_json)
 
     child_id = _next_child_id(parent_id)
 
@@ -564,6 +578,13 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
         behind_idea=thinker_behind,
     )
 
+    # Generate experiment plan for modified idea (only if experimental)
+    if modified_idea.get("is_experimental", True) and not modified_idea.get(
+        "Experiment"
+    ):
+        enriched_json = thinker.generate_experiment_plan(json.dumps(modified_idea))
+        modified_idea = json.loads(enriched_json)
+
     # Generate hierarchical ID for the modified idea
     modified_id = _next_modify_id(original_id) if original_id else str(uuid.uuid4())
 
@@ -594,6 +615,15 @@ def merge_ideas() -> Union[Response, tuple[Response, int]]:
     thinker_idea_b = idea_b
     # Merge ideas
     merged_idea = thinker.merge_ideas(idea_a=thinker_idea_a, idea_b=thinker_idea_b)
+
+    # Generate experiment plan for merged idea (only if experimental)
+    if (
+        isinstance(merged_idea, dict)
+        and merged_idea.get("is_experimental", True)
+        and not merged_idea.get("Experiment")
+    ):
+        enriched_json = thinker.generate_experiment_plan(json.dumps(merged_idea))
+        merged_idea = json.loads(enriched_json)
 
     # Generate hierarchical merged ID
     if idea_a_id and idea_b_id:
@@ -982,7 +1012,6 @@ def generate_code() -> Union[Response, tuple[Response, int]]:
 
         print(f"Using pre-configured Coder with model: {coder.model}")
         print(f"Idea keys: {list(idea.keys())}")
-        print(f"Idea has Experiment field: {'Experiment' in idea}")
 
         # Call coder.run() exactly like TinyScientist does
         print("Starting coder.run()...")
@@ -1056,17 +1085,14 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
     idea_data = data.get("idea")
     experiment_dir = data.get("experiment_dir", None)
 
-    s2_api_key = data.get("s2_api_key", None)
-
-    if not s2_api_key:
-        return jsonify({"error": "Semantic Scholar API key is required"}), 400
+    s2_api_key = data.get("s2_api_key", None) or os.environ.get("S2_API_KEY")
 
     if not idea_data:
         print("ERROR: No idea provided in request")
         return jsonify({"error": "No idea provided"}), 400
 
     try:
-        writer_model = session.get("model", "deepseek-chat")  # Get model from session
+        writer_model = session["model"]
         papers_dir = os.path.join(project_root, "generated", "papers")
 
         try:
@@ -1202,7 +1228,7 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
         return jsonify({"error": "No JSON data provided"}), 400
 
     pdf_path = data.get("pdf_path")
-    s2_api_key = data.get("s2_api_key")
+    s2_api_key = data.get("s2_api_key") or os.environ.get("S2_API_KEY")
 
     if not pdf_path:
         return jsonify({"error": "No PDF path provided"}), 400
@@ -1236,7 +1262,7 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
         # Check if file exists
         if not os.path.exists(absolute_pdf_path):
             return jsonify({"error": "PDF file not found"}), 404
-        reviewer_model = session.get("model", "deepseek-chat")  # Get model from session
+        reviewer_model = session["model"]
         print("🔍 Starting paper review...")
         try:
             _, _, session_allocation = TinyScientist.resolve_budget_settings(

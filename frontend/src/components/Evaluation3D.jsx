@@ -2,7 +2,6 @@ import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { TrackballControls, Text, Line, OrthographicCamera, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
-import userActionTracker from '../utils/userActionTracker';
 
 // --- Constants ---
 const CUBE_SIZE = 100;
@@ -658,17 +657,6 @@ const SceneContent = ({
       };
     };
 
-    userActionTracker.trackAction('3d_rotate', 'evaluation_3d_view', {
-      axisMapping: mapping,
-      targetFaceIndex: best,
-      snapped: shouldSnap,
-      snapDistance: maxDot,
-      viewDimensions: {
-        horizontal: getDimInfo(mapping.horizontalAxis),
-        vertical: getDimInfo(mapping.verticalAxis),
-        depth: getDimInfo(mapping.perpAxis)
-      }
-    });
   };
 
   const handleStart = () => {
