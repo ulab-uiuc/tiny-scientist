@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DimensionSelector.css';
 
 const DimensionSelector = ({ intent, onDimensionsSelected }) => {
@@ -13,13 +13,7 @@ const DimensionSelector = ({ intent, onDimensionsSelected }) => {
         descriptionB: '',
     });
 
-    useEffect(() => {
-        if (intent) {
-            fetchDimensionSuggestions();
-        }
-    }, [intent]);
-
-    const fetchDimensionSuggestions = async () => {
+    const fetchDimensionSuggestions = useCallback(async () => {
         setLoading(true);
         try {
             const response = await fetch('/api/suggest-dimensions', {
@@ -34,7 +28,13 @@ const DimensionSelector = ({ intent, onDimensionsSelected }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [intent]);
+
+    useEffect(() => {
+        if (intent) {
+            fetchDimensionSuggestions();
+        }
+    }, [intent, fetchDimensionSuggestions]);
 
     const togglePairSelection = (pair) => {
         if (selectedPairs.find(p => p.dimensionA === pair.dimensionA && p.dimensionB === pair.dimensionB)) {

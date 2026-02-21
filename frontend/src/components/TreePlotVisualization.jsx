@@ -4,11 +4,17 @@ import * as d3 from 'd3';
 
 import TopNav from './TopNav';
 import IdeaCard from './IdeaCard';
-import DimensionSelector from './DimensionSelector';
 import DimensionSelectorPanel from './DimensionSelectorPanel';
 import DimensionEditDropdown from './DimensionEditDropdown';
 import Evaluation3D from './Evaluation3D';
 import { buildNodeContent } from '../utils/contentParser';
+
+
+const COLOR_MAP = {
+  root: '#4C84FF',
+  simple: '#45B649',
+  complex: '#FF6B6B',
+};
 
 
 // Helper components defined outside the main component to preserve state
@@ -482,8 +488,15 @@ const TreePlotVisualization = () => {
   const [apiKey, setApiKey] = useState('');
   const [isConfigured, setIsConfigured] = useState(false);
   const [configError, setConfigError] = useState('');
+  const didClearSessionRef = useRef(false);
   // Clear server session on page load to avoid stale ideas after refresh.
   useEffect(() => {
+    if (didClearSessionRef.current) return;
+    didClearSessionRef.current = true;
+
+    const shouldClearSession = process.env.NODE_ENV === 'production' || process.env.REACT_APP_CLEAR_SESSION_ON_LOAD === 'true';
+    if (!shouldClearSession) return;
+
     const clearSession = async () => {
       try {
         await fetch('/api/clear-session', {
@@ -532,7 +545,7 @@ const TreePlotVisualization = () => {
   const [mergeAnimationState, setMergeAnimationState] = useState(null); // Persist merge visuals while backend merges
 
   // Toggle for hiding plot view
-  const [hideEvaluationView, setHideEvaluationView] = useState(false);
+  const [hideEvaluationView] = useState(false);
 
   // ============== Workflow state (Code → Write → Review) ==============
   const [workflowIdea, setWorkflowIdea] = useState(null); // node being processed
@@ -556,7 +569,7 @@ const TreePlotVisualization = () => {
     }];
   };
 
-  const normalizeIdeaOriginalData = (source, fallback = {}) => {
+  const normalizeIdeaOriginalData = useCallback((source, fallback = {}) => {
     const raw = source && typeof source === 'object' ? source : {};
     const title = raw.Title || raw.title || raw.Name || raw.name || fallback.title;
     const name = raw.Name || raw.name || raw.Title || raw.title || fallback.title;
@@ -578,15 +591,17 @@ const TreePlotVisualization = () => {
     delete normalized.problemHighlights;
 
     return normalized;
-  };
+  }, []);
+
+  const colorMap = COLOR_MAP;
 
   // Unified node color helper to keep Exploration/Cube Views consistent
-  const getNodeColor = (node) => {
+  const getNodeColor = useCallback((node) => {
     if (!node) return '#FF6B6B';
     if (node.isMergedResult) return '#B22222';
     if (node.isNewlyGenerated || node.isModified) return '#FFD700';
     return colorMap[node.type] || '#FF6B6B';
-  };
+  }, [colorMap]);
 
   // Helper function to create ghost node with modified score
   const createGhostNodeWithModifiedScore = (originalNode, metric, newScore) => {
@@ -848,32 +863,6 @@ const TreePlotVisualization = () => {
   const [unifiedScale, setUnifiedScale] = useState(1.0); // 1.0 = normal, >1 = zoomed in, <1 = zoomed out
   const [userHasInteractedWithScale, setUserHasInteractedWithScale] = useState(false); // Track if user has manually adjusted scale
 
-  // Calculate dynamic midpoints from current nodes
-  const calculateNodeMidpoints = useCallback(() => {
-    const visibleNodes = nodes.filter(n => {
-      const xVal = getNodeX(n);
-      const yVal = getNodeY(n);
-      return xVal !== undefined && yVal !== undefined && !n.isGhost;
-    });
-
-    if (visibleNodes.length === 0) {
-      return { xCenter: 70, yCenter: 70 }; // fallback to default
-    }
-
-    const xValues = visibleNodes.map(n => getNodeX(n));
-    const yValues = visibleNodes.map(n => getNodeY(n));
-
-    const xMin = Math.min(...xValues);
-    const xMax = Math.max(...xValues);
-    const yMin = Math.min(...yValues);
-    const yMax = Math.max(...yValues);
-
-    const xCenter = (xMin + xMax) / 2;
-    const yCenter = (yMin + yMax) / 2;
-
-    return { xCenter, yCenter };
-  }, [nodes, selectedDimensionPairs, xAxisMetric, yAxisMetric, currentFaceIndex]);
-
   // ============== Fragment 节点相关函数 ==============
   const clearSelection = useCallback(() => {
     const selection = window.getSelection && window.getSelection();
@@ -987,7 +976,7 @@ const TreePlotVisualization = () => {
   }, [fragmentMenuState, hideFragmentMenu]);
 
   // Fallback merge ID (matches backend _merge_id logic)
-  const createMergeId = (nodeAId, nodeBId) => `${nodeAId}-Y-${nodeBId}-Y`;
+  const createMergeId = useCallback((nodeAId, nodeBId) => `${nodeAId}-Y-${nodeBId}-Y`, []);
 
   // Helper function to extract comprehensive node information for tracking
   const getNodeTrackingInfo = (node) => {
@@ -1005,7 +994,7 @@ const TreePlotVisualization = () => {
    * @param {Object} dimensionPair - 维度对对象 { dimensionA, dimensionB }
    * @returns {number|undefined} - 分数值 (0-100)，如果不存在则返回 undefined
    */
-  const getNodeDimensionScore = (node, dimensionPair) => {
+  const getNodeDimensionScore = useCallback((node, dimensionPair) => {
     if (!node || !dimensionPair) return undefined;
 
     const extractScoreValue = (scoreEntry) => {
@@ -1058,13 +1047,13 @@ const TreePlotVisualization = () => {
     }
 
     return undefined;
-  };
+  }, []);
 
   /**
    * 获取当前选中的维度对（X轴和Y轴）
    * @returns {{ xDimension: Object|null, yDimension: Object|null }}
    */
-  const getCurrentDimensions = (faceIndexOverride = currentFaceIndex) => {
+  const getCurrentDimensions = useCallback((faceIndexOverride = currentFaceIndex) => {
     if (!selectedDimensionPairs || selectedDimensionPairs.length === 0) {
       return { xDimension: null, yDimension: null, faceIndex: 0, faceName: '', xFlip: false, yFlip: false };
     }
@@ -1120,37 +1109,62 @@ const TreePlotVisualization = () => {
       xFlip: false,
       yFlip: false
     };
-  };
+  }, [currentFaceIndex, selectedDimensionPairs]);
 
   /**
    * 获取节点的 X 坐标值（基于当前选中的维度对）
    * @param {Object} node - 节点对象
    * @returns {number|undefined} - X 坐标值
    */
-  const getNodeX = (node) => {
+  const getNodeX = useCallback((node) => {
     const { xDimension } = getCurrentDimensions();
     if (xDimension) {
       return getNodeDimensionScore(node, xDimension);
     }
     // Fallback 到旧系统
     return node[xAxisMetric];
-  };
+  }, [getCurrentDimensions, getNodeDimensionScore, xAxisMetric]);
 
   /**
    * 获取节点的 Y 坐标值（基于当前选中的维度对）
    * @param {Object} node - 节点对象
    * @returns {number|undefined} - Y 坐标值
    */
-  const getNodeY = (node) => {
+  const getNodeY = useCallback((node) => {
     const { yDimension } = getCurrentDimensions();
     if (yDimension) {
       return getNodeDimensionScore(node, yDimension);
     }
     // Fallback 到旧系统
     return node[yAxisMetric];
-  };
+  }, [getCurrentDimensions, getNodeDimensionScore, yAxisMetric]);
 
   // Reset face to the first plane when dimension selection changes
+
+  const calculateNodeMidpoints = useCallback(() => {
+    const visibleNodes = nodes.filter(n => {
+      const xVal = getNodeX(n);
+      const yVal = getNodeY(n);
+      return xVal !== undefined && yVal !== undefined && !n.isGhost;
+    });
+
+    if (visibleNodes.length === 0) {
+      return { xCenter: 70, yCenter: 70 };
+    }
+
+    const xValues = visibleNodes.map(n => getNodeX(n));
+    const yValues = visibleNodes.map(n => getNodeY(n));
+
+    const xMin = Math.min(...xValues);
+    const xMax = Math.max(...xValues);
+    const yMin = Math.min(...yValues);
+    const yMax = Math.max(...yValues);
+
+    const xCenter = (xMin + xMax) / 2;
+    const yCenter = (yMin + yMax) / 2;
+
+    return { xCenter, yCenter };
+  }, [nodes, getNodeX, getNodeY]);
 
 
   /**
@@ -1223,7 +1237,7 @@ const TreePlotVisualization = () => {
   };
 
   // 获取节点中心相对于容器的坐标（用于在 merge 过程中维持视觉状态）
-  const getNodeCenterRelativeToContainer = (nodeId) => {
+  const getNodeCenterRelativeToContainer = useCallback((nodeId) => {
     const container = (currentView === 'evaluation' ? evaluationContainerRef : explorationContainerRef).current;
     const nodeElement = document.querySelector(`[data-node-id="${nodeId}"]`);
     if (!container || !nodeElement) return null;
@@ -1233,15 +1247,7 @@ const TreePlotVisualization = () => {
       x: rect.left - containerRect.left + rect.width / 2,
       y: rect.top - containerRect.top + rect.height / 2
     };
-  };
-
-
-  // 配色映射
-  const colorMap = {
-    root: '#4C84FF',
-    simple: '#45B649',
-    complex: '#FF6B6B',
-  };
+  }, [currentView]);
   // ============== 配置模型和API Key ==============
   const modelOptions = [
     { value: 'gpt-5.2', label: 'GPT-5.2' },
@@ -1730,7 +1736,7 @@ const TreePlotVisualization = () => {
       }
       return true; // 需要评估
     }).map(i => i.id);
-  }, [selectedDimensionPairs]);
+  }, [getNodeDimensionScore, selectedDimensionPairs]);
 
   const evaluateIdeas = async (ideas, { mode = 'incremental', allowAutoCenter = false, dimensionPairs = null } = {}) => {
 
@@ -2166,11 +2172,14 @@ const TreePlotVisualization = () => {
     }
   };
 
+  const evaluateIdeasRef = useRef(null);
+  evaluateIdeasRef.current = evaluateIdeas;
+
   // New: re-evaluate all ideas handler
-  const reEvaluateAll = useCallback(() => {
+  const reEvaluateAll = () => {
     if (isEvaluating || nodes.length === 0) return;
-    evaluateIdeas(nodes, { mode: 'full', allowAutoCenter: true });
-  }, [isEvaluating, nodes, evaluateIdeas]);
+    evaluateIdeasRef.current(nodes, { mode: 'full', allowAutoCenter: true });
+  };
 
   // ============== 段落4：分析意图提交处理 (handleAnalysisIntentSubmit) ==============
   const handleAnalysisIntentSubmit = async (e) => {
@@ -2633,124 +2642,6 @@ const TreePlotVisualization = () => {
     }
   };
 
-  const mergeIdeas = async (nodeA, nodeB) => {
-    // Animation already applied when dragging, just proceed with merge
-    if (!mergeAnimationState) {
-      const ghostPos =
-        getNodeCenterRelativeToContainer(nodeA.id) ||
-        getNodeCenterRelativeToContainer(nodeB.id);
-      setMergeAnimationState({
-        sourceId: nodeA.id,
-        targetId: nodeB.id,
-        ghostPosition: ghostPos
-      });
-    }
-    setIsGenerating(true);
-    setOperationStatus('Merging ideas...');
-    setError(null);
-    try {
-      /* ---------- ② 调用 Flask API ---------- */
-      const response = await fetch('/api/merge', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          idea_a: nodeA.originalData || {
-            id: nodeA.id,
-            title: nodeA.title,
-            content: nodeA.content
-          },
-          idea_b: nodeB.originalData || {
-            id: nodeB.id,
-            title: nodeB.title,
-            content: nodeB.content
-          },
-          idea_a_id: nodeA.id,
-          idea_b_id: nodeB.id
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to merge ideas');
-      }
-
-      // Wait for the full response as text (handles heartbeat stream)
-      const responseText = await response.text();
-
-      // Parse the text into JSON, ignoring heartbeats
-      const data = JSON.parse(responseText);
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      /* ---------- ③ Create merged node (hidden until evaluated) ---------- */
-      const backendId = data.id || createMergeId(nodeA.id, nodeB.id);
-      const mergedOriginalData = normalizeIdeaOriginalData(
-        data.originalData,
-        {
-          id: backendId,
-          title: data.title,
-          content: data.content,
-          problemHighlights: data.problemHighlights
-        }
-      );
-      const newIdea = {
-        id: backendId,
-        title: data.title,
-        content: data.content,
-        problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || [],
-        originalData: mergedOriginalData
-      };
-      const newNode = {
-        id: backendId,
-        level: Math.min(nodeA.level, nodeB.level) + 1,
-        title: data.title.trim(),
-        content: data.content.trim(),
-        type: 'complex',
-        x: (nodeA.x + nodeB.x) / 2,
-        y: (nodeA.y + nodeB.y) / 2,
-        isMergedResult: true,
-        isGhost: true,
-        parentIds: [nodeA.id, nodeB.id],
-        originalData: mergedOriginalData,
-        problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || []
-      };
-
-      setNodes(prev => [
-        ...prev.map(n => {
-          if (n.id === nodeA.id) return { ...n, evaluationOpacity: 1 };
-          if (n.id === nodeB.id) return { ...n, isBeingMerged: false };
-          return n;
-        }),
-        newNode
-      ]);
-      setLinks(prev => [
-        ...prev,
-        { source: backendId, target: nodeA.id },
-        { source: backendId, target: nodeB.id }
-      ]);
-      const updatedIdeasList = [...ideasList, newIdea];
-      setIdeasList(updatedIdeasList);
-
-      setMergeTargetId(null);
-      setIsGenerating(false);
-      setOperationStatus('Evaluating merged idea...');
-      await evaluateIdeas(updatedIdeasList, { mode: 'incremental' });
-      // Node will be revealed automatically by evaluation when scores are applied
-      setOperationStatus('');
-    } catch (err) {
-      console.error('[merge] Error merging ideas:', err);
-      setError(err.message);
-    } finally {
-      setIsGenerating(false);
-      setOperationStatus('');
-      setMergeAnimationState(null);
-    }
-  };
-
   // ============== 段落7：节点点击事件处理 ==============
   // Note: Hover events are now handled by unified tracker to prevent duplicates
 
@@ -2915,7 +2806,7 @@ const TreePlotVisualization = () => {
         // Evaluate the new merged idea with full context
         const updatedIdeasList = [...ideasList, newIdea];
         setIdeasList(updatedIdeasList);
-        await evaluateIdeas(updatedIdeasList, { mode: 'incremental' });
+        await evaluateIdeasRef.current(updatedIdeasList, { mode: 'incremental' });
 
       } catch (err) {
         console.error('Error merging ideas:', err);
@@ -2956,7 +2847,7 @@ const TreePlotVisualization = () => {
 
       // Merge mode already reset at the beginning
     }
-  }, [createMergeId, getNodeTrackingInfo, ideasList, evaluateIdeas, currentView, mergeMode, mergeAnimationState]);
+  }, [createMergeId, getNodeCenterRelativeToContainer, ideasList, mergeAnimationState, mergeMode, normalizeIdeaOriginalData]);
 
   const handleMergeCancel = useCallback(() => {
     // Track the cancel action
@@ -2971,7 +2862,7 @@ const TreePlotVisualization = () => {
       cursorPosition: { x: 0, y: 0 },
       showDialog: false
     });
-  }, [mergeMode, currentView]);
+  }, [mergeMode]);
 
   // Cleanup is handled by D3's selectAll('*').remove() in the main useEffect
 
@@ -4540,6 +4431,13 @@ const TreePlotVisualization = () => {
     unifiedScale, // re-render when unified scale changes
     xScalingCenter, // re-render when X scaling center changes
     yScalingCenter, // re-render when Y scaling center changes
+    calculateNodeMidpoints,
+    colorMap,
+    getCurrentDimensions,
+    getNodeColor,
+    getNodeX,
+    getNodeY,
+    mergeTargetId,
     handleMergeConfirm,
     handleMergeCancel,
     hideEvaluationView, // trigger re-render when plot view visibility changes
@@ -5041,7 +4939,6 @@ const TreePlotVisualization = () => {
   const handleNodeDropOnEvaluation = (e, targetNode) => {
     e.preventDefault();
     const draggedNodeId = e.dataTransfer.getData('nodeId');
-    const sourceView = e.dataTransfer.getData('sourceView');
     const isFragment = e.dataTransfer.getData('isFragment') === 'true';
 
     if (!draggedNodeId) return;
@@ -5115,22 +5012,22 @@ const TreePlotVisualization = () => {
 
   // ============== 3D Cube Navigation Logic ==============
 
-  const clampPitch = (value) => Math.max(-90, Math.min(90, value));
+  const clampPitch = useCallback((value) => Math.max(-90, Math.min(90, value)), []);
 
-  const normalizeYaw = (value) => {
+  const normalizeYaw = useCallback((value) => {
     let v = value % 360;
     if (v > 180) v -= 360;
     if (v <= -180) v += 360;
     return v;
-  };
+  }, []);
 
-  const snapRotation = (rotation) => {
+  const snapRotation = useCallback((rotation) => {
     const snappedYaw = normalizeYaw(Math.round(rotation.yaw / 90) * 90);
     const snappedPitch = clampPitch(Math.round(rotation.pitch / 90) * 90);
     return { yaw: snappedYaw, pitch: snappedPitch };
-  };
+  }, [clampPitch, normalizeYaw]);
 
-  const getFaceFromRotation = (rotation) => {
+  const getFaceFromRotation = useCallback((rotation) => {
     const yaw = normalizeYaw(rotation.yaw);
     const pitch = clampPitch(rotation.pitch);
 
@@ -5140,7 +5037,7 @@ const TreePlotVisualization = () => {
     if (yaw <= -45 && yaw > -135) return 4; // Left
     if (yaw >= 135 || yaw < -135) return 3; // Back
     return 0; // Front
-  };
+  }, [clampPitch, normalizeYaw]);
 
   const beginSnapToFace = useCallback((rotation) => {
     const snapped = snapRotation(rotation);
@@ -5151,7 +5048,7 @@ const TreePlotVisualization = () => {
       clearTimeout(snapTimerRef.current);
     }
     snapTimerRef.current = setTimeout(() => setIsSnapping(false), 350);
-  }, []);
+  }, [getFaceFromRotation, snapRotation]);
 
   const trackCubeRotate = useCallback((source, fromRotation, toRotation) => {
   }, []);
@@ -5172,7 +5069,7 @@ const TreePlotVisualization = () => {
     const snapped = snapRotation(next);
     trackCubeRotate(source, cubeRotation, snapped);
     beginSnapToFace(next);
-  }, [beginSnapToFace, cubeRotation, trackCubeRotate]);
+  }, [beginSnapToFace, clampPitch, cubeRotation, snapRotation, trackCubeRotate]);
 
   // Add keyboard navigation
   useEffect(() => {
@@ -5185,6 +5082,7 @@ const TreePlotVisualization = () => {
         case 'ArrowLeft': handleStepRotation('left', 'keyboard'); break;
         case 'ArrowUp': handleStepRotation('up', 'keyboard'); break;
         case 'ArrowDown': handleStepRotation('down', 'keyboard'); break;
+        default: break;
       }
     };
 
@@ -5582,7 +5480,6 @@ const TreePlotVisualization = () => {
                     setDraggingNodeId(node.id);
 
                     const nodeElement = e.currentTarget;
-                    const initialRect = nodeElement.getBoundingClientRect();
                     // We use fixed positioning for dragging to escape the container's transform context if needed,
                     // but here we are inside a 3D transformed container.
                     // Fixed positioning might break the 3D illusion or coordinate system.
@@ -5752,8 +5649,6 @@ const TreePlotVisualization = () => {
     // Determine mode
     const numActive = activeDimensionIndices.length;
     const is3D = numActive >= 3;
-    const is2D = numActive === 2;
-    const is1D = numActive === 1;
 
     // For 2D/1D, we only show the first active dimension pair
     const targetFaceIndex = is3D ? currentFaceIndex : activeDimensionIndices[0];
@@ -5904,6 +5799,8 @@ const TreePlotVisualization = () => {
     );
   };
 
+  void renderQuadrantLayout;
+
   // === 3D Drag Handler ===
   const handle3DNodeDragEnd = (nodeId, payload, event) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -6006,6 +5903,9 @@ const TreePlotVisualization = () => {
     }
   };
 
+  const handle3DNodeDragEndRef = useRef(null);
+  handle3DNodeDragEndRef.current = handle3DNodeDragEnd;
+
   const cancelPendingChange = useCallback((change, { reason = 'manual' } = {}) => {
     if (!change) return;
 
@@ -6031,9 +5931,9 @@ const TreePlotVisualization = () => {
     setPendingChange(null);
 
     if (currentView === 'exploration') {
-      handle3DNodeDragEnd(change.originalNode.id, { cancelHold: true });
+      handle3DNodeDragEndRef.current(change.originalNode.id, { cancelHold: true });
     }
-  }, [currentView, dragVisualState, getNodeTrackingInfo, handle3DNodeDragEnd, nodes]);
+  }, [currentView, dragVisualState, nodes]);
 
   const cancelPendingMerge = useCallback((merge) => {
     if (!merge) return;
@@ -6230,10 +6130,10 @@ const TreePlotVisualization = () => {
     setDimensionDropdownAnchor(anchorRect);
   };
 
-  const handleCloseDimensionEdit = () => {
+  const handleCloseDimensionEdit = useCallback(() => {
     setEditingDimensionIndex(null);
     setDimensionDropdownAnchor(null);
-  };
+  }, []);
 
   const cancelActivePanels = useCallback((reason = 'auto') => {
     if (pendingChange) cancelPendingChange(pendingChange, { reason });
@@ -7447,11 +7347,6 @@ const TreePlotVisualization = () => {
         }
         onSave={async (finalValue) => {
           const criteriaToSave = finalValue || (editingCriteria === 'impact' ? defaultPrompts.impact : editingCriteria === 'feasibility' ? defaultPrompts.feasibility : defaultPrompts.novelty);
-
-          const currentCriteria = editingCriteria === 'impact' ? impactCriteria :
-            editingCriteria === 'feasibility' ? feasibilityCriteria :
-              noveltyCriteria;
-
 
           const success = await updateCriteria(editingCriteria, criteriaToSave);
           if (success) {

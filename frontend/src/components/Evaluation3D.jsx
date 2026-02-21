@@ -86,11 +86,10 @@ const WireframeBox = () => {
 };
 
 const ProjectedAxis = ({ type }) => {
-  const H = HALF_SIZE;
   const points = useMemo(() => {
-    if (type === 'x') return [[-H, 0, 0], [H, 0, 0]];
-    if (type === 'y') return [[0, -H, 0], [0, H, 0]];
-    if (type === 'z') return [[0, 0, -H], [0, 0, H]];
+    if (type === 'x') return [[-HALF_SIZE, 0, 0], [HALF_SIZE, 0, 0]];
+    if (type === 'y') return [[0, -HALF_SIZE, 0], [0, HALF_SIZE, 0]];
+    if (type === 'z') return [[0, 0, -HALF_SIZE], [0, 0, HALF_SIZE]];
     return [[0, 0, 0], [0, 0, 0]];
   }, [type]);
 
@@ -643,20 +642,6 @@ const SceneContent = ({
       setSnapped(false);
     }
 
-    // Helper to get dimension info
-    const axisToIndex = { x: 0, y: 1, z: 2 };
-    const getDimInfo = (axisName) => {
-      const index = axisToIndex[axisName];
-      const dim = dimensions[index];
-      if (!dim) return null;
-      return {
-        id: dim.id, // Assuming dimensions might have IDs, otherwise optional
-        label: `${dim.dimensionA} vs ${dim.dimensionB}`,
-        dimensionA: dim.dimensionA,
-        dimensionB: dim.dimensionB
-      };
-    };
-
   };
 
   const handleStart = () => {
@@ -698,7 +683,7 @@ const SceneContent = ({
     if (!dragVisualState && dragVisual3D) {
       setDragVisual3D(null);
     }
-  }, [dragVisualState]); // Remove dragVisual3D from dependencies to avoid unnecessary reruns
+  }, [dragVisualState, dragVisual3D, setDragVisual3D]);
 
   // Camera Transition Logic based on Active Dimensions
   const activeCount = activeDimensionIndices ? activeDimensionIndices.length : 3;
@@ -803,7 +788,7 @@ const SceneContent = ({
       setIsSnapping(true);
       setSnapped(false);
     }
-  }, [activeCount, activeDimensionIndices]);
+  }, [activeCount, activeDimensionIndices, setTargetFaceIndex, setTargetUp, setIsSnapping, setSnapped]);
 
   return (
     <>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DimensionSelectorModal.css';
 
 /**
@@ -17,14 +17,7 @@ const DimensionSelectorModal = ({ isOpen, onClose, onConfirm, intent }) => {
         pair2: { dimensionA: '', dimensionB: '' }
     });
 
-    // 获取 AI 建议的维度对
-    useEffect(() => {
-        if (isOpen && intent) {
-            fetchSuggestedDimensions();
-        }
-    }, [isOpen, intent]);
-
-    const fetchSuggestedDimensions = async () => {
+    const fetchSuggestedDimensions = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -44,7 +37,14 @@ const DimensionSelectorModal = ({ isOpen, onClose, onConfirm, intent }) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [intent]);
+
+    // 获取 AI 建议的维度对
+    useEffect(() => {
+        if (isOpen && intent) {
+            fetchSuggestedDimensions();
+        }
+    }, [isOpen, intent, fetchSuggestedDimensions]);
 
     // 点击预设选项,填入对应的输入框
     const handleSelectPreset = (pair, targetPairIndex) => {

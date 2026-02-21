@@ -1,3 +1,4 @@
+import App from './App';
 import { render, screen } from '@testing-library/react';
 
 jest.mock('./components/TreePlotVisualization', () => {
@@ -6,8 +7,6 @@ jest.mock('./components/TreePlotVisualization', () => {
     return React.createElement('div', { 'data-testid': 'tree-plot-visualization' });
   };
 });
-
-import App from './App';
 
 test('renders the main visualization container', () => {
   render(<App />);

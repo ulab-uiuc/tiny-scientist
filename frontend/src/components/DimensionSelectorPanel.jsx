@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DimensionSelectorPanel.css';
 
 /**
@@ -18,14 +18,7 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
         pair3: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' }
     });
 
-    // 获取 AI 建议的维度对
-    useEffect(() => {
-        if (isOpen && intent) {
-            fetchSuggestedDimensions();
-        }
-    }, [isOpen, intent]);
-
-    const fetchSuggestedDimensions = async () => {
+    const fetchSuggestedDimensions = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -49,7 +42,14 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [intent]);
+
+    // 获取 AI 建议的维度对
+    useEffect(() => {
+        if (isOpen && intent) {
+            fetchSuggestedDimensions();
+        }
+    }, [isOpen, intent, fetchSuggestedDimensions]);
 
     const findPairSlotForSuggestion = (pair, dimensions) => {
         return Object.entries(dimensions).find(([, value]) =>
