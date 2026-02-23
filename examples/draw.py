@@ -24,8 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="claude-3-5-sonnet-20241022",
-        help="LLM model to use (default: claude-3-5-sonnet-20241022)",
+        default="gpt-5-mini",
+        help="LLM model to use (default: gpt-5-mini)",
     )
     parser.add_argument(
         "--output",

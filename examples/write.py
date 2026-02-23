@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
+        default="gpt-5-mini",
         help="Model to use for writing and refinement",
     )
     parser.add_argument(

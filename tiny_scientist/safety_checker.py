@@ -44,7 +44,7 @@ def is_rejection_response(response: str) -> bool:
 
 class PromptAttackDetector:
     def __init__(
-        self, model: str = "gpt-4o", cost_tracker: Optional[BudgetChecker] = None
+        self, model: str = "gpt-5-mini", cost_tracker: Optional[BudgetChecker] = None
     ) -> None:
         self.client, self.model = create_client(model)
         self.cost_tracker = cost_tracker or BudgetChecker()
@@ -148,7 +148,7 @@ class SafetyChecker:
     """
 
     def __init__(
-        self, model: str = "gpt-4o", cost_tracker: Optional[BudgetChecker] = None
+        self, model: str = "gpt-5-mini", cost_tracker: Optional[BudgetChecker] = None
     ) -> None:
         self.model = model
         self.cost_tracker = cost_tracker or BudgetChecker()

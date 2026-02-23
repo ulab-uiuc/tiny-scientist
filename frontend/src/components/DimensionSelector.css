@@ -1,0 +1,331 @@
+.dimension-selector {
+    width: 100%;
+    padding: 24px;
+    background: #f9fafb;
+    border-radius: 12px;
+    margin: 20px 0;
+}
+
+.dimension-selector-header {
+    margin-bottom: 24px;
+}
+
+.dimension-selector-header h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 8px 0;
+}
+
+.dimension-selector-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+
+.dimension-selector-loading {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.spinner {
+    border: 3px solid #f3f4f6;
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.dimension-pairs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.dimension-pair-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dimension-pair-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.1);
+}
+
+.dimension-pair-card.selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+}
+
+.dimension-pair-spectrum {
+    margin-bottom: 12px;
+}
+
+.dimension-end {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.dimension-label {
+    font-weight: 600;
+    color: #111827;
+    font-size: 14px;
+}
+
+.dimension-score {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.spectrum-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-top: 2px solid #e5e7eb;
+    border-bottom: 2px solid #e5e7eb;
+    margin: 8px 0;
+}
+
+.spectrum-arrow {
+    font-size: 18px;
+    color: #9ca3af;
+}
+
+.spectrum-center {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.dimension-description {
+    font-size: 12px;
+    color: #6b7280;
+    margin: 4px 0;
+    line-height: 1.4;
+}
+
+.dimension-explanation {
+    font-size: 13px;
+    color: #374151;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-style: italic;
+}
+
+.custom-dimension-button {
+    width: 100%;
+    padding: 12px 16px;
+    background: white;
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 20px;
+}
+
+.custom-dimension-button:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+    background: #f9fafb;
+}
+
+.custom-dimension-input {
+    background: white;
+    border: 2px solid #3b82f6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.custom-dimension-input h4 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #111827;
+}
+
+.custom-input-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.custom-input-group {
+    flex: 1;
+}
+
+.custom-input-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.custom-input-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.custom-input-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    min-height: 60px;
+    resize: vertical;
+}
+
+.custom-input-divider {
+    font-size: 24px;
+    color: #9ca3af;
+    font-weight: bold;
+}
+
+.custom-input-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.custom-input-actions button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.custom-input-actions button:first-child {
+    background: #3b82f6;
+    color: white;
+    border: none;
+}
+
+.custom-input-actions button:first-child:hover {
+    background: #2563eb;
+}
+
+.custom-input-actions button:last-child {
+    background: white;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+}
+
+.custom-input-actions button:last-child:hover {
+    background: #f9fafb;
+}
+
+.selected-pairs-summary {
+    background: white;
+    border: 2px solid #3b82f6;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.selected-pairs-summary h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.selected-pairs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.selected-pair-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #eff6ff;
+    border-radius: 6px;
+}
+
+.pair-number {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3b82f6;
+}
+
+.pair-text {
+    flex: 1;
+    font-size: 14px;
+    color: #374151;
+}
+
+.remove-pair-button {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: color 0.2s ease;
+}
+
+.remove-pair-button:hover {
+    color: #ef4444;
+}
+
+.confirm-dimensions-button {
+    width: 100%;
+    padding: 14px 24px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.confirm-dimensions-button:hover:not(:disabled) {
+    background: #2563eb;
+    box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+}
+
+.confirm-dimensions-button:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+    opacity: 0.6;
+}

@@ -43,7 +43,7 @@ class TinyScientist:
 
     def __init__(
         self,
-        model: str = "gpt-4o",
+        model: str = "gpt-5-mini",
         output_dir: str = "./tiny_scientist_output",
         template: str = "acl",
         prompt_template_dir: Optional[str] = None,

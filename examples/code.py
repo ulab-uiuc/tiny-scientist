@@ -108,8 +108,8 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
-        help="Model to use (e.g., llama3.1-405b, deepseek-coder-v2-0724)",
+        default="gpt-5-mini",
+        help="Model to use (e.g., gpt-5, claude-sonnet-4-5)",
     )
     parser.add_argument(
         "--max_iters", type=int, default=2, help="Maximum iterations per experiment"

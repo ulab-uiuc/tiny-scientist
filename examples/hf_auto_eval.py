@@ -70,7 +70,7 @@ def main():
     parser.add_argument(
         "--gpt_model",
         type=str,
-        default="gpt-4o",
+        default="gpt-5-mini",
         help="The GPT model to use for TinyScientist.",
     )
     parser.add_argument(

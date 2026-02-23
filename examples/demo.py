@@ -19,7 +19,7 @@ def main() -> None:
         help="Configuration directory with prompt YAML files",
     )
     parser.add_argument(
-        "--model", type=str, default="gpt-4o-mini", help="LLM model to use"
+        "--model", type=str, default="gpt-5-mini", help="LLM model to use"
     )
     parser.add_argument(
         "--template",
