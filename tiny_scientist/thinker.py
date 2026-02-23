@@ -47,31 +47,12 @@ class Thinker:
         self.intent = ""
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
 
-        # Enhanced criteria system from TinyScientistUI
         self.default_system_prompt = """You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.
 You want to generate creative and impactful research ideas that can be feasibly investigated with the code provided.
 Be critical and realistic in your assessments."""
 
-        self.default_novelty_criteria = (
-            "How original is the idea compared to existing work?"
-        )
-        self.default_feasibility_criteria = (
-            "How practical is implementation within reasonable resource constraints?"
-        )
-        self.default_impact_criteria = "What is the potential impact of this research on the field and broader applications?"
-
         # Initialize with defaults
         self.system_prompt = self.default_system_prompt
-        self.novelty_criteria = self.default_novelty_criteria
-        self.feasibility_criteria = self.default_feasibility_criteria
-        self.impact_criteria = self.default_impact_criteria
-
-        # Legacy criteria descriptions for backward compatibility
-        self.default_criteria_descriptions = """1. Intent Alignment: How well does each idea address the original research intent?
-        2. Scientific Merit: How significant is the potential contribution to the field?
-        3. Novelty: How original is the idea compared to existing work?
-        4. Feasibility: How practical is implementation within reasonable resource constraints?
-        5. Impact: What is the potential impact of this research on the field and broader applications?"""
         self.cost_tracker = cost_tracker or BudgetChecker()
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
@@ -277,32 +258,6 @@ Be critical and realistic in your assessments."""
         else:
             self.system_prompt = prompt
 
-    def get_criteria(self, dimension: str) -> str:
-        """Get criteria for a specific dimension"""
-        criteria_map = {
-            "novelty": self.novelty_criteria,
-            "feasibility": self.feasibility_criteria,
-            "impact": self.impact_criteria,
-        }
-        return criteria_map.get(dimension, "")
-
-    def set_criteria(self, dimension: str, criteria: Optional[str] = None) -> None:
-        """Set criteria for a specific dimension. If no criteria is provided, reset to default"""
-        if dimension == "novelty":
-            self.novelty_criteria = (
-                criteria if criteria else self.default_novelty_criteria
-            )
-        elif dimension == "feasibility":
-            self.feasibility_criteria = (
-                criteria if criteria else self.default_feasibility_criteria
-            )
-        elif dimension == "impact":
-            self.impact_criteria = (
-                criteria if criteria else self.default_impact_criteria
-            )
-        else:
-            raise ValueError(f"Unknown dimension: {dimension}")
-
     def rank(
         self,
         ideas: List[Dict[str, Any]],
@@ -317,7 +272,7 @@ Be critical and realistic in your assessments."""
         When partial=True, only newly added / target ideas should be scored; context ideas
         (with AlreadyScored true) are ignored in output.
 
-        dimension_pairs: List of up to 3 dimension pair dicts, each containing:
+        dimension_pairs: List of (at least) 3 dimension pair dicts, each containing:
             - dimensionA: str
             - dimensionB: str
             - descriptionA: str
@@ -325,17 +280,27 @@ Be critical and realistic in your assessments."""
         """
         intent = intent or self.intent
 
+        if (
+            not dimension_pairs
+            or not isinstance(dimension_pairs, list)
+            or len(dimension_pairs) < 3
+        ):
+            raise ValueError("dimension_pairs (length >= 3) is required")
+
+        assert dimension_pairs is not None
+        dimension_pairs_local = dimension_pairs
+
         ideas_json = json.dumps(ideas, indent=2)
         evaluation_result = self._get_idea_evaluation(
             ideas_json,
             intent,
-            dimension_pairs=dimension_pairs,
+            dimension_pairs=dimension_pairs_local,
             user_score_corrections=user_score_corrections,
             partial=partial,
             modify_context=modify_context,
         )
         ranked_ideas = self._parse_evaluation_result(
-            evaluation_result, ideas, dimension_pairs=dimension_pairs
+            evaluation_result, ideas, dimension_pairs=dimension_pairs_local
         )
 
         self.cost_tracker.report()
@@ -488,75 +453,58 @@ Respond in JSON format:
         )
 
         for mod in modifications:
-            metric_name = {
-                "noveltyScore": "Novelty",
-                "feasibilityScore": "Feasibility",
-                "impactScore": "Impact",
-                "dimension1Score": "dimension1",
-                "dimension2Score": "dimension2",
-                "dimension3Score": "dimension3",
-            }.get(mod["metric"], mod["metric"])
+            if not isinstance(mod, dict):
+                continue
+            if "previousScore" not in mod or "newScore" not in mod:
+                continue
 
-            # Handle both old direction-based and new score-based formats
-            if "previousScore" in mod and "newScore" in mod:
-                # New score-based format (from dynamic dimensions)
-                instruction_lines.append(
-                    {
-                        "metric": metric_name,
-                        "previousScore": mod["previousScore"],
-                        "newScore": mod["newScore"],
-                        "change": mod.get("change", 0),
-                        "reference": behind_content,
-                    }
-                )
-            else:
-                # Legacy direction-based format
-                direction = mod.get("direction", "increase")
-                instruction_lines.append(
-                    {
-                        "metric": metric_name,
-                        "direction": direction,
-                        "reference": behind_content,
-                    }
-                )
+            metric_name = mod.get("metric")
+            if not metric_name:
+                continue
+
+            instruction_lines.append(
+                {
+                    "metric": metric_name,
+                    "previousScore": mod["previousScore"],
+                    "newScore": mod["newScore"],
+                    "change": mod.get("change", 0),
+                    "reference": behind_content,
+                }
+            )
 
         # Prepare the prompt using the template from YAML
         # Format varies based on whether dimension_pairs are provided
-        pair_count = len(dimension_pairs) if dimension_pairs else 0
+        if (
+            not dimension_pairs
+            or not isinstance(dimension_pairs, list)
+            or len(dimension_pairs) < 3
+        ):
+            raise ValueError("dimension_pairs (length >= 3) is required")
 
-        if dimension_pairs and pair_count >= 2:
-            # Use dimension pairs (up to 3)
-            pair1 = dimension_pairs[0]
-            pair2 = dimension_pairs[1]
-            pair3 = dimension_pairs[2] if pair_count >= 3 else {}
+        pair1 = dimension_pairs[0]
+        pair2 = dimension_pairs[1]
+        pair3 = dimension_pairs[2]
 
-            prompt = self.prompts.modify_idea_prompt.format(
-                idea=json.dumps(original_idea),
-                modifications=json.dumps(instruction_lines),
-                intent=self.intent,
-                dimension_pair_1_name=f"{pair1.get('dimensionA', '')} - {pair1.get('dimensionB', '')}",
-                dimension_1_a=pair1.get("dimensionA", "Dimension 1A"),
-                dimension_1_b=pair1.get("dimensionB", "Dimension 1B"),
-                dimension_1_a_desc=pair1.get("descriptionA", ""),
-                dimension_1_b_desc=pair1.get("descriptionB", ""),
-                dimension_pair_2_name=f"{pair2.get('dimensionA', '')} - {pair2.get('dimensionB', '')}",
-                dimension_2_a=pair2.get("dimensionA", "Dimension 2A"),
-                dimension_2_b=pair2.get("dimensionB", "Dimension 2B"),
-                dimension_2_a_desc=pair2.get("descriptionA", ""),
-                dimension_2_b_desc=pair2.get("descriptionB", ""),
-                dimension_pair_3_name=f"{pair3.get('dimensionA', '')} - {pair3.get('dimensionB', '')}",
-                dimension_3_a=pair3.get("dimensionA", "Dimension 3A"),
-                dimension_3_b=pair3.get("dimensionB", "Dimension 3B"),
-                dimension_3_a_desc=pair3.get("descriptionA", ""),
-                dimension_3_b_desc=pair3.get("descriptionB", ""),
-            )
-        else:
-            # Legacy format without dimension pairs
-            prompt = self.prompts.modify_idea_prompt.format(
-                idea=json.dumps(original_idea),
-                modifications=json.dumps(instruction_lines),
-                intent=self.intent,
-            )
+        prompt = self.prompts.modify_idea_prompt.format(
+            idea=json.dumps(original_idea),
+            modifications=json.dumps(instruction_lines),
+            intent=self.intent,
+            dimension_pair_1_name=f"{pair1.get('dimensionA', '')} - {pair1.get('dimensionB', '')}",
+            dimension_1_a=pair1.get("dimensionA", "Dimension 1A"),
+            dimension_1_b=pair1.get("dimensionB", "Dimension 1B"),
+            dimension_1_a_desc=pair1.get("descriptionA", ""),
+            dimension_1_b_desc=pair1.get("descriptionB", ""),
+            dimension_pair_2_name=f"{pair2.get('dimensionA', '')} - {pair2.get('dimensionB', '')}",
+            dimension_2_a=pair2.get("dimensionA", "Dimension 2A"),
+            dimension_2_b=pair2.get("dimensionB", "Dimension 2B"),
+            dimension_2_a_desc=pair2.get("descriptionA", ""),
+            dimension_2_b_desc=pair2.get("descriptionB", ""),
+            dimension_pair_3_name=f"{pair3.get('dimensionA', '')} - {pair3.get('dimensionB', '')}",
+            dimension_3_a=pair3.get("dimensionA", "Dimension 3A"),
+            dimension_3_b=pair3.get("dimensionB", "Dimension 3B"),
+            dimension_3_a_desc=pair3.get("descriptionA", ""),
+            dimension_3_b_desc=pair3.get("descriptionB", ""),
+        )
 
         text, _ = get_response_from_llm(
             prompt,
@@ -795,7 +743,6 @@ Respond in JSON format:
         intent: str,
         dimension_pairs: Optional[List[Dict[str, Any]]] = None,
         user_score_corrections: Optional[List[Dict[str, Any]]] = None,
-        custom_criteria: Optional[str] = None,
         partial: bool = False,
         modify_context: Optional[str] = None,
     ) -> str:
@@ -818,51 +765,46 @@ Respond in JSON format:
         if modify_context:
             modify_context_text = f"\n\nMODIFICATION CONTEXT:\n{modify_context}\nPlease consider this modification context when evaluating the ideas, particularly if any ideas are result of user-guided modifications.\n"
 
-        pair_count = len(dimension_pairs) if dimension_pairs else 0
-        if dimension_pairs and pair_count >= 2:
-            pair1 = dimension_pairs[0]
-            pair2 = dimension_pairs[1]
-            pair3 = dimension_pairs[2] if pair_count >= 3 else {}
+        if (
+            not dimension_pairs
+            or not isinstance(dimension_pairs, list)
+            or len(dimension_pairs) < 3
+        ):
+            raise ValueError("dimension_pairs (length >= 3) is required")
 
-            prompt_kwargs = dict(
-                intent=intent,
-                ideas=ideas_json,
-                dimension_pair_1_name=f"{pair1.get('dimensionA', '')} - {pair1.get('dimensionB', '')}",
-                dimension_1_a=pair1.get("dimensionA", "Dimension 1A"),
-                dimension_1_b=pair1.get("dimensionB", "Dimension 1B"),
-                dimension_1_a_desc=pair1.get("descriptionA", ""),
-                dimension_1_b_desc=pair1.get("descriptionB", ""),
-                dimension_pair_2_name=f"{pair2.get('dimensionA', '')} - {pair2.get('dimensionB', '')}",
-                dimension_2_a=pair2.get("dimensionA", "Dimension 2A"),
-                dimension_2_b=pair2.get("dimensionB", "Dimension 2B"),
-                dimension_2_a_desc=pair2.get("descriptionA", ""),
-                dimension_2_b_desc=pair2.get("descriptionB", ""),
-                dimension_pair_3_name=f"{pair3.get('dimensionA', '')} - {pair3.get('dimensionB', '')}",
-                dimension_3_a=pair3.get("dimensionA", "Dimension 3A"),
-                dimension_3_b=pair3.get("dimensionB", "Dimension 3B"),
-                dimension_3_a_desc=pair3.get("descriptionA", ""),
-                dimension_3_b_desc=pair3.get("descriptionB", ""),
-                modify_context=modify_context_text,
-            )
-            prompt = base_template.format(**prompt_kwargs)
-        else:
-            prompt = base_template.format(
-                intent=intent,
-                ideas=ideas_json,
-                novelty_criteria=self.novelty_criteria,
-                feasibility_criteria=self.feasibility_criteria,
-                impact_criteria=self.impact_criteria,
-                modify_context=modify_context_text,
-            )
+        assert dimension_pairs is not None
+        dimension_pairs_local = dimension_pairs
+        pair1 = dimension_pairs_local[0]
+        pair2 = dimension_pairs_local[1]
+        pair3 = dimension_pairs_local[2]
+
+        prompt_kwargs = dict(
+            intent=intent,
+            ideas=ideas_json,
+            dimension_pair_1_name=f"{pair1.get('dimensionA', '')} - {pair1.get('dimensionB', '')}",
+            dimension_1_a=pair1.get("dimensionA", "Dimension 1A"),
+            dimension_1_b=pair1.get("dimensionB", "Dimension 1B"),
+            dimension_1_a_desc=pair1.get("descriptionA", ""),
+            dimension_1_b_desc=pair1.get("descriptionB", ""),
+            dimension_pair_2_name=f"{pair2.get('dimensionA', '')} - {pair2.get('dimensionB', '')}",
+            dimension_2_a=pair2.get("dimensionA", "Dimension 2A"),
+            dimension_2_b=pair2.get("dimensionB", "Dimension 2B"),
+            dimension_2_a_desc=pair2.get("descriptionA", ""),
+            dimension_2_b_desc=pair2.get("descriptionB", ""),
+            dimension_pair_3_name=f"{pair3.get('dimensionA', '')} - {pair3.get('dimensionB', '')}",
+            dimension_3_a=pair3.get("dimensionA", "Dimension 3A"),
+            dimension_3_b=pair3.get("dimensionB", "Dimension 3B"),
+            dimension_3_a_desc=pair3.get("descriptionA", ""),
+            dimension_3_b_desc=pair3.get("descriptionB", ""),
+            modify_context=modify_context_text,
+        )
+        prompt = base_template.format(**prompt_kwargs)
 
         if corrections_context:
             print(
                 "*****************Adding user score corrections context to evaluation prompt**************"
             )
             prompt = prompt + corrections_context
-
-        if custom_criteria:
-            prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
 
         text, _ = get_response_from_llm(
             prompt,
@@ -919,8 +861,20 @@ Respond in JSON format:
         scored_ideas = []
         scored_items = evaluation_data.get("scored_ideas", [])
 
-        pair_count = len(dimension_pairs) if dimension_pairs else 0
-        use_dimension_pairs = pair_count >= 2
+        if (
+            not dimension_pairs
+            or not isinstance(dimension_pairs, list)
+            or len(dimension_pairs) < 3
+        ):
+            print(
+                "[WARN] dimension_pairs missing/invalid; cannot parse evaluation output"
+            )
+            return []
+
+        assert dimension_pairs is not None
+        dimension_pairs_local = dimension_pairs
+
+        pair_count = len(dimension_pairs_local)
 
         def _to_signed(v):
             try:
@@ -945,50 +899,26 @@ Respond in JSON format:
             if idea_name in idea_map:
                 idea = idea_map[idea_name].copy()
 
-                if use_dimension_pairs:
-                    idea["scores"] = {}
-                    max_dimensions = min(pair_count, 5) if pair_count else 0
-                    for idx in range(max_dimensions):
-                        pair = dimension_pairs[idx]
-                        dim_score_raw = _get_field(
-                            scored_item, _score_variants(f"Dimension{idx + 1}Score")
-                        )
-                        dim_reason = (
-                            _get_field(
-                                scored_item,
-                                _score_variants(f"Dimension{idx + 1}Reason"),
-                            )
-                            or ""
-                        )
-                        dim_score = _to_signed(dim_score_raw)
-                        dim_key = f"{pair.get('dimensionA', f'Dim{idx + 1}A')}-{pair.get('dimensionB', f'Dim{idx + 1}B')}"
-
-                        idea["scores"][dim_key] = dim_score
-                        idea[f"Dimension{idx + 1}Score"] = dim_score
-                        idea[f"Dimension{idx + 1}Reason"] = dim_reason
-                else:
-                    raw_feas = _get_field(
-                        scored_item, _score_variants("FeasibilityScore")
+                idea["scores"] = {}
+                max_dimensions = min(pair_count, 3)
+                for idx in range(max_dimensions):
+                    pair = dimension_pairs_local[idx]
+                    dim_score_raw = _get_field(
+                        scored_item, _score_variants(f"Dimension{idx + 1}Score")
                     )
-                    raw_nov = _get_field(scored_item, _score_variants("NoveltyScore"))
-                    raw_imp = _get_field(scored_item, _score_variants("ImpactScore"))
-
-                    def _to_signed_legacy(v):
-                        return _to_signed(v)
-
-                    idea["FeasibilityScore"] = _to_signed_legacy(raw_feas)
-                    idea["NoveltyScore"] = _to_signed_legacy(raw_nov)
-                    idea["ImpactScore"] = _to_signed_legacy(raw_imp)
-                    idea["NoveltyReason"] = (
-                        _get_field(scored_item, _score_variants("NoveltyReason")) or ""
-                    )
-                    idea["FeasibilityReason"] = (
-                        _get_field(scored_item, _score_variants("FeasibilityReason"))
+                    dim_reason = (
+                        _get_field(
+                            scored_item,
+                            _score_variants(f"Dimension{idx + 1}Reason"),
+                        )
                         or ""
                     )
-                    idea["ImpactReason"] = (
-                        _get_field(scored_item, _score_variants("ImpactReason")) or ""
-                    )
+                    dim_score = _to_signed(dim_score_raw)
+                    dim_key = f"{pair.get('dimensionA', f'Dim{idx + 1}A')}-{pair.get('dimensionB', f'Dim{idx + 1}B')}"
+
+                    idea["scores"][dim_key] = dim_score
+                    idea[f"Dimension{idx + 1}Score"] = dim_score
+                    idea[f"Dimension{idx + 1}Reason"] = dim_reason
 
                 scored_ideas.append(idea)
 
@@ -1071,8 +1001,6 @@ Respond in JSON format:
             task_name="reflect_idea",
         )
         new_idea = extract_json_between_markers(text)
-        if isinstance(new_idea, list) and new_idea:
-            new_idea = new_idea[0]
 
         if not new_idea:
             print("Failed to extract a valid idea from refinement")
@@ -1115,8 +1043,6 @@ Respond in JSON format:
 
         print(f"[DEBUG] Idea generation response length: {len(text)} chars")
         idea = extract_json_between_markers(text)
-        if isinstance(idea, list) and idea:
-            idea = idea[0]
 
         if not idea:
             print("Failed to generate a valid idea")

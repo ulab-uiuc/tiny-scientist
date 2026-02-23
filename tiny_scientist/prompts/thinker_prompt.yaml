@@ -7,7 +7,7 @@ idea_system_prompt: >
   Be critical and realistic in your assessments.
 evaluation_system_prompt: >
   You are an expert research reviewer who evaluates scientific ideas with rigor and fairness.
-  Your role is to comparatively evaluate multiple research ideas and score them based on their feasibility, novelty, impact, and alignment with the original research intent.
+  Your role is to comparatively evaluate multiple research ideas and score them strictly based on the provided dimension pairs and the original research intent.
   Be thoughtful, objective, and provide clear justifications for your scoring.
 dimension_suggestion_prompt: |
   Based on the following research intent, suggest 5 pairs of contrasting evaluation dimensions that would be most relevant for comparing research ideas.
@@ -326,7 +326,7 @@ modify_idea_prompt: |
   **PRESERVE IF PRESENT** (copy from original if exists):
   - "Experiment": Experimental plan (if already generated)
   - "ResearchPlan": Alternative to Experiment
-  - Any evaluation scores: NoveltyScore, FeasibilityScore, ImpactScore, Dimension1Score, Dimension2Score, Dimension3Score, scores dict, etc.
+  - Any evaluation scores: Dimension1Score, Dimension2Score, Dimension3Score, scores dict, etc.
 
   **IMPORTANT**:
   - If the original idea has an "Experiment" field, copy it exactly unless modifications specifically target the experimental design
@@ -393,7 +393,7 @@ merge_ideas_prompt: |
   - The "Approach" field is CRITICAL and must describe the merged technical approach
   - If both ideas have "Experiment" fields, intelligently merge them or choose the more comprehensive one
   - Create new Name/Title that reflects the merged nature
-  - Do not copy evaluation scores from either idea (NoveltyScore, FeasibilityScore, etc.) - the merged idea will be re-evaluated
+  - Do not copy evaluation scores from either idea (Dimension1Score/Dimension2Score/Dimension3Score or scores dict) - the merged idea will be re-evaluated
 
 novelty_system_prompt: |
   You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.

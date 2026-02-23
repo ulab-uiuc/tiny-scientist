@@ -272,7 +272,6 @@ const Dashboard = ({
   isEvaluating,
   showTree,
   setModalAnchorEl,
-  setEditingCriteria,
   // Props for ContextAndGenerateCard
   isAddingCustom,
   userInput,
@@ -345,10 +344,6 @@ const Dashboard = ({
         node={node}
         showAfter={showAfter}
         setShowAfter={setShowAfter}
-        onEditCriteria={(buttonRef, dimension) => {
-          setModalAnchorEl(buttonRef);
-          setEditingCriteria(dimension);
-        }}
         onModifyScore={onModifyScore}
         showModifyButton={showModifyButton}
         pendingChanges={pendingChanges}
@@ -513,21 +508,12 @@ const TreePlotVisualization = () => {
   // *** 新增：用于用户自定义prompts
   const [systemPrompt, setSystemPrompt] = useState('');
   const [isEditingSystemPrompt, setIsEditingSystemPrompt] = useState(false);
-
-  const [impactCriteria, setImpactCriteria] = useState('');
-  const [feasibilityCriteria, setFeasibilityCriteria] = useState('');
-  const [noveltyCriteria, setNoveltyCriteria] = useState('');
-  const [editingCriteria, setEditingCriteria] = useState(null); // 'impact' | 'feasibility' | 'novelty' | null
   const [defaultPrompts, setDefaultPrompts] = useState({
     system_prompt: '',
-    novelty: '',
-    feasibility: '',
-    impact: '',
   });
   // Add refs for positioning modals
   const systemPromptButtonRef = useRef(null);
   const [modalAnchorEl, setModalAnchorEl] = useState(null);
-  const [dashboardWidth, setDashboardWidth] = useState(0);
   const dashboardContainerRef = useRef(null);
   const analysisFormRef = useRef(null);
   const evaluationContainerRef = useRef(null); // Ref for plot view container
@@ -606,11 +592,24 @@ const TreePlotVisualization = () => {
   // Helper function to create ghost node with modified score
   const createGhostNodeWithModifiedScore = (originalNode, metric, newScore) => {
     const ghostId = `${originalNode.id}-Xghost-${Date.now()}`;
+    const nextScores = {
+      ...(originalNode.scores || {}),
+      [metric]: newScore
+    };
     const ghostNode = {
       ...originalNode,
       id: ghostId,
       level: originalNode.level + 1, // Put on next level
-      [metric]: newScore,
+      scores: nextScores,
+      originalData: originalNode.originalData
+        ? {
+          ...originalNode.originalData,
+          scores: {
+            ...(originalNode.originalData.scores || {}),
+            [metric]: newScore
+          }
+        }
+        : originalNode.originalData,
       isGhost: true,
       isModified: true, // Mark as modified for different color
       isNewlyGenerated: true, // Use same yellow color as plot view
@@ -692,24 +691,12 @@ const TreePlotVisualization = () => {
             updatedNode.scores[mod.metric] = mod.newScore;
           }
 
-          // 更新旧的三维度分数（向后兼容）
-          updatedNode[mod.metric] = mod.newScore;
-
           if (updatedNode.originalData) {
             // 更新 originalData 中的 scores 对象
             if (!updatedNode.originalData.scores) {
               updatedNode.originalData.scores = {};
             }
             updatedNode.originalData.scores[mod.metric] = mod.newScore;
-
-            // 更新旧格式
-            updatedNode.originalData[mod.metric] = mod.newScore;
-
-            if (mod.metric.endsWith('Score')) {
-              const prefix = mod.metric.slice(0, -5);
-              const capitalizedKey = `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}Score`;
-              updatedNode.originalData[capitalizedKey] = mod.newScore;
-            }
           }
         });
 
@@ -737,23 +724,12 @@ const TreePlotVisualization = () => {
           updatedIdea.scores[mod.metric] = mod.newScore;
         }
 
-        // 更新旧格式
-        updatedIdea[mod.metric] = mod.newScore;
-
         if (updatedIdea.originalData) {
           // 更新 originalData 中的 scores 对象
           if (!updatedIdea.originalData.scores) {
             updatedIdea.originalData.scores = {};
           }
           updatedIdea.originalData.scores[mod.metric] = mod.newScore;
-
-          updatedIdea.originalData[mod.metric] = mod.newScore;
-
-          if (mod.metric.endsWith('Score')) {
-            const prefix = mod.metric.slice(0, -5);
-            const capitalizedKey = `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}Score`;
-            updatedIdea.originalData[capitalizedKey] = mod.newScore;
-          }
         }
       });
 
@@ -836,24 +812,6 @@ const TreePlotVisualization = () => {
     };
   }, []);
 
-  // This effect will measure the dashboard container and update the width state
-  useEffect(() => {
-    if (dashboardContainerRef.current) {
-      const resizeObserver = new ResizeObserver(entries => {
-        for (let entry of entries) {
-          setDashboardWidth(entry.contentRect.width);
-        }
-      });
-      resizeObserver.observe(dashboardContainerRef.current);
-      return () => resizeObserver.disconnect();
-    }
-  }, []); // Run only once on mount
-  // X/Y 轴指标（仅在 Plot View 用）
-  // 注意：现在不再使用固定的 feasibilityScore/noveltyScore/impactScore
-  // 而是使用 selectedDimensionPairs 中的维度对名称作为 key
-  // 例如：node.scores["HCI-AI"] = 75
-  const [xAxisMetric] = useState('feasibilityScore'); // 保留作为 fallback，不再修改
-  const [yAxisMetric] = useState('noveltyScore'); // 保留作为 fallback，不再修改
   // Evaluation metric scaling via external control lines (one per axis) with movable block (Option A1 refined)
   // Control block at center (0.5) => scale=1.0.
   const [xScalingCenter, setXScalingCenter] = useState(50); // Center point for X-axis scaling (0-100)
@@ -935,20 +893,6 @@ const TreePlotVisualization = () => {
     setFragmentNodes(prev => prev.filter(fn => fn.id !== fragmentId));
 
   }, []);
-
-  // Clear user drag targets when axis metrics change
-  useEffect(() => {
-    setUserDragTargets(prev => {
-      const filtered = {};
-      Object.entries(prev).forEach(([nodeId, target]) => {
-        // Only keep targets that match current axis metrics
-        if (target.xAxisMetric === xAxisMetric && target.yAxisMetric === yAxisMetric) {
-          filtered[nodeId] = target;
-        }
-      });
-      return filtered;
-    });
-  }, [xAxisMetric, yAxisMetric]);
 
   // 点击外部关闭 Fragment 菜单
   useEffect(() => {
@@ -1033,19 +977,6 @@ const TreePlotVisualization = () => {
       return orientScoreValue(reverseValue, true);
     }
 
-    // Fallback：如果是旧的三维度系统，尝试从直接属性获取
-    // 这里为了向后兼容，保留对 feasibilityScore/noveltyScore/impactScore 的支持
-    const legacyKey = `${dimensionPair.dimensionA}-${dimensionPair.dimensionB}`.toLowerCase();
-    if (legacyKey.includes('feasibility') && node.feasibilityScore !== undefined) {
-      return node.feasibilityScore;
-    }
-    if (legacyKey.includes('novelty') && node.noveltyScore !== undefined) {
-      return node.noveltyScore;
-    }
-    if (legacyKey.includes('impact') && node.impactScore !== undefined) {
-      return node.impactScore;
-    }
-
     return undefined;
   }, []);
 
@@ -1118,6 +1049,24 @@ const TreePlotVisualization = () => {
     };
   }, [currentFaceIndex, selectedDimensionPairs]);
 
+  const { xDimension: activeXDimension, yDimension: activeYDimension } = getCurrentDimensions();
+  const xAxisMetric = activeXDimension ? `${activeXDimension.dimensionA}-${activeXDimension.dimensionB}` : '';
+  const yAxisMetric = activeYDimension ? `${activeYDimension.dimensionA}-${activeYDimension.dimensionB}` : '';
+  const xAxisLabel = activeXDimension ? `${activeXDimension.dimensionA} vs ${activeXDimension.dimensionB}` : '';
+  const yAxisLabel = activeYDimension ? `${activeYDimension.dimensionA} vs ${activeYDimension.dimensionB}` : '';
+
+  useEffect(() => {
+    setUserDragTargets(prev => {
+      const filtered = {};
+      Object.entries(prev).forEach(([nodeId, target]) => {
+        if (target.xAxisMetric === xAxisMetric && target.yAxisMetric === yAxisMetric) {
+          filtered[nodeId] = target;
+        }
+      });
+      return filtered;
+    });
+  }, [xAxisMetric, yAxisMetric]);
+
   /**
    * 获取节点的 X 坐标值（基于当前选中的维度对）
    * @param {Object} node - 节点对象
@@ -1128,9 +1077,8 @@ const TreePlotVisualization = () => {
     if (xDimension) {
       return getNodeDimensionScore(node, xDimension);
     }
-    // Fallback 到旧系统
-    return node[xAxisMetric];
-  }, [getCurrentDimensions, getNodeDimensionScore, xAxisMetric]);
+    return undefined;
+  }, [getCurrentDimensions, getNodeDimensionScore]);
 
   /**
    * 获取节点的 Y 坐标值（基于当前选中的维度对）
@@ -1142,9 +1090,8 @@ const TreePlotVisualization = () => {
     if (yDimension) {
       return getNodeDimensionScore(node, yDimension);
     }
-    // Fallback 到旧系统
-    return node[yAxisMetric];
-  }, [getCurrentDimensions, getNodeDimensionScore, yAxisMetric]);
+    return undefined;
+  }, [getCurrentDimensions, getNodeDimensionScore]);
 
   // Reset face to the first plane when dimension selection changes
 
@@ -1292,9 +1239,6 @@ const TreePlotVisualization = () => {
           const data = await response.json();
           // Set the current prompts
           setSystemPrompt(data.system_prompt);
-          setImpactCriteria(data.criteria.impact);
-          setFeasibilityCriteria(data.criteria.feasibility);
-          setNoveltyCriteria(data.criteria.novelty);
           // Set the default prompts
           setDefaultPrompts(data.defaults);
         } catch (err) {
@@ -1517,23 +1461,6 @@ const TreePlotVisualization = () => {
       return false;
     }
   };
-
-  const updateCriteria = async (dimension, criteria) => {
-    try {
-      const response = await fetch('/api/set-criteria', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ dimension, criteria }),
-      });
-      if (!response.ok) throw new Error('Failed to update criteria');
-      return true;
-    } catch (err) {
-      console.error('Error updating criteria:', err);
-      setError(err.message);
-      return false;
-    }
-  };
   // Modal component for editing prompts
   const EditModal = ({ isOpen, onClose, title, defaultText, initialValue, onSave, height = '270px', anchorRef, width }) => {
     // Manages its own state while open, initialized by the parent's value
@@ -1724,24 +1651,16 @@ const TreePlotVisualization = () => {
   // Helper: determine which ideas need evaluation (missing scores)
   const getIdeasNeedingEvaluation = useCallback((ideasArr) => {
     return ideasArr.filter(i => {
-      // 新系统：检查是否有 scores 对象且包含维度分数
-      if (i.scores && typeof i.scores === 'object' && Object.keys(i.scores).length > 0) {
-        // 确保所有选中的维度都有分数
-        if (selectedDimensionPairs && selectedDimensionPairs.length > 0) {
-          const hasAll = selectedDimensionPairs.every(pair => {
-            const val = getNodeDimensionScore(i, pair);
-            return val !== undefined && val !== null;
-          });
-          if (hasAll) return false;
-        } else {
-          return false; // 没有选中的维度则认为已评分
-        }
+      if (!selectedDimensionPairs || selectedDimensionPairs.length < 3) {
+        return true;
       }
-      // 旧系统 fallback：检查旧的三维度分数
-      if (i.noveltyScore != null && i.feasibilityScore != null && i.impactScore != null) {
-        return false; // 已有旧分数
-      }
-      return true; // 需要评估
+
+      const hasAll = selectedDimensionPairs.slice(0, 3).every(pair => {
+        const val = getNodeDimensionScore(i, pair);
+        return val !== undefined && val !== null;
+      });
+
+      return !hasAll;
     }).map(i => i.id);
   }, [getNodeDimensionScore, selectedDimensionPairs]);
 
@@ -1819,6 +1738,10 @@ const TreePlotVisualization = () => {
       // Use selectedDimensionPairs if provided via parameter, otherwise use component state
       const effectiveDimensionPairs = dimensionPairs || selectedDimensionPairs;
 
+      if (!effectiveDimensionPairs || effectiveDimensionPairs.length < 3) {
+        throw new Error('Please select 3 dimension pairs before evaluating ideas.');
+      }
+
       const requestBody = {
         ideas: requestIdeas,
         intent: analysisIntent,
@@ -1827,7 +1750,7 @@ const TreePlotVisualization = () => {
         // Only send explicit targetIds when incremental; backend will infer otherwise.
         targetIds: mode === 'incremental' ? getIdeasNeedingEvaluation(requestIdeas) : undefined,
         // Add dimension_pairs to request if available
-        dimension_pairs: effectiveDimensionPairs && effectiveDimensionPairs.length > 0 ? effectiveDimensionPairs : undefined
+        dimension_pairs: effectiveDimensionPairs
       };
 
 
@@ -1870,11 +1793,8 @@ const TreePlotVisualization = () => {
         evaluatedIdeas: evaluatedIdeas.map(ev => ({
           id: ev.id,
           title: ev.title,
-          hasScores: !!(ev.scores && Object.keys(ev.scores).length > 0) || !!(ev.noveltyScore && ev.feasibilityScore && ev.impactScore),
-          hasReasoning: !!(ev.ImpactReason || ev.FeasibilityReason || ev.NoveltyReason),
-          ImpactReason: ev.ImpactReason,
-          FeasibilityReason: ev.FeasibilityReason,
-          NoveltyReason: ev.NoveltyReason,
+          hasScores: !!(ev.scores && Object.keys(ev.scores).length > 0),
+          hasReasoning: !!(ev.Dimension1Reason || ev.Dimension2Reason || ev.Dimension3Reason),
           // Debug: Show all keys to see what's actually available
           allKeys: Object.keys(ev),
           // Debug: Check for any reasoning-related fields
@@ -1913,13 +1833,13 @@ const TreePlotVisualization = () => {
           evaluatedIdeas: evaluatedIdeas.map(e => ({
             id: e.id,
             title: e.title,
-            hasScores: !!(e.scores && Object.keys(e.scores).length > 0) || !!(e.noveltyScore && e.feasibilityScore && e.impactScore)
+            hasScores: !!(e.scores && Object.keys(e.scores).length > 0)
           })),
           nodes: prevNodes.map(n => ({
             nodeId: n.id,
             backendId: n.originalData?.id,
             title: n.title,
-            hasExistingScores: !!(n.scores && Object.keys(n.scores).length > 0) || !!(n.noveltyScore && n.feasibilityScore && n.impactScore)
+            hasExistingScores: !!(n.scores && Object.keys(n.scores).length > 0)
           }))
         });
 
@@ -1942,19 +1862,12 @@ const TreePlotVisualization = () => {
             return node;
           }
 
-          console.log(`[DEBUG] Matched node ${node.id} with eval ${ev.id}, scores:`,
-            ev.scores ? `Dynamic: ${JSON.stringify(ev.scores)}` : `Legacy: N=${ev.noveltyScore}, F=${ev.feasibilityScore}, I=${ev.impactScore}`
-          );
+          console.log(`[DEBUG] Matched node ${node.id} with eval ${ev.id}, scores:`, JSON.stringify(ev.scores || {}));
 
           // Debug: Check if this is a custom idea and log reasoning fields
           const isCustomIdea = node.id && (node.id.includes('-CUSTOM-') || /^C-\d+$/.test(node.id));
           if (isCustomIdea) {
             console.log(`[DEBUG] Custom idea ${node.id} evaluation data:`, {
-              // 旧系统
-              ImpactReason: ev.ImpactReason,
-              FeasibilityReason: ev.FeasibilityReason,
-              NoveltyReason: ev.NoveltyReason,
-              // 新系统
               Dimension1Reason: ev.Dimension1Reason,
               Dimension2Reason: ev.Dimension2Reason,
               Dimension3Reason: ev.Dimension3Reason,
@@ -1962,9 +1875,6 @@ const TreePlotVisualization = () => {
               Dimension2Score: ev.Dimension2Score,
               Dimension3Score: ev.Dimension3Score,
               DimensionReasons: ev.Dimension1Reason || ev.Dimension2Reason || ev.Dimension3Reason,
-              hasImpactReason: !!ev.ImpactReason,
-              hasFeasibilityReason: !!ev.FeasibilityReason,
-              hasNoveltyReason: !!ev.NoveltyReason,
               hasDimension1Reason: !!ev.Dimension1Reason,
               hasDimension2Reason: !!ev.Dimension2Reason,
               hasDimension3Reason: !!ev.Dimension3Reason,
@@ -1982,27 +1892,13 @@ const TreePlotVisualization = () => {
             dimension1Score: ev.dimension1Score ?? node.dimension1Score,
             dimension2Score: ev.dimension2Score ?? node.dimension2Score,
             dimension3Score: ev.dimension3Score ?? node.dimension3Score,
-            // 旧系统分数（向后兼容）
-            noveltyScore: ev.noveltyScore,
-            feasibilityScore: ev.feasibilityScore,
-            impactScore: ev.impactScore,
             // Preserve original content and title from the node (don't overwrite with evaluation data)
             title: node.title || ev.title || ev.Title || ev.Name,
             content: node.content || ev.content || ev.Problem || '',
             problemHighlights: node.problemHighlights || node.originalData?.problem_highlights || ev.problem_highlights || ev.problemHighlights || [],
-            // Store evaluation reasoning for custom ideas
-            evaluationReasoning: {
-              impactReasoning: ev.ImpactReason || '',
-              feasibilityReasoning: ev.FeasibilityReason || '',
-              noveltyReasoning: ev.NoveltyReason || ''
-            },
             // Update originalData to include reasoning fields for all ideas
             originalData: {
               ...(node.originalData || {}),
-              // 旧系统字段
-              ImpactReason: ev.ImpactReason || '',
-              FeasibilityReason: ev.FeasibilityReason || '',
-              NoveltyReason: ev.NoveltyReason || '',
               // 新系统字段 - 维度评分原因
               Dimension1Reason: ev.Dimension1Reason || '',
               Dimension2Reason: ev.Dimension2Reason || '',
@@ -2021,16 +1917,6 @@ const TreePlotVisualization = () => {
           // Debug: Log userDragTarget preservation
           if (node.userDragTarget) {
             console.log('[DEBUG] Preserved userDragTarget for node:', node.id, node.userDragTarget);
-          }
-
-          // Debug: Log the updated node for custom ideas
-          if (isCustomIdea) {
-            console.log(`[DEBUG] Custom idea ${node.id} updated node:`, {
-              evaluationReasoning: updatedNode.evaluationReasoning,
-              hasImpactReasoning: !!updatedNode.evaluationReasoning?.impactReasoning,
-              hasFeasibilityReasoning: !!updatedNode.evaluationReasoning?.feasibilityReasoning,
-              hasNoveltyReasoning: !!updatedNode.evaluationReasoning?.noveltyReasoning
-            });
           }
 
           // If this was a ghost node, clear explicit coordinates to use score-based positioning
@@ -2068,16 +1954,6 @@ const TreePlotVisualization = () => {
                 dimension1Score: ev.dimension1Score,
                 dimension2Score: ev.dimension2Score,
                 dimension3Score: ev.dimension3Score,
-                // 旧系统分数（向后兼容）
-                noveltyScore: ev.noveltyScore,
-                feasibilityScore: ev.feasibilityScore,
-                impactScore: ev.impactScore,
-                // Store evaluation reasoning for custom ideas
-                evaluationReasoning: {
-                  impactReasoning: ev.ImpactReason || '',
-                  feasibilityReasoning: ev.FeasibilityReason || '',
-                  noveltyReasoning: ev.NoveltyReason || ''
-                },
               });
             }
           });
@@ -2424,6 +2300,10 @@ const TreePlotVisualization = () => {
     setIsGenerating(true);
     setOperationStatus('Modifying idea...');
     try {
+      if (!selectedDimensionPairs || selectedDimensionPairs.length < 3) {
+        throw new Error('Please select 3 dimension pairs before modifying ideas.');
+      }
+
       console.log('[DEBUG] About to call /api/modify...');
       const response = await fetch('/api/modify', {
         method: 'POST',
@@ -2442,7 +2322,7 @@ const TreePlotVisualization = () => {
             title: behindNode.title,
             content: behindNode.content
           }) : null,
-          dimension_pairs: selectedDimensionPairs && selectedDimensionPairs.length > 0 ? selectedDimensionPairs : undefined
+          dimension_pairs: selectedDimensionPairs
         })
       });
       console.log('[DEBUG] /api/modify response status:', response.status);
@@ -2470,10 +2350,6 @@ const TreePlotVisualization = () => {
         scores: deepClone(originalNode.scores),
         dimension1Score: originalNode.dimension1Score,
         dimension2Score: originalNode.dimension2Score,
-        noveltyScore: originalNode.noveltyScore,
-        feasibilityScore: originalNode.feasibilityScore,
-        impactScore: originalNode.impactScore,
-        evaluationReasoning: deepClone(originalNode.evaluationReasoning),
         originalData: deepClone(originalNode.originalData)
       } : null;
 
@@ -2493,9 +2369,6 @@ const TreePlotVisualization = () => {
         scores: data.scores || ghostNode.scores || {},
         dimension1Score: data.dimension1Score ?? ghostNode.dimension1Score,
         dimension2Score: data.dimension2Score ?? ghostNode.dimension2Score,
-        noveltyScore: data.noveltyScore ?? ghostNode.noveltyScore,
-        feasibilityScore: data.feasibilityScore ?? ghostNode.feasibilityScore,
-        impactScore: data.impactScore ?? ghostNode.impactScore,
         originalData: {
           id: backendId,
           ...(data.originalData || {}),
@@ -2514,10 +2387,6 @@ const TreePlotVisualization = () => {
         scores: deepClone(updatedGhostNode.scores),
         dimension1Score: updatedGhostNode.dimension1Score,
         dimension2Score: updatedGhostNode.dimension2Score,
-        noveltyScore: updatedGhostNode.noveltyScore,
-        feasibilityScore: updatedGhostNode.feasibilityScore,
-        impactScore: updatedGhostNode.impactScore,
-        evaluationReasoning: deepClone(updatedGhostNode.evaluationReasoning),
         originalData: deepClone(updatedGhostNode.originalData)
       };
 
@@ -2553,10 +2422,7 @@ const TreePlotVisualization = () => {
         // Include scores so it won't be re-evaluated
         scores: updatedGhostNode.scores,
         dimension1Score: updatedGhostNode.dimension1Score,
-        dimension2Score: updatedGhostNode.dimension2Score,
-        noveltyScore: updatedGhostNode.noveltyScore,
-        feasibilityScore: updatedGhostNode.feasibilityScore,
-        impactScore: updatedGhostNode.impactScore
+        dimension2Score: updatedGhostNode.dimension2Score
       };
 
       // Replace ghost node entry and relink edges
@@ -3711,7 +3577,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-          .text(xAxisMetric.replace('Score', ''));
+      .text(xAxisLabel || xAxisMetric);
 
         g.append('text')
           .attr('transform', 'rotate(-90)')
@@ -3720,7 +3586,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-          .text(yAxisMetric.replace('Score', ''));
+      .text(yAxisLabel || yAxisMetric);
       }
 
       // (Zoom controls removed previously)
@@ -3922,7 +3788,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-          .text(xAxisMetric.replace('Score', ''));
+      .text(xAxisLabel || xAxisMetric);
 
         g.append('text')
           .attr('transform', 'rotate(-90)')
@@ -3931,7 +3797,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-          .text(yAxisMetric.replace('Score', ''));
+      .text(yAxisLabel || yAxisMetric);
       }
 
       // Ensure node/content layer is above grids & axes (z-order)
@@ -4430,6 +4296,8 @@ const TreePlotVisualization = () => {
     links,
     xAxisMetric,
     yAxisMetric,
+    xAxisLabel,
+    yAxisLabel,
     isGenerating,
     isEvaluating,
     operationStatus,
@@ -4741,18 +4609,11 @@ const TreePlotVisualization = () => {
         x: 0, // 初始位置，后续会通过布局算法调整
         y: 150, // 初始位置，后续会通过布局算法调整
         originalData: newIdea,
-        // Initialize evaluation reasoning for custom ideas
-        evaluationReasoning: {
-          impactReasoning: '',
-          feasibilityReasoning: '',
-          noveltyReasoning: ''
-        }
       };
 
       console.log('[DEBUG] Created custom idea node:', {
         id: newNode.id,
         title: newNode.title,
-        evaluationReasoning: newNode.evaluationReasoning,
         originalData: newNode.originalData
       });
 
@@ -5825,14 +5686,10 @@ const TreePlotVisualization = () => {
 
     // Helper to get old score
     const getScore = (dimObj) => {
-      if (!dimObj) return 50;
-      const key = `${dimObj.dimensionA}-${dimObj.dimensionB}`;
-      if (node.scores && node.scores[key] !== undefined) return node.scores[key];
-      const legacyKey = key.toLowerCase();
-      if (legacyKey.includes('novelty')) return node.noveltyScore ?? 50;
-      if (legacyKey.includes('feasibility')) return node.feasibilityScore ?? 50;
-      if (legacyKey.includes('impact')) return node.impactScore ?? 50;
-      return 50;
+      if (!dimObj) return 0;
+      const v = getNodeDimensionScore(node, dimObj);
+      if (v === undefined || v === null) return 0;
+      return v;
     };
 
     // Check modifications for each dimension
@@ -6153,10 +6010,6 @@ const TreePlotVisualization = () => {
       setIsEditingSystemPrompt(false);
       setModalAnchorEl(null);
     }
-    if (editingCriteria !== null) {
-      setEditingCriteria(null);
-      setModalAnchorEl(null);
-    }
   }, [
     cancelPendingChange,
     cancelPendingMerge,
@@ -6165,7 +6018,6 @@ const TreePlotVisualization = () => {
     handleMergeCancel,
     hideFragmentMenu,
     isEditingSystemPrompt,
-    editingCriteria,
     editingDimensionIndex,
     mergeMode.showDialog,
     pendingChange,
@@ -6180,8 +6032,7 @@ const TreePlotVisualization = () => {
     fragmentMenuState ||
     showDimensionPanel ||
     editingDimensionIndex !== null ||
-    isEditingSystemPrompt ||
-    editingCriteria !== null
+    isEditingSystemPrompt
   );
 
   useEffect(() => {
@@ -6583,7 +6434,6 @@ const TreePlotVisualization = () => {
                 isEvaluating={isEvaluating}
                 showTree={currentView === 'exploration'}
                 setModalAnchorEl={setModalAnchorEl}
-                setEditingCriteria={setEditingCriteria}
                 // Pass props down to ContextAndGenerateCard
                 isAddingCustom={isAddingCustom}
                 userInput={userInput}
@@ -7332,40 +7182,6 @@ const TreePlotVisualization = () => {
           }
         }}
         anchorRef={modalAnchorEl}
-      />
-
-      {/* Criteria Edit Modal */}
-      <EditModal
-        isOpen={editingCriteria !== null}
-        onClose={() => {
-          setEditingCriteria(null);
-          setModalAnchorEl(null);
-        }}
-        title={`Edit ${editingCriteria ? editingCriteria.charAt(0).toUpperCase() + editingCriteria.slice(1) : ''} Criteria`}
-        defaultText={
-          editingCriteria === 'impact' ? defaultPrompts.impact :
-            editingCriteria === 'feasibility' ? defaultPrompts.feasibility :
-              defaultPrompts.novelty
-        }
-        initialValue={
-          editingCriteria === 'impact' ? impactCriteria :
-            editingCriteria === 'feasibility' ? feasibilityCriteria :
-              noveltyCriteria
-        }
-        onSave={async (finalValue) => {
-          const criteriaToSave = finalValue || (editingCriteria === 'impact' ? defaultPrompts.impact : editingCriteria === 'feasibility' ? defaultPrompts.feasibility : defaultPrompts.novelty);
-
-          const success = await updateCriteria(editingCriteria, criteriaToSave);
-          if (success) {
-            if (editingCriteria === 'impact') setImpactCriteria(criteriaToSave);
-            else if (editingCriteria === 'feasibility') setFeasibilityCriteria(criteriaToSave);
-            else if (editingCriteria === 'novelty') setNoveltyCriteria(criteriaToSave);
-
-            setEditingCriteria(null); // Close the modal
-          }
-        }}
-        anchorRef={modalAnchorEl}
-        width={dashboardWidth}
       />
 
       {/* Fragment Menu */}
