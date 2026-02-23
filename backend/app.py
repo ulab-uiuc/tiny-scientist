@@ -559,7 +559,13 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
     original_idea = data.get("original_idea")
     modifications = data.get("modifications")
     behind_idea = data.get("behind_idea")
+    dimension_pairs = data.get("dimension_pairs")
     original_id = data.get("original_id", "")
+
+    if not isinstance(original_idea, dict):
+        return jsonify({"error": "original_idea must be an object"}), 400
+    if not isinstance(modifications, list) or not modifications:
+        return jsonify({"error": "modifications must be a non-empty list"}), 400
 
     # Use original data directly (no conversion needed)
     thinker_original = original_idea
@@ -567,16 +573,46 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
     # Convert modifications to Thinker format
     thinker_mods = []
     for mod in modifications:
-        thinker_mods.append(
-            {"metric": mod.get("metric"), "direction": mod.get("direction")}
-        )
+        if not isinstance(mod, dict):
+            continue
+        converted = {"metric": mod.get("metric")}
+        if "previousScore" in mod:
+            converted["previousScore"] = mod.get("previousScore")
+        if "newScore" in mod:
+            converted["newScore"] = mod.get("newScore")
+        if "change" in mod:
+            converted["change"] = mod.get("change")
+        if "direction" in mod:
+            converted["direction"] = mod.get("direction")
+        thinker_mods.append(converted)
+
+    if not thinker_mods:
+        return jsonify({"error": "No valid modifications provided"}), 400
+
+    thinker_dimension_pairs = (
+        dimension_pairs
+        if isinstance(dimension_pairs, list) and len(dimension_pairs) > 0
+        else None
+    )
 
     # Modify the idea
     modified_idea = thinker.modify_idea(
         original_idea=thinker_original,
         modifications=thinker_mods,
         behind_idea=thinker_behind,
+        dimension_pairs=thinker_dimension_pairs,
     )
+
+    if not isinstance(modified_idea, dict):
+        return (
+            jsonify(
+                {
+                    "error": "Failed to modify idea after retries",
+                    "details": "thinker.modify_idea returned no valid idea",
+                }
+            ),
+            502,
+        )
 
     # Generate experiment plan for modified idea (only if experimental)
     if modified_idea.get("is_experimental", True) and not modified_idea.get(
@@ -1092,7 +1128,12 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
         return jsonify({"error": "No idea provided"}), 400
 
     try:
-        writer_model = session["model"]
+        writer_model = (
+            data.get("model")
+            or session.get("model")
+            or os.environ.get("DEMO_CACHE_MODEL")
+            or "gpt-5-mini"
+        )
         papers_dir = os.path.join(project_root, "generated", "papers")
 
         try:
@@ -1119,11 +1160,16 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
         else:
             idea = idea_data
 
+        if not isinstance(idea, dict):
+            return jsonify({"error": "idea must be an object"}), 400
+
         print(f"Using pre-configured Writer with model: {writer.model}")
 
         # Check if this is an experimental idea
-        is_experimental = idea.get("is_experimental", False)
+        is_experimental = bool(idea.get("is_experimental", experiment_dir is not None))
         print(f"Idea is experimental: {is_experimental}")
+
+        writer_idea = {**idea, "is_experimental": is_experimental}
 
         abs_experiment_dir = None
         if is_experimental and experiment_dir:
@@ -1153,7 +1199,9 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
             print("Non-experimental idea - proceeding without experiment files")
 
         # Call writer.run() exactly like TinyScientist does
-        pdf_path, paper_name = writer.run(idea=idea, experiment_dir=abs_experiment_dir)
+        pdf_path, paper_name = writer.run(
+            idea=writer_idea, experiment_dir=abs_experiment_dir
+        )
 
         print(
             f"Check the generated paper named as {paper_name} and saved at {pdf_path}"

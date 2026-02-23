@@ -4,18 +4,19 @@ import './DimensionSelectorPanel.css';
 /**
  * 下拉展开面板式维度选择器
  * 在 Intent 输入框下方展开,覆盖在界面上
- * 显示 3 个 AI 建议的维度对,用户可选择或自定义 3 对维度
+ * 显示 AI 建议的维度对,用户可选择或自定义 5 对维度
  */
 const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
     const [suggestedPairs, setSuggestedPairs] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // 用户自定义的3对维度
     const [customDimensions, setCustomDimensions] = useState({
         pair1: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
         pair2: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
-        pair3: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' }
+        pair3: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
+        pair4: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
+        pair5: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' }
     });
 
     const fetchSuggestedDimensions = useCallback(async () => {
@@ -58,7 +59,7 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
     };
 
     const findFirstEmptyPairSlot = (dimensions) => {
-        return ['pair1', 'pair2', 'pair3'].find(key => {
+        return ['pair1', 'pair2', 'pair3', 'pair4', 'pair5'].find(key => {
             const pair = dimensions[key];
             return !pair.dimensionA && !pair.dimensionB;
         }) || null;
@@ -103,19 +104,20 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
 
     // 确认选择
     const handleConfirm = () => {
-        const { pair1, pair2, pair3 } = customDimensions;
+        const { pair1, pair2, pair3, pair4, pair5 } = customDimensions;
 
         // 验证所有输入框都已填写
         if (
             !pair1.dimensionA || !pair1.dimensionB ||
             !pair2.dimensionA || !pair2.dimensionB ||
-            !pair3.dimensionA || !pair3.dimensionB
+            !pair3.dimensionA || !pair3.dimensionB ||
+            !pair4.dimensionA || !pair4.dimensionB ||
+            !pair5.dimensionA || !pair5.dimensionB
         ) {
             alert('Please fill in all dimension fields or select from suggestions above.');
             return;
         }
 
-        // 返回3对维度
         const selectedPairs = [
             {
                 dimensionA: pair1.dimensionA,
@@ -134,6 +136,18 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
                 dimensionB: pair3.dimensionB,
                 descriptionA: pair3.descriptionA,
                 descriptionB: pair3.descriptionB
+            },
+            {
+                dimensionA: pair4.dimensionA,
+                dimensionB: pair4.dimensionB,
+                descriptionA: pair4.descriptionA,
+                descriptionB: pair4.descriptionB
+            },
+            {
+                dimensionA: pair5.dimensionA,
+                dimensionB: pair5.dimensionB,
+                descriptionA: pair5.descriptionA,
+                descriptionB: pair5.descriptionB
             }
         ];
 
@@ -143,7 +157,9 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
         setCustomDimensions({
             pair1: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
             pair2: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
-            pair3: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' }
+            pair3: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
+            pair4: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' },
+            pair5: { dimensionA: '', dimensionB: '', descriptionA: '', descriptionB: '' }
         });
     };
 
@@ -333,6 +349,82 @@ const DimensionSelectorPanel = ({ isOpen, onClose, onConfirm, intent }) => {
                                                 placeholder="Description for Dimension B"
                                                 value={customDimensions.pair3.descriptionB}
                                                 onChange={(e) => handleInputChange(3, 'descriptionB', e.target.value)}
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="dimension-pair-inputs">
+                                    <div className="pair-label">Pair 4</div>
+                                    <div className="pair-row">
+                                        <div className="dimension-field-group">
+                                            <input
+                                                type="text"
+                                                className="dimension-input"
+                                                placeholder="Dimension A Name"
+                                                value={customDimensions.pair4.dimensionA}
+                                                onChange={(e) => handleInputChange(4, 'dimensionA', e.target.value)}
+                                            />
+                                            <textarea
+                                                className="description-input"
+                                                placeholder="Description for Dimension A"
+                                                value={customDimensions.pair4.descriptionA}
+                                                onChange={(e) => handleInputChange(4, 'descriptionA', e.target.value)}
+                                                rows={3}
+                                            />
+                                        </div>
+                                        <span className="input-separator">vs</span>
+                                        <div className="dimension-field-group">
+                                            <input
+                                                type="text"
+                                                className="dimension-input"
+                                                placeholder="Dimension B Name"
+                                                value={customDimensions.pair4.dimensionB}
+                                                onChange={(e) => handleInputChange(4, 'dimensionB', e.target.value)}
+                                            />
+                                            <textarea
+                                                className="description-input"
+                                                placeholder="Description for Dimension B"
+                                                value={customDimensions.pair4.descriptionB}
+                                                onChange={(e) => handleInputChange(4, 'descriptionB', e.target.value)}
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="dimension-pair-inputs">
+                                    <div className="pair-label">Pair 5</div>
+                                    <div className="pair-row">
+                                        <div className="dimension-field-group">
+                                            <input
+                                                type="text"
+                                                className="dimension-input"
+                                                placeholder="Dimension A Name"
+                                                value={customDimensions.pair5.dimensionA}
+                                                onChange={(e) => handleInputChange(5, 'dimensionA', e.target.value)}
+                                            />
+                                            <textarea
+                                                className="description-input"
+                                                placeholder="Description for Dimension A"
+                                                value={customDimensions.pair5.descriptionA}
+                                                onChange={(e) => handleInputChange(5, 'descriptionA', e.target.value)}
+                                                rows={3}
+                                            />
+                                        </div>
+                                        <span className="input-separator">vs</span>
+                                        <div className="dimension-field-group">
+                                            <input
+                                                type="text"
+                                                className="dimension-input"
+                                                placeholder="Dimension B Name"
+                                                value={customDimensions.pair5.dimensionB}
+                                                onChange={(e) => handleInputChange(5, 'dimensionB', e.target.value)}
+                                            />
+                                            <textarea
+                                                className="description-input"
+                                                placeholder="Description for Dimension B"
+                                                value={customDimensions.pair5.descriptionB}
+                                                onChange={(e) => handleInputChange(5, 'descriptionB', e.target.value)}
                                                 rows={3}
                                             />
                                         </div>

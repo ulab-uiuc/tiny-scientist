@@ -9,7 +9,8 @@ const LogDisplay = ({ isVisible, onToggle }) => {
 
   useEffect(() => {
     // Always maintain socket connection when component mounts
-    socketRef.current = io('http://localhost:5000');
+    const socketUrl = process.env.REACT_APP_SOCKET_URL;
+    socketRef.current = socketUrl ? io(socketUrl) : io();
 
     socketRef.current.on('connect', () => {
       setIsConnected(true);

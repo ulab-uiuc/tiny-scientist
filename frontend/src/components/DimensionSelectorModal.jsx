@@ -21,9 +21,10 @@ const DimensionSelectorModal = ({ isOpen, onClose, onConfirm, intent }) => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch('http://localhost:5000/api/suggest-dimensions', {
+            const response = await fetch('/api/suggest-dimensions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ intent })
             });
 

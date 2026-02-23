@@ -1058,8 +1058,15 @@ const TreePlotVisualization = () => {
       return { xDimension: null, yDimension: null, faceIndex: 0, faceName: '', xFlip: false, yFlip: false };
     }
 
+    const visualPairs = (() => {
+      if (selectedDimensionPairs.length >= 5) {
+        return [selectedDimensionPairs[0], selectedDimensionPairs[2], selectedDimensionPairs[4]].filter(Boolean);
+      }
+      return selectedDimensionPairs.slice(0, 3);
+    })();
+
     // Cube faces: 0 (Front), 1 (Right), 2 (Top), 3 (Back), 4 (Left), 5 (Bottom)
-    if (selectedDimensionPairs.length >= 3) {
+    if (visualPairs.length >= 3) {
       const makeFace = (xPair, yPair, idx, isBack = false) => ({
         xDimension: xPair,
         yDimension: yPair,
@@ -1077,24 +1084,24 @@ const TreePlotVisualization = () => {
       // Face 5 (Bottom): Pair 2 vs Pair 0 (inverted X)
 
       const faces = [
-        makeFace(selectedDimensionPairs[0], selectedDimensionPairs[1], 0, false),
-        makeFace(selectedDimensionPairs[1], selectedDimensionPairs[2], 1, false),
-        makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 2, false),
-        makeFace(selectedDimensionPairs[0], selectedDimensionPairs[1], 3, true),
-        makeFace(selectedDimensionPairs[1], selectedDimensionPairs[2], 4, true),
-        makeFace(selectedDimensionPairs[2], selectedDimensionPairs[0], 5, true)];
+        makeFace(visualPairs[0], visualPairs[1], 0, false),
+        makeFace(visualPairs[1], visualPairs[2], 1, false),
+        makeFace(visualPairs[2], visualPairs[0], 2, false),
+        makeFace(visualPairs[0], visualPairs[1], 3, true),
+        makeFace(visualPairs[1], visualPairs[2], 4, true),
+        makeFace(visualPairs[2], visualPairs[0], 5, true)];
 
       const idx = ((faceIndexOverride % faces.length) + faces.length) % faces.length;
       return faces[idx];
     }
 
     // Fallback: only two pairs selected
-    if (selectedDimensionPairs.length === 2) {
+    if (visualPairs.length === 2) {
       return {
-        xDimension: selectedDimensionPairs[0],
-        yDimension: selectedDimensionPairs[1],
+        xDimension: visualPairs[0],
+        yDimension: visualPairs[1],
         faceIndex: 0,
-        faceName: `Face 0: ${selectedDimensionPairs[0].dimensionA}-${selectedDimensionPairs[0].dimensionB} vs ${selectedDimensionPairs[1].dimensionA}-${selectedDimensionPairs[1].dimensionB}`,
+        faceName: `Face 0: ${visualPairs[0].dimensionA}-${visualPairs[0].dimensionB} vs ${visualPairs[1].dimensionA}-${visualPairs[1].dimensionB}`,
         xFlip: false,
         yFlip: false
       };
@@ -1102,10 +1109,10 @@ const TreePlotVisualization = () => {
 
     // Single pair fallback
     return {
-      xDimension: selectedDimensionPairs[0],
-      yDimension: selectedDimensionPairs[0],
+      xDimension: visualPairs[0],
+      yDimension: visualPairs[0],
       faceIndex: 0,
-      faceName: `Face 0: ${selectedDimensionPairs[0].dimensionA}-${selectedDimensionPairs[0].dimensionB}`,
+      faceName: `Face 0: ${visualPairs[0].dimensionA}-${visualPairs[0].dimensionB}`,
       xFlip: false,
       yFlip: false
     };

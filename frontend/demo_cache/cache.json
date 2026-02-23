@@ -1,0 +1,297 @@
+{
+  "meta": {
+    "intent": "Self Improving Agents",
+    "note": "Placeholder cache. Regenerate with frontend/demo_cache/generate_demo_cache.py for real backend-derived data.",
+    "created_at": "2026-02-23T00:00:00Z",
+    "schema_version": 1
+  },
+  "dimension_pairs": [
+    {
+      "dimensionA": "Autonomy",
+      "dimensionB": "Human-in-the-loop",
+      "descriptionA": "More decisions made by the agent without intervention",
+      "descriptionB": "More checkpoints and approvals from a human"
+    },
+    {
+      "dimensionA": "Self-critique",
+      "dimensionB": "Forward progress",
+      "descriptionA": "More reflection/review per step",
+      "descriptionB": "Fewer checks, more throughput"
+    },
+    {
+      "dimensionA": "Tool use",
+      "dimensionB": "Pure reasoning",
+      "descriptionA": "More external tools and verification",
+      "descriptionB": "Less tooling, more in-model reasoning"
+    },
+    {
+      "dimensionA": "Safety",
+      "dimensionB": "Aggressiveness",
+      "descriptionA": "Conservative actions and guardrails",
+      "descriptionB": "More risky optimizations and autonomy"
+    },
+    {
+      "dimensionA": "Memory",
+      "dimensionB": "Statelessness",
+      "descriptionA": "Long-term learning and retention",
+      "descriptionB": "Reset between runs to reduce drift"
+    }
+  ],
+  "prompts": {
+    "system_prompt": "(demo) System prompt not configured",
+    "criteria": {
+      "novelty": "(demo) novelty criteria",
+      "feasibility": "(demo) feasibility criteria",
+      "impact": "(demo) impact criteria"
+    },
+    "defaults": {
+      "system_prompt": "(demo) default system prompt",
+      "novelty": "(demo) default novelty criteria",
+      "feasibility": "(demo) default feasibility criteria",
+      "impact": "(demo) default impact criteria"
+    }
+  },
+  "queues": {
+    "generate_initial": [
+      {
+        "ideas": [
+          {
+            "id": "1",
+            "title": "Self-Refining Agent Loop",
+            "content": "**Problem:**\nAgents often degrade over long runs without explicit self-correction loops.\n\n**Impact:**\nA self-improving loop can increase reliability across tasks and reduce human oversight.\n\n**Feasibility:**\nRequires careful evaluation signals and rollback strategies.\n\n**Novelty:**\nCombines critique, testing, and memory updates in a single structured loop.",
+            "originalData": {
+              "id": "1",
+              "Name": "self_refining_agent_loop",
+              "Title": "Self-Refining Agent Loop",
+              "Description": "Agents often degrade over long runs without explicit self-correction loops.",
+              "Importance": "A self-improving loop can increase reliability across tasks and reduce human oversight.",
+              "Difficulty": "Requires careful evaluation signals and rollback strategies.",
+              "NoveltyComparison": "Combines critique, testing, and memory updates in a single structured loop.",
+              "is_experimental": false,
+              "scores": {}
+            }
+          }
+        ]
+      }
+    ],
+    "generate_children": [
+      {
+        "ideas": [
+          {
+            "id": "1-1",
+            "title": "Verifier-Gated Updates",
+            "content": "**Problem:**\nSelf-improving agents can lock in wrong updates.\n\n**Impact:**\nVerifier-gated updates reduce regression and catastrophic drift.\n\n**Feasibility:**\nNeeds a reliable verifier and stable tests.\n\n**Novelty:**\nTreats memory updates like code changes with CI gates.",
+            "originalData": {
+              "id": "1-1",
+              "Name": "verifier_gated_updates",
+              "Title": "Verifier-Gated Updates",
+              "Description": "Self-improving agents can lock in wrong updates.",
+              "Importance": "Verifier-gated updates reduce regression and catastrophic drift.",
+              "Difficulty": "Needs a reliable verifier and stable tests.",
+              "NoveltyComparison": "Treats memory updates like code changes with CI gates.",
+              "is_experimental": false,
+              "scores": {}
+            }
+          }
+        ]
+      }
+    ],
+    "evaluate": [
+      {
+        "ideas": [
+          {
+            "id": "1",
+            "title": "Self-Refining Agent Loop",
+            "content": "**Problem:**\nAgents often degrade over long runs without explicit self-correction loops.\n\n**Impact:**\nA self-improving loop can increase reliability across tasks and reduce human oversight.\n\n**Feasibility:**\nRequires careful evaluation signals and rollback strategies.\n\n**Novelty:**\nCombines critique, testing, and memory updates in a single structured loop.",
+            "originalData": {
+              "id": "1",
+              "Name": "self_refining_agent_loop",
+              "Title": "Self-Refining Agent Loop",
+              "scores": {
+                "Autonomy-Human-in-the-loop": 72,
+                "Self-critique-Forward progress": 61,
+                "Tool use-Pure reasoning": 68,
+                "Safety-Aggressiveness": 55,
+                "Memory-Statelessness": 70
+              }
+            },
+            "scores": {
+              "Autonomy-Human-in-the-loop": 72,
+              "Self-critique-Forward progress": 61,
+              "Tool use-Pure reasoning": 68,
+              "Safety-Aggressiveness": 55,
+              "Memory-Statelessness": 70
+            },
+            "dimension1Score": 72,
+            "dimension2Score": 61,
+            "dimension3Score": 68,
+            "Dimension1Reason": "Higher autonomy with selective human checkpoints.",
+            "Dimension2Reason": "Balanced reflection to preserve momentum.",
+            "Dimension3Reason": "Uses tools to validate learning updates.",
+            "noveltyScore": 78,
+            "feasibilityScore": 63,
+            "impactScore": 80,
+            "NoveltyReason": "Integrates multiple self-improvement mechanisms.",
+            "FeasibilityReason": "Requires stable evaluation signals.",
+            "ImpactReason": "Improves reliability across many tasks."
+          },
+          {
+            "id": "1-1",
+            "title": "Verifier-Gated Updates",
+            "content": "**Problem:**\nSelf-improving agents can lock in wrong updates.\n\n**Impact:**\nVerifier-gated updates reduce regression and catastrophic drift.\n\n**Feasibility:**\nNeeds a reliable verifier and stable tests.\n\n**Novelty:**\nTreats memory updates like code changes with CI gates.",
+            "originalData": {
+              "id": "1-1",
+              "Name": "verifier_gated_updates",
+              "Title": "Verifier-Gated Updates",
+              "scores": {
+                "Autonomy-Human-in-the-loop": 60,
+                "Self-critique-Forward progress": 74,
+                "Tool use-Pure reasoning": 83,
+                "Safety-Aggressiveness": 77,
+                "Memory-Statelessness": 62
+              }
+            },
+            "scores": {
+              "Autonomy-Human-in-the-loop": 60,
+              "Self-critique-Forward progress": 74,
+              "Tool use-Pure reasoning": 83,
+              "Safety-Aggressiveness": 77,
+              "Memory-Statelessness": 62
+            },
+            "dimension1Score": 60,
+            "dimension2Score": 74,
+            "dimension3Score": 83,
+            "Dimension1Reason": "More oversight due to gates.",
+            "Dimension2Reason": "More critique via verifier feedback.",
+            "Dimension3Reason": "Tool-heavy validation pipeline.",
+            "noveltyScore": 70,
+            "feasibilityScore": 72,
+            "impactScore": 75
+          }
+        ],
+        "meta": {
+          "mode": "full",
+          "scoredCount": 2,
+          "totalIdeas": 2,
+          "targets": ["1", "1-1"]
+        }
+      }
+    ],
+    "modify": [
+      {
+        "id": "1-X1",
+        "title": "Self-Refining Agent Loop (Verifier-Gated)",
+        "content": "**Problem:**\nA self-improving agent needs safe update gates.\n\n**Impact:**\nGated updates reduce regressions while preserving adaptation.\n\n**Feasibility:**\nFeasible with test suites and lightweight verifiers.\n\n**Novelty:**\nMarries self-refinement with CI-style constraints.",
+        "originalData": {
+          "id": "1-X1",
+          "Name": "self_refining_agent_loop_verifier_gated",
+          "Title": "Self-Refining Agent Loop (Verifier-Gated)",
+          "scores": {
+            "Autonomy-Human-in-the-loop": 65,
+            "Self-critique-Forward progress": 70,
+            "Tool use-Pure reasoning": 80,
+            "Safety-Aggressiveness": 76,
+            "Memory-Statelessness": 68
+          }
+        },
+        "scores": {
+          "Autonomy-Human-in-the-loop": 65,
+          "Self-critique-Forward progress": 70,
+          "Tool use-Pure reasoning": 80,
+          "Safety-Aggressiveness": 76,
+          "Memory-Statelessness": 68
+        },
+        "dimension1Score": 65,
+        "dimension2Score": 70,
+        "dimension3Score": 80
+      }
+    ],
+    "merge": [
+      {
+        "id": "1-Y-1-X1-Y",
+        "title": "Hybrid Self-Improving Agent",
+        "content": "**Problem:**\nPure self-improvement can be unstable without safeguards.\n\n**Impact:**\nA hybrid approach can scale across tasks with bounded risk.\n\n**Feasibility:**\nRequires evaluation signals, tests, and rollback.\n\n**Novelty:**\nCombines refinement loops with verifier gating and memory hygiene.",
+        "originalData": {
+          "id": "1-Y-1-X1-Y",
+          "Name": "hybrid_self_improving_agent",
+          "Title": "Hybrid Self-Improving Agent",
+          "scores": {
+            "Autonomy-Human-in-the-loop": 68,
+            "Self-critique-Forward progress": 72,
+            "Tool use-Pure reasoning": 78,
+            "Safety-Aggressiveness": 74,
+            "Memory-Statelessness": 71
+          }
+        },
+        "scores": {
+          "Autonomy-Human-in-the-loop": 68,
+          "Self-critique-Forward progress": 72,
+          "Tool use-Pure reasoning": 78,
+          "Safety-Aggressiveness": 74,
+          "Memory-Statelessness": 71
+        },
+        "dimension1Score": 68,
+        "dimension2Score": 72,
+        "dimension3Score": 78
+      }
+    ],
+    "code": [
+      {
+        "status": true,
+        "experiment_dir": "experiments/demo_self_improving_agents",
+        "success": true,
+        "message": "(demo) Code generation completed successfully",
+        "error_details": null
+      }
+    ],
+    "write": [
+      {
+        "pdf_path": "/api/files/papers/demo_self_improving_agents.pdf",
+        "local_pdf_path": "(demo)",
+        "paper_name": "demo_self_improving_agents",
+        "success": true
+      }
+    ],
+    "review": [
+      {
+        "review": {
+          "Summary": "A demo review of the generated paper.",
+          "Strengths": [
+            "Clear motivation and framing.",
+            "Practical safeguards for self-improvement."
+          ],
+          "Weaknesses": [
+            "Evaluation is illustrative only.",
+            "Needs ablations across update policies."
+          ],
+          "Decision": "Accept",
+          "Rating": 8
+        },
+        "success": true,
+        "message": "(demo) Paper review completed successfully"
+      }
+    ]
+  },
+  "files": {
+    "text": {
+      "experiments/demo_self_improving_agents/experiment.py": "files/experiments/demo_self_improving_agents/experiment.py",
+      "experiments/demo_self_improving_agents/experiment_results.txt": "files/experiments/demo_self_improving_agents/experiment_results.txt",
+      "experiments/demo_self_improving_agents/notes.txt": "files/experiments/demo_self_improving_agents/notes.txt"
+    },
+    "binary": {
+      "papers/demo_self_improving_agents.pdf": "files/papers/demo_self_improving_agents.pdf"
+    }
+  },
+  "logs": [
+    {
+      "message": "(demo) Cached backend: ready",
+      "level": "info",
+      "timestamp": 0
+    },
+    {
+      "message": "(demo) Loaded cached ideas and scores",
+      "level": "info",
+      "timestamp": 0
+    }
+  ]
+}
