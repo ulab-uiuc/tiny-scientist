@@ -70,15 +70,12 @@ const renderWithHighlights = (text, highlights, onClickHighlight) => {
 /**
  * 显示单条假设，可在 Before / After 之间切换
  * 现在支持动态维度系统：
- * - Tabs 显示 Importance/Difficulty/NoveltyComparison（文本内容）
  * - 如果有 selectedDimensionPairs，则显示动态维度分数
- * - 向后兼容旧的三维度系统（Feasibility/Novelty/Impact）
  */
 const IdeaCard = ({
   node,
   showAfter,
   setShowAfter,
-  onEditCriteria,
   onModifyScore, // Function to handle score modifications
   showModifyButton = false, // Whether to show modify buttons (for tree view)
   pendingChanges = null, // Pending changes from parent component
@@ -332,66 +329,58 @@ const IdeaCard = ({
 
       const { value: rawScore, reasonKey } = resolveScore();
 
-      // Helper: extract a reason for this dimension pair from multiple possible locations
-      const extractReasonForPair = () => {
-        try {
-          // 0) PRIORITY: Check for Dimension1Reason / Dimension2Reason directly on node or originalData
-          const dimensionReasonKey = `Dimension${index + 1}Reason`;
-          if (targetNode[dimensionReasonKey]) return targetNode[dimensionReasonKey];
-          if (targetNode.originalData && targetNode.originalData[dimensionReasonKey]) {
-            return targetNode.originalData[dimensionReasonKey];
-          }          // 1) originalData.scores may contain structured info
-          if (targetNode.originalData && targetNode.originalData.scores && targetNode.originalData.scores[reasonKey]) {
-            const s = targetNode.originalData.scores[reasonKey];
-            if (s && typeof s === 'object') {
-              if (s.reason) return s.reason;
-              if (s.reasons && Array.isArray(s.reasons)) return s.reasons.join('\n');
-            }
-          }
+       // Helper: extract a reason for this dimension pair from multiple possible locations
+       const extractReasonForPair = () => {
+         try {
+           // 0) PRIORITY: Check for Dimension1Reason / Dimension2Reason directly on node or originalData
+           const dimensionReasonKey = `Dimension${index + 1}Reason`;
+           if (targetNode[dimensionReasonKey]) return targetNode[dimensionReasonKey];
+           if (targetNode.originalData && targetNode.originalData[dimensionReasonKey]) {
+             return targetNode.originalData[dimensionReasonKey];
+           }          // 1) originalData.scores may contain structured info
+           if (targetNode.originalData && targetNode.originalData.scores && targetNode.originalData.scores[reasonKey]) {
+             const s = targetNode.originalData.scores[reasonKey];
+             if (s && typeof s === 'object') {
+               if (s.reason) return s.reason;
+               if (s.reasons && Array.isArray(s.reasons)) return s.reasons.join('\n');
+             }
+           }
 
-          // 2) node.scores entry might be an object with reason
-          if (targetNode.scores && targetNode.scores[reasonKey] && typeof targetNode.scores[reasonKey] === 'object') {
-            const s = targetNode.scores[reasonKey];
-            if (s.reason) return s.reason;
-            if (s.reasons && Array.isArray(s.reasons)) return s.reasons.join('\n');
-            if (s.value !== undefined) return null; // structured but no reason
-          }
+           // 2) node.scores entry might be an object with reason
+           if (targetNode.scores && targetNode.scores[reasonKey] && typeof targetNode.scores[reasonKey] === 'object') {
+             const s = targetNode.scores[reasonKey];
+             if (s.reason) return s.reason;
+             if (s.reasons && Array.isArray(s.reasons)) return s.reasons.join('\n');
+             if (s.value !== undefined) return null; // structured but no reason
+           }
 
-          // 3) explicit reason keys on originalData (e.g. "ImpactReason" or "<dim>AReason")
-          if (targetNode.originalData) {
-            const keys = Object.keys(targetNode.originalData);
-            for (const k of keys) {
-              if (k.toLowerCase().includes('reason')) {
-                const lower = k.toLowerCase();
-                const pairKey = reasonKey.toLowerCase();
-                // if the reason key references either dimension name or the full pair, prefer it
-                if (lower.includes(pairKey) || lower.includes(pair.dimensionA?.toLowerCase()) || lower.includes(pair.dimensionB?.toLowerCase())) {
-                  const v = targetNode.originalData[k];
-                  if (v) return v;
-                }
-              }
-            }
-            // fallback: any Reason field
-            for (const k of keys) {
-              if (k.toLowerCase().includes('reason')) {
-                const v = targetNode.originalData[k];
-                if (v) return v;
-              }
-            }
-          }
-
-          // 4) evaluationReasoning fallback (legacy impact/feasibility/novelty)
-          if (targetNode.evaluationReasoning) {
-            if (targetNode.evaluationReasoning.impactReasoning) return targetNode.evaluationReasoning.impactReasoning;
-            if (targetNode.evaluationReasoning.feasibilityReasoning) return targetNode.evaluationReasoning.feasibilityReasoning;
-            if (targetNode.evaluationReasoning.noveltyReasoning) return targetNode.evaluationReasoning.noveltyReasoning;
-          }
-        } catch (err) {
-          // ignore and return null
-          console.error('Error extracting reason:', err);
-        }
-        return null;
-      };
+           if (targetNode.originalData) {
+             const keys = Object.keys(targetNode.originalData);
+             for (const k of keys) {
+               if (k.toLowerCase().includes('reason')) {
+                 const lower = k.toLowerCase();
+                 const pairKey = reasonKey.toLowerCase();
+                 // if the reason key references either dimension name or the full pair, prefer it
+                 if (lower.includes(pairKey) || lower.includes(pair.dimensionA?.toLowerCase()) || lower.includes(pair.dimensionB?.toLowerCase())) {
+                   const v = targetNode.originalData[k];
+                   if (v) return v;
+                 }
+               }
+             }
+             // fallback: any Reason field
+             for (const k of keys) {
+               if (k.toLowerCase().includes('reason')) {
+                 const v = targetNode.originalData[k];
+                 if (v) return v;
+               }
+             }
+           }
+         } catch (err) {
+           // ignore and return null
+           console.error('Error extracting reason:', err);
+         }
+         return null;
+       };
 
       const reason = extractReasonForPair();
 
@@ -403,15 +392,6 @@ const IdeaCard = ({
       };
     });
   };
-
-  // TODO: Old three-dimension score getter - keep for backward compatibility if needed
-  // const getScore = (sectionName) => {
-  //   const scoreMap = { 'Impact': 'impactScore', 'Feasibility': 'feasibilityScore', 'Novelty': 'noveltyScore' };
-  //   const scoreField = scoreMap[sectionName];
-  //   if (!scoreField) return null;
-  //   // ... (check pending changes, etc.)
-  //   return node[scoreField];
-  // };
 
   // 获取动态维度分数
   const dimensionScores = getDimensionScores(displayNode);

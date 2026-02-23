@@ -204,23 +204,25 @@ def _bulk_update_scores(scored_payloads: list[Dict[str, Any]]) -> None:
         if not iid or iid not in global_idea_storage:
             continue
 
-        update_dict = {}
+        update_dict: Dict[str, Any] = {}
 
-        if s.get("scores"):
-            update_dict["scores"] = s.get("scores")
-            update_dict["Dimension1Score"] = s.get("dimension1Score")
-            update_dict["Dimension2Score"] = s.get("dimension2Score")
-            update_dict["Dimension3Score"] = s.get("dimension3Score")
-            update_dict["Dimension1Reason"] = s.get("Dimension1Reason", "")
-            update_dict["Dimension2Reason"] = s.get("Dimension2Reason", "")
-            update_dict["Dimension3Reason"] = s.get("Dimension3Reason", "")
+        incoming_scores = s.get("scores")
+        if incoming_scores and isinstance(incoming_scores, dict):
+            existing_scores = global_idea_storage[iid].get("scores")
+            if not isinstance(existing_scores, dict):
+                existing_scores = {}
+            update_dict["scores"] = {**existing_scores, **incoming_scores}
 
-        update_dict["NoveltyScore"] = s.get("noveltyScore")
-        update_dict["FeasibilityScore"] = s.get("feasibilityScore")
-        update_dict["ImpactScore"] = s.get("impactScore")
-        update_dict["NoveltyReason"] = s.get("NoveltyReason", "")
-        update_dict["FeasibilityReason"] = s.get("FeasibilityReason", "")
-        update_dict["ImpactReason"] = s.get("ImpactReason", "")
+        # Persist the most recent dimension scores/reasons as convenience fields
+        # (the canonical per-dimension values remain stored in `scores`).
+        for idx in (1, 2, 3):
+            score_key_in = f"dimension{idx}Score"
+            score_key_out = f"Dimension{idx}Score"
+            reason_key_out = f"Dimension{idx}Reason"
+            if s.get(score_key_in) is not None:
+                update_dict[score_key_out] = s.get(score_key_in)
+            if s.get(reason_key_out) is not None:
+                update_dict[reason_key_out] = s.get(reason_key_out, "")
 
         global_idea_storage[iid].update(update_dict)
 
@@ -390,37 +392,9 @@ def set_system_prompt() -> Union[Response, tuple[Response, int]]:
     return jsonify({"status": "success", "message": "System prompt updated"})
 
 
-@app.route("/api/set-criteria", methods=["POST"])
-def set_criteria() -> Union[Response, tuple[Response, int]]:
-    """Set evaluation criteria for a specific dimension"""
-    global thinker
-
-    if not thinker:
-        return jsonify({"error": "Thinker not configured"}), 400
-
-    data = request.json
-    if data is None:
-        return jsonify({"error": "No JSON data provided"}), 400
-    dimension = data.get("dimension")  # 'novelty', 'feasibility', or 'impact'
-    criteria = data.get("criteria")
-
-    if dimension not in ["novelty", "feasibility", "impact"]:
-        return jsonify({"error": "Invalid dimension"}), 400
-
-    # If empty string or None, reset to default
-    if not criteria:
-        thinker.set_criteria(dimension, None)  # This will reset to default
-    else:
-        thinker.set_criteria(dimension, criteria)
-
-    return jsonify(
-        {"status": "success", "message": f"{dimension.capitalize()} criteria updated"}
-    )
-
-
 @app.route("/api/get-prompts", methods=["GET"])
 def get_prompts() -> Union[Response, tuple[Response, int]]:
-    """Get current prompts and criteria"""
+    """Get current system prompt (dynamic dimensions are configured client-side)."""
     global thinker
 
     if thinker is None:
@@ -429,16 +403,8 @@ def get_prompts() -> Union[Response, tuple[Response, int]]:
     return jsonify(
         {
             "system_prompt": thinker.get_system_prompt(),
-            "criteria": {
-                "novelty": thinker.get_criteria("novelty"),
-                "feasibility": thinker.get_criteria("feasibility"),
-                "impact": thinker.get_criteria("impact"),
-            },
             "defaults": {
                 "system_prompt": thinker.default_system_prompt,
-                "novelty": thinker.default_novelty_criteria,
-                "feasibility": thinker.default_feasibility_criteria,
-                "impact": thinker.default_impact_criteria,
             },
         }
     )
@@ -560,23 +526,57 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
     modifications = data.get("modifications")
     behind_idea = data.get("behind_idea")
     original_id = data.get("original_id", "")
+    dimension_pairs = data.get("dimension_pairs") or []
+
+    if not isinstance(modifications, list) or len(modifications) == 0:
+        return jsonify({"error": "modifications must be a non-empty list"}), 400
+
+    if not isinstance(dimension_pairs, list) or len(dimension_pairs) < 3:
+        return jsonify({"error": "dimension_pairs (length >= 3) is required"}), 400
 
     # Use original data directly (no conversion needed)
     thinker_original = original_idea
     thinker_behind = behind_idea
-    # Convert modifications to Thinker format
-    thinker_mods = []
-    for mod in modifications:
-        thinker_mods.append(
-            {"metric": mod.get("metric"), "direction": mod.get("direction")}
-        )
+    thinker_mods = modifications
 
     # Modify the idea
     modified_idea = thinker.modify_idea(
         original_idea=thinker_original,
         modifications=thinker_mods,
         behind_idea=thinker_behind,
+        dimension_pairs=dimension_pairs,
     )
+
+    # Apply the requested score adjustments onto the modified idea's dynamic score map.
+    # This keeps the UI consistent even though modify_idea is a content rewrite step.
+    base_scores: Dict[str, Any] = {}
+    if isinstance(thinker_original, dict) and isinstance(
+        thinker_original.get("scores"), dict
+    ):
+        base_scores.update(thinker_original.get("scores") or {})
+    if isinstance(modified_idea, dict) and isinstance(
+        modified_idea.get("scores"), dict
+    ):
+        base_scores.update(modified_idea.get("scores") or {})
+
+    for mod in modifications:
+        if not isinstance(mod, dict):
+            continue
+        metric = mod.get("metric")
+        new_score = mod.get("newScore")
+        if isinstance(metric, str) and metric.strip() and new_score is not None:
+            base_scores[metric] = new_score
+
+    if isinstance(modified_idea, dict):
+        modified_idea["scores"] = base_scores
+
+        def _pair_key(pair: Dict[str, Any]) -> str:
+            return f"{str(pair.get('dimensionA', '')).strip()}-{str(pair.get('dimensionB', '')).strip()}"
+
+        for idx, pair in enumerate(dimension_pairs[:3]):
+            key = _pair_key(pair)
+            score_val = base_scores.get(key)
+            modified_idea[f"Dimension{idx + 1}Score"] = score_val
 
     # Generate experiment plan for modified idea (only if experimental)
     if modified_idea.get("is_experimental", True) and not modified_idea.get(
@@ -594,6 +594,39 @@ def modify_idea() -> Union[Response, tuple[Response, int]]:
         "title": format_name_for_display(modified_idea.get("Name")),
         "content": format_idea_content(modified_idea),
         "originalData": modified_idea,  # Preserve complete thinker JSON for coder/writer
+        "scores": modified_idea.get("scores")
+        if isinstance(modified_idea, dict)
+        else {},
+        "dimension1Score": (
+            modified_idea.get("Dimension1Score")
+            if isinstance(modified_idea, dict)
+            else None
+        ),
+        "dimension2Score": (
+            modified_idea.get("Dimension2Score")
+            if isinstance(modified_idea, dict)
+            else None
+        ),
+        "dimension3Score": (
+            modified_idea.get("Dimension3Score")
+            if isinstance(modified_idea, dict)
+            else None
+        ),
+        "Dimension1Reason": (
+            modified_idea.get("Dimension1Reason", "")
+            if isinstance(modified_idea, dict)
+            else ""
+        ),
+        "Dimension2Reason": (
+            modified_idea.get("Dimension2Reason", "")
+            if isinstance(modified_idea, dict)
+            else ""
+        ),
+        "Dimension3Reason": (
+            modified_idea.get("Dimension3Reason", "")
+            if isinstance(modified_idea, dict)
+            else ""
+        ),
     }
     return jsonify(response)
 
@@ -663,6 +696,31 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     mode = data.get("mode", "incremental")
     explicit_target_ids = set(data.get("targetIds", []) or [])
 
+    if not isinstance(dimension_pairs, list) or len(dimension_pairs) < 3:
+        return (
+            jsonify({"error": "dimension_pairs (length >= 3) is required"}),
+            400,
+        )
+
+    def _pair_keys(pair: Dict[str, Any]) -> tuple[str, str]:
+        a = str(pair.get("dimensionA", "")).strip()
+        b = str(pair.get("dimensionB", "")).strip()
+        return f"{a}-{b}", f"{b}-{a}"
+
+    def _has_score_for_pair(idea: Dict[str, Any], pair: Dict[str, Any]) -> bool:
+        scores = idea.get("scores")
+        if not isinstance(scores, dict):
+            return False
+        k1, k2 = _pair_keys(pair)
+        v1 = scores.get(k1)
+        v2 = scores.get(k2)
+        return v1 is not None or v2 is not None
+
+    def _has_scores_for_pairs(
+        idea: Dict[str, Any], pairs: list[Dict[str, Any]]
+    ) -> bool:
+        return all(_has_score_for_pair(idea, pair) for pair in pairs)
+
     print("[DEBUG] Evaluation request received:")
     print(f"  - Mode: {mode}")
     print(f"  - Incoming ideas count: {len(incoming_ideas)}")
@@ -688,11 +746,7 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
         target_ids_local = set(new_ids) | explicit_target_ids
         if not explicit_target_ids:
             for idea in stored_list:
-                if not (
-                    idea.get("NoveltyScore") is not None
-                    and idea.get("FeasibilityScore") is not None
-                    and idea.get("ImpactScore") is not None
-                ):
+                if not _has_scores_for_pairs(idea, dimension_pairs[:3]):
                     target_ids_local.add(idea.get("id"))
 
     if mode == "full":
@@ -701,11 +755,7 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
         evaluation_input = []
         for idea in stored_list:
             iid = idea.get("id")
-            has_scores = (
-                idea.get("NoveltyScore") is not None
-                and idea.get("FeasibilityScore") is not None
-                and idea.get("ImpactScore") is not None
-            )
+            has_scores = _has_scores_for_pairs(idea, dimension_pairs[:3])
             idea_copy = idea.copy()
             if iid in target_ids_local:
                 idea_copy.pop("AlreadyScored", None)
@@ -810,8 +860,7 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
     unmatched_ideas = []
     matched_ids = set()
 
-    pair_count = len(dimension_pairs) if dimension_pairs else 0
-    use_dimension_pairs = pair_count >= 2
+    pair_count = len(dimension_pairs)
 
     for i, scored in enumerate(scored_ideas):
         iid = find_idea_id(scored)
@@ -838,42 +887,26 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
         matched_ids.add(iid)
         if iid and ("-CUSTOM-" in iid or iid.startswith("C-")):
             print(f"[DEBUG] Custom idea {iid} reasoning fields:")
-            if use_dimension_pairs:
-                print(f"  Dimension1Reason: {scored.get('Dimension1Reason', '')}")
-                print(f"  Dimension2Reason: {scored.get('Dimension2Reason', '')}")
-                if pair_count >= 3:
-                    print(f"  Dimension3Reason: {scored.get('Dimension3Reason', '')}")
-            else:
-                print(f"  NoveltyReason: {scored.get('NoveltyReason', '')}")
-                print(f"  FeasibilityReason: {scored.get('FeasibilityReason', '')}")
-                print(f"  ImpactReason: {scored.get('ImpactReason', '')}")
+            print(f"  Dimension1Reason: {scored.get('Dimension1Reason', '')}")
+            print(f"  Dimension2Reason: {scored.get('Dimension2Reason', '')}")
+            if pair_count >= 3:
+                print(f"  Dimension3Reason: {scored.get('Dimension3Reason', '')}")
             print(f"  All scored keys: {list(scored.keys())}")
 
-        if use_dimension_pairs:
-            payload = {
-                "id": iid,
-                "scores": scored.get("scores", {}),
-            }
-            payload["dimension1Score"] = scored.get("Dimension1Score")
-            payload["dimension2Score"] = scored.get("Dimension2Score")
-            payload["Dimension1Reason"] = scored.get("Dimension1Reason", "")
-            payload["Dimension2Reason"] = scored.get("Dimension2Reason", "")
-            if pair_count >= 3:
-                payload["dimension3Score"] = scored.get("Dimension3Score")
-                payload["Dimension3Reason"] = scored.get("Dimension3Reason", "")
-            payloads.append(payload)
-        else:
-            payloads.append(
-                {
-                    "id": iid,
-                    "noveltyScore": scored.get("NoveltyScore"),
-                    "feasibilityScore": scored.get("FeasibilityScore"),
-                    "impactScore": scored.get("ImpactScore"),
-                    "NoveltyReason": scored.get("NoveltyReason", ""),
-                    "FeasibilityReason": scored.get("FeasibilityReason", ""),
-                    "ImpactReason": scored.get("ImpactReason", ""),
-                }
-            )
+        payload = {
+            "id": iid,
+            "scores": scored.get("scores", {})
+            if isinstance(scored.get("scores"), dict)
+            else {},
+        }
+        payload["dimension1Score"] = scored.get("Dimension1Score")
+        payload["dimension2Score"] = scored.get("Dimension2Score")
+        payload["Dimension1Reason"] = scored.get("Dimension1Reason", "")
+        payload["Dimension2Reason"] = scored.get("Dimension2Reason", "")
+        if pair_count >= 3:
+            payload["dimension3Score"] = scored.get("Dimension3Score")
+            payload["Dimension3Reason"] = scored.get("Dimension3Reason", "")
+        payloads.append(payload)
 
     print("[DEBUG] Evaluation matching results:")
     print(f"  - Mode: {mode}")
@@ -896,13 +929,8 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
         print("[DEBUG] Matched payloads:")
         for p in payloads[:2]:
             print(
-                f"  - ID: {p['id']}, Scores: N={p.get('noveltyScore')}, F={p.get('feasibilityScore')}, I={p.get('impactScore')}, "
-                f"D1={p.get('dimension1Score')}, D2={p.get('dimension2Score')}, D3={p.get('dimension3Score')}"
+                f"  - ID: {p['id']}, Scores: D1={p.get('dimension1Score')}, D2={p.get('dimension2Score')}, D3={p.get('dimension3Score')}"
             )
-            if p["id"] and ("-CUSTOM-" in p["id"] or p["id"].startswith("C-")):
-                print(
-                    f"    Custom idea reasoning: N={p.get('NoveltyReason', 'MISSING')[:50]}..., F={p.get('FeasibilityReason', 'MISSING')[:50]}..., I={p.get('ImpactReason', 'MISSING')[:50]}..."
-                )
 
     _bulk_update_scores(payloads)
 
@@ -926,13 +954,6 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
             item["Dimension2Reason"] = i.get("Dimension2Reason", "")
             item["Dimension3Reason"] = i.get("Dimension3Reason", "")
 
-        item["noveltyScore"] = i.get("NoveltyScore")
-        item["feasibilityScore"] = i.get("FeasibilityScore")
-        item["impactScore"] = i.get("ImpactScore")
-        item["NoveltyReason"] = i.get("NoveltyReason", "")
-        item["FeasibilityReason"] = i.get("FeasibilityReason", "")
-        item["ImpactReason"] = i.get("ImpactReason", "")
-
         client_return.append(item)
 
     custom_ideas_in_return = [
@@ -944,11 +965,9 @@ def evaluate_ideas() -> Union[Response, tuple[Response, int]]:
         print("[DEBUG] Custom ideas in client return:")
         for item in custom_ideas_in_return:
             print(f"  - ID: {item['id']}")
-            print(f"    NoveltyReason: {item.get('NoveltyReason', 'MISSING')[:50]}...")
             print(
-                f"    FeasibilityReason: {item.get('FeasibilityReason', 'MISSING')[:50]}..."
+                f"    D1Reason: {item.get('Dimension1Reason', 'MISSING')[:50]}..., D2Reason: {item.get('Dimension2Reason', 'MISSING')[:50]}..., D3Reason: {item.get('Dimension3Reason', 'MISSING')[:50]}..."
             )
-            print(f"    ImpactReason: {item.get('ImpactReason', 'MISSING')[:50]}...")
 
     meta = {
         "mode": mode,
@@ -968,16 +987,16 @@ def format_idea_content(idea: Union[Dict[str, Any], str]) -> str:
     if isinstance(idea, str):
         return idea
 
-    description = idea.get("Description", "")
+    problem = idea.get("Problem", "") or idea.get("Description", "")
     importance = idea.get("Importance", "")
     difficulty = idea.get("Difficulty", "")
     novelty = idea.get("NoveltyComparison", "")
 
     content_sections = [
-        f"**Problem:**\n{description}",
-        f"**Impact:**\n{importance}",
-        f"**Feasibility:**\n{difficulty}",
-        f"**Novelty:**\n{novelty}",
+        f"**Problem:**\n{problem}",
+        f"**Importance:**\n{importance}",
+        f"**Difficulty:**\n{difficulty}",
+        f"**Novelty Comparison:**\n{novelty}",
     ]
 
     return "\n\n".join(content_sections)

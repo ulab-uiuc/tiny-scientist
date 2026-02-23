@@ -2,9 +2,9 @@ const SECTION_DEFINITIONS = [
   { title: 'Problem', regex: /\*\*Problem:\*\*|Problem:|Problem\s*\*\*|\*\*Description:\*\*|Description:/ },
   { title: 'Approach', regex: /\*\*Approach:\*\*|Approach:|Approach\s*\*\*/ },
   { title: 'Experiment', regex: /\*\*Experiment:\*\*|Experiment:|Experiment\s*\*\*/ },
-  { title: 'Impact', regex: /\*\*Impact:\*\*|Impact:|Impact\s*\*\*/ },
-  { title: 'Feasibility', regex: /\*\*Feasibility:\*\*|Feasibility:|Feasibility\s*\*\*/ },
-  { title: 'Novelty', regex: /\*\*Novelty Comparison:\*\*|Novelty Comparison:|Novelty:|Novelty\s*\*\*/ }
+  { title: 'Importance', regex: /\*\*Importance:\*\*|Importance:|Importance\s*\*\*/ },
+  { title: 'Difficulty', regex: /\*\*Difficulty:\*\*|Difficulty:|Difficulty\s*\*\*/ },
+  { title: 'Novelty Comparison', regex: /\*\*Novelty Comparison:\*\*|Novelty Comparison:|Novelty\s*Comparison\s*\*\*/ }
 ];
 
 
@@ -100,42 +100,30 @@ export function buildNodeContent(node = {}) {
   const dimension1Score = pick(
     idea.Dimension1Score,
     idea.dimension1Score,
-    node.dimension1Score,
-    idea.impactScore,
-    node.impactScore
+    node.dimension1Score
   );
   const dimension2Score = pick(
     idea.Dimension2Score,
     idea.dimension2Score,
-    node.dimension2Score,
-    idea.feasibilityScore,
-    node.feasibilityScore
+    node.dimension2Score
   );
   const dimension3Score = pick(
     idea.Dimension3Score,
     idea.dimension3Score,
-    node.dimension3Score,
-    idea.noveltyScore,
-    node.noveltyScore
+    node.dimension3Score
   );
 
   const dimension1Reason = pick(
     idea.Dimension1Reason,
-    idea.dimension1Reason,
-    idea.ImpactReason,
-    node.evaluationReasoning?.impactReasoning
+    idea.dimension1Reason
   );
   const dimension2Reason = pick(
     idea.Dimension2Reason,
-    idea.dimension2Reason,
-    idea.FeasibilityReason,
-    node.evaluationReasoning?.feasibilityReasoning
+    idea.dimension2Reason
   );
   const dimension3Reason = pick(
     idea.Dimension3Reason,
-    idea.dimension3Reason,
-    idea.NoveltyReason,
-    node.evaluationReasoning?.noveltyReasoning
+    idea.dimension3Reason
   );
 
   if (dimension1Score !== undefined) idea['dimension1'] = dimension1Score;
@@ -151,9 +139,6 @@ export function buildNodeContent(node = {}) {
     'Name',
     'Problem',
     'Content',
-    'ImpactReason',
-    'FeasibilityReason',
-    'NoveltyReason',
     'Dimension1Reason',
     'Dimension2Reason',
     'Dimension3Reason',
@@ -163,9 +148,6 @@ export function buildNodeContent(node = {}) {
     'dimension1Score',
     'dimension2Score',
     'dimension3Score',
-    'impactScore',
-    'feasibilityScore',
-    'noveltyScore',
     'evaluationReasoning',
     'problem_highlights'
   ].forEach((key) => {
