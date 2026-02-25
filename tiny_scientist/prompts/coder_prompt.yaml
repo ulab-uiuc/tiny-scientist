@@ -1,3 +1,81 @@
+experiment_plan_prompt: |
+  You are a research experiment planner. Given a research idea, produce a concrete implementation checklist for `experiment.py`.
+
+  ## Research Context
+  Title: {title}
+  Problem: {problem}
+  Proposed Approach: {approach}
+
+  ## Experimental Setup
+  Model/Algorithm details:
+  {model_details}
+
+  Dataset details:
+  {dataset_details}
+
+  Evaluation metric details:
+  {metric_details}
+
+  ## Your Task
+  Break down the implementation of `experiment.py` into 4–6 ordered steps. Each step should be atomic and directly implementable.
+
+  Return ONLY a JSON array with no surrounding text, in this exact format:
+  ```json
+  [
+    {{"step": 1, "name": "Data Loading", "description": "Concise instruction for what to implement in this step"}},
+    {{"step": 2, "name": "Model Architecture", "description": "..."}},
+    {{"step": 3, "name": "Training Loop", "description": "..."}},
+    {{"step": 4, "name": "Evaluation", "description": "..."}},
+    {{"step": 5, "name": "Main Orchestration", "description": "..."}}
+  ]
+  ```
+
+  Keep each description concrete: specify dataset loader, model size, optimizer, loss, metrics, and output file path where relevant.
+
+experiment_step_prompt: |
+  You are implementing step {step_num} of {total_steps} for a machine learning experiment script.
+
+  ## Step to Implement
+  Step {step_num}: {step_name}
+  {step_description}
+
+  ## Research Context
+  Title: {title}
+  Problem: {problem}
+  Proposed Approach: {approach}
+
+  ## Experimental Setup
+  Model/Algorithm details:
+  {model_details}
+
+  Dataset details:
+  {dataset_details}
+
+  Evaluation metric details:
+  {metric_details}
+
+  ## TODO Plan (from TODO.md)
+  {todo_plan}
+
+  ## Current experiment.py content
+  {current_code}
+
+  ## Hard Constraints (apply to all steps)
+  - Lightweight architectures only: bag-of-words/logistic regression, shallow MLP (≤2 hidden layers, ≤128 units), shallow CNN (≤3 conv, ≤32 filters), linear SVM, single-layer GRU (≤64 units)
+  - FORBIDDEN: transformers, BERT/GPT/ViT classes, graph neural networks, diffusion models, pretrained checkpoints
+  - Subsample datasets: ≤5,000 train, ≤2,000 val/test
+  - Training: ≤5 epochs, batch_size ≤64
+  - Script must accept --out_dir argument and save final_info.json there
+
+  ## Instructions
+  1. Read the current experiment.py using the read_file tool (if it exists)
+  2. Implement ONLY the current step — do not skip ahead or leave placeholders
+  3. Write the complete updated experiment.py using the write_file tool
+  4. The file must remain runnable after each step (add pass stubs for functions not yet implemented)
+  5. Follow TODO.md ordering strictly and do not work on unchecked future steps
+
+  After writing, respond with "STEP_DONE".
+
 experiment_keyword_prompt: |
   The experiment is organized into three sections:
   ## Model Section:

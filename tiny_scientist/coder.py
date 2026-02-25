@@ -8,19 +8,25 @@ import time
 from subprocess import TimeoutExpired
 from typing import Any, Dict, List, Optional, Tuple
 
+from agents import Agent, Runner
 from rich import print
-from smolagents import CodeAgent
 
 from .budget_checker import BudgetChecker
 from .configs import Config
-from .smolagents_model import create_smolagents_model
 from .smolagents_tools import (
     DockerExperimentRunner,
     ReadFileTool,
     RunExperimentTool,
     WriteFileTool,
 )
+from .tools.agent_tools import (
+    build_research_tools,
+    make_read_file_tool,
+    make_run_experiment_tool,
+    make_write_file_tool,
+)
 from .utils.llm import create_client, get_response_from_llm
+from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 
 class Coder:
@@ -37,7 +43,7 @@ class Coder:
         cost_tracker: Optional[BudgetChecker] = None,
         use_docker: bool = True,
     ) -> None:
-        """Initialize the ExperimentCoder with configuration and smolagents setup."""
+        """Initialize the ExperimentCoder with configuration and openai-agents setup."""
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
@@ -58,69 +64,61 @@ class Coder:
         # Load prompts
         self.prompts = self.config.prompt_template.coder_prompt
 
-        # smolagents agent (initialized in setup_agent)
-        self.agent: Optional[CodeAgent] = None
+        # openai-agents Agent (initialized in setup_agent)
+        self.agent: Optional[Agent] = None
+        self.planner_agent: Optional[Agent] = None
 
     def setup_agent(self) -> None:
-        """Setup smolagents CodeAgent with tools for code generation."""
+        """Setup openai-agents Agent with tools for code generation."""
         # Ensure the output directory exists
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Create smolagents model
-        smolagents_model = create_smolagents_model(self.model)
+        # Configure the SDK client for the chosen model
+        configure_openai_agents_for_model(self.model)
 
-        # Create tools for the agent
-        tools = [
-            WriteFileTool(self.output_dir),
-            ReadFileTool(self.output_dir),
-            RunExperimentTool(self.output_dir, self.docker_runner),
-        ]
+        # Create function_tool wrappers for the file/experiment tools
+        write_file = make_write_file_tool(WriteFileTool(self.output_dir))
+        read_file = make_read_file_tool(ReadFileTool(self.output_dir))
+        run_experiment = make_run_experiment_tool(
+            RunExperimentTool(self.output_dir, self.docker_runner)
+        )
+        research_tools = build_research_tools(model=self.model, include_drawer=False)
 
-        # Create CodeAgent
-        self.agent = CodeAgent(
-            tools=tools,
-            model=smolagents_model,
-            max_steps=self.max_iters * 3,
-            additional_authorized_imports=[
-                "numpy",
-                "pandas",
-                "torch",
-                "tensorflow",
-                "sklearn",
-                "matplotlib",
-                "seaborn",
-                "scipy",
-                "json",
-                "os",
-                "sys",
-                "argparse",
-                "time",
-                "datetime",
-                "random",
-                "math",
-                "collections",
-                "itertools",
-                "functools",
-                "pathlib",
-                "typing",
-                "re",
-                "pickle",
-                "csv",
-                "transformers",
-                "datasets",
-                "evaluate",
-                "tqdm",
-                "requests",
-            ],
+        # Create the openai-agents Agent
+        self.agent = Agent(
+            name="ExperimentCoder",
+            instructions=(
+                "You are an expert Python code generator for machine learning experiments. "
+                "Generate COMPLETE, RUNNABLE code with REAL data loading, model training, and evaluation. "
+                "NEVER use random numbers, dummy data, or hardcoded results. "
+                "All metrics must come from actual model execution. "
+                "Use write_file to save experiment.py, read_file to inspect it, "
+                "and run_experiment to execute it. "
+                "Use web_search for up-to-date implementation details, paper_search for"
+                " experiment design references, and code_search for baseline repos."
+            ),
+            tools=[write_file, read_file, run_experiment, *research_tools],
+            model=self.model,
+        )
+        self.planner_agent = Agent(
+            name="ExperimentPlanner",
+            instructions=(
+                "You are a coding planner for ML experiments. "
+                "Return only a compact JSON array of steps. "
+                "Each item must be: {step, name, description}. "
+                "Do not include markdown fences."
+            ),
+            tools=research_tools,
+            model=self.model,
         )
 
     def run(
-        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
+        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = None
     ) -> Tuple[bool, str, Optional[str]]:
         # Ensure a clean slate for every run
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Setup the smolagents agent
+        # Setup the openai-agents agent
         self.setup_agent()
 
         # Run experiments
@@ -216,71 +214,184 @@ class Coder:
         lines = paragraph.strip().split(". ")
         return "\n".join(f"- {line.strip().rstrip('.')}" for line in lines if line)
 
+    def _plan(
+        self,
+        idea: Dict[str, Any],
+        model_text: str,
+        dataset_text: str,
+        metric_text: str,
+        baseline_results: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Use LLM to generate a checklist of implementation steps for experiment.py."""
+        baseline_note = (
+            f"\n\nBaseline results for reference:\n{json.dumps(baseline_results, indent=2)}"
+            if baseline_results
+            else ""
+        )
+        prompt = self.prompts.experiment_plan_prompt.format(
+            title=idea["Title"],
+            problem=idea["Problem"],
+            approach=idea["Approach"],
+            model_details=model_text,
+            dataset_details=dataset_text,
+            metric_details=metric_text,
+        ) + baseline_note
+
+        response = ""
+        if self.planner_agent is not None:
+            try:
+                result = Runner.run_sync(self.planner_agent, prompt)
+                track_sdk_cost(result, self.cost_tracker, self.model, "experiment_plan")
+                response = result.final_output or ""
+            except Exception as e:
+                print(f"[Planner][Coder] planner agent failed, fallback to LLM: {e}")
+        if not response:
+            response, _ = get_response_from_llm(
+                msg=prompt,
+                client=self.client,
+                model=self.model,
+                system_message="You are a research experiment planner. Return only a JSON array of implementation steps.",
+                cost_tracker=self.cost_tracker,
+                task_name="experiment_plan",
+            )
+
+        # Parse JSON list from response
+        try:
+            clean = response.strip()
+            # Strip markdown code fence if present
+            if "```" in clean:
+                start = clean.find("[", clean.find("```"))
+                end = clean.rfind("]") + 1
+                clean = clean[start:end]
+            checklist = json.loads(clean)
+            if isinstance(checklist, list) and checklist:
+                return checklist
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fallback: default 5-step checklist
+        print("[Planner][Coder] Failed to parse checklist JSON; using default steps.")
+        return [
+            {"step": 1, "name": "Data Loading", "description": "Download and subsample the dataset (≤5k train, ≤2k val/test), convert to tensors/arrays."},
+            {"step": 2, "name": "Model Architecture", "description": "Build the lightweight model as specified in the experiment setup."},
+            {"step": 3, "name": "Training Loop", "description": "Implement real gradient updates (zero_grad, backward, step) for ≤5 epochs, batch_size ≤64."},
+            {"step": 4, "name": "Evaluation", "description": "Compute evaluation metrics from real predictions vs ground truth labels."},
+            {"step": 5, "name": "Main Orchestration", "description": "Wire all steps in main(), parse --out_dir, save final_info.json with metric values."},
+        ]
+
+    def _code_step(
+        self,
+        step: Dict[str, Any],
+        idea: Dict[str, Any],
+        total_steps: int,
+        model_text: str,
+        dataset_text: str,
+        metric_text: str,
+        todo_content: str,
+    ) -> None:
+        """Code a single checklist step, updating experiment.py incrementally."""
+        exp_path = osp.join(self.output_dir, "experiment.py")
+        current_code = ""
+        if osp.exists(exp_path):
+            with open(exp_path, "r") as f:
+                current_code = f.read()
+
+        prompt = self.prompts.experiment_step_prompt.format(
+            step_num=step["step"],
+            total_steps=total_steps,
+            step_name=step["name"],
+            step_description=step["description"],
+            title=idea["Title"],
+            problem=idea["Problem"],
+            approach=idea["Approach"],
+            model_details=model_text,
+            dataset_details=dataset_text,
+            metric_details=metric_text,
+            todo_plan=todo_content,
+            current_code=current_code if current_code else "(empty — create the file)",
+        )
+
+        try:
+            self._generate_experiment(prompt)
+        except Exception as e:
+            print(f"[Coder] Agent failed on step {step['step']}: {e}. Falling back to direct LLM.")
+            try:
+                self._run_direct_llm(prompt)
+            except Exception as e2:
+                print(f"[Coder] Direct LLM also failed on step {step['step']}: {e2}")
+
     def _run_experiment_loop(
-        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = {}
+        self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """Run the experiment loop with multiple iterations if needed."""
+        """Run the experiment loop: plan → code each step → execute runs."""
         current_iter = 0
         run_time = 1
 
         experiment_spec = idea["Experiment"]
-        (
-            model_kw,
-            dataset_kw,
-            metric_kw,
-            model_text,
-            dataset_text,
-            metric_text,
-        ) = self._format_experiment_for_prompt(experiment_spec)
+        _, _, _, model_text, dataset_text, metric_text = self._format_experiment_for_prompt(experiment_spec)
 
-        next_prompt = self.prompts.experiment_prompt.format(
-            title=idea["Title"],
-            problem=idea["Problem"],
-            novelty=idea["NoveltyComparison"],
-            approach=idea["Approach"],
-            model_keywords=model_kw,
-            dataset_keywords=dataset_kw,
-            metric_keywords=metric_kw,
-            model_details=model_text,
-            dataset_details=dataset_text,
-            metric_details=metric_text,
-            max_runs=self.max_runs,
-            baseline_results=baseline_results,
-        )
+        # Phase 1: Plan — generate implementation checklist
+        print("[Planner][Coder] Generating experiment TODO...")
+        checklist = self._plan(idea, model_text, dataset_text, metric_text, baseline_results)
+        print(f"[Planner][Coder] TODO ({len(checklist)} steps):")
+        for item in checklist:
+            print(f"[TODO][Coder] [ ] Step {item['step']}: {item['name']} — {item['description']}")
 
+        # Persist a TODO plan so the agent can track execution state across steps.
+        self._write_todo(checklist=checklist, completed_steps=0)
+
+        # Phase 2: Code — implement each step incrementally
+        total_steps = len(checklist)
+        for step in checklist:
+            print(f"\n[TODO][Coder] [{step['step']}/{total_steps}] {step['name']}")
+            self._write_todo(checklist=checklist, completed_steps=step["step"] - 1)
+            todo_content = self._read_todo()
+            self._code_step(
+                step,
+                idea,
+                total_steps,
+                model_text,
+                dataset_text,
+                metric_text,
+                todo_content,
+            )
+            self._write_todo(checklist=checklist, completed_steps=step["step"])
+
+        # Phase 3: Fix any remaining placeholders after step-coding
+        exp_path = osp.join(self.output_dir, "experiment.py")
+        if osp.exists(exp_path):
+            with open(exp_path) as f:
+                content = f.read()
+            if "..." in content:
+                print("[System] Placeholder '...' detected after step coding. Attempting fix.")
+                try:
+                    self._run_direct_llm(
+                        "Please replace all placeholders (`...`) in experiment.py with complete runnable code."
+                    )
+                except Exception as e:
+                    print(f"[System] Failed to fix placeholders: {e}")
+
+        # Phase 4: Run experiments (with error/retry logic)
+        next_prompt = ""
         while run_time < self.max_runs + 1:
             if current_iter >= self.max_iters:
                 print("Max iterations reached")
                 return False
 
-            try:
-                # Use smolagents agent to generate experiment code
-                agent_out = self._generate_experiment(next_prompt)
-            except Exception as e:
-                print(f"[System] Agent failed: {e}")
-                # If agent fails, try direct LLM approach
+            # On subsequent runs or after errors, re-generate if we have a prompt
+            if next_prompt:
                 try:
-                    agent_out = self._run_direct_llm(next_prompt)
-                except Exception as e2:
-                    print(f"[System] Direct LLM also failed: {e2}")
-                    agent_out = "CONTINUE"
+                    agent_out = self._generate_experiment(next_prompt)
+                except Exception as e:
+                    print(f"[System] Agent failed: {e}")
+                    try:
+                        agent_out = self._run_direct_llm(next_prompt)
+                    except Exception as e2:
+                        print(f"[System] Direct LLM also failed: {e2}")
+                        agent_out = "CONTINUE"
 
-            exp_path = osp.join(self.output_dir, "experiment.py")
-
-            if "ALL_COMPLETED" in agent_out:
-                return True
-
-            if osp.exists(exp_path):
-                with open(exp_path) as f:
-                    content = f.read()
-                    if "..." in content:
-                        print("[System] Placeholder '...' detected. Attempting fix.")
-                        try:
-                            self._run_direct_llm(
-                                "Please replace all placeholders (`...`) in experiment.py with complete runnable code."
-                            )
-                        except Exception as e:
-                            print(f"[System] Failed to fix placeholders: {e}")
+                if "ALL_COMPLETED" in agent_out:
+                    return True
 
             return_code, message = self._run_single_experiment(run_time)
 
@@ -298,7 +409,6 @@ class Coder:
                         run_time=run_time,
                         max_runs=self.max_runs,
                     )
-                    # Try to fix the issue
                     self._run_direct_llm(next_prompt)
                 except Exception as e:
                     print(f"[System] Fix attempt failed: {e}")
@@ -308,35 +418,30 @@ class Coder:
         return current_iter < self.max_iters
 
     def _generate_experiment(self, prompt: str) -> str:
-        """Use smolagents CodeAgent to generate experiment code."""
+        """Use openai-agents Agent to generate experiment code."""
         if self.agent is None:
             raise RuntimeError("Agent not initialized. Call setup_agent() first.")
 
         # Build a task prompt for the agent
-        task_prompt = f"""
-You are an expert Python code generator for machine learning experiments.
-Your task is to generate COMPLETE, RUNNABLE Python code for an experiment.
-
-IMPORTANT REQUIREMENTS:
-1. Generate REAL code with actual data loading, model training, and evaluation
-2. NEVER use random numbers, dummy data, or hardcoded results
-3. All metrics must come from actual model execution
-4. The code must be self-contained and runnable
-5. Save results to a JSON file using argparse --out_dir argument
-
-TASK:
-{prompt}
-
-Use the available tools to:
-1. Write the experiment.py file with complete, working code
-2. The code should accept --out_dir argument and save final_info.json with results
-
-After writing the code, respond with "CONTINUE" to proceed with running the experiment.
-"""
+        task_prompt = (
+            "Your task is to generate COMPLETE, RUNNABLE Python code for an experiment.\n\n"
+            "IMPORTANT REQUIREMENTS:\n"
+            "1. Generate REAL code with actual data loading, model training, and evaluation\n"
+            "2. NEVER use random numbers, dummy data, or hardcoded results\n"
+            "3. All metrics must come from actual model execution\n"
+            "4. The code must be self-contained and runnable\n"
+            "5. Save results to a JSON file using argparse --out_dir argument\n\n"
+            f"TASK:\n{prompt}\n\n"
+            "Use write_file to save experiment.py with complete, working code.\n"
+            "Use TODO.md as your execution checklist and keep task focus by current step.\n"
+            "The code should accept --out_dir argument and save final_info.json with results.\n"
+            'After writing the code, respond with "CONTINUE" to proceed.'
+        )
 
         try:
-            result = self.agent.run(task_prompt)
-            return str(result) if result else "CONTINUE"
+            result = Runner.run_sync(self.agent, task_prompt)
+            track_sdk_cost(result, self.cost_tracker, self.model, "generate_experiment")
+            return result.final_output or "CONTINUE"
         except Exception as e:
             print(f"[System] Agent run failed: {e}")
             # Fall back to direct LLM
@@ -378,6 +483,31 @@ Please respond with the complete file content only, no explanations or markdown 
             f.write(code_content)
 
         return "CONTINUE"
+
+    def _write_todo(self, checklist: List[Dict[str, Any]], completed_steps: int) -> None:
+        """Write a markdown TODO tracker for current implementation progress."""
+        todo_path = osp.join(self.output_dir, "TODO.md")
+        lines = ["# Experiment TODO Plan", ""]
+        for item in checklist:
+            try:
+                step_num = int(item.get("step", 0))
+            except (TypeError, ValueError):
+                continue
+            name = str(item.get("name", f"Step {step_num}"))
+            desc = str(item.get("description", ""))
+            checked = "x" if step_num <= completed_steps else " "
+            lines.append(f"- [{checked}] Step {step_num}: {name}")
+            lines.append(f"  - {desc}")
+        with open(todo_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines).strip() + "\n")
+
+    def _read_todo(self) -> str:
+        """Read TODO tracker text for prompt context."""
+        todo_path = osp.join(self.output_dir, "TODO.md")
+        if not osp.exists(todo_path):
+            return "(No TODO plan available)"
+        with open(todo_path, "r", encoding="utf-8") as f:
+            return f.read()
 
     def _run_single_experiment(
         self, run_num: int, timeout: int = 7200

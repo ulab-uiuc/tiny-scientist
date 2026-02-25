@@ -3,12 +3,16 @@ import os.path as osp
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Union
 
+from agents import Agent, Runner
 from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
 from .safety_checker import SafetyChecker
 from .smolagents_tools import PaperSearchTool
+from .tools.agent_tools import (
+    build_research_tools,
+)
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import (
     create_client,
@@ -16,13 +20,14 @@ from .utils.llm import (
     get_response_from_llm,
 )
 from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
+from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 
-class Thinker:
+class _ThinkerLegacy:
     def __init__(
         self,
-        tools: List[Any],
-        iter_num: int,
+        tools: Optional[List[Any]] = None,
+        iter_num: int = 3,
         search_papers: bool = True,
         generate_exp_plan: bool = True,
         model: str = "",
@@ -34,7 +39,7 @@ class Thinker:
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
     ):
-        self.tools = tools
+        self.tools = tools or []
         self.iter_num = iter_num
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
@@ -886,3 +891,410 @@ Be critical and realistic in your assessments."""
         except Exception as e:
             print(f"⚠️ Safety check error: {str(e)}, using original idea")
             return idea_json
+
+
+class Thinker(_ThinkerLegacy):
+    """Thinker variant that uses the OpenAI Agents SDK for all LLM calls."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        configure_openai_agents_for_model(self.model)
+        shared_tools = build_research_tools(model=self.model, include_drawer=False)
+        tool_policy = (
+            "Tool policy: use web_search for latest facts, paper_search for scholarly "
+            "support and citations, and code_search for implementation baselines."
+        )
+
+        self.agent = Agent(
+            name="IdeaGenerator",
+            instructions=f"{self.prompts.idea_system_prompt}\n\n{tool_policy}",
+            tools=shared_tools,
+            model=self.model,
+        )
+        self._novelty_agent = Agent(
+            name="NoveltyChecker",
+            instructions=f"{self.prompts.novelty_system_prompt}\n\n{tool_policy}",
+            tools=shared_tools,
+            model=self.model,
+        )
+        self._evaluation_agent = Agent(
+            name="IdeaEvaluator",
+            instructions=f"{self.prompts.evaluation_system_prompt}\n\n{tool_policy}",
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.planner_agent = Agent(
+            name="ThinkerPlanner",
+            instructions=(
+                "You are a research ideation planner. "
+                "Return only a JSON array of TODO items. "
+                "Each item must include: {step, action, name, description}. "
+                "Valid actions: generate_idea, refine_idea, experiment_plan, novelty_check, safety_check."
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+
+    @staticmethod
+    def _default_todo(check_novelty: bool, generate_exp_plan: bool) -> List[Dict[str, Any]]:
+        steps: List[Dict[str, Any]] = [
+            {
+                "step": 1,
+                "action": "generate_idea",
+                "name": "Generate Initial Idea",
+                "description": "Draft one structured idea from intent and related work.",
+            },
+            {
+                "step": 2,
+                "action": "refine_idea",
+                "name": "Reflect And Refine",
+                "description": "Run iterative reflections to improve clarity and feasibility.",
+            },
+        ]
+        next_step = 3
+        if generate_exp_plan:
+            steps.append(
+                {
+                    "step": next_step,
+                    "action": "experiment_plan",
+                    "name": "Draft Experiment Plan",
+                    "description": "Generate concrete experiment plan for the idea.",
+                }
+            )
+            next_step += 1
+        if check_novelty:
+            steps.append(
+                {
+                    "step": next_step,
+                    "action": "novelty_check",
+                    "name": "Check Novelty",
+                    "description": "Assess novelty against retrieved related work.",
+                }
+            )
+            next_step += 1
+        steps.append(
+            {
+                "step": next_step,
+                "action": "safety_check",
+                "name": "Safety Validation",
+                "description": "Run safety validation on the final idea JSON.",
+            }
+        )
+        return steps
+
+    def _build_todo(
+        self,
+        intent: str,
+        num_ideas: int,
+        check_novelty: bool,
+        has_pdf: bool,
+    ) -> List[Dict[str, Any]]:
+        prompt = (
+            "Build an execution TODO list for idea generation.\n"
+            f"intent: {intent}\n"
+            f"num_ideas: {num_ideas}\n"
+            f"check_novelty: {check_novelty}\n"
+            f"generate_exp_plan: {self.generate_exp_plan}\n"
+            f"has_pdf_context: {has_pdf}\n"
+        )
+        text = self._run_sdk_call(self.planner_agent, prompt, "plan_thinker_todo")
+        parsed = extract_json_between_markers(text)
+        if not isinstance(parsed, list):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+        if isinstance(parsed, list) and parsed:
+            valid_actions = {
+                "generate_idea",
+                "refine_idea",
+                "experiment_plan",
+                "novelty_check",
+                "safety_check",
+            }
+            normalized: List[Dict[str, Any]] = []
+            for idx, item in enumerate(parsed, start=1):
+                if not isinstance(item, dict):
+                    continue
+                action = str(item.get("action", "")).strip()
+                if action not in valid_actions:
+                    continue
+                normalized.append(
+                    {
+                        "step": int(item.get("step", idx)),
+                        "action": action,
+                        "name": str(item.get("name", action)),
+                        "description": str(item.get("description", "")),
+                    }
+                )
+            actions = {str(it.get("action", "")) for it in normalized}
+            if normalized and "generate_idea" in actions and "safety_check" in actions:
+                return normalized
+        return self._default_todo(
+            check_novelty=check_novelty, generate_exp_plan=self.generate_exp_plan
+        )
+
+    def run(
+        self,
+        intent: str,
+        num_ideas: int = 1,
+        check_novelty: bool = False,
+        pdf_content: Optional[str] = None,
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        self.intent = intent
+        pdf_context = self._load_pdf_content(pdf_content)
+        todo = self._build_todo(
+            intent=intent,
+            num_ideas=num_ideas,
+            check_novelty=check_novelty,
+            has_pdf=pdf_context is not None,
+        )
+        print(f"[Planner][Thinker] TODO ({len(todo)} steps)")
+        for item in todo:
+            print(
+                f"[TODO][Thinker] [ ] Step {item['step']}: {item['name']} — {item['description']}"
+            )
+
+        ideas: List[Dict[str, Any]] = []
+        for idea_idx in range(1, num_ideas + 1):
+            print(f"[TODO][Thinker] Processing idea {idea_idx}/{num_ideas}")
+            current_idea_json = json.dumps({})
+            for idx, item in enumerate(todo, start=1):
+                action = item.get("action", "")
+                print(f"[TODO][Thinker] [{idx}/{len(todo)}] {item.get('name', action)}")
+
+                if action == "generate_idea":
+                    if self.search_papers:
+                        query = self._generate_search_query(intent)
+                        related_works_string = self._get_related_works(query)
+                    else:
+                        related_works_string = "No Related Works Found"
+                    current_idea_json = self._generate_idea(
+                        intent, related_works_string, pdf_context
+                    )
+                elif action == "refine_idea":
+                    current_idea_json = self._refine_idea(current_idea_json)
+                elif action == "experiment_plan":
+                    current_idea_json = self.generate_experiment_plan(current_idea_json)
+                elif action == "novelty_check":
+                    if check_novelty:
+                        current_idea_json = self._check_novelty(current_idea_json)
+                elif action == "safety_check":
+                    current_idea_json = self._safety_check(current_idea_json)
+
+            try:
+                idea_obj = json.loads(current_idea_json)
+            except json.JSONDecodeError:
+                idea_obj = {}
+            if isinstance(idea_obj, dict) and idea_obj:
+                ideas.append(idea_obj)
+
+        self.cost_tracker.report()
+        if len(ideas) > 1:
+            return ideas
+        if len(ideas) == 1:
+            return ideas[0]
+        return {}
+
+    def _run_sdk_call(self, agent: Agent, prompt: str, task_name: str) -> str:
+        result = Runner.run_sync(agent, prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, task_name)
+        return result.final_output or ""
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _generate_idea(
+        self,
+        intent: str,
+        related_works_string: str,
+        pdf_content: Optional[str] = None,
+    ) -> str:
+        pdf_section = (
+            f"Based on the content of the following paper:\n\n{pdf_content}\n\n"
+            if pdf_content
+            else ""
+        )
+        prompt = self.prompts.idea_first_prompt.format(
+            intent=intent,
+            related_works_string=related_works_string,
+            num_reflections=1,
+            pdf_section=pdf_section,
+        )
+        text = self._run_sdk_call(self.agent, prompt, "generate_idea")
+        idea = extract_json_between_markers(text)
+        if isinstance(idea, list) and idea:
+            idea = idea[0]
+        if not idea:
+            return json.dumps({})
+        try:
+            idea["ComparisonTable"] = text.split("```markdown")[1].split("```")[
+                0
+            ].strip()
+        except IndexError:
+            pass
+        self.cost_tracker.report()
+        return json.dumps(idea, indent=2)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _reflect_idea(
+        self, idea_json: str, current_round: int, related_works_string: str
+    ) -> str:
+        prompt = self.prompts.idea_reflection_prompt.format(
+            intent=self.intent,
+            current_round=current_round,
+            num_reflections=self.iter_num,
+            current_idea=idea_json,
+            related_works_string=related_works_string,
+        )
+        text = self._run_sdk_call(self.agent, prompt, "reflect_idea")
+        new_idea = extract_json_between_markers(text)
+        if isinstance(new_idea, list) and new_idea:
+            new_idea = new_idea[0]
+        if not new_idea:
+            return idea_json
+        self.cost_tracker.report()
+        return json.dumps(new_idea, indent=2)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def generate_experiment_plan(self, idea: str) -> str:
+        idea_dict = json.loads(idea)
+        is_experimental = idea_dict.get("is_experimental", True)
+        if is_experimental:
+            prompt = self.prompts.experiment_plan_prompt.format(
+                idea=idea, intent=self.intent
+            )
+        else:
+            prompt = self.prompts.non_experiment_plan_prompt.format(
+                idea=idea, intent=self.intent
+            )
+        text = self._run_sdk_call(self.agent, prompt, "generate_experiment_plan")
+        experiment_plan_json = extract_json_between_markers(text)
+        try:
+            experiment_plan_table = text.split("```markdown")[1].split("```")[0].strip()
+        except IndexError:
+            experiment_plan_table = None
+        if not experiment_plan_json or not experiment_plan_table:
+            return idea
+        idea_dict["Experiment"] = experiment_plan_json
+        idea_dict["ExperimentTable"] = experiment_plan_table
+        self.cost_tracker.report()
+        return json.dumps(idea_dict, indent=2)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _check_novelty(self, idea_json: str, max_iterations: int = 10) -> str:
+        try:
+            idea_dict = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return idea_json
+        for iteration in range(max_iterations):
+            query = self._generate_search_query(
+                idea_json, intent=self.intent, query_type="novelty"
+            )
+            papers_str = self._get_related_works(query)
+            prompt = self.prompts.novelty_prompt.format(
+                current_round=iteration + 1,
+                num_rounds=max_iterations,
+                intent=self.intent,
+                idea=idea_json,
+                last_query_results=papers_str,
+            )
+            text = self._run_sdk_call(self._novelty_agent, prompt, "check_novelty")
+            if "NOVELTY CHECK: NOVEL" in text:
+                idea_dict["novel"] = True
+                break
+            if "NOVELTY CHECK: NOT NOVEL" in text:
+                idea_dict["novel"] = False
+                break
+        if "novel" not in idea_dict:
+            idea_dict["novel"] = False
+        self.cost_tracker.report()
+        return json.dumps(idea_dict, indent=2)
+
+    def _get_idea_evaluation(
+        self, ideas_json: str, intent: str, custom_criteria: Optional[str] = None
+    ) -> str:
+        prompt = self.prompts.idea_evaluation_prompt.format(
+            intent=intent,
+            ideas=ideas_json,
+            novelty_criteria=self.novelty_criteria,
+            feasibility_criteria=self.feasibility_criteria,
+            impact_criteria=self.impact_criteria,
+        )
+        if custom_criteria:
+            prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
+        text = self._run_sdk_call(self._evaluation_agent, prompt, "get_idea_evaluation")
+        self.cost_tracker.report()
+        return text
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def modify_idea(
+        self,
+        original_idea: Dict[str, Any],
+        modifications: List[Dict[str, Any]],
+        behind_idea: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        instruction_lines = []
+        behind_content = (
+            behind_idea.get("content", "") if behind_idea else "(No reference idea)"
+        )
+        for mod in modifications:
+            metric_name = {
+                "noveltyScore": "Novelty",
+                "feasibilityScore": "Feasibility",
+                "impactScore": "Impact",
+            }.get(mod["metric"])
+            direction = mod["direction"]
+            instruction_lines.append(
+                {
+                    "metric": metric_name,
+                    "direction": direction,
+                    "reference": behind_content,
+                }
+            )
+        prompt = self.prompts.modify_idea_prompt.format(
+            idea=json.dumps(original_idea),
+            modifications=json.dumps(instruction_lines),
+            intent=self.intent,
+        )
+        text = self._run_sdk_call(self.agent, prompt, "modify_idea")
+        modified_idea = extract_json_between_markers(text)
+        if not modified_idea:
+            return original_idea
+        self.cost_tracker.report()
+        return modified_idea
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def merge_ideas(
+        self,
+        idea_a: Dict[str, Any],
+        idea_b: Dict[str, Any],
+        all_ideas: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        prompt = self.prompts.merge_ideas_prompt.format(
+            idea_a=json.dumps(idea_a), idea_b=json.dumps(idea_b), intent=self.intent
+        )
+        text = self._run_sdk_call(self.agent, prompt, "merge_ideas")
+        merged_idea = extract_json_between_markers(text)
+        if not merged_idea:
+            return None
+        self.cost_tracker.report()
+        return merged_idea
+
+    def _generate_search_query(
+        self,
+        content: str,
+        intent: Optional[str] = None,
+        query_type: str = "standard",
+    ) -> str:
+        prompt_mapping = {
+            "standard": self.prompts.query_prompt.format(intent=content),
+            "rethink": self.prompts.rethink_query_prompt.format(
+                intent=intent, idea=content
+            ),
+            "novelty": self.prompts.novelty_query_prompt.format(
+                intent=intent, idea=content
+            ),
+        }
+        prompt = prompt_mapping.get(query_type, "")
+        text = self._run_sdk_call(self.agent, prompt, "generate_search_query")
+        query_data = extract_json_between_markers(text)
+        return str(query_data.get("Query", "")) if query_data else ""

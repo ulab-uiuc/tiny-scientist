@@ -27,12 +27,22 @@ from tiny_scientist.budget_checker import BudgetChecker
 
 # Native smolagents tools (always available)
 from tiny_scientist.smolagents_tools import (
+    ArxivDailyWatchTool,
+    BenchmarkSearchTool,
+    ClaimVerifierTool,
     CodeSearchTool,
+    DatasetSearchTool,
     DockerExperimentRunner,
     DrawerTool,
+    NewsSearchTool,
+    PatentSearchTool,
     PaperSearchTool,
     ReadFileTool,
+    RepoRuntimeProbeTool,
     RunExperimentTool,
+    ScholarGraphSearchTool,
+    TableExtractorTool,
+    WebSearchTool,
     WriteFileTool,
 )
 
@@ -40,6 +50,16 @@ __all__ = [
     # Tool getter functions (native)
     "get_paper_search_tool",
     "get_code_search_tool",
+    "get_web_search_tool",
+    "get_scholar_graph_search_tool",
+    "get_patent_search_tool",
+    "get_dataset_search_tool",
+    "get_benchmark_search_tool",
+    "get_arxiv_daily_watch_tool",
+    "get_news_search_tool",
+    "get_repo_runtime_probe_tool",
+    "get_table_extractor_tool",
+    "get_claim_verifier_tool",
     "get_drawer_tool",
     "get_docker_runner",
     "get_write_file_tool",
@@ -51,6 +71,16 @@ __all__ = [
     # Direct tool classes
     "PaperSearchTool",
     "CodeSearchTool",
+    "WebSearchTool",
+    "ScholarGraphSearchTool",
+    "PatentSearchTool",
+    "DatasetSearchTool",
+    "BenchmarkSearchTool",
+    "ArxivDailyWatchTool",
+    "NewsSearchTool",
+    "RepoRuntimeProbeTool",
+    "TableExtractorTool",
+    "ClaimVerifierTool",
     "DrawerTool",
     "DockerExperimentRunner",
     "WriteFileTool",
@@ -96,6 +126,49 @@ def get_code_search_tool(
 ) -> CodeSearchTool:
     """Get a native CodeSearchTool instance."""
     return CodeSearchTool(cost_tracker=cost_tracker)
+
+
+def get_web_search_tool(
+    cost_tracker: Optional[BudgetChecker] = None,
+) -> WebSearchTool:
+    """Get a native WebSearchTool instance."""
+    return WebSearchTool(cost_tracker=cost_tracker)
+
+
+def get_scholar_graph_search_tool() -> ScholarGraphSearchTool:
+    return ScholarGraphSearchTool()
+
+
+def get_patent_search_tool() -> PatentSearchTool:
+    return PatentSearchTool()
+
+
+def get_dataset_search_tool() -> DatasetSearchTool:
+    return DatasetSearchTool()
+
+
+def get_benchmark_search_tool() -> BenchmarkSearchTool:
+    return BenchmarkSearchTool()
+
+
+def get_arxiv_daily_watch_tool() -> ArxivDailyWatchTool:
+    return ArxivDailyWatchTool()
+
+
+def get_news_search_tool() -> NewsSearchTool:
+    return NewsSearchTool()
+
+
+def get_repo_runtime_probe_tool() -> RepoRuntimeProbeTool:
+    return RepoRuntimeProbeTool()
+
+
+def get_table_extractor_tool() -> TableExtractorTool:
+    return TableExtractorTool()
+
+
+def get_claim_verifier_tool() -> ClaimVerifierTool:
+    return ClaimVerifierTool()
 
 
 def get_drawer_tool(
@@ -267,4 +340,16 @@ def get_tools(
         "code_search": get_code_search_tool(
             cost_tracker=kwargs.get("cost_tracker"),
         ),
+        "web_search": get_web_search_tool(
+            cost_tracker=kwargs.get("cost_tracker"),
+        ),
+        "scholar_graph_search": get_scholar_graph_search_tool(),
+        "patent_search": get_patent_search_tool(),
+        "dataset_search": get_dataset_search_tool(),
+        "benchmark_search": get_benchmark_search_tool(),
+        "arxiv_daily_watch": get_arxiv_daily_watch_tool(),
+        "news_search": get_news_search_tool(),
+        "repo_runtime_probe": get_repo_runtime_probe_tool(),
+        "table_extractor": get_table_extractor_tool(),
+        "claim_verifier": get_claim_verifier_tool(),
     }

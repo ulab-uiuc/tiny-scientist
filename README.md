@@ -66,65 +66,97 @@ poetry install
 
 # Get started
 
-Before running any code, set your API key:
+TinyScientist now uses OpenAI Agents SDK-backed stages by default (`think`, `code`, `write`, `review`).
+
+#### 1) Required runtime setup
+
+Set your model API key:
 
 ```bash
 export OPENAI_API_KEY=your-key-here
-# or use DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
+# or DEEPSEEK_API_KEY / ANTHROPIC_API_KEY depending on your model
 ```
 
-If you want to use local ollama models, set the API base:
+If you installed from source and see `ModuleNotFoundError: No module named 'agents'`, install:
 
 ```bash
-export OLLAMA_API_BASE=http://192.168.23.11:11434
+pip install openai-agents
 ```
 
-You can then specify ollama models like so: `ollama/llama3.2:latest` for example.
+#### 2) Tool providers (strict mode)
 
-For LM Studio it is similar:
+Tooling runs in strict provider mode (no automatic fallback). If a selected provider is unavailable, the tool call fails.
+
+Core switches:
 
 ```bash
-export LM_STUDIO_API_BASE=http://localhost:1234/v1
+# Web search provider: duckduckgo | tavily | serpapi | brave
+export WEB_SEARCH_PROVIDER=duckduckgo
+
+# Diagram backend: llm_svg | nano-banana
+export DRAWER_BACKEND=llm_svg
 ```
 
-but you do need to specify an API key, even if it's a dummy value:
+Optional provider keys:
 
 ```bash
-export LM_STUDIO_API_KEY=dummy-api-key
+export S2_API_KEY=...             # semantic scholar tools
+export NEWSAPI_KEY=...            # news_search
+export TAVILY_API_KEY=...         # if WEB_SEARCH_PROVIDER=tavily
+export SERPAPI_API_KEY=...        # if WEB_SEARCH_PROVIDER=serpapi
+export BRAVE_SEARCH_API_KEY=...   # if WEB_SEARCH_PROVIDER=brave
+
+# nano-banana image generation (optional)
+export NANO_BANANA_MODEL=gpt-image-1
 ```
 
-And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
+#### 3) Minimal Python usage (unchanged API)
 
-For other openAI compatible backend providers, set the following variables:
-
-```bash
-export OPENAI_API_BASE=http://192.168.9.14/v1
-export OPENAI_API_KEY=your-key-here
-```
-
-and specify your model like so: `openai/qwen3-30b-a3b`
-
-Now you can use Tiny-Scientist in Python with only a few lines of code:
+The minimal Python API is still the same:
 
 ```python
 from tiny_scientist import TinyScientist
 
 scientist = TinyScientist(model="gpt-4o", budget=1.0)
 
-# Step 1: Generate a json-format research idea
-idea = scientist.think(intent="Benchmarking adaptive step size strategies using a convex quadratic optimization function")
-
-# Step 2: Run experiments (you can provide baseline_results if available)
+idea = scientist.think(
+    intent="Benchmarking adaptive step size strategies using a convex quadratic optimization function"
+)
 status, experiment_dir = scientist.code(idea=idea)
 
-# if the experiments run successfully
-if status is True:
-    # Step 3: Write a paper
+if status:
     pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
-
-    # Step 4: Review the paper
     review = scientist.review(pdf_path=pdf_path)
 ```
+
+#### 4) Non-OpenAI-compatible endpoints (advanced)
+
+For OpenAI-compatible gateways:
+
+```bash
+export OPENAI_API_BASE=http://your-endpoint/v1
+export OPENAI_API_KEY=your-key-here
+```
+
+Then use models like `openai/qwen3-30b-a3b`.
+
+#### 5) Built-in research tools
+
+Agents can use these built-in tools during thinking/coding/writing/review:
+
+- `web_search`
+- `paper_search`
+- `scholar_graph_search`
+- `benchmark_search`
+- `dataset_search`
+- `code_search`
+- `repo_runtime_probe`
+- `arxiv_daily_watch`
+- `news_search`
+- `patent_search`
+- `table_extractor`
+- `claim_verifier`
+- `generate_diagram` (writer path)
 
 # Managing API Keys (Optional)
 
