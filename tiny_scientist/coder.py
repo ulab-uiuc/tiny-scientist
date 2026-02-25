@@ -1,6 +1,7 @@
 import json
 import os
 import os.path as osp
+import re
 import shutil
 import subprocess
 import sys
@@ -220,9 +221,10 @@ class Coder:
         model_text: str,
         dataset_text: str,
         metric_text: str,
+        experiment_table: str,
         baseline_results: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """Use LLM to generate a checklist of implementation steps for experiment.py."""
+        """Use planner agent to generate a checklist of implementation steps."""
         baseline_note = (
             f"\n\nBaseline results for reference:\n{json.dumps(baseline_results, indent=2)}"
             if baseline_results
@@ -235,25 +237,14 @@ class Coder:
             model_details=model_text,
             dataset_details=dataset_text,
             metric_details=metric_text,
+            experiment_table=experiment_table,
         ) + baseline_note
 
-        response = ""
-        if self.planner_agent is not None:
-            try:
-                result = Runner.run_sync(self.planner_agent, prompt)
-                track_sdk_cost(result, self.cost_tracker, self.model, "experiment_plan")
-                response = result.final_output or ""
-            except Exception as e:
-                print(f"[Planner][Coder] planner agent failed, fallback to LLM: {e}")
-        if not response:
-            response, _ = get_response_from_llm(
-                msg=prompt,
-                client=self.client,
-                model=self.model,
-                system_message="You are a research experiment planner. Return only a JSON array of implementation steps.",
-                cost_tracker=self.cost_tracker,
-                task_name="experiment_plan",
-            )
+        if self.planner_agent is None:
+            raise RuntimeError("Planner agent is not initialized for coder.")
+        result = Runner.run_sync(self.planner_agent, prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, "experiment_plan")
+        response = result.final_output or ""
 
         # Parse JSON list from response
         try:
@@ -265,19 +256,26 @@ class Coder:
                 clean = clean[start:end]
             checklist = json.loads(clean)
             if isinstance(checklist, list) and checklist:
-                return checklist
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-        # Fallback: default 5-step checklist
-        print("[Planner][Coder] Failed to parse checklist JSON; using default steps.")
-        return [
-            {"step": 1, "name": "Data Loading", "description": "Download and subsample the dataset (≤5k train, ≤2k val/test), convert to tensors/arrays."},
-            {"step": 2, "name": "Model Architecture", "description": "Build the lightweight model as specified in the experiment setup."},
-            {"step": 3, "name": "Training Loop", "description": "Implement real gradient updates (zero_grad, backward, step) for ≤5 epochs, batch_size ≤64."},
-            {"step": 4, "name": "Evaluation", "description": "Compute evaluation metrics from real predictions vs ground truth labels."},
-            {"step": 5, "name": "Main Orchestration", "description": "Wire all steps in main(), parse --out_dir, save final_info.json with metric values."},
-        ]
+                normalized: List[Dict[str, Any]] = []
+                for idx, item in enumerate(checklist, start=1):
+                    if not isinstance(item, dict):
+                        continue
+                    row_refs = item.get("row_refs", [])
+                    if not isinstance(row_refs, list):
+                        row_refs = []
+                    normalized.append(
+                        {
+                            "step": int(item.get("step", idx)),
+                            "name": str(item.get("name", f"Step {idx}")),
+                            "description": str(item.get("description", "")),
+                            "row_refs": [str(r).strip() for r in row_refs if str(r).strip()],
+                        }
+                    )
+                if normalized:
+                    return normalized
+        except (json.JSONDecodeError, ValueError) as e:
+            raise RuntimeError(f"[Planner][Coder] invalid TODO JSON: {e}") from e
+        raise RuntimeError("[Planner][Coder] empty TODO returned by planner.")
 
     def _code_step(
         self,
@@ -287,6 +285,7 @@ class Coder:
         model_text: str,
         dataset_text: str,
         metric_text: str,
+        experiment_table: str,
         todo_content: str,
     ) -> None:
         """Code a single checklist step, updating experiment.py incrementally."""
@@ -307,18 +306,12 @@ class Coder:
             model_details=model_text,
             dataset_details=dataset_text,
             metric_details=metric_text,
+            experiment_table=experiment_table,
             todo_plan=todo_content,
             current_code=current_code if current_code else "(empty — create the file)",
         )
 
-        try:
-            self._generate_experiment(prompt)
-        except Exception as e:
-            print(f"[Coder] Agent failed on step {step['step']}: {e}. Falling back to direct LLM.")
-            try:
-                self._run_direct_llm(prompt)
-            except Exception as e2:
-                print(f"[Coder] Direct LLM also failed on step {step['step']}: {e2}")
+        self._generate_experiment(prompt)
 
     def _run_experiment_loop(
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = None
@@ -327,24 +320,48 @@ class Coder:
         current_iter = 0
         run_time = 1
 
+        experiment_table = str(idea.get("ExperimentTable", "")).strip()
+        if not experiment_table:
+            raise ValueError(
+                "Idea is missing ExperimentTable. Coder requires Thinker's table as the execution blueprint."
+            )
+        table_rows = self._extract_table_rows(experiment_table)
+
         experiment_spec = idea["Experiment"]
         _, _, _, model_text, dataset_text, metric_text = self._format_experiment_for_prompt(experiment_spec)
 
         # Phase 1: Plan — generate implementation checklist
         print("[Planner][Coder] Generating experiment TODO...")
-        checklist = self._plan(idea, model_text, dataset_text, metric_text, baseline_results)
-        print(f"[Planner][Coder] TODO ({len(checklist)} steps):")
+        checklist = self._plan(
+            idea,
+            model_text,
+            dataset_text,
+            metric_text,
+            experiment_table,
+            baseline_results,
+        )
+        print(
+            f"[Planner][Coder] TODO ({len(checklist)} steps), blueprint rows={len(table_rows)}"
+        )
         for item in checklist:
-            print(f"[TODO][Coder] [ ] Step {item['step']}: {item['name']} — {item['description']}")
+            refs = self._resolve_row_refs(item, table_rows)
+            refs_text = ", ".join(refs) if refs else "unmapped"
+            print(
+                f"[TODO][Coder] [ ] Step {item['step']}: {item['name']} — {item['description']} [rows: {refs_text}]"
+            )
 
         # Persist a TODO plan so the agent can track execution state across steps.
-        self._write_todo(checklist=checklist, completed_steps=0)
+        self._write_todo(checklist=checklist, completed_steps=0, table_rows=table_rows)
 
         # Phase 2: Code — implement each step incrementally
         total_steps = len(checklist)
         for step in checklist:
             print(f"\n[TODO][Coder] [{step['step']}/{total_steps}] {step['name']}")
-            self._write_todo(checklist=checklist, completed_steps=step["step"] - 1)
+            self._write_todo(
+                checklist=checklist,
+                completed_steps=step["step"] - 1,
+                table_rows=table_rows,
+            )
             todo_content = self._read_todo()
             self._code_step(
                 step,
@@ -353,9 +370,12 @@ class Coder:
                 model_text,
                 dataset_text,
                 metric_text,
+                experiment_table,
                 todo_content,
             )
-            self._write_todo(checklist=checklist, completed_steps=step["step"])
+            self._write_todo(
+                checklist=checklist, completed_steps=step["step"], table_rows=table_rows
+            )
 
         # Phase 3: Fix any remaining placeholders after step-coding
         exp_path = osp.join(self.output_dir, "experiment.py")
@@ -363,13 +383,9 @@ class Coder:
             with open(exp_path) as f:
                 content = f.read()
             if "..." in content:
-                print("[System] Placeholder '...' detected after step coding. Attempting fix.")
-                try:
-                    self._run_direct_llm(
-                        "Please replace all placeholders (`...`) in experiment.py with complete runnable code."
-                    )
-                except Exception as e:
-                    print(f"[System] Failed to fix placeholders: {e}")
+                raise RuntimeError(
+                    "experiment.py still contains placeholder '...'; strict mode does not auto-fix."
+                )
 
         # Phase 4: Run experiments (with error/retry logic)
         next_prompt = ""
@@ -380,15 +396,7 @@ class Coder:
 
             # On subsequent runs or after errors, re-generate if we have a prompt
             if next_prompt:
-                try:
-                    agent_out = self._generate_experiment(next_prompt)
-                except Exception as e:
-                    print(f"[System] Agent failed: {e}")
-                    try:
-                        agent_out = self._run_direct_llm(next_prompt)
-                    except Exception as e2:
-                        print(f"[System] Direct LLM also failed: {e2}")
-                        agent_out = "CONTINUE"
+                agent_out = self._generate_experiment(next_prompt)
 
                 if "ALL_COMPLETED" in agent_out:
                     return True
@@ -401,17 +409,13 @@ class Coder:
                 next_prompt = message
             else:
                 print("[System] Experiment run failed. Attempting fix...")
-                try:
-                    next_prompt = self.prompts.experiment_error_prompt.format(
-                        message=message,
-                        Title=idea["Title"],
-                        Experiment=idea["Experiment"],
-                        run_time=run_time,
-                        max_runs=self.max_runs,
-                    )
-                    self._run_direct_llm(next_prompt)
-                except Exception as e:
-                    print(f"[System] Fix attempt failed: {e}")
+                next_prompt = self.prompts.experiment_error_prompt.format(
+                    message=message,
+                    Title=idea["Title"],
+                    Experiment=idea["Experiment"],
+                    run_time=run_time,
+                    max_runs=self.max_runs,
+                )
 
                 current_iter += 1
 
@@ -438,53 +442,16 @@ class Coder:
             'After writing the code, respond with "CONTINUE" to proceed.'
         )
 
-        try:
-            result = Runner.run_sync(self.agent, task_prompt)
-            track_sdk_cost(result, self.cost_tracker, self.model, "generate_experiment")
-            return result.final_output or "CONTINUE"
-        except Exception as e:
-            print(f"[System] Agent run failed: {e}")
-            # Fall back to direct LLM
-            return self._run_direct_llm(prompt)
+        result = Runner.run_sync(self.agent, task_prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, "generate_experiment")
+        return result.final_output or "CONTINUE"
 
-    def _run_direct_llm(self, prompt: str) -> str:
-        """Run direct LLM call to generate experiment code (fallback method)."""
-        exp_path = osp.join(self.output_dir, "experiment.py")
-        current_content = ""
-        if osp.exists(exp_path):
-            with open(exp_path, "r") as f:
-                current_content = f.read()
-
-        full_prompt = f"""
-{prompt}
-
-Please provide the complete content for experiment.py. If the file already exists, please provide the corrected/improved version.
-
-Current file content:
-{current_content}
-
-Please respond with the complete file content only, no explanations or markdown formatting.
-"""
-
-        response, _ = get_response_from_llm(
-            msg=full_prompt,
-            client=self.client,
-            model=self.model,
-            system_message="You are an expert Python code generator for machine learning experiments. Generate COMPLETE, RUNNABLE code with REAL data loading, model training, and evaluation. NEVER use random numbers, dummy data, or hardcoded results. All metrics must come from actual model execution. Provide only the complete Python code without any markdown formatting or explanations.",
-            cost_tracker=self.cost_tracker,
-            task_name="direct_llm_experiment",
-        )
-
-        # Clean the response to extract just the code
-        code_content = self._extract_code_from_response(response)
-
-        # Write the code to the file
-        with open(exp_path, "w") as f:
-            f.write(code_content)
-
-        return "CONTINUE"
-
-    def _write_todo(self, checklist: List[Dict[str, Any]], completed_steps: int) -> None:
+    def _write_todo(
+        self,
+        checklist: List[Dict[str, Any]],
+        completed_steps: int,
+        table_rows: List[str],
+    ) -> None:
         """Write a markdown TODO tracker for current implementation progress."""
         todo_path = osp.join(self.output_dir, "TODO.md")
         lines = ["# Experiment TODO Plan", ""]
@@ -495,11 +462,50 @@ Please respond with the complete file content only, no explanations or markdown 
                 continue
             name = str(item.get("name", f"Step {step_num}"))
             desc = str(item.get("description", ""))
+            refs = self._resolve_row_refs(item, table_rows)
+            refs_text = ", ".join(refs) if refs else "unmapped"
             checked = "x" if step_num <= completed_steps else " "
-            lines.append(f"- [{checked}] Step {step_num}: {name}")
+            lines.append(f"- [{checked}] Step {step_num}: {name} [rows: {refs_text}]")
             lines.append(f"  - {desc}")
         with open(todo_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines).strip() + "\n")
+
+    @staticmethod
+    def _extract_table_rows(experiment_table: str) -> List[str]:
+        rows: List[str] = []
+        for raw in experiment_table.splitlines():
+            line = raw.strip()
+            if not line.startswith("|"):
+                continue
+            if re.fullmatch(r"\|\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?", line):
+                continue
+            cols = [c.strip() for c in line.strip("|").split("|")]
+            if not cols:
+                continue
+            head = cols[0]
+            if head.lower() in {"component", "step", "item"}:
+                continue
+            if head:
+                rows.append(head)
+        seen = set()
+        ordered: List[str] = []
+        for row in rows:
+            key = row.lower()
+            if key not in seen:
+                seen.add(key)
+                ordered.append(row)
+        return ordered
+
+    @staticmethod
+    def _resolve_row_refs(step: Dict[str, Any], table_rows: List[str]) -> List[str]:
+        row_refs = step.get("row_refs", [])
+        if isinstance(row_refs, list) and row_refs:
+            refs = [str(r).strip() for r in row_refs if str(r).strip()]
+            if refs:
+                return refs
+        text = f"{step.get('name', '')} {step.get('description', '')}".lower()
+        inferred = [r for r in table_rows if r.lower() in text]
+        return inferred[:3]
 
     def _read_todo(self) -> str:
         """Read TODO tracker text for prompt context."""
@@ -662,23 +668,6 @@ Please provide the complete updated notes content.
         run_dir = osp.join(self.output_dir, f"run_{run_num}")
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)
-
-    def _extract_code_from_response(self, response: str) -> str:
-        """Extract Python code from LLM response."""
-        # Remove markdown code blocks if present
-        if "```python" in response:
-            start = response.find("```python") + 9
-            end = response.find("```", start)
-            if end != -1:
-                return response[start:end].strip()
-
-        if "```" in response:
-            start = response.find("```") + 3
-            end = response.find("```", start)
-            if end != -1:
-                return response[start:end].strip()
-
-        return response.strip()
 
     def cleanup_docker_images(self) -> None:
         """Clean up Docker images created during experiments."""

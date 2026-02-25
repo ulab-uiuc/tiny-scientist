@@ -16,21 +16,24 @@ experiment_plan_prompt: |
   Evaluation metric details:
   {metric_details}
 
+  Experiment blueprint table (authoritative; you must follow it):
+  {experiment_table}
+
   ## Your Task
-  Break down the implementation of `experiment.py` into 4–6 ordered steps. Each step should be atomic and directly implementable.
+  Break down the implementation of `experiment.py` into 4–6 ordered steps. Each step should map to one or more rows in the experiment blueprint table and be directly implementable.
 
   Return ONLY a JSON array with no surrounding text, in this exact format:
   ```json
   [
-    {{"step": 1, "name": "Data Loading", "description": "Concise instruction for what to implement in this step"}},
-    {{"step": 2, "name": "Model Architecture", "description": "..."}},
-    {{"step": 3, "name": "Training Loop", "description": "..."}},
-    {{"step": 4, "name": "Evaluation", "description": "..."}},
-    {{"step": 5, "name": "Main Orchestration", "description": "..."}}
+    {{"step": 1, "name": "Data Loading", "description": "Concise instruction for what to implement in this step", "row_refs": ["Dataset", "Training Setup"]}},
+    {{"step": 2, "name": "Model Architecture", "description": "...", "row_refs": ["Model Architecture"]}},
+    {{"step": 3, "name": "Training Loop", "description": "...", "row_refs": ["Training Setup", "Hyperparameters"]}},
+    {{"step": 4, "name": "Evaluation", "description": "...", "row_refs": ["Evaluation Metrics"]}},
+    {{"step": 5, "name": "Main Orchestration", "description": "...", "row_refs": ["Sanity Checks"]}}
   ]
   ```
 
-  Keep each description concrete: specify dataset loader, model size, optimizer, loss, metrics, and output file path where relevant.
+  Keep each description concrete and aligned to the table rows. `row_refs` must reference real row names from the blueprint table.
 
 experiment_step_prompt: |
   You are implementing step {step_num} of {total_steps} for a machine learning experiment script.
@@ -54,6 +57,9 @@ experiment_step_prompt: |
   Evaluation metric details:
   {metric_details}
 
+  Experiment blueprint table (authoritative):
+  {experiment_table}
+
   ## TODO Plan (from TODO.md)
   {todo_plan}
 
@@ -62,7 +68,7 @@ experiment_step_prompt: |
 
   ## Hard Constraints (apply to all steps)
   - Lightweight architectures only: bag-of-words/logistic regression, shallow MLP (≤2 hidden layers, ≤128 units), shallow CNN (≤3 conv, ≤32 filters), linear SVM, single-layer GRU (≤64 units)
-  - FORBIDDEN: transformers, BERT/GPT/ViT classes, graph neural networks, diffusion models, pretrained checkpoints
+  - FORBIDDEN: heavyweight foundation-model classes, graph neural networks, diffusion models, pretrained checkpoints
   - Subsample datasets: ≤5,000 train, ≤2,000 val/test
   - Training: ≤5 epochs, batch_size ≤64
   - Script must accept --out_dir argument and save final_info.json there
@@ -123,9 +129,9 @@ experiment_prompt: |
   {metric_details}
 
   ## Hard Constraints
-  - Use only lightweight architectures: bag-of-words/logistic regression, shallow MLP (≤2 hidden layers, ≤128 units), shallow CNN (≤3 conv layers, ≤32 filters), linear SVM, single-layer GRU (≤64 hidden units). Total parameter count should stay under ~100k.
-  - ABSOLUTELY FORBIDDEN: importing `transformers`, `BertTokenizer`, any BERT/GPT/ViT class, graph neural networks, diffusion models, random feature generators (`torch.rand`, `np.random` placeholders for embeddings), manual placeholder paths, loading huge pretrained checkpoints.
-  - Dataset must be loaded via the provided command. If it fails, switch to one of: `datasets.load_dataset("ag_news")`, `datasets.load_dataset("imdb")`, `datasets.load_dataset("yelp_polarity")`, `datasets.load_dataset("cifar10")`, `datasets.load_dataset("mnist")`, `datasets.load_dataset("fashion_mnist")`, `datasets.load_dataset("amazon_polarity")`, or an equivalent auto-downloadable dataset. NEVER fall back to local files. For text, prefer simple vectorizers (`CountVectorizer`, `TfidfVectorizer`) over tokenizers.
+  - Use only lightweight architectures. Total parameter count should stay under ~100k.
+  - ABSOLUTELY FORBIDDEN: large pretrained foundation-model backbones, graph neural networks, diffusion models, random placeholder features (`torch.rand`, `np.random`), manual placeholder paths, loading huge checkpoints.
+  - Dataset must be loaded via the provided command exactly. If loading fails, stop and report the error; do not replace the dataset automatically. NEVER fall back to local files. For text, prefer simple vectorizers (`CountVectorizer`, `TfidfVectorizer`) over tokenizers.
   - Always subsample large datasets: cap training examples at ≤5,000 and validation/test at ≤2,000 each (use `select(range(...))` or appropriate slicing). Document this in code comments.
 
   ## Required Script Structure
@@ -145,7 +151,7 @@ experiment_prompt: |
 
   ## YOU MUST ENSURE experiment.py:
   1. Parses the `--out_dir` argument and calls `os.makedirs(out_dir, exist_ok=True)`.
-  2. Loads the dataset using the specified loader (or the fallback whitelist above) with NO manual file paths.
+  2. Loads the dataset using the specified loader with NO manual file paths.
   3. Builds a lightweight model that matches the dataset feature shape; document tensor dimensions in code comments when not obvious. No hidden “placeholder embeddings”.
   4. Performs REAL training with gradient updates (`optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()`) on actual features (no zero/random stand-ins).
   5. Computes metrics from real predictions (e.g., accuracy/F1) using sklearn/torch utilities—no hardcoded results.
@@ -153,15 +159,15 @@ experiment_prompt: |
 
   ## Computational Constraints
   - Ensure the code is computationally affordable to run on a single GPU or CPU machine.
-  - Avoid using large models like GPT, T5, BERT-large, or full ImageNet training.
-  - Prefer small-scale tasks, toy models, or low-cost benchmarks (e.g., MNIST, UCI datasets, small MLPs or ResNet18).
+  - Avoid large model families or full-scale benchmark training runs.
+  - Prefer small-scale tasks and low-cost benchmarks aligned with the thinker-provided blueprint.
   - Do not use complex distributed training or multi-GPU setups.
 
   Do not add extra command-line arguments.
 
   **VERIFICATION CHECKLIST** (You MUST pass all checks):
   - [ ] Dataset is downloaded via library loader (no placeholder paths, no mocks, no random tensors) and converted to tensors/arrays explicitly. Document any subsampling (≤5k train / ≤2k val/test).
-  - [ ] Model is a lightweight architecture (no transformer/graph/pretrained behemoth) and input/output shapes line up. Forbidden imports (`transformers`, BERT classes) are absent.
+  - [ ] Model is a lightweight architecture (no heavyweight pretrained backbones or graph models) and input/output shapes line up.
   - [ ] Training loop performs `optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()` on real batches (no synthetic placeholder features).
   - [ ] Evaluation computes metrics from actual predictions vs labels (no dummy numbers).
   - [ ] `final_info.json` is written in `out_dir` with real metric values.

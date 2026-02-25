@@ -7,6 +7,9 @@ MODEL_PRICING = {
     "gpt-3.5-turbo": (0.5, 1.5),
     "gpt-4o-mini": (0.15, 0.6),
     "gpt-4o": (2.5, 10),
+    # gpt-5.x pricing aliases (kept aligned with gpt-4o until dedicated pricing is configured)
+    "gpt-5.2": (2.5, 10),
+    "gpt-5.2-codex": (2.5, 10),
     "o1-preview": (15, 60),
     "o1-mini": (1.1, 4.4),
     "o1": (15, 60),

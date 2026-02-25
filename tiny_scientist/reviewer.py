@@ -437,35 +437,6 @@ class Reviewer(_ReviewerLegacy):
             model=self.model,
         )
 
-    @staticmethod
-    def _default_todo() -> List[Dict[str, Any]]:
-        return [
-            {
-                "step": 1,
-                "action": "generate_review",
-                "name": "Generate Draft Review",
-                "description": "Create initial structured review using paper and related work.",
-            },
-            {
-                "step": 2,
-                "action": "apply_tools",
-                "name": "Apply Review Tools",
-                "description": "Run post-processing tools on the draft review.",
-            },
-            {
-                "step": 3,
-                "action": "reflect_review",
-                "name": "Reflect Review",
-                "description": "Iteratively refine review based on self-reflection.",
-            },
-            {
-                "step": 4,
-                "action": "meta_review",
-                "name": "Aggregate Meta Review",
-                "description": "Aggregate all reviews into a final meta-review output.",
-            },
-        ]
-
     def _build_todo(self) -> List[Dict[str, Any]]:
         prompt = (
             "Build a TODO for paper review execution.\n"
@@ -500,7 +471,9 @@ class Reviewer(_ReviewerLegacy):
             actions = {str(it.get("action", "")) for it in normalized}
             if normalized and "generate_review" in actions and "meta_review" in actions:
                 return normalized
-        return self._default_todo()
+        raise RuntimeError(
+            "[Planner][Reviewer] invalid TODO from planner: must include generate_review and meta_review."
+        )
 
     def _apply_tools_to_review(self, review_json: str) -> str:
         current_review = review_json

@@ -180,7 +180,10 @@ class SafetyChecker:
         is_attacked = safety_report["attack_detection"]["is_attacked"]
 
         is_safe = True
-        if risk_level == "block":
+        if risk_level is None or is_attacked is None:
+            is_safe = False
+            print("❌ BLOCKED: Safety check failed to complete reliably")
+        elif risk_level == "block":
             is_safe = False
             print("❌ BLOCKED: Input poses significant risks")
         elif risk_level == "warning":
