@@ -1,11 +1,13 @@
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from agents import Agent, Runner
 from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
 from .smolagents_tools import PaperSearchTool
+from .tools.agent_tools import build_research_tools
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.input_formatter import InputFormatter
 from .utils.llm import (
@@ -14,13 +16,14 @@ from .utils.llm import (
     get_response_from_llm,
 )
 from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
+from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 
-class Reviewer:
+class _ReviewerLegacy:
     def __init__(
         self,
         model: str,
-        tools: List[Any],
+        tools: Optional[List[Any]] = None,
         num_reviews: int = 3,
         num_reflections: int = 2,
         temperature: float = 0.75,
@@ -30,7 +33,7 @@ class Reviewer:
         post_reflection_threshold: float = 0.8,
         s2_api_key: Optional[str] = None,
     ):
-        self.tools = tools
+        self.tools = tools or []
         self.num_reviews = num_reviews
         self.num_reflections = num_reflections
         self.client, self.model = create_client(model)
@@ -400,3 +403,284 @@ class Reviewer:
             paper_strings.append(paper_str)
 
         return "\n\n".join(paper_strings)
+
+
+class Reviewer(_ReviewerLegacy):
+    """Reviewer variant that uses the OpenAI Agents SDK for all LLM calls."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        configure_openai_agents_for_model(self.model)
+        self._shared_tools = build_research_tools(
+            model=self.model, include_drawer=False
+        )
+        tool_policy = (
+            "Tool policy: use web_search for recent claims, paper_search for related "
+            "academic work, and code_search for implementation comparison."
+        )
+
+        self.review_agent = Agent(
+            name="PaperReviewer",
+            instructions=f"{self.prompts.reviewer_system_prompt_neg}\n\n{tool_policy}",
+            tools=self._shared_tools,
+            model=self.model,
+        )
+        self.planner_agent = Agent(
+            name="ReviewerPlanner",
+            instructions=(
+                "You are a paper-review execution planner. "
+                "Return only a JSON array of TODO items. "
+                "Each item must include {step, action, name, description}. "
+                "Allowed actions: generate_review, apply_tools, reflect_review, meta_review."
+            ),
+            tools=self._shared_tools,
+            model=self.model,
+        )
+
+    @staticmethod
+    def _default_todo() -> List[Dict[str, Any]]:
+        return [
+            {
+                "step": 1,
+                "action": "generate_review",
+                "name": "Generate Draft Review",
+                "description": "Create initial structured review using paper and related work.",
+            },
+            {
+                "step": 2,
+                "action": "apply_tools",
+                "name": "Apply Review Tools",
+                "description": "Run post-processing tools on the draft review.",
+            },
+            {
+                "step": 3,
+                "action": "reflect_review",
+                "name": "Reflect Review",
+                "description": "Iteratively refine review based on self-reflection.",
+            },
+            {
+                "step": 4,
+                "action": "meta_review",
+                "name": "Aggregate Meta Review",
+                "description": "Aggregate all reviews into a final meta-review output.",
+            },
+        ]
+
+    def _build_todo(self) -> List[Dict[str, Any]]:
+        prompt = (
+            "Build a TODO for paper review execution.\n"
+            f"num_reviews: {self.num_reviews}\n"
+            f"num_reflections: {self.num_reflections}\n"
+            "Return JSON array only."
+        )
+        text = self._run_sdk_call(self.planner_agent, prompt, "plan_reviewer_todo")
+        parsed = extract_json_between_markers(text)
+        if not isinstance(parsed, list):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+        if isinstance(parsed, list) and parsed:
+            allowed = {"generate_review", "apply_tools", "reflect_review", "meta_review"}
+            normalized: List[Dict[str, Any]] = []
+            for idx, item in enumerate(parsed, start=1):
+                if not isinstance(item, dict):
+                    continue
+                action = str(item.get("action", "")).strip()
+                if action not in allowed:
+                    continue
+                normalized.append(
+                    {
+                        "step": int(item.get("step", idx)),
+                        "action": action,
+                        "name": str(item.get("name", action)),
+                        "description": str(item.get("description", "")),
+                    }
+                )
+            actions = {str(it.get("action", "")) for it in normalized}
+            if normalized and "generate_review" in actions and "meta_review" in actions:
+                return normalized
+        return self._default_todo()
+
+    def _apply_tools_to_review(self, review_json: str) -> str:
+        current_review = review_json
+        for tool in self.tools:
+            tool_input = json.dumps({"review": current_review})
+            tool_output = tool.run(tool_input)
+            if "review" in tool_output:
+                current_review = tool_output["review"]["review"]
+        return current_review
+
+    def _apply_reflections(self, review_json: str) -> str:
+        current_review = review_json
+        budget = self.cost_tracker.get_budget()
+        if (
+            budget is not None
+            and self.cost_tracker.get_total_cost() / budget >= self.pre_reflection_threshold
+        ):
+            print("[Reviewer] Skipping review reflections due to budget limit.")
+            return current_review
+
+        max_rounds = self.num_reflections
+        estimated_rounds = self._estimate_usable_reflection_rounds(current_review)
+        if estimated_rounds is not None:
+            if estimated_rounds <= 0:
+                print("[Reviewer] Estimated remaining budget insufficient for reflections.")
+                return current_review
+            max_rounds = min(max_rounds, estimated_rounds)
+
+        rounds_done = 0
+        per_round_cost = None
+        while rounds_done < max_rounds:
+            start_cost = self.cost_tracker.get_total_cost()
+            current_review = self.re_review(current_review)
+            iteration_cost = self.cost_tracker.get_total_cost() - start_cost
+            if per_round_cost is None:
+                per_round_cost = max(iteration_cost, 1e-6)
+                if budget is not None:
+                    allowed = budget * self.post_reflection_threshold
+                    remaining = allowed - self.cost_tracker.get_total_cost()
+                    additional = int(max(0.0, remaining) // per_round_cost)
+                    max_rounds = min(self.num_reflections, 1 + additional)
+            rounds_done += 1
+            if (
+                budget is not None
+                and self.cost_tracker.get_total_cost()
+                >= budget * self.post_reflection_threshold
+            ):
+                break
+        return current_review
+
+    def run(
+        self, pdf_path: Optional[str] = None, tex_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        todo = self._build_todo()
+        print(f"[Planner][Reviewer] TODO ({len(todo)} steps)")
+        for item in todo:
+            print(
+                f"[TODO][Reviewer] [ ] Step {item['step']}: {item['name']} — {item['description']}"
+            )
+
+        all_reviews: List[Dict[str, Any]] = []
+        for i in range(self.num_reviews):
+            print(f"[TODO][Reviewer] Processing review {i + 1}/{self.num_reviews}")
+            current_review = ""
+            for idx, item in enumerate(todo, start=1):
+                action = str(item.get("action", ""))
+                if action == "meta_review":
+                    continue
+                print(
+                    f"[TODO][Reviewer] [{idx}/{len(todo)}] {item.get('name', action)}"
+                )
+                if action == "generate_review":
+                    current_review = self.review(pdf_path=pdf_path, tex_path=tex_path)
+                elif action == "apply_tools":
+                    current_review = self._apply_tools_to_review(current_review)
+                elif action == "reflect_review":
+                    current_review = self._apply_reflections(current_review)
+            try:
+                parsed = json.loads(current_review)
+            except json.JSONDecodeError:
+                parsed = {}
+            if isinstance(parsed, dict):
+                all_reviews.append(parsed)
+
+        print(f"[TODO][Reviewer] [{len(todo)}/{len(todo)}] Aggregate Meta Review")
+        self.cost_tracker.report()
+        return self._write_meta_review(all_reviews)
+
+    def _run_sdk_call(self, agent: Agent, prompt: str, task_name: str) -> str:
+        result = Runner.run_sync(agent, prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, task_name)
+        return result.final_output or ""
+
+    def _generate_query(self, text: str) -> str:
+        query_prompt = self.prompts.query_prompt.format(paper_text=text)
+        response = self._run_sdk_call(self.review_agent, query_prompt, "generate_query")
+        query_data = extract_json_between_markers(response)
+        self.cost_tracker.report()
+        return str(query_data.get("Query", "")) if query_data else ""
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _generate_review(
+        self,
+        base_prompt: str,
+        reviewer_system_prompt: str,
+        msg_history: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        if reviewer_system_prompt == self.prompts.reviewer_system_prompt_neg:
+            agent = self.review_agent
+        else:
+            agent = Agent(
+                name="PaperReviewerCustom",
+                instructions=reviewer_system_prompt,
+                tools=self._shared_tools,
+                model=self.model,
+            )
+
+        llm_review = self._run_sdk_call(agent, base_prompt, "generate_review")
+        review = extract_json_between_markers(llm_review)
+        self.cost_tracker.report()
+        return review if review is not None else {}, []
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _reflect_review(
+        self,
+        review: Dict[str, Any],
+        reviewer_system_prompt: str,
+        related_works_string: str,
+        msg_history: List[Dict[str, Any]],
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], bool]:
+        updated_prompt = (
+            f"Previous review: {json.dumps(review)}\n"
+            + self.prompts.reviewer_reflection_prompt.format(
+                related_works_string=related_works_string
+            )
+        )
+
+        if reviewer_system_prompt == self.prompts.reviewer_system_prompt_neg:
+            agent = self.review_agent
+        else:
+            agent = Agent(
+                name="PaperReviewerCustom",
+                instructions=reviewer_system_prompt,
+                tools=self._shared_tools,
+                model=self.model,
+            )
+
+        text = self._run_sdk_call(agent, updated_prompt, "reflect_review")
+
+        new_review = extract_json_between_markers(text)
+        is_done = "I am done" in text
+
+        self.cost_tracker.report()
+        return new_review or {}, [], is_done
+
+    def _write_meta_review(self, reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not reviews:
+            raise ValueError("At least one review must be provided for meta-review.")
+
+        formatted_reviews = "".join(
+            f"\nReview {i + 1}:\n```\n{json.dumps(r)}\n```\n"
+            for i, r in enumerate(reviews)
+        )
+
+        meta_prompt = self.prompts.neurips_form + formatted_reviews
+        meta_system_prompt = self.prompts.meta_reviewer_system_prompt.format(
+            reviewer_count=len(reviews)
+        )
+
+        meta_agent = Agent(
+            name="MetaReviewer",
+            instructions=meta_system_prompt,
+            tools=self._shared_tools,
+            model=self.model,
+        )
+        llm_meta_review = self._run_sdk_call(meta_agent, meta_prompt, "write_meta_review")
+
+        meta_review = extract_json_between_markers(llm_meta_review)
+        if meta_review is None:
+            return {}
+
+        self.cost_tracker.report()
+        return self._aggregate_scores(meta_review, reviews)

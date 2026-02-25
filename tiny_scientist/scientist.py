@@ -102,13 +102,30 @@ class TinyScientist:
             model=model,
             output_dir=output_dir,
             prompt_template_dir=prompt_template_dir,
-            tools=[],
             iter_num=3,
             search_papers=True,
             generate_exp_plan=True,
             enable_safety_check=enable_safety_check,
             cost_tracker=BudgetChecker(
                 budget=allocation.get("thinker"),
+                parent=self.global_cost_tracker,
+            ),
+        )
+        self.writer = Writer(
+            model=model,
+            output_dir=output_dir,
+            prompt_template_dir=prompt_template_dir,
+            template=template,
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("writer"),
+                parent=self.global_cost_tracker,
+            ),
+        )
+        self.reviewer = Reviewer(
+            model=model,
+            prompt_template_dir=prompt_template_dir,
+            cost_tracker=BudgetChecker(
+                budget=allocation.get("reviewer"),
                 parent=self.global_cost_tracker,
             ),
         )
@@ -126,29 +143,12 @@ class TinyScientist:
             use_docker=use_docker,
         )
 
-        self.writer = Writer(
-            model=model,
-            output_dir=output_dir,
-            prompt_template_dir=prompt_template_dir,
-            template=template,
-            cost_tracker=BudgetChecker(
-                budget=allocation.get("writer"),
-                parent=self.global_cost_tracker,
-            ),
-        )
-
-        self.reviewer = Reviewer(
-            model=model,
-            prompt_template_dir=prompt_template_dir,
-            tools=[],
-            cost_tracker=BudgetChecker(
-                budget=allocation.get("reviewer"),
-                parent=self.global_cost_tracker,
-            ),
-        )
-
     def think(
-        self, intent: str, num_ideas: int = 1, pdf_content: Optional[str] = None
+        self,
+        intent: str,
+        num_ideas: int = 1,
+        pdf_content: Optional[str] = None,
+        check_novelty: bool = False,
     ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         if self.enable_safety_check and self.safety_checker:
             is_safe, safety_report = self.safety_checker.check_safety(intent)
@@ -162,7 +162,10 @@ class TinyScientist:
 
         print("🧠 Generating idea...")
         ideas = self.thinker.run(
-            intent=intent, num_ideas=num_ideas, pdf_content=pdf_content
+            intent=intent,
+            num_ideas=num_ideas,
+            pdf_content=pdf_content,
+            check_novelty=check_novelty,
         )
         print(ideas)
         print("✅ Idea generated.")
@@ -171,7 +174,7 @@ class TinyScientist:
     def code(
         self,
         idea: Dict[str, Any],
-        baseline_results: Optional[Dict[str, Any]] = {},
+        baseline_results: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         print("💻 Running experiments...")
         status, exp_path, error_details = self.coder.run(

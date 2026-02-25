@@ -12,9 +12,13 @@ import os
 import os.path as osp
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
@@ -45,7 +49,7 @@ class PaperSearchTool(Tool):
     """Search academic papers and return metadata."""
 
     name = "paper_search"
-    description = "Search academic papers using Semantic Scholar, OpenAlex, or arXiv and return metadata including title, abstract, authors, and bibtex."
+    description = "Search academic papers using multiple native providers (Semantic Scholar, OpenAlex, Crossref, arXiv) and return metadata."
     inputs = {
         "query": {
             "type": "string",
@@ -75,6 +79,7 @@ class PaperSearchTool(Tool):
             or config.get("core", {}).get("s2_api_key")
         )
         self.s2_api_key = raw_key.strip() if isinstance(raw_key, str) else raw_key
+        # Kept for backward compatibility; strict mode no longer performs fallbacks.
         self.disable_fallback = disable_fallback
 
         # Engine selection priority
@@ -153,47 +158,82 @@ class PaperSearchTool(Tool):
         if not query:
             return None
 
-        if self.engine == "semanticscholar":
-            try:
-                result = self._search_semanticscholar(query, result_limit)
-                if result:
-                    return result
-                elif not self.disable_fallback:
-                    print("[INFO] Semantic Scholar returned no results, trying arXiv...")
-            except Exception as e:
-                if not self.disable_fallback:
-                    print(f"[WARNING] Semantic Scholar failed: {e}, trying arXiv...")
-                else:
-                    return None
+        providers = {
+            "semanticscholar": self._search_semanticscholar,
+            "openalex": self._search_openalex,
+            "crossref": self._search_crossref,
+            "arxiv": self._search_arxiv,
+        }
+        provider = providers.get(self.engine)
+        if provider is None:
+            raise ValueError(
+                f"Unsupported paper search engine '{self.engine}'. "
+                f"Use one of: {list(providers.keys())}"
+            )
+        return provider(query, result_limit)
 
-            if not self.disable_fallback:
-                try:
-                    arxiv_result = self._search_arxiv(query, result_limit)
-                    if arxiv_result:
-                        return arxiv_result
-                    return self._search_openalex(query, result_limit)
-                except Exception:
-                    return None
-        elif self.engine == "openalex":
-            try:
-                result = self._search_openalex(query, result_limit)
-                if result:
-                    return result
-                elif not self.disable_fallback:
-                    print("[WARNING] OpenAlex returned no results, trying Semantic Scholar...")
-            except Exception as e:
-                if not self.disable_fallback:
-                    print(f"[WARNING] OpenAlex failed: {e}, trying Semantic Scholar...")
-                else:
-                    return None
+    def _search_crossref(
+        self, query: str, result_limit: int
+    ) -> Optional[List[Dict[str, Any]]]:
+        params = {
+            "query": query,
+            "rows": result_limit,
+            "select": "title,author,container-title,published-print,published-online,abstract,DOI",
+        }
+        rsp = requests.get(
+            "https://api.crossref.org/works",
+            params=params,
+            timeout=30,
+        )
+        rsp.raise_for_status()
+        items = rsp.json().get("message", {}).get("items", [])
+        if not items:
+            return None
 
-            if not self.disable_fallback:
-                try:
-                    return self._search_semanticscholar(query, result_limit)
-                except Exception:
-                    return None
+        papers: List[Dict[str, Any]] = []
+        for item in items:
+            title_list = item.get("title") or []
+            title = title_list[0] if title_list else "Unknown Title"
 
-        return None
+            author_list = item.get("author") or []
+            authors = []
+            for author in author_list:
+                given = author.get("given", "")
+                family = author.get("family", "")
+                full = f"{given} {family}".strip()
+                if full:
+                    authors.append(full)
+
+            venue_list = item.get("container-title") or []
+            venue = venue_list[0] if venue_list else ""
+
+            year = ""
+            for date_key in ("published-print", "published-online"):
+                date_parts = (
+                    item.get(date_key, {})
+                    .get("date-parts", [[None]])[0]
+                )
+                if date_parts and date_parts[0]:
+                    year = str(date_parts[0])
+                    break
+
+            abstract = item.get("abstract") or ""
+            abstract = re.sub(r"<[^>]+>", " ", abstract).strip()
+
+            papers.append(
+                {
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": " and ".join(authors),
+                    "venue": venue,
+                    "year": year,
+                    "citationCount": 0,
+                    "concepts": [],
+                    "doi": item.get("DOI", ""),
+                }
+            )
+
+        return papers
 
     @api_calling_error_exponential_backoff(retries=3, base_wait_time=2)
     def _search_semanticscholar(
@@ -431,7 +471,7 @@ class CodeSearchTool(Tool):
     """Search GitHub repositories or code snippets."""
 
     name = "code_search"
-    description = "Search GitHub repositories or code snippets using the GitHub API."
+    description = "Search code via native interfaces (local repo, GitHub repositories, or GitHub code search)."
     inputs = {
         "query": {
             "type": "string",
@@ -439,8 +479,14 @@ class CodeSearchTool(Tool):
         },
         "search_type": {
             "type": "string",
-            "description": "Type of search: 'repositories' or 'code'",
-            "default": "repositories",
+            "description": "Type of search: 'local', 'repositories', or 'code'",
+            "default": "local",
+            "nullable": True,
+        },
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return",
+            "default": 10,
             "nullable": True,
         },
     }
@@ -452,16 +498,24 @@ class CodeSearchTool(Tool):
         self.github_token = config.get("core", {}).get("github_token")
 
     def run(
-        self, query: str, search_type: Optional[str] = "repositories"
+        self,
+        query: str,
+        search_type: Optional[str] = "local",
+        result_limit: Optional[int] = 10,
     ) -> Dict[str, Dict[str, str]]:
         """Backward-compatible run method that calls forward."""
-        return self.forward(query, search_type)
+        return self.forward(query, search_type, result_limit)
 
     def forward(
-        self, query: str, search_type: Optional[str] = "repositories"
+        self,
+        query: str,
+        search_type: Optional[str] = "local",
+        result_limit: Optional[int] = 10,
     ) -> Dict[str, Dict[str, str]]:
         if search_type is None:
-            search_type = "repositories"
+            search_type = "local"
+        if result_limit is None:
+            result_limit = 10
         print(f"[github API calling] Searching for code with query: {query}")
         results: Dict[str, Dict[str, str]] = {}
 
@@ -474,39 +528,51 @@ class CodeSearchTool(Tool):
         except (json.JSONDecodeError, TypeError):
             pass
 
-        repos = self._search_github(query=query, search_type=search_type)
-        if repos:
-            for i, repo in enumerate(repos):
-                results[str(i)] = {
-                    "title": repo["name"],
-                    "source": repo["url"],
-                    "info": f"Stars: {repo['stars']}",
-                }
+        if search_type == "local":
+            local_hits = self._search_local_code(query=query, result_limit=result_limit)
+            if local_hits:
+                for i, hit in enumerate(local_hits):
+                    results[str(i)] = hit
+            self.cost_tracker.report()
+            return results
 
-        self.cost_tracker.report()
-        return results
+        if search_type in ("repositories", "code"):
+            repos = self._search_github(
+                query=query, search_type=search_type, result_limit=result_limit
+            )
+            if repos:
+                start_idx = len(results)
+                for i, repo in enumerate(repos):
+                    if search_type == "repositories":
+                        info = f"Stars: {repo['stars']}"
+                        title = repo["name"]
+                        source = repo["url"]
+                    else:
+                        info = repo.get("repository", "")
+                        title = repo.get("file_name", "code")
+                        source = repo.get("url", "")
+                    results[str(start_idx + i)] = {
+                        "title": title,
+                        "source": source,
+                        "info": info,
+                    }
+
+            self.cost_tracker.report()
+            return results
+
+        raise ValueError(
+            f"Unsupported code search_type '{search_type}'. "
+            "Use one of: local, repositories, code"
+        )
 
     def _format_github_repo_query(
         self, idea: Dict[str, Any], max_terms: int = 6, max_query_length: int = 250
     ) -> str:
-        import spacy
-
         title = idea.get("Title", "")
         experiment = idea.get("Experiment", "")
         combined_text = f"{title}. {experiment}"
-
-        nlp = spacy.load("en_core_web_sm")
-        doc = nlp(combined_text)
-
-        candidates: Set[str] = set()
-        for chunk in doc.noun_chunks:
-            phrase = chunk.text.strip().lower()
-            if 1 <= len(phrase.split()) <= 4:
-                candidates.add(phrase)
-
-        for token in doc:
-            if token.pos_ in {"NOUN", "PROPN"} and len(token.text) > 2:
-                candidates.add(token.text.lower())
+        tokens = re.findall(r"[A-Za-z][A-Za-z0-9_\-]{2,}", combined_text)
+        candidates: Set[str] = {t.lower() for t in tokens}
 
         seen: Set[str] = set()
         keywords: List[str] = []
@@ -527,6 +593,46 @@ class CodeSearchTool(Tool):
             full_query = f"{' '.join(quoted_keywords[: max_terms // 2])} {suffix}"
 
         return full_query
+
+    def _search_local_code(
+        self, query: str, result_limit: int = 10
+    ) -> List[Dict[str, str]]:
+        try:
+            cmd = [
+                "rg",
+                "-n",
+                "--no-heading",
+                "--max-count",
+                "1",
+                query,
+                ".",
+            ]
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=15,
+            )
+            if proc.returncode not in (0, 1):  # 1 means no matches
+                return []
+            lines = [line for line in proc.stdout.splitlines() if line.strip()]
+            hits: List[Dict[str, str]] = []
+            for line in lines[:result_limit]:
+                parts = line.split(":", 2)
+                if len(parts) != 3:
+                    continue
+                file_path, line_no, snippet = parts
+                hits.append(
+                    {
+                        "title": f"{osp.basename(file_path)}:{line_no}",
+                        "source": file_path,
+                        "info": snippet.strip(),
+                    }
+                )
+            return hits
+        except Exception:
+            return []
 
     def _search_github(
         self, query: str, search_type: str, result_limit: int = 10
@@ -586,6 +692,714 @@ class CodeSearchTool(Tool):
         ]
 
 
+class WebSearchTool(Tool):
+    """Search the public web and return lightweight result metadata."""
+
+    name = "web_search"
+    description = "Search the public web using a single native provider selected by WEB_SEARCH_PROVIDER (no automatic fallback)."
+    inputs = {
+        "query": {
+            "type": "string",
+            "description": "The search query for finding relevant web results",
+        },
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return",
+            "default": 5,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def __init__(self, cost_tracker: Optional[BudgetChecker] = None) -> None:
+        super().__init__()
+        self.cost_tracker = cost_tracker or BudgetChecker()
+        self.tavily_key = os.environ.get("TAVILY_API_KEY", "")
+        self.serpapi_key = os.environ.get("SERPAPI_API_KEY", "")
+        self.brave_key = os.environ.get("BRAVE_SEARCH_API_KEY", "")
+
+    def run(
+        self, query: str, result_limit: Optional[int] = 5
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, result_limit)
+
+    def forward(
+        self, query: str, result_limit: Optional[int] = 5
+    ) -> Dict[str, Dict[str, str]]:
+        if result_limit is None:
+            result_limit = 5
+        result_limit = max(1, min(int(result_limit), 10))
+
+        print(f"[WebSearchTool] Searching for: {query}")
+        provider_name = os.environ.get("WEB_SEARCH_PROVIDER", "duckduckgo").lower()
+        providers = {
+            "duckduckgo": self._search_duckduckgo,
+            "tavily": self._search_tavily,
+            "serpapi": self._search_serpapi,
+            "brave": self._search_brave,
+        }
+        provider = providers.get(provider_name)
+        if provider is None:
+            raise ValueError(
+                f"Unsupported WEB_SEARCH_PROVIDER '{provider_name}'. "
+                f"Use one of: {list(providers.keys())}"
+            )
+
+        results = provider(query, result_limit)
+
+        self.cost_tracker.report()
+        return results
+
+    def _search_tavily(
+        self, query: str, result_limit: int
+    ) -> Dict[str, Dict[str, str]]:
+        if not self.tavily_key:
+            raise RuntimeError("TAVILY_API_KEY is not set")
+        rsp = requests.post(
+            "https://api.tavily.com/search",
+            json={
+                "api_key": self.tavily_key,
+                "query": query,
+                "max_results": result_limit,
+            },
+            timeout=20,
+        )
+        rsp.raise_for_status()
+        items = rsp.json().get("results", [])
+        return {
+            str(i): {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", ""),
+                "source": "tavily",
+            }
+            for i, item in enumerate(items[:result_limit])
+        }
+
+    def _search_serpapi(
+        self, query: str, result_limit: int
+    ) -> Dict[str, Dict[str, str]]:
+        if not self.serpapi_key:
+            raise RuntimeError("SERPAPI_API_KEY is not set")
+        rsp = requests.get(
+            "https://serpapi.com/search.json",
+            params={
+                "engine": "google",
+                "q": query,
+                "api_key": self.serpapi_key,
+                "num": result_limit,
+            },
+            timeout=20,
+        )
+        rsp.raise_for_status()
+        items = rsp.json().get("organic_results", [])
+        return {
+            str(i): {
+                "title": item.get("title", ""),
+                "url": item.get("link", ""),
+                "snippet": item.get("snippet", ""),
+                "source": "serpapi",
+            }
+            for i, item in enumerate(items[:result_limit])
+        }
+
+    def _search_brave(
+        self, query: str, result_limit: int
+    ) -> Dict[str, Dict[str, str]]:
+        if not self.brave_key:
+            raise RuntimeError("BRAVE_SEARCH_API_KEY is not set")
+        rsp = requests.get(
+            "https://api.search.brave.com/res/v1/web/search",
+            params={"q": query, "count": result_limit},
+            headers={"X-Subscription-Token": self.brave_key},
+            timeout=20,
+        )
+        rsp.raise_for_status()
+        items = rsp.json().get("web", {}).get("results", [])
+        return {
+            str(i): {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("description", ""),
+                "source": "brave",
+            }
+            for i, item in enumerate(items[:result_limit])
+        }
+
+    def _search_duckduckgo(
+        self, query: str, result_limit: int
+    ) -> Dict[str, Dict[str, str]]:
+        response = requests.get(
+            "https://api.duckduckgo.com/",
+            params={
+                "q": query,
+                "format": "json",
+                "no_redirect": 1,
+                "no_html": 1,
+                "skip_disambig": 1,
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+        results: Dict[str, Dict[str, str]] = {}
+        idx = 0
+
+        abstract = (data.get("AbstractText") or "").strip()
+        abstract_url = (data.get("AbstractURL") or "").strip()
+        heading = (data.get("Heading") or "").strip()
+        if abstract and abstract_url and idx < result_limit:
+            results[str(idx)] = {
+                "title": heading or abstract_url,
+                "url": abstract_url,
+                "snippet": abstract,
+                "source": (data.get("AbstractSource") or "duckduckgo"),
+            }
+            idx += 1
+
+        for topic in data.get("RelatedTopics", []):
+            if idx >= result_limit:
+                break
+            topic_items = topic.get("Topics", []) if isinstance(topic, dict) else [topic]
+            for item in topic_items:
+                if idx >= result_limit or not isinstance(item, dict):
+                    break
+                text = (item.get("Text") or "").strip()
+                first_url = (item.get("FirstURL") or "").strip()
+                if not text or not first_url:
+                    continue
+                results[str(idx)] = {
+                    "title": text.split(" - ")[0][:120],
+                    "url": first_url,
+                    "snippet": text,
+                    "source": "duckduckgo",
+                }
+                idx += 1
+        return results
+
+
+class ScholarGraphSearchTool(Tool):
+    """Expand scholarly evidence via citation graph hops."""
+
+    name = "scholar_graph_search"
+    description = "Find related papers via citation graph traversal on Semantic Scholar."
+    inputs = {
+        "query": {"type": "string", "description": "Topic or paper query"},
+        "mode": {
+            "type": "string",
+            "description": "Traversal mode: citations or references",
+            "default": "citations",
+            "nullable": True,
+        },
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum number of papers to return",
+            "default": 10,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def __init__(self, s2_api_key: Optional[str] = None) -> None:
+        super().__init__()
+        self.s2_api_key = s2_api_key or os.environ.get("S2_API_KEY", "")
+
+    def run(
+        self, query: str, mode: Optional[str] = "citations", result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, mode, result_limit)
+
+    def forward(
+        self, query: str, mode: Optional[str] = "citations", result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        if not self.s2_api_key:
+            raise RuntimeError("S2_API_KEY is required for scholar_graph_search")
+        if mode is None:
+            mode = "citations"
+        if mode not in {"citations", "references"}:
+            raise ValueError("mode must be one of: citations, references")
+        if result_limit is None:
+            result_limit = 10
+
+        headers = {"x-api-key": self.s2_api_key, "Accept": "application/json"}
+        search_rsp = requests.get(
+            "https://api.semanticscholar.org/graph/v1/paper/search",
+            headers=headers,
+            params={"query": query, "limit": 1, "fields": "paperId,title"},
+            timeout=20,
+        )
+        search_rsp.raise_for_status()
+        data = search_rsp.json().get("data", [])
+        if not data:
+            return {}
+        paper_id = data[0].get("paperId", "")
+        if not paper_id:
+            return {}
+
+        edge_rsp = requests.get(
+            f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}/{mode}",
+            headers=headers,
+            params={"limit": result_limit, "fields": "title,year,venue,authors"},
+            timeout=20,
+        )
+        edge_rsp.raise_for_status()
+        items = edge_rsp.json().get("data", [])
+        results: Dict[str, Dict[str, str]] = {}
+        for i, item in enumerate(items):
+            node_key = "citingPaper" if mode == "citations" else "citedPaper"
+            paper = item.get(node_key, item)
+            title = paper.get("title", f"paper_{i}")
+            authors = ", ".join(a.get("name", "") for a in paper.get("authors", []) if a.get("name"))
+            results[str(i)] = {
+                "title": title,
+                "source": "semanticscholar",
+                "info": f"{paper.get('venue', '')} {paper.get('year', '')} | {authors}",
+            }
+        return results
+
+
+class PatentSearchTool(Tool):
+    """Search patent records."""
+
+    name = "patent_search"
+    description = "Search patents via PatentsView."
+    inputs = {
+        "query": {"type": "string", "description": "Patent keyword query"},
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return",
+            "default": 10,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def run(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, result_limit)
+
+    def forward(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        if result_limit is None:
+            result_limit = 10
+        payload = {
+            "q": {"_text_any": {"patent_title": query}},
+            "f": ["patent_number", "patent_title", "patent_date", "patent_abstract"],
+            "o": {"per_page": result_limit},
+        }
+        rsp = requests.post(
+            "https://api.patentsview.org/patents/query",
+            json=payload,
+            timeout=30,
+        )
+        rsp.raise_for_status()
+        patents = rsp.json().get("patents", [])
+        return {
+            str(i): {
+                "title": p.get("patent_title", ""),
+                "source": f"https://patents.google.com/patent/US{p.get('patent_number', '')}",
+                "info": f"{p.get('patent_date', '')} | {p.get('patent_abstract', '')[:200]}",
+            }
+            for i, p in enumerate(patents[:result_limit])
+        }
+
+
+class DatasetSearchTool(Tool):
+    """Search ML datasets."""
+
+    name = "dataset_search"
+    description = "Search machine learning datasets via Hugging Face Datasets Hub."
+    inputs = {
+        "query": {"type": "string", "description": "Dataset query"},
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum results",
+            "default": 10,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def run(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, result_limit)
+
+    def forward(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        if result_limit is None:
+            result_limit = 10
+        rsp = requests.get(
+            "https://huggingface.co/api/datasets",
+            params={"search": query, "limit": result_limit},
+            timeout=20,
+        )
+        rsp.raise_for_status()
+        items = rsp.json()
+        if not isinstance(items, list):
+            return {}
+        results: Dict[str, Dict[str, str]] = {}
+        for i, ds in enumerate(items[:result_limit]):
+            ds_id = ds.get("id", "")
+            if not ds_id:
+                continue
+            results[str(i)] = {
+                "title": ds_id,
+                "source": f"https://huggingface.co/datasets/{ds_id}",
+                "info": f"downloads={ds.get('downloads', 0)} likes={ds.get('likes', 0)}",
+            }
+        return results
+
+
+class BenchmarkSearchTool(Tool):
+    """Search benchmark and leaderboard info."""
+
+    name = "benchmark_search"
+    description = "Search benchmark tasks and leaderboard-style entries via Papers with Code."
+    inputs = {
+        "query": {"type": "string", "description": "Task/benchmark query"},
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum results",
+            "default": 10,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def run(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, result_limit)
+
+    def forward(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        if result_limit is None:
+            result_limit = 10
+        rsp = requests.get(
+            "https://paperswithcode.com/api/v1/search/",
+            params={"q": query, "items_per_page": result_limit},
+            timeout=20,
+        )
+        rsp.raise_for_status()
+        items = rsp.json().get("results", [])
+        results: Dict[str, Dict[str, str]] = {}
+        for i, item in enumerate(items[:result_limit]):
+            title = item.get("name") or item.get("title") or f"result_{i}"
+            url = item.get("url") or "https://paperswithcode.com"
+            results[str(i)] = {
+                "title": title,
+                "source": url,
+                "info": item.get("description", "")[:220],
+            }
+        return results
+
+
+class ArxivDailyWatchTool(Tool):
+    """Get recent arXiv papers for a query window."""
+
+    name = "arxiv_daily_watch"
+    description = "Search recently submitted arXiv papers by query."
+    inputs = {
+        "query": {"type": "string", "description": "arXiv query"},
+        "days": {
+            "type": "integer",
+            "description": "Lookback window in days",
+            "default": 7,
+            "nullable": True,
+        },
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum results",
+            "default": 10,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def run(
+        self, query: str, days: Optional[int] = 7, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, days, result_limit)
+
+    def forward(
+        self, query: str, days: Optional[int] = 7, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        if days is None:
+            days = 7
+        if result_limit is None:
+            result_limit = 10
+        search_query = urllib.parse.quote(query)
+        url = (
+            "http://export.arxiv.org/api/query?"
+            f"search_query=all:{search_query}&start=0&max_results={result_limit}&sortBy=submittedDate&sortOrder=descending"
+        )
+        rsp = requests.get(url, timeout=20)
+        rsp.raise_for_status()
+        root = ET.fromstring(rsp.content)
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        entries = root.findall("atom:entry", ns)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days))
+        results: Dict[str, Dict[str, str]] = {}
+        idx = 0
+        for entry in entries:
+            published = entry.find("atom:published", ns)
+            if published is None or not published.text:
+                continue
+            dt = datetime.fromisoformat(published.text.replace("Z", "+00:00"))
+            if dt < cutoff:
+                continue
+            title = (entry.find("atom:title", ns).text or "").strip()  # type: ignore[union-attr]
+            summary = (entry.find("atom:summary", ns).text or "").strip()  # type: ignore[union-attr]
+            link = entry.find("atom:id", ns)
+            results[str(idx)] = {
+                "title": title,
+                "source": (link.text or "").strip() if link is not None else "https://arxiv.org",
+                "info": summary[:240],
+            }
+            idx += 1
+            if idx >= result_limit:
+                break
+        return results
+
+
+class NewsSearchTool(Tool):
+    """Search news articles."""
+
+    name = "news_search"
+    description = "Search news via NewsAPI (strict: NEWSAPI_KEY required)."
+    inputs = {
+        "query": {"type": "string", "description": "News query"},
+        "result_limit": {
+            "type": "integer",
+            "description": "Maximum results",
+            "default": 10,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.newsapi_key = os.environ.get("NEWSAPI_KEY", "")
+
+    def run(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(query, result_limit)
+
+    def forward(
+        self, query: str, result_limit: Optional[int] = 10
+    ) -> Dict[str, Dict[str, str]]:
+        if not self.newsapi_key:
+            raise RuntimeError("NEWSAPI_KEY is required for news_search")
+        if result_limit is None:
+            result_limit = 10
+        rsp = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": query,
+                "sortBy": "publishedAt",
+                "pageSize": min(100, result_limit),
+                "apiKey": self.newsapi_key,
+            },
+            timeout=20,
+        )
+        rsp.raise_for_status()
+        items = rsp.json().get("articles", [])
+        return {
+            str(i): {
+                "title": item.get("title", ""),
+                "source": item.get("url", ""),
+                "info": f"{item.get('source', {}).get('name', '')} | {item.get('publishedAt', '')} | {(item.get('description') or '')[:180]}",
+            }
+            for i, item in enumerate(items[:result_limit])
+        }
+
+
+class RepoRuntimeProbeTool(Tool):
+    """Probe repository runtime metadata and likely entrypoints."""
+
+    name = "repo_runtime_probe"
+    description = "Inspect local repository runtime metadata (deps, scripts, likely entrypoints)."
+    inputs = {
+        "repo_path": {
+            "type": "string",
+            "description": "Local path to repository",
+        }
+    }
+    output_type = "object"
+
+    def run(self, repo_path: str) -> Dict[str, Any]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(repo_path)
+
+    def forward(self, repo_path: str) -> Dict[str, Any]:
+        if not osp.isdir(repo_path):
+            raise ValueError(f"repo_path does not exist: {repo_path}")
+
+        result: Dict[str, Any] = {
+            "repo_path": repo_path,
+            "detected": {},
+            "entrypoints": [],
+            "deps": [],
+        }
+        dep_files = [
+            "requirements.txt",
+            "pyproject.toml",
+            "Pipfile",
+            "package.json",
+            "environment.yml",
+        ]
+        for fname in dep_files:
+            path = osp.join(repo_path, fname)
+            if osp.exists(path):
+                result["detected"][fname] = path
+                result["deps"].append(fname)
+
+        for candidate in ("main.py", "app.py", "train.py", "run.py"):
+            p = osp.join(repo_path, candidate)
+            if osp.exists(p):
+                result["entrypoints"].append(p)
+
+        try:
+            rg_proc = subprocess.run(
+                ["rg", "-n", "if __name__ == ['\"]__main__['\"]", repo_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=15,
+            )
+            if rg_proc.returncode == 0:
+                result["main_guards"] = rg_proc.stdout.splitlines()[:20]
+        except Exception:
+            result["main_guards"] = []
+
+        return result
+
+
+class TableExtractorTool(Tool):
+    """Extract table-like text segments from PDF."""
+
+    name = "table_extractor"
+    description = "Extract table-like blocks from PDF text heuristically."
+    inputs = {
+        "pdf_path": {"type": "string", "description": "Path to local PDF"},
+        "max_tables": {
+            "type": "integer",
+            "description": "Maximum table blocks",
+            "default": 5,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def run(self, pdf_path: str, max_tables: Optional[int] = 5) -> Dict[str, Any]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(pdf_path, max_tables)
+
+    def forward(self, pdf_path: str, max_tables: Optional[int] = 5) -> Dict[str, Any]:
+        if max_tables is None:
+            max_tables = 5
+        if not osp.exists(pdf_path):
+            raise FileNotFoundError(f"pdf_path not found: {pdf_path}")
+        doc = fitz.open(pdf_path)
+        tables: List[Dict[str, Any]] = []
+        for pno, page in enumerate(doc):
+            text = page.get_text("text")
+            lines = [ln.rstrip() for ln in text.splitlines()]
+            block: List[str] = []
+            for ln in lines:
+                is_table_like = (
+                    ("|" in ln)
+                    or ("\t" in ln)
+                    or (len(re.split(r"\s{2,}", ln.strip())) >= 3)
+                )
+                if is_table_like and ln.strip():
+                    block.append(ln)
+                else:
+                    if len(block) >= 3:
+                        tables.append(
+                            {"page": pno + 1, "rows": block[:40], "raw": "\n".join(block)}
+                        )
+                        if len(tables) >= max_tables:
+                            return {"tables": tables}
+                    block = []
+            if len(block) >= 3 and len(tables) < max_tables:
+                tables.append({"page": pno + 1, "rows": block[:40], "raw": "\n".join(block)})
+            if len(tables) >= max_tables:
+                break
+        return {"tables": tables}
+
+
+class ClaimVerifierTool(Tool):
+    """Find evidence candidates for claims."""
+
+    name = "claim_verifier"
+    description = "Verify claims by collecting candidate evidence from web and paper tools."
+    inputs = {
+        "claims_json": {
+            "type": "string",
+            "description": "JSON list of claims or object with key 'claims'",
+        },
+        "per_claim_limit": {
+            "type": "integer",
+            "description": "Evidence count per claim",
+            "default": 5,
+            "nullable": True,
+        },
+    }
+    output_type = "object"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.web = WebSearchTool()
+        self.paper = PaperSearchTool(engine=os.environ.get("PAPER_SEARCH_ENGINE", "openalex"))
+
+    def run(self, claims_json: str, per_claim_limit: Optional[int] = 5) -> Dict[str, Any]:
+        """Backward-compatible run method that calls forward."""
+        return self.forward(claims_json, per_claim_limit)
+
+    def forward(self, claims_json: str, per_claim_limit: Optional[int] = 5) -> Dict[str, Any]:
+        if per_claim_limit is None:
+            per_claim_limit = 5
+        try:
+            payload = json.loads(claims_json)
+        except json.JSONDecodeError:
+            payload = {"claims": [claims_json]}
+        claims: List[str]
+        if isinstance(payload, list):
+            claims = [str(c) for c in payload]
+        elif isinstance(payload, dict):
+            claims = [str(c) for c in payload.get("claims", [])]
+        else:
+            claims = [str(payload)]
+
+        out: Dict[str, Any] = {"claims": []}
+        for claim in claims[:20]:
+            web_results = self.web.forward(claim, min(per_claim_limit, 10))
+            paper_results = self.paper.forward(claim, min(per_claim_limit, 10))
+            out["claims"].append(
+                {
+                    "claim": claim,
+                    "web_evidence": web_results,
+                    "paper_evidence": paper_results,
+                }
+            )
+        return out
+
+
 # =============================================================================
 # Drawer Tool
 # =============================================================================
@@ -609,12 +1423,14 @@ class DrawerTool(Tool):
         model: str,
         prompt_template_dir: Optional[str] = None,
         temperature: float = 0.75,
+        backend: Optional[str] = None,
         cost_tracker: Optional[BudgetChecker] = None,
     ) -> None:
         super().__init__()
         self.cost_tracker = cost_tracker or BudgetChecker()
         self.client, self.model = create_client(model)
         self.temperature = temperature
+        self.backend = (backend or os.environ.get("DRAWER_BACKEND", "llm_svg")).lower()
 
         # Load prompt templates
         self.config = Config(prompt_template_dir)
@@ -677,6 +1493,16 @@ class DrawerTool(Tool):
         section_content: str,
         msg_history: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
+        if self.backend in {"nano-banana", "nanobanana"}:
+            return self._draw_diagram_with_nano_banana(
+                section_name=section_name, section_content=section_content
+            )
+        if self.backend != "llm_svg":
+            raise ValueError(
+                f"Unsupported drawer backend '{self.backend}'. "
+                "Use one of: llm_svg, nano-banana"
+            )
+
         section_prompt = self.prompts.section_prompt[section_name].format(
             section_text=section_content
         )
@@ -693,6 +1519,47 @@ class DrawerTool(Tool):
         )
 
         return self._extract_diagram(llm_response)
+
+    def _draw_diagram_with_nano_banana(
+        self, section_name: str, section_content: str
+    ) -> Dict[str, Any]:
+        """Use OpenAI image generation backend (nano-banana style) and wrap output as SVG."""
+        from openai import OpenAI
+
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is required for nano-banana backend")
+
+        image_model = os.environ.get("NANO_BANANA_MODEL", "gpt-image-1")
+        prompt = (
+            f"Create a clean scientific figure for section '{section_name}'. "
+            "Use publication style with clear labeled components, arrows, and whitespace. "
+            "Avoid clutter and ensure readability.\n\n"
+            f"Section content:\n{section_content}"
+        )
+        client = OpenAI(api_key=api_key)
+        rsp = client.images.generate(
+            model=image_model,
+            prompt=prompt,
+            size="1536x1024",
+        )
+        if not rsp.data:
+            raise RuntimeError("nano-banana image generation returned no data")
+
+        b64 = getattr(rsp.data[0], "b64_json", None)
+        if not b64:
+            raise RuntimeError("nano-banana image generation missing b64 payload")
+
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg' width='1536' height='1024' "
+            "viewBox='0 0 1536 1024' preserveAspectRatio='xMidYMid meet'>"
+            f"<image href='data:image/png;base64,{b64}' x='0' y='0' width='1536' height='1024'/>"
+            "</svg>"
+        )
+        return {
+            "summary": f"Generated figure for {section_name} with nano-banana backend.",
+            "svg": svg,
+        }
 
     def _extract_diagram(self, response: str) -> Dict[str, Any]:
         result: Dict[str, Any] = {"summary": "", "svg": "", "full_response": response}

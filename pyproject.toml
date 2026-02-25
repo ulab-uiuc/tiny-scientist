@@ -23,6 +23,7 @@ anthropic = "*"
 google-generativeai = "*"
 openai = "*"
 smolagents = { version = "*", extras = ["litellm"] }
+openai-agents = "*"
 toml = "*"
 spacy = "^3.0.0"
 reportlab = "*"
