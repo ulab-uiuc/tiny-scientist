@@ -44,6 +44,7 @@ class _ReviewerLegacy:
         )
         self._query_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.last_related_works_string = ""
+        self.last_related_works: List[Dict[str, Any]] = []
         self.cost_tracker = cost_tracker or BudgetChecker()
         self.pre_reflection_threshold = pre_reflection_threshold
         self.post_reflection_threshold = post_reflection_threshold
@@ -80,6 +81,10 @@ class _ReviewerLegacy:
         system_prompt = self.prompts.reviewer_system_prompt_neg
 
         review, _ = self._generate_review(base_prompt, system_prompt, msg_history=[])
+        if isinstance(review, dict):
+            review["ReferenceLinks"] = self._extract_reference_links(
+                self.last_related_works
+            )
         self.cost_tracker.report()
         return json.dumps(review, indent=2)
 
@@ -228,9 +233,11 @@ class _ReviewerLegacy:
             self._query_cache[query] = related_papers if related_papers else []
 
         if related_papers:
+            self.last_related_works = related_papers
             related_works_string = self._format_paper_results(related_papers)
             print("✅Related Works String Found")
         else:
+            self.last_related_works = []
             related_works_string = "No related works found."
             print("❎No Related Works Found")
 
@@ -344,6 +351,10 @@ class _ReviewerLegacy:
         meta_review = extract_json_between_markers(llm_meta_review)
         if meta_review is None:
             return {}
+        if isinstance(meta_review, dict):
+            meta_review["ReferenceLinks"] = self._extract_reference_links(
+                self.last_related_works
+            )
 
         self.cost_tracker.report()
         return self._aggregate_scores(meta_review, reviews)
@@ -387,12 +398,17 @@ class _ReviewerLegacy:
         paper_strings = []
         for i, paper in enumerate(papers):
             title = paper.get("title", "No title")
-            source = paper.get("source", "No authors")
-            info = paper.get("info", "No venue")
+            source = paper.get("authors") or paper.get("source") or "No authors"
+            venue = paper.get("venue", "")
+            year = paper.get("year", "")
+            info = paper.get("info") or f"{venue} {year}".strip() or "No venue"
             abstract = paper.get("abstract", "")
+            url = str(paper.get("url") or "").strip()
 
             # Format: Title. Authors. Venue.\nAbstract: ...
             paper_str = f"{i}: {title}. {source}. {info}"
+            if url:
+                paper_str += f"\nURL: {url}"
             if abstract and len(abstract.strip()) > 0:
                 # Truncate very long abstracts
                 abstract_text = abstract.strip()
@@ -403,6 +419,29 @@ class _ReviewerLegacy:
             paper_strings.append(paper_str)
 
         return "\n\n".join(paper_strings)
+
+    @staticmethod
+    def _extract_reference_links(papers: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        links: List[Dict[str, str]] = []
+        seen: set[str] = set()
+        for paper in papers:
+            if not isinstance(paper, dict):
+                continue
+            url = str(paper.get("url") or paper.get("source") or "").strip()
+            if not url.startswith(("http://", "https://")):
+                continue
+            key = url.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            links.append(
+                {
+                    "title": str(paper.get("title", "Untitled")),
+                    "url": url,
+                    "source_type": str(paper.get("source_type", "paper_search")),
+                }
+            )
+        return links
 
 
 class Reviewer(_ReviewerLegacy):
@@ -654,6 +693,10 @@ class Reviewer(_ReviewerLegacy):
         meta_review = extract_json_between_markers(llm_meta_review)
         if meta_review is None:
             return {}
+        if isinstance(meta_review, dict):
+            meta_review["ReferenceLinks"] = self._extract_reference_links(
+                self.last_related_works
+            )
 
         self.cost_tracker.report()
         return self._aggregate_scores(meta_review, reviews)

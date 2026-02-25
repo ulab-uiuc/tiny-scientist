@@ -26,7 +26,7 @@ from .tools.agent_tools import (
     make_run_experiment_tool,
     make_write_file_tool,
 )
-from .utils.llm import create_client, get_response_from_llm
+from .utils.llm import create_client, extract_json_between_markers, get_response_from_llm
 from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 
@@ -48,7 +48,7 @@ class Coder:
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
-        self.max_runs = max_runs
+        self.max_runs = 1
         self.max_stderr_output = max_stderr_output
         self.auto_install = auto_install
         self.config = Config()
@@ -68,6 +68,7 @@ class Coder:
         # openai-agents Agent (initialized in setup_agent)
         self.agent: Optional[Agent] = None
         self.planner_agent: Optional[Agent] = None
+        self.validation_agent: Optional[Agent] = None
 
     def setup_agent(self) -> None:
         """Setup openai-agents Agent with tools for code generation."""
@@ -112,6 +113,17 @@ class Coder:
             tools=research_tools,
             model=self.model,
         )
+        self.validation_agent = Agent(
+            name="ExperimentValidator",
+            instructions=(
+                "You validate experiment run outputs against the thinker-provided experiment table. "
+                "Return ONLY JSON with keys: valid (bool), summary (string), issues (array of strings), "
+                "matched_rows (array of strings), missing_rows (array of strings). "
+                "Mark valid=false if metrics look like placeholders, NaN/inf, or unrelated to the table rows."
+            ),
+            tools=research_tools,
+            model=self.model,
+        )
 
     def run(
         self, idea: Dict[str, Any], baseline_results: Optional[Dict[str, Any]] = None
@@ -136,14 +148,14 @@ class Coder:
             return False, self.output_dir, "Experiment generation failed"
 
         self._update_notes()
+        self._write_search_links_manifest(idea)
 
-        result_summary = {}
-        for run_num in range(1, self.max_runs + 1):
-            run_dir = osp.join(self.output_dir, f"run_{run_num}")
-            result_path = osp.join(run_dir, "final_info.json")
-            if osp.exists(result_path):
-                with open(result_path, "r") as f:
-                    result_summary[f"run_{run_num}"] = json.load(f)
+        result_summary: Dict[str, Any] = {}
+        run_dir = osp.join(self.output_dir, "run")
+        result_path = osp.join(run_dir, "final_info.json")
+        if osp.exists(result_path):
+            with open(result_path, "r") as f:
+                result_summary["run"] = json.load(f)
 
         # Save combined results
         save_path = osp.join(self.output_dir, "experiment_results.txt")
@@ -387,39 +399,34 @@ class Coder:
                     "experiment.py still contains placeholder '...'; strict mode does not auto-fix."
                 )
 
-        # Phase 4: Run experiments (with error/retry logic)
+        # Phase 4: Run a single experiment ("run") with fix/retry logic.
         next_prompt = ""
-        while run_time < self.max_runs + 1:
-            if current_iter >= self.max_iters:
-                print("Max iterations reached")
-                return False
-
-            # On subsequent runs or after errors, re-generate if we have a prompt
+        while current_iter < self.max_iters:
             if next_prompt:
-                agent_out = self._generate_experiment(next_prompt)
+                self._generate_experiment(next_prompt)
 
-                if "ALL_COMPLETED" in agent_out:
-                    return True
-
-            return_code, message = self._run_single_experiment(run_time)
+            return_code, message = self._run_single_experiment(
+                run_num=run_time,
+                idea=idea,
+                experiment_table=experiment_table,
+                table_rows=table_rows,
+            )
 
             if return_code == 0:
-                run_time += 1
-                current_iter = 0
-                next_prompt = message
-            else:
-                print("[System] Experiment run failed. Attempting fix...")
-                next_prompt = self.prompts.experiment_error_prompt.format(
-                    message=message,
-                    Title=idea["Title"],
-                    Experiment=idea["Experiment"],
-                    run_time=run_time,
-                    max_runs=self.max_runs,
-                )
+                return True
 
-                current_iter += 1
+            print("[System] Experiment run failed. Attempting fix...")
+            next_prompt = self.prompts.experiment_error_prompt.format(
+                message=message,
+                Title=idea["Title"],
+                Experiment=idea["Experiment"],
+                run_time=run_time,
+                max_runs=self.max_runs,
+            )
+            current_iter += 1
 
-        return current_iter < self.max_iters
+        print("Max iterations reached")
+        return False
 
     def _generate_experiment(self, prompt: str) -> str:
         """Use openai-agents Agent to generate experiment code."""
@@ -516,12 +523,18 @@ class Coder:
             return f.read()
 
     def _run_single_experiment(
-        self, run_num: int, timeout: int = 7200
+        self,
+        run_num: int,
+        idea: Dict[str, Any],
+        experiment_table: str,
+        table_rows: List[str],
+        timeout: int = 7200,
     ) -> Tuple[int, str]:
         """Run a single experiment iteration."""
+        _ = run_num
         shutil.copy(
             osp.join(self.output_dir, "experiment.py"),
-            osp.join(self.output_dir, f"run_{run_num}.py"),
+            osp.join(self.output_dir, "run.py"),
         )
 
         with open(osp.join(self.output_dir, "experiment.py"), "r") as f:
@@ -537,7 +550,7 @@ class Coder:
                 return return_code, logs
 
         # Fallback to local execution
-        command = ["python", "experiment.py", f"--out_dir=run_{run_num}"]
+        command = ["python", "experiment.py", "--out_dir=run"]
 
         try:
             result = subprocess.run(
@@ -552,7 +565,7 @@ class Coder:
                 print(result.stderr, file=sys.stderr)
 
             if result.returncode != 0:
-                print(f"Run {run_num} failed with return code {result.returncode}")
+                print(f"Run failed with return code {result.returncode}")
                 if "ModuleNotFoundError" in result.stderr and getattr(
                     self, "auto_install", True
                 ):
@@ -574,7 +587,13 @@ class Coder:
                         print(f"[System] Install output: {install_result.stdout}")
                         time.sleep(2)
                         print("[System] Re-running after installing dependency...")
-                        return self._run_single_experiment(run_num, timeout=timeout)
+                        return self._run_single_experiment(
+                            run_num=run_num,
+                            idea=idea,
+                            experiment_table=experiment_table,
+                            table_rows=table_rows,
+                            timeout=timeout,
+                        )
                     except subprocess.TimeoutExpired:
                         print(
                             f"[System] Package installation timed out after 5 minutes for {missing_pkg}"
@@ -602,9 +621,7 @@ class Coder:
                 return 1, stderr_output
 
             # Load and format results
-            results_path = osp.join(
-                self.output_dir, f"run_{run_num}", "final_info.json"
-            )
+            results_path = osp.join(self.output_dir, "run", "final_info.json")
             if osp.exists(results_path):
                 with open(results_path, "r") as f:
                     results = json.load(f)
@@ -621,14 +638,94 @@ class Coder:
             else:
                 results = {}
 
+            valid, validation_message = self._validate_run_results(
+                run_num=run_num,
+                idea=idea,
+                experiment_table=experiment_table,
+                table_rows=table_rows,
+                run_results=results,
+            )
+            if not valid:
+                self._cleanup_failed_run(run_num)
+                return 1, validation_message
+
             return 0, self.prompts.experiment_success_prompt.format(
                 run_num=run_num, results=results, next_run=run_num + 1
             )
 
         except TimeoutExpired:
-            print(f"Run {run_num} timed out after {timeout} seconds")
+            print(f"Run timed out after {timeout} seconds")
             self._cleanup_failed_run(run_num)
             return 1, self.prompts.experiment_timeout_prompt.format(timeout=timeout)
+
+    def _validate_run_results(
+        self,
+        run_num: int,
+        idea: Dict[str, Any],
+        experiment_table: str,
+        table_rows: List[str],
+        run_results: Dict[str, Any],
+    ) -> Tuple[bool, str]:
+        if self.validation_agent is None:
+            raise RuntimeError("Validation agent is not initialized for coder.")
+
+        _ = run_num
+        results_path = osp.join(self.output_dir, "run", "final_info.json")
+        experiment_py_path = osp.join(self.output_dir, "experiment.py")
+        experiment_code = ""
+        if osp.exists(experiment_py_path):
+            with open(experiment_py_path, "r", encoding="utf-8") as f:
+                experiment_code = f.read()
+
+        prompt = (
+            "Validate whether this run output is scientifically and structurally correct.\n\n"
+            f"Idea title: {idea.get('Title', '')}\n"
+            f"Problem: {idea.get('Problem', '')}\n"
+            f"Approach: {idea.get('Approach', '')}\n\n"
+            "Experiment table (authoritative):\n"
+            f"{experiment_table}\n\n"
+            f"Table rows: {json.dumps(table_rows, ensure_ascii=False)}\n\n"
+            "Run label: run\n"
+            f"Result file path: {results_path}\n"
+            f"Run results JSON:\n{json.dumps(run_results, ensure_ascii=False, indent=2)}\n\n"
+            "Current experiment.py:\n"
+            f"{experiment_code[:12000]}\n\n"
+            "Validation rules:\n"
+            "1) Results must be non-empty numeric metrics (no placeholder text, no NaN/inf).\n"
+            "2) Results must align with experiment table rows and stated metrics.\n"
+            "3) Detect suspicious outputs (all zeros, repeated constants, clearly dummy values).\n"
+            "4) If invalid, provide concrete issues and missing_rows.\n"
+            "Return JSON only."
+        )
+        result = Runner.run_sync(self.validation_agent, prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, "validate_experiment_run")
+        text = result.final_output or ""
+        parsed: Any = extract_json_between_markers(text)
+        if not isinstance(parsed, dict):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+        if not isinstance(parsed, dict):
+            return False, "[Validator][Coder] invalid validator output format."
+
+        report_path = osp.join(self.output_dir, "run", "validation_report.json")
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(parsed, f, indent=2, ensure_ascii=False)
+
+        is_valid = bool(parsed.get("valid", False))
+        summary = str(parsed.get("summary", "")).strip()
+        issues = parsed.get("issues", [])
+        if not isinstance(issues, list):
+            issues = [str(issues)]
+        issue_text = "; ".join(str(i) for i in issues if str(i).strip())
+        if is_valid:
+            print(f"[Validator][Coder] run PASSED: {summary or 'validated'}")
+            return True, summary or "validated"
+
+        msg = summary or issue_text or "validation failed"
+        print(f"[Validator][Coder] run FAILED: {msg}")
+        return False, f"[Validator][Coder] run failed: {msg}"
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
@@ -663,9 +760,81 @@ Please provide the complete updated notes content.
         except Exception as e:
             print(f"[System] Failed to update notes: {e}")
 
+    def _write_search_links_manifest(self, idea: Dict[str, Any]) -> None:
+        links: List[Dict[str, str]] = []
+        seen: set[str] = set()
+
+        def _add_link(title: str, url: str, source_type: str) -> None:
+            clean_url = (url or "").strip()
+            if not clean_url.startswith(("http://", "https://")):
+                return
+            key = clean_url.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            links.append(
+                {
+                    "title": (title or "Untitled").strip() or "Untitled",
+                    "url": clean_url,
+                    "source_type": (source_type or "unknown").strip() or "unknown",
+                }
+            )
+
+        citations = idea.get("Citations", [])
+        if isinstance(citations, list):
+            for c in citations:
+                if not isinstance(c, dict):
+                    continue
+                _add_link(
+                    title=str(c.get("title", "Untitled")),
+                    url=str(c.get("url", "")),
+                    source_type=str(c.get("source_type", "thinker")),
+                )
+
+        grounding = idea.get("ResearchGrounding", {})
+        if isinstance(grounding, dict):
+            grounded = grounding.get("citations", [])
+            if isinstance(grounded, list):
+                for c in grounded:
+                    if not isinstance(c, dict):
+                        continue
+                    _add_link(
+                        title=str(c.get("title", "Untitled")),
+                        url=str(c.get("url", "")),
+                        source_type=str(c.get("source_type", "grounding")),
+                    )
+
+        manifest_path = osp.join(self.output_dir, "search_links.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({"search_links": links}, f, indent=2, ensure_ascii=False)
+
+        notes_path = osp.join(self.output_dir, "notes.txt")
+        section_lines = [
+            "",
+            "## Search Links",
+        ]
+        if links:
+            for link in links:
+                section_lines.append(
+                    f"- {link['title']} ({link['source_type']}): {link['url']}"
+                )
+        else:
+            section_lines.append("- No search links available.")
+        addition = "\n".join(section_lines) + "\n"
+
+        existing = ""
+        if osp.exists(notes_path):
+            with open(notes_path, "r", encoding="utf-8") as f:
+                existing = f.read()
+        if "## Search Links" in existing:
+            existing = existing.split("## Search Links")[0].rstrip() + "\n"
+        with open(notes_path, "w", encoding="utf-8") as f:
+            f.write(existing + addition)
+
     def _cleanup_failed_run(self, run_num: int) -> None:
         """Clean up files from a failed run."""
-        run_dir = osp.join(self.output_dir, f"run_{run_num}")
+        _ = run_num
+        run_dir = osp.join(self.output_dir, "run")
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)
 
