@@ -1816,6 +1816,7 @@ COPY experiment.py .
         """Run experiment in a Docker container."""
         if not self.use_docker or self.docker_client is None:
             return None
+        _ = run_num
 
         with tempfile.TemporaryDirectory() as temp_dir:
             exp_py = os.path.join(temp_dir, "experiment.py")
@@ -1829,7 +1830,7 @@ COPY experiment.py .
             try:
                 container = self.docker_client.containers.run(
                     image=image_name,
-                    command=f"python experiment.py --out_dir=run_{run_num}",
+                    command="python experiment.py --out_dir=run",
                     volumes={
                         temp_dir: {"bind": "/experiment", "mode": "rw"},
                         output_dir: {"bind": "/experiment/output", "mode": "rw"},
@@ -1858,8 +1859,8 @@ COPY experiment.py .
                     logs = "Failed to retrieve logs"
 
                 if result["StatusCode"] == 0:
-                    src = os.path.join(temp_dir, f"run_{run_num}")
-                    dst = os.path.join(output_dir, f"run_{run_num}")
+                    src = os.path.join(temp_dir, "run")
+                    dst = os.path.join(output_dir, "run")
                     if os.path.exists(src):
                         shutil.copytree(src, dst, dirs_exist_ok=True)
                     return (0, logs)
@@ -1989,6 +1990,7 @@ class RunExperimentTool(Tool):
         self.docker_runner = docker_runner
 
     def forward(self, run_num: int) -> str:
+        _ = run_num
         exp_path = osp.join(self.output_dir, "experiment.py")
         if not osp.exists(exp_path):
             return "Error: experiment.py does not exist. Please write it first."
@@ -2004,14 +2006,14 @@ class RunExperimentTool(Tool):
             if result is not None:
                 return_code, logs = result
                 if return_code == 0:
-                    return f"Experiment run {run_num} completed successfully.\nLogs:\n{logs}"
+                    return f"Experiment run completed successfully.\nLogs:\n{logs}"
                 else:
-                    return f"Experiment run {run_num} failed with code {return_code}.\nLogs:\n{logs}"
+                    return f"Experiment run failed with code {return_code}.\nLogs:\n{logs}"
 
         # Fallback to local execution
         import subprocess
 
-        command = ["python", "experiment.py", f"--out_dir=run_{run_num}"]
+        command = ["python", "experiment.py", "--out_dir=run"]
         try:
             result = subprocess.run(
                 command,
@@ -2021,10 +2023,10 @@ class RunExperimentTool(Tool):
                 timeout=7200,
             )
             if result.returncode == 0:
-                return f"Experiment run {run_num} completed successfully.\nOutput:\n{result.stdout}"
+                return f"Experiment run completed successfully.\nOutput:\n{result.stdout}"
             else:
-                return f"Experiment run {run_num} failed.\nError:\n{result.stderr}"
+                return f"Experiment run failed.\nError:\n{result.stderr}"
         except subprocess.TimeoutExpired:
-            return f"Experiment run {run_num} timed out after 7200 seconds."
+            return "Experiment run timed out after 7200 seconds."
         except Exception as e:
             return f"Failed to run experiment: {e}"

@@ -145,9 +145,8 @@ experiment_prompt: |
   Keep training loops short (≤5 epochs, batch_size ≤64) so the experiment finishes quickly on CPU. If the dataset is extremely small, 3 epochs are usually enough.
 
   ## Execution Command (DO NOT MODIFY):
-  You have {max_runs} runs to complete this experiment. For each run, the script will be executed using:
-  `python experiment.py --out_dir=run_i`
-  where `i` is the run number (`run_1`, `run_2`, etc.).
+  Use a single execution target directory. The script will be executed using:
+  `python experiment.py --out_dir=run`
 
   ## YOU MUST ENSURE experiment.py:
   1. Parses the `--out_dir` argument and calls `os.makedirs(out_dir, exist_ok=True)`.
@@ -184,27 +183,26 @@ experiment_prompt: |
   Please begin writing the `experiment.py` file now.
 
 experiment_success_prompt: |
-  Run {run_num} completed. Here are the results:
+  Run completed. Here are the results:
   {results}
 
   Decide if you need to re-plan your experiments given the result (you often will not need to).
 
   Someone else will be using `notes.txt` to perform a writeup on this in the future.
-  Please include *all* relevant information for the writeup on Run {run_num}, including an experiment description and the run number. Be as verbose as necessary.
+  Please include *all* relevant information for the writeup on this run, including an experiment description. Be as verbose as necessary.
 
   Then, implement the next thing on your list.
-  We will then run the command `python experiment.py --out_dir=run_{next_run}'.
+  If further fixes are needed, the command remains `python experiment.py --out_dir=run`.
   YOUR PROPOSED CHANGE MUST USE THIS COMMAND FORMAT, DO NOT ADD ADDITIONAL COMMAND LINE ARGS.
-  If you are finished with experiments, respond with 'ALL_COMPLETED'.
 
 experiment_error_prompt: |
   There was an error running the experiment script:
   {message}
   Your goal is still to implement this experiment: {Title}.
   The purpose is: {Experiment}.
-  You have {max_runs} runs total. We're currently on run {run_time}.
+  Use the single run target `run`.
   Please fix `experiment.py` so that it runs successfully with:
-  `python experiment.py --out_dir=run_{run_time}`.
+  `python experiment.py --out_dir=run`.
   Make sure to implement any missing parts like model definition, loss function, data loading, and final_info.json saving.
 
 

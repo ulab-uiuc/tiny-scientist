@@ -48,7 +48,7 @@ class Coder:
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
-        self.max_runs = max_runs
+        self.max_runs = 1
         self.max_stderr_output = max_stderr_output
         self.auto_install = auto_install
         self.config = Config()
@@ -150,13 +150,12 @@ class Coder:
         self._update_notes()
         self._write_search_links_manifest(idea)
 
-        result_summary = {}
-        for run_num in range(1, self.max_runs + 1):
-            run_dir = osp.join(self.output_dir, f"run_{run_num}")
-            result_path = osp.join(run_dir, "final_info.json")
-            if osp.exists(result_path):
-                with open(result_path, "r") as f:
-                    result_summary[f"run_{run_num}"] = json.load(f)
+        result_summary: Dict[str, Any] = {}
+        run_dir = osp.join(self.output_dir, "run")
+        result_path = osp.join(run_dir, "final_info.json")
+        if osp.exists(result_path):
+            with open(result_path, "r") as f:
+                result_summary["run"] = json.load(f)
 
         # Save combined results
         save_path = osp.join(self.output_dir, "experiment_results.txt")
@@ -400,19 +399,11 @@ class Coder:
                     "experiment.py still contains placeholder '...'; strict mode does not auto-fix."
                 )
 
-        # Phase 4: Run experiments (with error/retry logic)
+        # Phase 4: Run a single experiment ("run") with fix/retry logic.
         next_prompt = ""
-        while run_time < self.max_runs + 1:
-            if current_iter >= self.max_iters:
-                print("Max iterations reached")
-                return False
-
-            # On subsequent runs or after errors, re-generate if we have a prompt
+        while current_iter < self.max_iters:
             if next_prompt:
-                agent_out = self._generate_experiment(next_prompt)
-
-                if "ALL_COMPLETED" in agent_out:
-                    return True
+                self._generate_experiment(next_prompt)
 
             return_code, message = self._run_single_experiment(
                 run_num=run_time,
@@ -422,22 +413,20 @@ class Coder:
             )
 
             if return_code == 0:
-                run_time += 1
-                current_iter = 0
-                next_prompt = message
-            else:
-                print("[System] Experiment run failed. Attempting fix...")
-                next_prompt = self.prompts.experiment_error_prompt.format(
-                    message=message,
-                    Title=idea["Title"],
-                    Experiment=idea["Experiment"],
-                    run_time=run_time,
-                    max_runs=self.max_runs,
-                )
+                return True
 
-                current_iter += 1
+            print("[System] Experiment run failed. Attempting fix...")
+            next_prompt = self.prompts.experiment_error_prompt.format(
+                message=message,
+                Title=idea["Title"],
+                Experiment=idea["Experiment"],
+                run_time=run_time,
+                max_runs=self.max_runs,
+            )
+            current_iter += 1
 
-        return current_iter < self.max_iters
+        print("Max iterations reached")
+        return False
 
     def _generate_experiment(self, prompt: str) -> str:
         """Use openai-agents Agent to generate experiment code."""
@@ -542,9 +531,10 @@ class Coder:
         timeout: int = 7200,
     ) -> Tuple[int, str]:
         """Run a single experiment iteration."""
+        _ = run_num
         shutil.copy(
             osp.join(self.output_dir, "experiment.py"),
-            osp.join(self.output_dir, f"run_{run_num}.py"),
+            osp.join(self.output_dir, "run.py"),
         )
 
         with open(osp.join(self.output_dir, "experiment.py"), "r") as f:
@@ -560,7 +550,7 @@ class Coder:
                 return return_code, logs
 
         # Fallback to local execution
-        command = ["python", "experiment.py", f"--out_dir=run_{run_num}"]
+        command = ["python", "experiment.py", "--out_dir=run"]
 
         try:
             result = subprocess.run(
@@ -575,7 +565,7 @@ class Coder:
                 print(result.stderr, file=sys.stderr)
 
             if result.returncode != 0:
-                print(f"Run {run_num} failed with return code {result.returncode}")
+                print(f"Run failed with return code {result.returncode}")
                 if "ModuleNotFoundError" in result.stderr and getattr(
                     self, "auto_install", True
                 ):
@@ -631,9 +621,7 @@ class Coder:
                 return 1, stderr_output
 
             # Load and format results
-            results_path = osp.join(
-                self.output_dir, f"run_{run_num}", "final_info.json"
-            )
+            results_path = osp.join(self.output_dir, "run", "final_info.json")
             if osp.exists(results_path):
                 with open(results_path, "r") as f:
                     results = json.load(f)
@@ -666,7 +654,7 @@ class Coder:
             )
 
         except TimeoutExpired:
-            print(f"Run {run_num} timed out after {timeout} seconds")
+            print(f"Run timed out after {timeout} seconds")
             self._cleanup_failed_run(run_num)
             return 1, self.prompts.experiment_timeout_prompt.format(timeout=timeout)
 
@@ -681,7 +669,8 @@ class Coder:
         if self.validation_agent is None:
             raise RuntimeError("Validation agent is not initialized for coder.")
 
-        results_path = osp.join(self.output_dir, f"run_{run_num}", "final_info.json")
+        _ = run_num
+        results_path = osp.join(self.output_dir, "run", "final_info.json")
         experiment_py_path = osp.join(self.output_dir, "experiment.py")
         experiment_code = ""
         if osp.exists(experiment_py_path):
@@ -696,7 +685,7 @@ class Coder:
             "Experiment table (authoritative):\n"
             f"{experiment_table}\n\n"
             f"Table rows: {json.dumps(table_rows, ensure_ascii=False)}\n\n"
-            f"Run number: {run_num}\n"
+            "Run label: run\n"
             f"Result file path: {results_path}\n"
             f"Run results JSON:\n{json.dumps(run_results, ensure_ascii=False, indent=2)}\n\n"
             "Current experiment.py:\n"
@@ -720,7 +709,7 @@ class Coder:
         if not isinstance(parsed, dict):
             return False, "[Validator][Coder] invalid validator output format."
 
-        report_path = osp.join(self.output_dir, f"run_{run_num}", "validation_report.json")
+        report_path = osp.join(self.output_dir, "run", "validation_report.json")
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(parsed, f, indent=2, ensure_ascii=False)
 
@@ -731,12 +720,12 @@ class Coder:
             issues = [str(issues)]
         issue_text = "; ".join(str(i) for i in issues if str(i).strip())
         if is_valid:
-            print(f"[Validator][Coder] Run {run_num} PASSED: {summary or 'validated'}")
+            print(f"[Validator][Coder] run PASSED: {summary or 'validated'}")
             return True, summary or "validated"
 
         msg = summary or issue_text or "validation failed"
-        print(f"[Validator][Coder] Run {run_num} FAILED: {msg}")
-        return False, f"[Validator][Coder] Run {run_num} failed: {msg}"
+        print(f"[Validator][Coder] run FAILED: {msg}")
+        return False, f"[Validator][Coder] run failed: {msg}"
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
@@ -844,7 +833,8 @@ Please provide the complete updated notes content.
 
     def _cleanup_failed_run(self, run_num: int) -> None:
         """Clean up files from a failed run."""
-        run_dir = osp.join(self.output_dir, f"run_{run_num}")
+        _ = run_num
+        run_dir = osp.join(self.output_dir, "run")
         if osp.exists(run_dir):
             shutil.rmtree(run_dir)
 
