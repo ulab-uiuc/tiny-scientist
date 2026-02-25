@@ -35,6 +35,7 @@ flask = "^3.0.0"
 flask-cors = ">=4,<7"
 flask-socketio = "^5.5.1"
 docker = "^7.1.0"
+psutil = "*"
 fastmcp = { version = "*", optional = true }
 mcp = { version = "*", optional = true }
 

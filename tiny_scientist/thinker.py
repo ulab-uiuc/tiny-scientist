@@ -1,5 +1,6 @@
 import json
 import os.path as osp
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Union
 
@@ -1052,7 +1053,7 @@ class Thinker(_ThinkerLegacy):
                         intent, related_works_string, pdf_context
                     )
                     current_idea_json = self._augment_idea_with_research(
-                        current_idea_json, intent
+                        current_idea_json, intent, related_works_string
                     )
                 elif action == "refine_idea":
                     current_idea_json = self._refine_idea(current_idea_json)
@@ -1089,7 +1090,9 @@ class Thinker(_ThinkerLegacy):
         track_sdk_cost(result, self.cost_tracker, self.model, task_name)
         return result.final_output or ""
 
-    def _augment_idea_with_research(self, idea_json: str, intent: str) -> str:
+    def _augment_idea_with_research(
+        self, idea_json: str, intent: str, related_works_string: str = ""
+    ) -> str:
         try:
             idea_obj = json.loads(idea_json)
         except json.JSONDecodeError:
@@ -1112,26 +1115,10 @@ class Thinker(_ThinkerLegacy):
                 payload = None
         if not isinstance(payload, dict):
             raise RuntimeError("[Thinker] research agent did not return valid JSON.")
-        citations = payload.get("citations", [])
-        if not isinstance(citations, list):
-            raise RuntimeError("[Thinker] evidence scout output missing 'citations' list.")
-        normalized_citations: List[Dict[str, str]] = []
-        for c in citations:
-            if not isinstance(c, dict):
-                continue
-            title = str(c.get("title", "")).strip()
-            url = str(c.get("url", "")).strip()
-            source_type = str(c.get("source_type", "")).strip()
-            relevance = str(c.get("relevance", "")).strip()
-            if not url.startswith(("http://", "https://")):
-                continue
-            normalized_citations.append(
-                {
-                    "title": title or "Untitled",
-                    "url": url,
-                    "source_type": source_type or "unknown",
-                    "relevance": relevance,
-                }
+        normalized_citations = self._extract_citations_with_urls(payload)
+        if not normalized_citations:
+            normalized_citations = self._extract_citations_from_related_works(
+                related_works_string
             )
         if not normalized_citations:
             raise RuntimeError(
@@ -1141,6 +1128,99 @@ class Thinker(_ThinkerLegacy):
         idea_obj["ResearchGrounding"] = payload
         idea_obj["Citations"] = normalized_citations
         return json.dumps(idea_obj, indent=2, ensure_ascii=False)
+
+    def _extract_citations_with_urls(
+        self, payload: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        normalized: List[Dict[str, str]] = []
+        seen: set[str] = set()
+
+        def _add(title: str, url: str, source_type: str, relevance: str) -> None:
+            clean_url = (url or "").strip()
+            if not clean_url.startswith(("http://", "https://")):
+                return
+            key = clean_url.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            normalized.append(
+                {
+                    "title": (title or "Untitled").strip() or "Untitled",
+                    "url": clean_url,
+                    "source_type": (source_type or "unknown").strip() or "unknown",
+                    "relevance": (relevance or "").strip(),
+                }
+            )
+
+        citations = payload.get("citations", [])
+        if isinstance(citations, list):
+            for c in citations:
+                if not isinstance(c, dict):
+                    continue
+                _add(
+                    title=str(c.get("title", "")),
+                    url=str(c.get("url") or c.get("link") or c.get("source") or ""),
+                    source_type=str(c.get("source_type", "")),
+                    relevance=str(c.get("relevance", "")),
+                )
+
+        # Backup extraction from other candidate blocks in payload
+        for key in (
+            "model_candidates",
+            "dataset_candidates",
+            "benchmark_candidates",
+            "implementation_notes",
+        ):
+            items = payload.get(key, [])
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                _add(
+                    title=str(item.get("title") or item.get("name") or key),
+                    url=str(item.get("url") or item.get("link") or item.get("source") or ""),
+                    source_type=str(item.get("source_type") or key),
+                    relevance=str(item.get("relevance") or ""),
+                )
+
+        return normalized
+
+    def _extract_citations_from_related_works(
+        self, related_works_string: str
+    ) -> List[Dict[str, str]]:
+        if not related_works_string:
+            return []
+        lines = [ln.strip() for ln in related_works_string.splitlines() if ln.strip()]
+        out: List[Dict[str, str]] = []
+        seen: set[str] = set()
+        for i, line in enumerate(lines):
+            if not line.startswith("URL:"):
+                continue
+            url = line.replace("URL:", "", 1).strip()
+            if not url.startswith(("http://", "https://")):
+                continue
+            key = url.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            title = "Untitled"
+            if i > 0:
+                prev = lines[i - 1]
+                m = re.match(r"^\d+:\s*(.+?)\.$", prev)
+                if m:
+                    title = m.group(1).strip()
+                else:
+                    title = prev[:180]
+            out.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "source_type": "related_works",
+                    "relevance": "retrieved from related works context",
+                }
+            )
+        return out
 
     def _refine_idea_components(self, idea_json: str) -> str:
         try:
