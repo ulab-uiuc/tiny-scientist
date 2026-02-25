@@ -831,9 +831,12 @@ Be critical and realistic in your assessments."""
         for i, paper in enumerate(papers):
             title = paper.get("title", "No title")
             abstract = paper.get("abstract", "")
+            url = str(paper.get("url") or paper.get("source") or "").strip()
 
             # Format: Title. Authors. Venue.\nAbstract: ...
             paper_str = f"{i}: {title}."
+            if url:
+                paper_str += f"\nURL: {url}"
             if abstract and len(abstract.strip()) > 0:
                 # Truncate very long abstracts
                 abstract_text = abstract.strip()
@@ -920,6 +923,29 @@ class Thinker(_ThinkerLegacy):
         self._evaluation_agent = Agent(
             name="IdeaEvaluator",
             instructions=f"{self.prompts.evaluation_system_prompt}\n\n{tool_policy}",
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.evidence_scout_agent = Agent(
+            name="EvidenceScout",
+            instructions=(
+                "You are an evidence scout. Use web_search, paper_search, dataset_search, "
+                "benchmark_search, and code_search to ground the idea with concrete choices. "
+                "Return ONLY JSON with keys: model_candidates, dataset_candidates, benchmark_candidates, "
+                "implementation_notes, and citations. "
+                "The 'citations' field must be a list of objects with keys: title, url, source_type, relevance. "
+                "Every citation must include a real URL."
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.spec_refiner_agent = Agent(
+            name="SpecRefiner",
+            instructions=(
+                "You refine research ideas into implementation-ready structure. "
+                "Return ONLY JSON with detailed fields: Problem, Approach, Experiment, Metric, "
+                "Risks, and Success_Criteria. Keep details concrete and reproducible."
+            ),
             tools=shared_tools,
             model=self.model,
         )
@@ -1025,8 +1051,12 @@ class Thinker(_ThinkerLegacy):
                     current_idea_json = self._generate_idea(
                         intent, related_works_string, pdf_context
                     )
+                    current_idea_json = self._augment_idea_with_research(
+                        current_idea_json, intent
+                    )
                 elif action == "refine_idea":
                     current_idea_json = self._refine_idea(current_idea_json)
+                    current_idea_json = self._refine_idea_components(current_idea_json)
                 elif action == "experiment_plan":
                     current_idea_json = self.generate_experiment_plan(current_idea_json)
                 elif action == "novelty_check":
@@ -1040,6 +1070,11 @@ class Thinker(_ThinkerLegacy):
             except json.JSONDecodeError:
                 idea_obj = {}
             if isinstance(idea_obj, dict) and idea_obj:
+                citations = idea_obj.get("Citations", [])
+                if not isinstance(citations, list) or not citations:
+                    raise RuntimeError(
+                        "[Thinker] final idea missing citation links. Evidence grounding is required."
+                    )
                 ideas.append(idea_obj)
 
         self.cost_tracker.report()
@@ -1053,6 +1088,89 @@ class Thinker(_ThinkerLegacy):
         result = Runner.run_sync(agent, prompt)
         track_sdk_cost(result, self.cost_tracker, self.model, task_name)
         return result.final_output or ""
+
+    def _augment_idea_with_research(self, idea_json: str, intent: str) -> str:
+        try:
+            idea_obj = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return idea_json
+        prompt = (
+            "Intent:\n"
+            f"{intent}\n\n"
+            "Current idea JSON:\n"
+            f"{json.dumps(idea_obj, ensure_ascii=False)}\n\n"
+            "Find concrete model, dataset, benchmark and implementation references."
+        )
+        text = self._run_sdk_call(
+            self.evidence_scout_agent, prompt, "augment_idea_research"
+        )
+        payload = extract_json_between_markers(text)
+        if not isinstance(payload, dict):
+            try:
+                payload = json.loads(text)
+            except Exception:
+                payload = None
+        if not isinstance(payload, dict):
+            raise RuntimeError("[Thinker] research agent did not return valid JSON.")
+        citations = payload.get("citations", [])
+        if not isinstance(citations, list):
+            raise RuntimeError("[Thinker] evidence scout output missing 'citations' list.")
+        normalized_citations: List[Dict[str, str]] = []
+        for c in citations:
+            if not isinstance(c, dict):
+                continue
+            title = str(c.get("title", "")).strip()
+            url = str(c.get("url", "")).strip()
+            source_type = str(c.get("source_type", "")).strip()
+            relevance = str(c.get("relevance", "")).strip()
+            if not url.startswith(("http://", "https://")):
+                continue
+            normalized_citations.append(
+                {
+                    "title": title or "Untitled",
+                    "url": url,
+                    "source_type": source_type or "unknown",
+                    "relevance": relevance,
+                }
+            )
+        if not normalized_citations:
+            raise RuntimeError(
+                "[Thinker] evidence scout returned no valid citation URLs."
+            )
+        payload["citations"] = normalized_citations
+        idea_obj["ResearchGrounding"] = payload
+        idea_obj["Citations"] = normalized_citations
+        return json.dumps(idea_obj, indent=2, ensure_ascii=False)
+
+    def _refine_idea_components(self, idea_json: str) -> str:
+        try:
+            idea_obj = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return idea_json
+        prompt = (
+            "Refine this idea to be specific and execution-ready:\n"
+            f"{json.dumps(idea_obj, ensure_ascii=False)}"
+        )
+        text = self._run_sdk_call(self.spec_refiner_agent, prompt, "refine_idea_components")
+        refined = extract_json_between_markers(text)
+        if not isinstance(refined, dict):
+            try:
+                refined = json.loads(text)
+            except Exception:
+                refined = None
+        if not isinstance(refined, dict):
+            raise RuntimeError("[Thinker] component refiner did not return valid JSON.")
+        for key in (
+            "Problem",
+            "Approach",
+            "Experiment",
+            "Metric",
+            "Risks",
+            "Success_Criteria",
+        ):
+            if key in refined:
+                idea_obj[key] = refined[key]
+        return json.dumps(idea_obj, indent=2, ensure_ascii=False)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
     def _generate_idea(

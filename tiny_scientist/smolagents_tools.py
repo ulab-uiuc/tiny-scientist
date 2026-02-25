@@ -121,6 +121,8 @@ class PaperSearchTool(Tool):
                     "year": paper.get("year") or "",
                     "citationCount": paper.get("citationCount", 0),
                     "concepts": paper.get("concepts", []),
+                    "url": self._resolve_paper_url(paper),
+                    "source_type": self._resolve_source_type(paper),
                     "bibtex": "",
                 }
 
@@ -313,9 +315,15 @@ class PaperSearchTool(Tool):
             authors = [author.text.strip() for author in author_elems if author.text]
             authors_str = " and ".join(authors) if authors else "Unknown"
             published_elem = entry.find("atom:published", namespace)
+            id_elem = entry.find("atom:id", namespace)
             year = "Unknown"
             if published_elem is not None and published_elem.text:
                 year = published_elem.text[:4]
+            arxiv_url = (
+                id_elem.text.strip()
+                if id_elem is not None and id_elem.text
+                else ""
+            )
 
             paper = {
                 "title": title,
@@ -325,6 +333,7 @@ class PaperSearchTool(Tool):
                 "year": year,
                 "citationCount": 0,
                 "concepts": [],
+                "arxiv_url": arxiv_url,
             }
             results.append(paper)
 
@@ -459,7 +468,44 @@ class PaperSearchTool(Tool):
             "citationCount": work.get("cited_by_count", 0),
             "concepts": concepts,
             "openalex_id": work.get("id", ""),
+            "doi": work.get("doi", ""),
         }
+
+    @staticmethod
+    def _resolve_paper_url(paper: Dict[str, Any]) -> str:
+        doi = str(paper.get("doi") or "").strip()
+        if doi:
+            if doi.startswith("http://") or doi.startswith("https://"):
+                return doi
+            return f"https://doi.org/{doi}"
+
+        openalex_id = str(paper.get("openalex_id") or "").strip()
+        if openalex_id:
+            if openalex_id.startswith("http://") or openalex_id.startswith("https://"):
+                return openalex_id
+            return f"https://openalex.org/{openalex_id}"
+
+        arxiv_url = str(paper.get("arxiv_url") or "").strip()
+        if arxiv_url.startswith(("http://", "https://")):
+            return arxiv_url
+
+        paper_id = str(paper.get("paperId") or "").strip()
+        if paper_id:
+            return f"https://www.semanticscholar.org/paper/{paper_id}"
+
+        return ""
+
+    @staticmethod
+    def _resolve_source_type(paper: Dict[str, Any]) -> str:
+        if paper.get("doi"):
+            return "doi"
+        if paper.get("openalex_id"):
+            return "openalex"
+        if paper.get("arxiv_url"):
+            return "arxiv"
+        if paper.get("paperId"):
+            return "semanticscholar"
+        return "unknown"
 
 
 # =============================================================================
@@ -952,9 +998,16 @@ class ScholarGraphSearchTool(Tool):
             paper = item.get(node_key, item)
             title = paper.get("title", f"paper_{i}")
             authors = ", ".join(a.get("name", "") for a in paper.get("authors", []) if a.get("name"))
+            paper_id = str(paper.get("paperId", "")).strip()
+            url = (
+                f"https://www.semanticscholar.org/paper/{paper_id}"
+                if paper_id
+                else f"https://www.semanticscholar.org/search?q={urllib.parse.quote(title)}"
+            )
             results[str(i)] = {
                 "title": title,
                 "source": "semanticscholar",
+                "url": url,
                 "info": f"{paper.get('venue', '')} {paper.get('year', '')} | {authors}",
             }
         return results
@@ -1003,6 +1056,7 @@ class PatentSearchTool(Tool):
             str(i): {
                 "title": p.get("patent_title", ""),
                 "source": f"https://patents.google.com/patent/US{p.get('patent_number', '')}",
+                "url": f"https://patents.google.com/patent/US{p.get('patent_number', '')}",
                 "info": f"{p.get('patent_date', '')} | {p.get('patent_abstract', '')[:200]}",
             }
             for i, p in enumerate(patents[:result_limit])
@@ -1053,6 +1107,7 @@ class DatasetSearchTool(Tool):
             results[str(i)] = {
                 "title": ds_id,
                 "source": f"https://huggingface.co/datasets/{ds_id}",
+                "url": f"https://huggingface.co/datasets/{ds_id}",
                 "info": f"downloads={ds.get('downloads', 0)} likes={ds.get('likes', 0)}",
             }
         return results
@@ -1099,6 +1154,7 @@ class BenchmarkSearchTool(Tool):
             results[str(i)] = {
                 "title": title,
                 "source": url,
+                "url": url,
                 "info": item.get("description", "")[:220],
             }
         return results
@@ -1165,6 +1221,7 @@ class ArxivDailyWatchTool(Tool):
             results[str(idx)] = {
                 "title": title,
                 "source": (link.text or "").strip() if link is not None else "https://arxiv.org",
+                "url": (link.text or "").strip() if link is not None else "https://arxiv.org",
                 "info": summary[:240],
             }
             idx += 1
@@ -1222,6 +1279,7 @@ class NewsSearchTool(Tool):
             str(i): {
                 "title": item.get("title", ""),
                 "source": item.get("url", ""),
+                "url": item.get("url", ""),
                 "info": f"{item.get('source', {}).get('name', '')} | {item.get('publishedAt', '')} | {(item.get('description') or '')[:180]}",
             }
             for i, item in enumerate(items[:result_limit])

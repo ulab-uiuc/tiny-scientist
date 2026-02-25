@@ -168,6 +168,7 @@ class _WriterLegacy:
             output_pdf_path=output_pdf_path,
             name=self.generated_sections.get("Title", "Research Paper"),
         )
+        self._write_reference_links(idea)
         self.cost_tracker.report()
         return output_pdf_path, paper_name
 
@@ -513,6 +514,7 @@ class _WriterLegacy:
             abstract = (pdata.get("abstract", "") or "")[:MAX_ABSTRACT_SNIPPET]
             year = pdata.get("year", "")
             venue = pdata.get("venue", "")
+            link = str(pdata.get("url") or pdata.get("source") or "").strip()
             bibtex = pdata.get("bibtex", "") or ""
 
             bibkey = "UNKNOWN"
@@ -522,9 +524,72 @@ class _WriterLegacy:
 
             # Use format that doesn't conflict with .format() syntax
             entry = f"- [CITE_KEY: {bibkey}] {title} ({authors}, {venue}, {year})\n  Abstract: {abstract}"
+            if link:
+                entry += f"\n  URL: {link}"
             entries.append(entry)
 
         return "\n\n".join(entries)
+
+    def _collect_reference_links(self, idea: Dict[str, Any]) -> List[Dict[str, str]]:
+        links: List[Dict[str, str]] = []
+        seen: set[str] = set()
+
+        def _add(title: str, url: str, source_type: str) -> None:
+            clean_url = (url or "").strip()
+            if not clean_url.startswith(("http://", "https://")):
+                return
+            key = clean_url.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            links.append(
+                {
+                    "title": (title or "Untitled").strip() or "Untitled",
+                    "url": clean_url,
+                    "source_type": (source_type or "unknown").strip() or "unknown",
+                }
+            )
+
+        for title, pdata in self.references.items():
+            if not isinstance(pdata, dict):
+                continue
+            _add(
+                title=str(title),
+                url=str(pdata.get("url") or pdata.get("source") or ""),
+                source_type=str(pdata.get("source_type") or "paper_search"),
+            )
+
+        citations = idea.get("Citations", [])
+        if isinstance(citations, list):
+            for c in citations:
+                if not isinstance(c, dict):
+                    continue
+                _add(
+                    title=str(c.get("title", "Untitled")),
+                    url=str(c.get("url", "")),
+                    source_type=str(c.get("source_type", "idea_citation")),
+                )
+
+        grounding = idea.get("ResearchGrounding", {})
+        if isinstance(grounding, dict):
+            grounded_citations = grounding.get("citations", [])
+            if isinstance(grounded_citations, list):
+                for c in grounded_citations:
+                    if not isinstance(c, dict):
+                        continue
+                    _add(
+                        title=str(c.get("title", "Untitled")),
+                        url=str(c.get("url", "")),
+                        source_type=str(c.get("source_type", "research_grounding")),
+                    )
+
+        return links
+
+    def _write_reference_links(self, idea: Dict[str, Any]) -> None:
+        links = self._collect_reference_links(idea)
+        path = osp.join(self.output_dir, "reference_links.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"reference_links": links}, f, indent=2, ensure_ascii=False)
 
     def _format_authors(self, authors: Any) -> str:
         """Accept strings, list[str], or list[dict{name}]."""
@@ -743,6 +808,19 @@ class Writer(_WriterLegacy):
             tools=shared_tools,
             model=self.model,
         )
+        self.bib_manager_agent = Agent(
+            name="BibManager",
+            instructions=(
+                "You are a bibliography manager for ML papers. "
+                "Normalize and deduplicate references, ensure each entry has a valid citation key and bibtex. "
+                "Use paper_search/web_search to fill missing metadata when needed. "
+                "Return ONLY JSON with key 'references' as a list. "
+                "Each item must include: title, authors, venue, year, abstract, url, source_type, citation_key, bibtex. "
+                "If url is present it must be http/https."
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
         self.planner_agent = Agent(
             name="WriterPlanner",
             instructions=(
@@ -809,6 +887,7 @@ class Writer(_WriterLegacy):
                     num_rounds=self.num_refinement_rounds, add_citations=True
                 )
             elif action == "format_export":
+                self.references = self._manage_bibliography_references(idea=idea)
                 self.formatter.run(
                     content=self.generated_sections,
                     references=self.references,
@@ -818,6 +897,7 @@ class Writer(_WriterLegacy):
                 )
                 formatted = True
         if not formatted:
+            self.references = self._manage_bibliography_references(idea=idea)
             self.formatter.run(
                 content=self.generated_sections,
                 references=self.references,
@@ -826,8 +906,100 @@ class Writer(_WriterLegacy):
                 name=self.generated_sections.get("Title", "Research Paper"),
             )
         self._recover_latex_if_missing_pdf(output_pdf_path)
+        self._write_reference_links(idea)
         self.cost_tracker.report()
         return output_pdf_path, paper_name
+
+    def _manage_bibliography_references(self, idea: Dict[str, Any]) -> Dict[str, Any]:
+        raw_entries: List[Dict[str, Any]] = []
+
+        for title, pdata in self.references.items():
+            if not isinstance(pdata, dict):
+                continue
+            raw_entries.append(
+                {
+                    "title": str(title),
+                    "authors": pdata.get("authors", ""),
+                    "venue": pdata.get("venue", ""),
+                    "year": pdata.get("year", ""),
+                    "abstract": pdata.get("abstract", ""),
+                    "url": pdata.get("url", pdata.get("source", "")),
+                    "source_type": pdata.get("source_type", "paper_search"),
+                    "bibtex": pdata.get("bibtex", ""),
+                }
+            )
+
+        for c in idea.get("Citations", []) if isinstance(idea.get("Citations", []), list) else []:
+            if not isinstance(c, dict):
+                continue
+            raw_entries.append(
+                {
+                    "title": str(c.get("title", "Untitled")),
+                    "authors": "",
+                    "venue": "",
+                    "year": "",
+                    "abstract": "",
+                    "url": str(c.get("url", "")),
+                    "source_type": str(c.get("source_type", "idea_citation")),
+                    "bibtex": "",
+                }
+            )
+
+        prompt = (
+            "Manage bibliography for this paper. Deduplicate and complete entries.\n\n"
+            f"Paper title: {idea.get('Title', '')}\n"
+            "Current references JSON:\n"
+            f"{json.dumps(raw_entries, ensure_ascii=False, indent=2)}\n\n"
+            "Return JSON only."
+        )
+        text = self._run_sdk_call(self.bib_manager_agent, prompt, "manage_bibliography")
+        parsed = extract_json_between_markers(text)
+        if not isinstance(parsed, dict):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+        if not isinstance(parsed, dict):
+            raise RuntimeError("[Writer][BibManager] invalid JSON output.")
+
+        refs = parsed.get("references", [])
+        if not isinstance(refs, list) or not refs:
+            raise RuntimeError("[Writer][BibManager] no references returned.")
+
+        normalized: Dict[str, Any] = {}
+        manifest: List[Dict[str, Any]] = []
+        for entry in refs:
+            if not isinstance(entry, dict):
+                continue
+            title = str(entry.get("title", "")).strip()
+            bibtex = str(entry.get("bibtex", "")).strip()
+            if not title or not bibtex:
+                continue
+            url = str(entry.get("url", "")).strip()
+            if url and not url.startswith(("http://", "https://")):
+                continue
+            citation_key = str(entry.get("citation_key", "")).strip()
+            normalized[title] = {
+                "title": title,
+                "authors": entry.get("authors", ""),
+                "venue": entry.get("venue", ""),
+                "year": entry.get("year", ""),
+                "abstract": entry.get("abstract", ""),
+                "url": url,
+                "source_type": entry.get("source_type", "bib_manager"),
+                "citation_key": citation_key,
+                "bibtex": bibtex,
+            }
+            manifest.append(normalized[title])
+
+        if not normalized:
+            raise RuntimeError("[Writer][BibManager] all references invalid after normalization.")
+
+        manifest_path = osp.join(self.output_dir, "bibliography_manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({"references": manifest}, f, indent=2, ensure_ascii=False)
+        print(f"[Writer][BibManager] managed {len(normalized)} references -> {manifest_path}")
+        return normalized
 
     def _recover_latex_if_missing_pdf(self, output_pdf_path: str) -> None:
         if osp.exists(output_pdf_path):
