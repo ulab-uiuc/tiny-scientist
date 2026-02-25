@@ -176,6 +176,9 @@ class TinyScientist:
         idea: Dict[str, Any],
         baseline_results: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
+        if not isinstance(idea, dict) or "Experiment" not in idea:
+            print("❌ Invalid idea: missing 'Experiment'. Skip coding stage.")
+            return False, self.output_dir
         print("💻 Running experiments...")
         status, exp_path, error_details = self.coder.run(
             idea=idea, baseline_results=baseline_results

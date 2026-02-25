@@ -935,53 +935,6 @@ class Thinker(_ThinkerLegacy):
             model=self.model,
         )
 
-    @staticmethod
-    def _default_todo(check_novelty: bool, generate_exp_plan: bool) -> List[Dict[str, Any]]:
-        steps: List[Dict[str, Any]] = [
-            {
-                "step": 1,
-                "action": "generate_idea",
-                "name": "Generate Initial Idea",
-                "description": "Draft one structured idea from intent and related work.",
-            },
-            {
-                "step": 2,
-                "action": "refine_idea",
-                "name": "Reflect And Refine",
-                "description": "Run iterative reflections to improve clarity and feasibility.",
-            },
-        ]
-        next_step = 3
-        if generate_exp_plan:
-            steps.append(
-                {
-                    "step": next_step,
-                    "action": "experiment_plan",
-                    "name": "Draft Experiment Plan",
-                    "description": "Generate concrete experiment plan for the idea.",
-                }
-            )
-            next_step += 1
-        if check_novelty:
-            steps.append(
-                {
-                    "step": next_step,
-                    "action": "novelty_check",
-                    "name": "Check Novelty",
-                    "description": "Assess novelty against retrieved related work.",
-                }
-            )
-            next_step += 1
-        steps.append(
-            {
-                "step": next_step,
-                "action": "safety_check",
-                "name": "Safety Validation",
-                "description": "Run safety validation on the final idea JSON.",
-            }
-        )
-        return steps
-
     def _build_todo(
         self,
         intent: str,
@@ -1030,8 +983,8 @@ class Thinker(_ThinkerLegacy):
             actions = {str(it.get("action", "")) for it in normalized}
             if normalized and "generate_idea" in actions and "safety_check" in actions:
                 return normalized
-        return self._default_todo(
-            check_novelty=check_novelty, generate_exp_plan=self.generate_exp_plan
+        raise RuntimeError(
+            "[Planner][Thinker] invalid TODO from planner: must include generate_idea and safety_check."
         )
 
     def run(

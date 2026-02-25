@@ -28,6 +28,8 @@ AVAILABLE_LLMS = [
     "claude-3-5-sonnet-20240620",
     "claude-3-5-sonnet-20241022",
     # OpenAI models
+    "gpt-5.2",
+    "gpt-5.2-codex",
     "gpt-4o-mini-2024-07-18",
     "gpt-4o-2024-05-13",
     "gpt-4o-2024-08-06",
@@ -74,6 +76,26 @@ AVAILABLE_LLMS = [
 ]
 
 
+def _is_openai_chat_model(model: str) -> bool:
+    """Return True for OpenAI chat-completions style models."""
+    if model.startswith("gpt-"):
+        return True
+    return model in [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4o-2024-05-13",
+        "gpt-4o-mini-2024-07-18",
+        "gpt-4o-2024-08-06",
+    ]
+
+
+def _completion_tokens_kwargs(model: str) -> Dict[str, int]:
+    """Return the correct completion-length parameter for each model family."""
+    if model.startswith("gpt-5"):
+        return {"max_completion_tokens": MAX_NUM_TOKENS}
+    return {"max_tokens": MAX_NUM_TOKENS}
+
+
 # Get N responses from a single message, used for ensembling.
 @backoff.on_exception(backoff.expo, (openai.RateLimitError, openai.APITimeoutError))
 def get_batch_responses_from_llm(
@@ -94,11 +116,7 @@ def get_batch_responses_from_llm(
     input_tokens = 0
     output_tokens = 0
     response = None
-    if model in [
-        "gpt-4o-2024-05-13",
-        "gpt-4o-mini-2024-07-18",
-        "gpt-4o-2024-08-06",
-    ]:
+    if _is_openai_chat_model(model):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -107,7 +125,7 @@ def get_batch_responses_from_llm(
                 *new_msg_history,
             ],
             temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
+            **_completion_tokens_kwargs(model),
             n=n_responses,
             stop=None,
             seed=0,
@@ -258,13 +276,7 @@ def get_response_from_llm(
         if hasattr(response, "usage"):
             input_tokens = getattr(response.usage, "input_tokens", 0)
             output_tokens = getattr(response.usage, "output_tokens", 0)
-    elif model in [
-        "gpt-4o-mini",
-        "gpt-4o-2024-05-13",
-        "gpt-4o-mini-2024-07-18",
-        "gpt-4o-2024-08-06",
-        "gpt-4o",
-    ]:
+    elif _is_openai_chat_model(model):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -273,7 +285,7 @@ def get_response_from_llm(
                 *new_msg_history,
             ],
             temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
+            **_completion_tokens_kwargs(model),
             n=1,
             stop=None,
             seed=0,
@@ -472,7 +484,7 @@ def get_batch_responses_from_llm_with_tools(
                 tools=tools,
                 tool_choice="auto",  # Or specify a tool like {"type": "function", "function": {"name": "my_function"}}
                 temperature=temperature,
-                max_tokens=MAX_NUM_TOKENS,
+                **_completion_tokens_kwargs(model),
                 n=n_responses,
                 stop=None,
                 seed=0,  # Seed might not be available for all models or with tool use

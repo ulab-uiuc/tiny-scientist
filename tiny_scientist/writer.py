@@ -2,6 +2,7 @@ import json
 import os
 import os.path as osp
 import re
+import subprocess
 import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
@@ -453,7 +454,7 @@ class _WriterLegacy:
         content_snippet: str = "",
         max_queries: int = 6,
     ) -> List[str]:
-        """Ask LLM to propose queries; robust JSON parse with fallback."""
+        """Ask LLM to propose citation search queries."""
         # Build a single idea string for searching
         idea_str = self._format_idea_as_string(idea)
 
@@ -732,6 +733,16 @@ class Writer(_WriterLegacy):
             tools=shared_tools,
             model=self.model,
         )
+        self.latex_error_agent = Agent(
+            name="LaTeXErrorHandler",
+            instructions=(
+                "You fix LaTeX compilation failures for academic papers. "
+                "Use web_search to verify package/command usage when needed. "
+                "Return only the full corrected .tex content, no markdown fences."
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
         self.planner_agent = Agent(
             name="WriterPlanner",
             instructions=(
@@ -814,59 +825,106 @@ class Writer(_WriterLegacy):
                 output_pdf_path=output_pdf_path,
                 name=self.generated_sections.get("Title", "Research Paper"),
             )
+        self._recover_latex_if_missing_pdf(output_pdf_path)
         self.cost_tracker.report()
         return output_pdf_path, paper_name
 
-    def _default_todo(self, sections: List[str]) -> List[Dict[str, Any]]:
-        todo: List[Dict[str, Any]] = [
-            {
-                "step": 1,
-                "action": "write_related_work",
-                "name": "Generate Related Work",
-                "description": "Retrieve and draft related work with citations.",
-            }
-        ]
-        step = 2
-        for section in sections:
-            todo.append(
-                {
-                    "step": step,
-                    "action": "write_section",
-                    "name": f"Write {section}",
-                    "description": f"Draft {section} section content.",
-                    "section": section,
-                }
-            )
-            step += 1
-        todo.extend(
-            [
-                {
-                    "step": step,
-                    "action": "write_visuals",
-                    "name": "Plan Figures And Tables",
-                    "description": "Use sub-agents to create figure/table assets.",
-                },
-                {
-                    "step": step + 1,
-                    "action": "write_abstract",
-                    "name": "Generate Abstract",
-                    "description": "Write abstract from complete paper context.",
-                },
-                {
-                    "step": step + 2,
-                    "action": "refine_paper",
-                    "name": "Refine Draft",
-                    "description": "Run multi-round refinement and citation polishing.",
-                },
-                {
-                    "step": step + 3,
-                    "action": "format_export",
-                    "name": "Format And Export PDF",
-                    "description": "Render LaTeX template and export final PDF.",
-                },
-            ]
+    def _recover_latex_if_missing_pdf(self, output_pdf_path: str) -> None:
+        if osp.exists(output_pdf_path):
+            return
+        latex_dir = osp.join(self.output_dir, "latex")
+        tex_file = (
+            "acl_latex.tex" if self.template == "acl" else "iclr2025_conference.tex"
         )
-        return todo
+        tex_path = osp.join(latex_dir, tex_file)
+        log_path = osp.join(latex_dir, tex_file.replace(".tex", ".log"))
+        if not osp.exists(tex_path):
+            raise RuntimeError(
+                f"LaTeX compilation failed and tex source not found: {tex_path}"
+            )
+
+        for attempt in range(2):
+            tex_content = self._read_text(tex_path)
+            log_excerpt = self._read_text(log_path, missing_ok=True)[-12000:]
+            prompt = (
+                "LaTeX compilation failed. Produce a corrected full .tex file.\n\n"
+                f"Template: {self.template}\n"
+                f"Attempt: {attempt + 1}\n\n"
+                "Compiler log excerpt:\n"
+                f"{log_excerpt}\n\n"
+                "Current tex:\n"
+                f"{tex_content}"
+            )
+            candidate = self._run_sdk_call(
+                self.latex_error_agent, prompt, "latex_error_recovery"
+            )
+            fixed_tex = self._extract_tex(candidate)
+            if not fixed_tex.strip():
+                raise RuntimeError(
+                    "[Writer][LaTeX] latex_error_agent returned empty tex content."
+                )
+            with open(tex_path, "w", encoding="utf-8") as f:
+                f.write(fixed_tex)
+
+            self._compile_latex_once(latex_dir, tex_file)
+            produced_pdf = osp.join(latex_dir, tex_file.replace(".tex", ".pdf"))
+            if osp.exists(produced_pdf):
+                os.makedirs(osp.dirname(output_pdf_path), exist_ok=True)
+                if osp.exists(output_pdf_path):
+                    os.remove(output_pdf_path)
+                os.replace(produced_pdf, output_pdf_path)
+                return
+
+        raise RuntimeError(
+            "[Writer][LaTeX] failed to compile PDF after latex_error_agent recovery attempts."
+        )
+
+    @staticmethod
+    def _extract_tex(text: str) -> str:
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            lines = stripped.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            return "\n".join(lines).strip()
+        return stripped
+
+    def _compile_latex_once(self, cwd: str, tex_file: str) -> None:
+        base = tex_file.replace(".tex", "")
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex_file],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+        subprocess.run(
+            ["bibtex", base],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex_file],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex_file],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
 
     def _build_todo(self, idea: Dict[str, Any], sections: List[str]) -> List[Dict[str, Any]]:
         prompt = (
@@ -918,7 +976,9 @@ class Writer(_WriterLegacy):
                 and "format_export" in actions
             ):
                 return normalized
-        return self._default_todo(sections)
+        raise RuntimeError(
+            "[Planner][Writer] invalid TODO from planner: must include related_work, abstract, and export steps."
+        )
 
     def _run_visual_subagents(
         self, idea: Dict[str, Any], experiment_result: str, baseline_result: str
