@@ -48,6 +48,7 @@ class Coder:
     STEP_TEXT_CONTEXT_LIMIT = 4000
     STEP_TABLE_CONTEXT_LIMIT = 5000
     STEP_TODO_CONTEXT_LIMIT = 3000
+    OPENAI_CODER_MAX_TURNS = 24
 
     def __init__(
         self,
@@ -716,7 +717,11 @@ class Coder:
 
         if self.agent is None:
             raise RuntimeError("Agent not initialized. Call setup_agent() first.")
-        result = Runner.run_sync(self.agent, task_prompt)
+        result = Runner.run_sync(
+            self.agent,
+            task_prompt,
+            max_turns=self.OPENAI_CODER_MAX_TURNS,
+        )
         track_sdk_cost(result, self.cost_tracker, self.model, "generate_experiment")
         return result.final_output or "CONTINUE"
 
