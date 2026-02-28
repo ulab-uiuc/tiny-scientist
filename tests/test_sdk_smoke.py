@@ -261,10 +261,9 @@ def test_claude_sdk_smoke_wires_generated_mcp(monkeypatch, tmp_path: Path) -> No
     assert "REFERENCE SKILLS" not in writer.write_agent.instructions
     assert reviewer.review_agent.mcp_config_path.endswith(".tiny_scientist.generated.mcp.json")
     assert "REFERENCE SKILLS" not in reviewer.review_agent.instructions
-    assert (
-        "mcp__tiny_scientist_research__code_search"
-        in coder.claude_runners["coder"].allowed_tools
-    )
+    assert "Bash" in coder.claude_runners["coder"].allowed_tools
+    assert "Write" in coder.claude_runners["coder"].allowed_tools
+    assert "mcp__tiny_scientist_research__code_search" not in coder.claude_runners["coder"].allowed_tools
     assert "REFERENCE SKILLS" not in coder.claude_runners["coder"].instructions
 
 

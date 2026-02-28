@@ -654,7 +654,6 @@ Be critical and realistic in your assessments."""
             else:
                 print("❎ No Related Works Found")
 
-        self.cost_tracker.report()
         return self._format_paper_results(related_papers)
 
     def _generate_search_query(
@@ -773,7 +772,6 @@ Be critical and realistic in your assessments."""
             # No comparison table found, continue without it
             pass
 
-        self.cost_tracker.report()
         return json.dumps(idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -1227,7 +1225,7 @@ class Thinker(_ThinkerLegacy):
                     )
                 ideas.append(idea_obj)
 
-        self.cost_tracker.report()
+        self.cost_tracker.report("Thinker Total Cost")
         if len(ideas) > 1:
             return ideas
         if len(ideas) == 1:
@@ -1535,7 +1533,6 @@ class Thinker(_ThinkerLegacy):
             new_idea = new_idea[0]
         if not new_idea:
             return idea_json
-        self.cost_tracker.report()
         return json.dumps(new_idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -1572,7 +1569,6 @@ class Thinker(_ThinkerLegacy):
                     "Show consistent improvement on the defined Metric over strong baselines "
                     "while satisfying the benchmark's runtime and simplicity constraints."
                 )
-        self.cost_tracker.report()
         return json.dumps(idea_dict, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -1602,7 +1598,6 @@ class Thinker(_ThinkerLegacy):
                 break
         if "novel" not in idea_dict:
             idea_dict["novel"] = False
-        self.cost_tracker.report()
         return json.dumps(idea_dict, indent=2)
 
     def _get_idea_evaluation(
@@ -1618,7 +1613,6 @@ class Thinker(_ThinkerLegacy):
         if custom_criteria:
             prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
         text = self._run_sdk_call(self._evaluation_agent, prompt, "get_idea_evaluation")
-        self.cost_tracker.report()
         return text
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -1655,7 +1649,6 @@ class Thinker(_ThinkerLegacy):
         modified_idea = extract_json_between_markers(text)
         if not modified_idea:
             return original_idea
-        self.cost_tracker.report()
         return modified_idea
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -1672,7 +1665,6 @@ class Thinker(_ThinkerLegacy):
         merged_idea = extract_json_between_markers(text)
         if not merged_idea:
             return None
-        self.cost_tracker.report()
         return merged_idea
 
     def _generate_search_query(

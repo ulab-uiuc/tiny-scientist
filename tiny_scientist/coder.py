@@ -44,6 +44,10 @@ from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 class Coder:
     ENTRYPOINT_FILENAME = "main.py"
     LEGACY_ENTRYPOINT_FILENAME = "experiment.py"
+    STEP_CODE_CONTEXT_LIMIT = 12000
+    STEP_TEXT_CONTEXT_LIMIT = 4000
+    STEP_TABLE_CONTEXT_LIMIT = 5000
+    STEP_TODO_CONTEXT_LIMIT = 3000
 
     def __init__(
         self,
@@ -148,8 +152,7 @@ class Coder:
             coder_base
             + "Use Write/Edit to save main.py and helper files, Read to inspect them, "
             + "and Bash to execute main.py. "
-            + "Use MCP research tools such as paper_search, code_search, dataset_search, "
-            + "benchmark_search, and web_search for up-to-date implementation details."
+            + "Stay focused on implementing the current workspace step with the local files and blueprint."
         )
 
         self.claude_runners = {
@@ -163,7 +166,6 @@ class Coder:
                     "Glob",
                     "Grep",
                     "Skill",
-                    *research_mcp_tools,
                 ],
                 cwd=self.output_dir,
                 permission_mode="bypassPermissions",
@@ -210,8 +212,7 @@ class Coder:
 
         coder_instructions = coder_base + self._openai_coder_tool_instructions()
         coder_instructions += (
-            "Use web_search for up-to-date implementation details, paper_search for "
-            "experiment design references, and code_search for baseline repos."
+            "Stay focused on implementing the current workspace step with the local files and blueprint."
         )
         if skill_shell_tool is not None:
             coder_instructions += (
@@ -221,7 +222,7 @@ class Coder:
         self.agent = Agent(
             name="ExperimentCoder",
             instructions=skill_instructions("coder", coder_instructions),
-            tools=[*code_tools, *research_tools],
+            tools=code_tools,
             model=self.model,
         )
         self.planner_agent = Agent(
@@ -473,14 +474,31 @@ class Coder:
             step_name=step["name"],
             step_description=step["description"],
             title=idea["Title"],
-            problem=idea["Problem"],
-            approach=idea["Approach"],
-            model_details=model_text,
-            dataset_details=dataset_text,
-            metric_details=metric_text,
-            experiment_table=experiment_table,
-            todo_plan=todo_content,
-            current_code=current_code if current_code else "(empty — create main.py)",
+            problem=self._truncate_prompt_text(
+                idea["Problem"], self.STEP_TEXT_CONTEXT_LIMIT
+            ),
+            approach=self._truncate_prompt_text(
+                idea["Approach"], self.STEP_TEXT_CONTEXT_LIMIT
+            ),
+            model_details=self._truncate_prompt_text(
+                model_text, self.STEP_TEXT_CONTEXT_LIMIT
+            ),
+            dataset_details=self._truncate_prompt_text(
+                dataset_text, self.STEP_TEXT_CONTEXT_LIMIT
+            ),
+            metric_details=self._truncate_prompt_text(
+                metric_text, self.STEP_TEXT_CONTEXT_LIMIT
+            ),
+            experiment_table=self._truncate_prompt_text(
+                experiment_table, self.STEP_TABLE_CONTEXT_LIMIT
+            ),
+            todo_plan=self._truncate_prompt_text(
+                todo_content, self.STEP_TODO_CONTEXT_LIMIT
+            ),
+            current_code=self._truncate_prompt_text(
+                current_code if current_code else "(empty — create main.py)",
+                self.STEP_CODE_CONTEXT_LIMIT,
+            ),
         )
 
         self._generate_experiment(prompt)
@@ -1151,6 +1169,18 @@ class Coder:
                 path = osp.join(root, filename)
                 entries.append(osp.relpath(path, self.output_dir))
         return sorted(entries)
+
+    @staticmethod
+    def _truncate_prompt_text(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+        head = max(limit // 2, 1)
+        tail = max(limit - head - 64, 1)
+        return (
+            text[:head].rstrip()
+            + "\n\n...[truncated for context budget]...\n\n"
+            + text[-tail:].lstrip()
+        )
 
     def _update_notes(self) -> None:
         """Update notes.txt with plot descriptions."""
