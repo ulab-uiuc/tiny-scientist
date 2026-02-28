@@ -1142,7 +1142,7 @@ class Writer(_WriterLegacy):
             )
         self._recover_latex_if_missing_pdf(output_pdf_path)
         self._write_reference_links(idea)
-        self.cost_tracker.report()
+        self.cost_tracker.report("Writer Total Cost")
         return output_pdf_path, paper_name
 
     def _print_writer_step_summary(self, title: str, section: str) -> None:

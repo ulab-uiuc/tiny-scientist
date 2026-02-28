@@ -767,7 +767,6 @@ class Reviewer(_ReviewerLegacy):
         query_prompt = self.prompts.query_prompt.format(paper_text=text)
         response = self._run_sdk_call(self.review_agent, query_prompt, "generate_query")
         query_data = extract_json_between_markers(response)
-        self.cost_tracker.report()
         return str(query_data.get("Query", "")) if query_data else ""
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
