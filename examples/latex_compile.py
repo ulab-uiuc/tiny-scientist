@@ -1,3 +1,4 @@
+import _bootstrap
 from tiny_scientist.utils.llm import create_client
 from tiny_scientist.utils.output_formatter import ACLOutputFormatter
 from tiny_scientist.utils.water_marker import WaterMarker

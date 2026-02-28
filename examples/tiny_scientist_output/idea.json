@@ -1,0 +1,233 @@
+{
+  "Name": "QuadStep-Ladder",
+  "Title": "QuadStep-Ladder: Benchmarking Adaptive Step-Size Policies on Convex Quadratics via Controlled Spectral Ladders and Phase-Transition Maps",
+  "Description": "Build a benchmarking suite where the objective is always a convex quadratic, but the *difficulty* is systematically dialed using the Hessian spectrum (condition number, eigenvalue clustering, rotation, anisotropic noise). The core contribution is a “phase-transition map” that reveals where common adaptive step-size strategies (line search, Barzilai–Borwein, Polyak step, diagonal/per-coordinate steps, Adam-like heuristics) provably or empirically switch from fast to unstable/slow regimes. The benchmark includes a new evaluation axis: not just iteration count, but robustness to curvature misspecification and to stochastic gradient noise with controllable covariance aligned/misaligned to Hessian eigenvectors.",
+  "Problem": "Given adaptive step size strategies for gradient-based optimization, there is no precise, reproducible, and *mechanism-diagnostic* benchmark that isolates step-size behavior from nonconvexity and architectural confounds. The problem is to design and validate a convex quadratic benchmarking protocol that (i) generates families of quadratics with controlled spectral/rotational structure and noise, (ii) yields statistically stable rankings of step-size strategies, and (iii) identifies the minimal spectral/noise features that predict when each strategy succeeds or fails.",
+  "Importance": "Adaptive step sizes remain central to modern optimization practice (including deep learning optimizers and stochastic methods), but community interest has shifted toward understanding *when* heuristics work and how they fail, not only producing new heuristics. Convex quadratics are the canonical testbed because they allow controlled curvature, closed-form optima, and interpretability (linking dynamics to the Hessian spectrum). Recent adjacent directions emphasize adaptivity as a resource-allocation problem (e.g., adaptive shot allocation in VQAs) and per-coordinate/diagonal step matrices (e.g., step-size matrices in tracking problems). A rigorous quadratic benchmark that exposes stability/acceleration regimes is timely because it can (a) deconfound optimizer comparisons, (b) provide unit tests for new adaptive methods, and (c) serve as a reproducibility anchor when extrapolating to large-scale nonconvex training.",
+  "Difficulty": "1) Confounding by curvature geometry: two quadratics with identical condition number can yield different optimizer behavior due to eigenvalue clustering and rotation; naive benchmarks that vary only kappa miss these effects. 2) Stochasticity and alignment: with gradient noise, the effective step size must trade off progress and variance amplification; naive comparisons using isotropic noise can incorrectly favor methods that fail under anisotropic, Hessian-aligned noise. 3) Fairness across policies: different strategies use different information (e.g., line-search uses function values, Adam uses moments); naive evaluation budgets (iterations only) bias results unless oracle calls (grad/value) are normalized. 4) Metric design: iteration-to-ε can hide instability (rare divergence events) and can be dominated by tail behavior; naive averaging can mask phase transitions and overstate robustness.",
+  "NoveltyComparison": "Compared to SpGD: Spawning/branching methods change the *search process* (multiple candidates) rather than isolating step-size adaptivity; also the provided reference appears mismatched to optimization content, highlighting precisely the need for careful, domain-correct benchmarking. QuadStep-Ladder instead targets the foundational question: step-size policy behavior under controlled convex geometry, producing diagnostic maps rather than proposing another optimizer.\n\nCompared to 'Diagonal step size matrix' work (principal component tracking): that line derives an optimal diagonal step matrix for a specific stochastic tracking model and provides convergence conditions. Our gap: there is no general-purpose, reproducible benchmark that tests diagonal/per-coordinate step strategies across *systematically constructed* spectral regimes (eigenvalue clusters, rotations) and noise alignments, nor a unifying empirical taxonomy of when diagonal adaptation helps vs. hurts.\n\nCompared to gCANS (adaptive shots in VQAs): gCANS treats adaptivity as allocating measurement budget to reduce stochastic gradient noise and proves geometric convergence in convex settings. Our gap: (i) step-size adaptivity and noise-budget adaptivity interact, but are typically evaluated separately; (ii) there is no standard testbed that can independently vary noise covariance and curvature to reveal when ‘noise-adaptive’ vs ‘curvature-adaptive’ step-size rules dominate. QuadStep-Ladder closes this by offering controlled knobs and a fairness-normalized oracle budget, enabling apples-to-apples comparisons and stress-testing combined policies.",
+  "Approach": "Core mechanism: a *spectral ladder generator* + *phase-transition evaluation protocol*.\n\nA) Spectral Ladder Quadratic Generator (addresses Difficulty 1): Generate objectives f(x)=0.5 x^T H x + b^T x with H=Q^T Λ Q, where Λ is constructed from a small set of interpretable knobs: (i) condition number κ, (ii) eigenvalue clustering pattern (e.g., two-cluster, power-law decay, flat+spike), (iii) dimensionality d, (iv) rotation hardness via random orthogonal Q with controllable structure (block-diagonal vs dense). This yields families where κ is fixed but clustering/rotation changes—explicitly testing what naive κ-only benchmarks miss.\n\nB) Noise & Oracle Model (addresses Difficulty 2): Evaluate both deterministic GD and stochastic gradients g(x)=∇f(x)+ξ with ξ~N(0, Σ). Construct Σ with controlled alignment to Q (aligned, anti-aligned, random) and with anisotropy tied to Λ (e.g., Σ proportional to Λ, Λ^{-1}, or a separate spectrum). This isolates regimes where adaptive steps amplify variance in stiff directions.\n\nC) Budget-Normalized Benchmarking (addresses Difficulty 3): Define a unified cost model counting gradient evaluations, function-value queries (for line search), and extra bookkeeping (e.g., moments) as oracle calls. Compare methods under equalized oracle budgets (e.g., total gradient calls + α·value calls), plus a wall-clock proxy when implemented in the provided code.\n\nD) Phase-Transition Maps + Predictive Meta-Model (addresses Difficulty 4): For each method, compute stability probability, median time-to-ε, and expected suboptimality under a fixed budget. Then fit a simple interpretable predictor that maps (κ, clustering stats, rotation score, noise alignment metrics) → best method / failure risk. The deliverable is not just a leaderboard but a *regime chart* (e.g., ‘BB wins when eigenvalues are two-cluster and noise is low; diagonal steps win when noise is anisotropic and aligned; line search fails under high-noise value queries’).\n\nE) Concrete experimental plan: (1) Implement 8–12 step-size strategies (constant, diminishing, Armijo/Wolfe line search, Barzilai–Borwein, Polyak step with estimated f*, RMSProp/Adam-style scalar steps, diagonal preconditioned steps). (2) Sweep ladders of Λ/Q/Σ; record divergence rates and efficiency curves. (3) Release benchmark + reproducible seeds; report regime charts and ablations identifying which spectral/noise knob causes rank flips.\n\nThe key novelty is treating convex quadratics not as a toy sanity check, but as a *controlled microscope* for step-size adaptivity, producing actionable regime-level conclusions and a reusable benchmark artifact.",
+  "is_experimental": true,
+  "Interestingness": 8,
+  "Feasibility": 9,
+  "Novelty": 7,
+  "IntentAlignment": 10,
+  "Score": 8,
+  "ResearchGrounding": {
+    "name": "Exact line search GD / Backtracking Armijo-Wolfe line search",
+    "type": "step-size policy family",
+    "why_relevant": "Strongly diagnostic for curvature/rotation and oracle-model differences (requires function values); classic reference implementations exist.",
+    "citations": [
+      {
+        "title": "Untitled",
+        "url": "https://github.com/ralna/CUTEst",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://arxiv.org/abs/1502.05754",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://arxiv.org/abs/2205.01437",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://benchopt.github.io/",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.line_search.html",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://arxiv.org/abs/1412.6980",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      },
+      {
+        "title": "Untitled",
+        "url": "https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf",
+        "source_type": "research_grounding_text",
+        "relevance": "extracted from raw evidence scout output"
+      }
+    ]
+  },
+  "Citations": [
+    {
+      "title": "Untitled",
+      "url": "https://github.com/ralna/CUTEst",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://arxiv.org/abs/1502.05754",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://arxiv.org/abs/2205.01437",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://benchopt.github.io/",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.line_search.html",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://arxiv.org/abs/1412.6980",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    },
+    {
+      "title": "Untitled",
+      "url": "https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf",
+      "source_type": "research_grounding_text",
+      "relevance": "extracted from raw evidence scout output"
+    }
+  ],
+  "Experiment": {
+    "Model": {
+      "Type": "Shallow MLP regressor used only as a harness to produce a convex quadratic loss in parameter space",
+      "Input_Dimension": 256,
+      "Output_Dimension": 2,
+      "Architecture": [
+        {
+          "Layer": "Linear",
+          "In": 256,
+          "Out": 64,
+          "Activation": "ReLU"
+        },
+        {
+          "Layer": "Linear",
+          "In": 64,
+          "Out": 2,
+          "Activation": "None"
+        }
+      ],
+      "Loss": "Squared loss on logits against one-hot labels (convex quadratic in the last-layer weights when the first layer is frozen; for the benchmark we primarily optimize explicit synthetic quadratics directly in x-space).",
+      "Parameterization_For_Quadratic_Benchmark": {
+        "Quadratic_Dimension_d": 256,
+        "Objective": "f(x) = 0.5 * x^T H x + b^T x",
+        "H_SPD_Construction": "H = Q^T diag(lambda) Q with controlled spectrum and rotation"
+      },
+      "Approx_Trainable_Parameter_Count": 16578
+    },
+    "Dataset": {
+      "Name": "glue",
+      "Size": {
+        "train": 5000,
+        "validation": 2000,
+        "test": 2000
+      },
+      "Splits": {
+        "train": "subsample first 5000 examples from glue/sst2 train",
+        "validation": "subsample first 2000 examples from glue/sst2 validation",
+        "test": "subsample first 2000 examples from glue/sst2 validation as a proxy test split"
+      },
+      "Preprocessing": {
+        "Text": "lowercase",
+        "Tokenizer": "simple whitespace tokenizer",
+        "Vectorizer": "hashing trick to 256 dimensions",
+        "Feature_Shape": {
+          "x": [
+            256
+          ],
+          "y": [
+            2
+          ]
+        }
+      },
+      "Load_Command": "from datasets import load_dataset; ds = load_dataset('glue', 'sst2')"
+    },
+    "Metric": {
+      "Primary_Benchmark_Metrics_On_Quadratics": [
+        "Median oracle-budget-to-reach epsilon suboptimality: min t such that f(x_t)-f(x*) <= 1e-8",
+        "Stability probability: fraction of runs that do not diverge (||x_t|| finite and f decreases at least once within first K steps)",
+        "Efficiency at fixed budget: expected f(x_T)-f(x*) at T oracle budget",
+        "Phase-transition boundary estimate: smallest noise scale or largest step scale for which stability probability >= 0.95"
+      ],
+      "Secondary_Diagnostics": [
+        "Per-eigendirection error decay rates in Q-basis",
+        "Step-size trajectories over time",
+        "Sensitivity to curvature misspecification: performance when policy uses noisy/biased curvature surrogates"
+      ],
+      "Smoke_Test_Metrics_On_Dataset": [
+        "Validation accuracy on SST-2 using the small MLP harness"
+      ],
+      "Self_Check": "Dataset is limited to 5000 train and 2000 validation/test. Model is a 2-layer MLP with 16578 parameters. JSON contains no inline comments or expressions."
+    },
+    "Success_Criteria": {
+      "Benchmark_Artifact_Success": [
+        "Reproducible rank-flips: for at least 2 pairs of step-size policies, show a statistically significant reversal in performance across two ladder regimes that share the same condition number but differ in eigenvalue clustering or rotation",
+        "Phase-transition maps: for each of 8-12 policies, produce a 2D regime chart with a clearly identifiable stability boundary as a function of (noise scale, condition number) under at least two noise alignments",
+        "Predictive meta-model: an interpretable classifier/regressor using spectral/noise features predicts the best policy (or failure risk) with >= 0.70 accuracy over held-out ladder instances"
+      ],
+      "Algorithmic_Insight_Success": [
+        "Identify at least one minimal feature beyond condition number (e.g., cluster gap statistic or rotation score) that materially improves prediction of failure/success for at least 3 policies",
+        "Demonstrate that budget-normalized comparisons change at least one headline conclusion compared to iteration-only comparisons"
+      ]
+    }
+  },
+  "ExperimentTable": "| Component | Specification | Justification / Rationale | Status |\n|---|---|---|---|\n| Research Question (Original Intent) | Benchmark adaptive step-size strategies on convex quadratic objectives, isolating step-size behavior from nonconvexity and architecture confounds. | Convex quadratics are the canonical setting where step-size stability and acceleration depend on Hessian spectrum; they allow controlled “microscope” experiments and interpretable dynamics. Classic step-size policies (Armijo/Wolfe line search, Barzilai–Borwein, Polyak-like rules) are commonly analyzed on quadratics. | |\n| Quadratic Generator (Spectral Ladder) | Generate SPD Hessians H = Q^T diag(λ) Q in dimension d=256 with knobs: (1) condition number κ ∈ {10, 10^2, 10^3, 10^4}; (2) eigenvalue patterns: two-cluster (λ small repeated, λ large repeated), power-law decay, flat+spike; (3) rotation hardness: Q ∈ {I, block-diagonal blocks of size 8, dense random orthogonal}; (4) linear term b sampled so x* = -H^{-1}b has ||x*||≈1. | Varying only κ is known to miss geometry effects; eigenvalue clustering and rotations can change transient behavior and interact with heuristics (especially BB-like secant steps and per-coordinate methods). Quadratic structure makes these knobs cleanly controllable and comparable. | |\n| Noise & Oracle Model | Stochastic gradient: g(x)=Hx+b+ξ, ξ~N(0,Σ). Σ families: aligned (Σ=Q^T diag(s) Q), misaligned (Σ=Q^T P^T diag(s) P Q with random P), isotropic (σ^2 I). Noise spectra s ∈ {proportional to λ, proportional to 1/λ, independent two-cluster}. Sweep noise scale σ ∈ logspace(1e-6, 1e0). Oracle budget counts gradient calls + value calls with weight α (e.g., α=1). | Adaptive steps can amplify variance in stiff directions; alignment between Σ and Hessian eigenvectors is a key mechanism that isotropic-noise tests conceal. Normalizing by oracle calls is essential for fairness because line-search policies consume value evaluations while Adam-like methods consume only gradients. | |\n| Methods Under Test (Step-Size Policies) | Implement 10–12 policies: (1) constant step η tuned per regime; (2) diminishing η_t = η0 / sqrt(t); (3) exact line search (quadratic case); (4) Armijo backtracking; (5) Wolfe line search (if available); (6) Barzilai–Borwein BB1 and BB2; (7) Polyak step using estimated f* (oracle f* and misspecified f* variants); (8) RMSProp scalar step; (9) Adam-like scalar step (single global step with moments); (10) diagonal preconditioner using running second moments (RMSProp-style per-coordinate). | These are representative, widely used adaptive step-size families in optimization practice and literature. Including both value-based (line search) and moment-based (Adam/RMSProp) policies tests the benchmark’s ability to reveal oracle-model tradeoffs. BB and Polyak steps are classic “adaptive” rules with known behavior on quadratics. | |\n| Baselines | Baseline set (3–5): (i) fixed-step GD with η=2/(L+μ) where L=max eigenvalue, μ=min eigenvalue; (ii) fixed-step GD with η=1/L; (iii) exact line search GD; (iv) BB1; (v) Armijo backtracking GD. | Fixed-step GD with theoretically safe steps provides a stability reference. Exact line search is a canonical comparator on quadratics. BB and Armijo are classic adaptive step-size baselines used to study acceleration vs stability. | |\n| Budget-Normalized Evaluation Protocol | For each (H,b,Σ) instance, run N=100 random seeds for noise; for each method, allocate total budget B ∈ {200, 500, 1000, 2000} oracle units. Count: 1 per gradient call; α per function value call (α=1 primary, α=0.2 sensitivity). Report metrics at matched B, not matched iterations. | Prevents biased comparisons: line searches can look slower under iteration count but may be efficient per oracle unit, or vice versa depending on α and noise. Budget normalization is necessary to support the original benchmarking intent fairly. | |\n| Phase-Transition Maps | Produce 2D/3D maps per method: axes include (log κ, log σ), and facets for (clustering type, rotation type, noise alignment). Color encodes stability probability; contours show median budget-to-ε. Estimate “critical” boundaries where stability drops below 0.95. | The core deliverable: diagnostic regime charts showing where each step-size strategy transitions from fast to unstable/slow. This directly supports “benchmarking adaptive step size strategies” in a mechanism-revealing way. | |\n| Predictive Meta-Model (Interpretability) | Fit a small interpretable model that predicts best method or failure risk from features: log κ, cluster gap ratio, spectral entropy, rotation score (e.g., off-diagonal energy in H in standard basis), noise alignment score (cosine between eigenspectra), log σ. Model: logistic regression or 2-layer MLP (≤64 hidden). Evaluate on held-out ladder configurations. | Moves beyond leaderboards to a compact “taxonomy” of when methods work. Interpretable predictors identify minimal spectral/noise features that explain rank flips—central to the idea’s mechanism-diagnostic goal. | |\n| Training Setup (Implementation Details) | Core benchmark runs are direct optimization in ℝ^256; no dataset needed. For reproducibility: fixed random seeds per instance; float64 for stability checks; stop if ||x_t||>1e12 or NaNs. Hardware: single CPU or single GPU; batch size not applicable. | Direct quadratic optimization isolates step-size behavior and avoids confounds. float64 and explicit divergence criteria reduce false instability due to numerics. | |\n| Evaluation Metrics | Primary: median oracle-budget-to-ε (ε=1e-8, 1e-6), stability probability, expected suboptimality at fixed budget. Secondary: tail risk (95th percentile budget-to-ε), rare divergence rate, eigendirection-wise error decay. | Median + tail metrics prevent averages from hiding phase transitions; stability probability captures “rare but catastrophic” divergence. Eigdirection diagnostics connect behavior to spectrum/rotation. | |\n| Hyperparameters | For each method define a small grid: constant η ∈ logspace(1e-6, 1e1, 30); Armijo c1∈{1e-4,1e-2}, shrink β∈{0.5,0.8}; BB safeguard clip η∈[1e-12,1e12]; Polyak uses f* in {true f*, f*+δ with δ∈{1e-6,1e-3,1e-1}}; Adam/RMSProp: β1∈{0.9}, β2∈{0.99,0.999}, ε∈{1e-8}, base lr ∈ logspace(1e-6,1e0,20). All tuned under equal oracle-budget validation. | Step-size policies are sensitive to safeguards and base learning rates; controlled grids with validation under the same oracle model is needed for fairness. Including f* misspecification directly tests robustness to curvature/optimum knowledge assumptions. | |\n| Dataset (Smoke Test Harness) | Use HuggingFace dataset glue/sst2 with subsampling: train=5000, val=2000, test=2000 (val reused as proxy test). Preprocess with lowercase + hashing vectorizer to 256-d. Train tiny 2-layer MLP (256→64→2) with squared loss as a harness. Load: `from datasets import load_dataset; ds = load_dataset('glue','sst2')`. | This is not the scientific core; it ensures the repo has a working dataset/model pipeline under your required schema and provides a quick runtime sanity check. The actual benchmark remains the controlled convex quadratic generator. | |\n| Sanity Checks | Dataset subsampling explicitly caps splits at 5000/2000/2000. Model parameter estimate: (256*64+64) + (64*2+2) = 16578 ≤ 100000. Confirm JSON has no inline comments or expressions. | Ensures compliance with runtime and formatting constraints while keeping the benchmark focus on convex quadratics. | |",
+  "Metric": {
+    "Primary_Benchmark_Metrics_On_Quadratics": [
+      "Median oracle-budget-to-reach epsilon suboptimality: min t such that f(x_t)-f(x*) <= 1e-8",
+      "Stability probability: fraction of runs that do not diverge (||x_t|| finite and f decreases at least once within first K steps)",
+      "Efficiency at fixed budget: expected f(x_T)-f(x*) at T oracle budget",
+      "Phase-transition boundary estimate: smallest noise scale or largest step scale for which stability probability >= 0.95"
+    ],
+    "Secondary_Diagnostics": [
+      "Per-eigendirection error decay rates in Q-basis",
+      "Step-size trajectories over time",
+      "Sensitivity to curvature misspecification: performance when policy uses noisy/biased curvature surrogates"
+    ],
+    "Smoke_Test_Metrics_On_Dataset": [
+      "Validation accuracy on SST-2 using the small MLP harness"
+    ],
+    "Self_Check": "Dataset is limited to 5000 train and 2000 validation/test. Model is a 2-layer MLP with 16578 parameters. JSON contains no inline comments or expressions."
+  },
+  "Success_Criteria": {
+    "Benchmark_Artifact_Success": [
+      "Reproducible rank-flips: for at least 2 pairs of step-size policies, show a statistically significant reversal in performance across two ladder regimes that share the same condition number but differ in eigenvalue clustering or rotation",
+      "Phase-transition maps: for each of 8-12 policies, produce a 2D regime chart with a clearly identifiable stability boundary as a function of (noise scale, condition number) under at least two noise alignments",
+      "Predictive meta-model: an interpretable classifier/regressor using spectral/noise features predicts the best policy (or failure risk) with >= 0.70 accuracy over held-out ladder instances"
+    ],
+    "Algorithmic_Insight_Success": [
+      "Identify at least one minimal feature beyond condition number (e.g., cluster gap statistic or rotation score) that materially improves prediction of failure/success for at least 3 policies",
+      "Demonstrate that budget-normalized comparisons change at least one headline conclusion compared to iteration-only comparisons"
+    ]
+  }
+}

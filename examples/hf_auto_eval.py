@@ -1,12 +1,13 @@
 import argparse
 
+import _bootstrap
 from tiny_scientist import TinyScientist
 
 
 def test_docker_availability() -> bool:
     """Test if Docker is available."""
     try:
-        from tiny_scientist.smolagents_tools import DockerExperimentRunner
+        from tiny_scientist.tool_impls import DockerExperimentRunner
 
         runner = DockerExperimentRunner()
         if runner.use_docker:
@@ -70,8 +71,8 @@ def main():
     parser.add_argument(
         "--gpt_model",
         type=str,
-        default="gpt-4o",
-        help="The GPT model to use for TinyScientist.",
+        default="claude-3-5-sonnet-20241022",
+        help="The model to use for TinyScientist.",
     )
     parser.add_argument(
         "--use_docker",
@@ -105,6 +106,7 @@ def main():
         model=args.gpt_model,
         use_docker=args.use_docker,
         budget=args.budget,
+        agent_sdk="claude",
     )
 
     # 1. Define the research intent based on user input.

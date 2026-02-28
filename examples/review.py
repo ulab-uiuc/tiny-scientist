@@ -4,6 +4,7 @@ import json
 import os.path as osp
 from typing import Any, List
 
+import _bootstrap
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.utils.llm import AVAILABLE_LLMS
 
@@ -21,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
+        default="claude-3-5-sonnet-20241022",
         choices=AVAILABLE_LLMS,
         help="Model to use for reviewing.",
     )
@@ -53,6 +54,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to directory containing model configurations.",
     )
     parser.add_argument(
+        "--agent-sdk",
+        type=str,
+        default="claude",
+        choices=["openai", "claude"],
+        help="Agent SDK backend to use",
+    )
+    parser.add_argument(
         "--prompt-template-dir",
         type=str,
         default=None,
@@ -72,6 +80,7 @@ def main() -> int:
         model=args.model,
         temperature=args.temperature,
         prompt_template_dir=args.prompt_template_dir,
+        agent_sdk=args.agent_sdk,
     )
 
     final_review = reviewer.run(args.paper)

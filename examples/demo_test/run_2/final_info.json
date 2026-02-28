@@ -1,0 +1,192 @@
+{
+  "run_number": 2,
+  "replanned": true,
+  "replan_reason": "Run 1 showed perfect accuracy with missing classes in splits (zero support for some actions), suggesting a split/label-mapping issue or leakage. Run 2 enforces deterministic 5-way mapping and stratified splits with distribution logging.",
+  "dataset": "ag_news",
+  "task": "5-way action classification proxy (deterministic mapping from AG News topics; one topic split into two actions) for verifier-driven decomposition/localization policy.",
+  "actions": [
+    "LocalPatch",
+    "TargetedRegenerate",
+    "RefineDecomposition",
+    "ContractUpdate",
+    "WholeRepoRegenerate"
+  ],
+  "sizes": {
+    "train": 5000,
+    "val": 2000,
+    "test": 2000
+  },
+  "label_distributions": {
+    "train": [
+      1250,
+      1250,
+      1250,
+      625,
+      625
+    ],
+    "val": [
+      500,
+      500,
+      500,
+      250,
+      250
+    ],
+    "test": [
+      500,
+      500,
+      500,
+      250,
+      250
+    ]
+  },
+  "model": {
+    "type": "TF-IDF + 2-layer MLP",
+    "tfidf_max_features": 1500,
+    "tfidf_ngrams": [
+      1,
+      2
+    ],
+    "input_dim": 1500,
+    "hidden_dim": 64,
+    "dropout_p": 0.2,
+    "num_classes": 5,
+    "param_count": 96389,
+    "device": "cpu"
+  },
+  "train_stats": {
+    "train_loss_last": 0.47526458673477173,
+    "train_loss_mean": 0.8190113800048829,
+    "train_loss_by_epoch": [
+      1.502869023513794,
+      1.075888639831543,
+      0.7399022706031799,
+      0.5963409858703613,
+      0.523802773475647,
+      0.47526458673477173
+    ],
+    "val_loss": 0.5954174349308013,
+    "epochs": 6,
+    "optimizer": "AdamW",
+    "lr": 0.001,
+    "weight_decay": 0.0001
+  },
+  "val_metrics": {
+    "accuracy": 0.756,
+    "macro_f1": 0.6549299665981738,
+    "ece10": 0.03471986216306686,
+    "confusion_matrix": [
+      [
+        430,
+        29,
+        26,
+        2,
+        13
+      ],
+      [
+        9,
+        474,
+        13,
+        0,
+        4
+      ],
+      [
+        24,
+        15,
+        429,
+        6,
+        26
+      ],
+      [
+        16,
+        13,
+        32,
+        28,
+        161
+      ],
+      [
+        17,
+        7,
+        43,
+        32,
+        151
+      ]
+    ],
+    "confusion_focus_contractupdate_vs_targetedregenerate": {
+      "labels": [
+        "LocalPatch",
+        "TargetedRegenerate",
+        "RefineDecomposition",
+        "ContractUpdate",
+        "WholeRepoRegenerate"
+      ],
+      "contractupdate_as_targetedregenerate": 13,
+      "targetedregenerate_as_contractupdate": 0,
+      "contractupdate_support": 250,
+      "targetedregenerate_support": 500
+    }
+  },
+  "test_metrics": {
+    "accuracy": 0.7595,
+    "macro_f1": 0.6627925860545675,
+    "ece10": 0.02855965095758438,
+    "confusion_matrix": [
+      [
+        440,
+        19,
+        32,
+        0,
+        9
+      ],
+      [
+        16,
+        473,
+        8,
+        1,
+        2
+      ],
+      [
+        24,
+        10,
+        422,
+        5,
+        39
+      ],
+      [
+        29,
+        12,
+        33,
+        34,
+        142
+      ],
+      [
+        24,
+        12,
+        30,
+        34,
+        150
+      ]
+    ],
+    "confusion_focus_contractupdate_vs_targetedregenerate": {
+      "labels": [
+        "LocalPatch",
+        "TargetedRegenerate",
+        "RefineDecomposition",
+        "ContractUpdate",
+        "WholeRepoRegenerate"
+      ],
+      "contractupdate_as_targetedregenerate": 12,
+      "targetedregenerate_as_contractupdate": 1,
+      "contractupdate_support": 250,
+      "targetedregenerate_support": 500
+    }
+  },
+  "downstream_agent_loop_metrics": {
+    "pass_at_budget_expected": 1.0,
+    "mean_regeneration_scope_proxy_files_touched": 3.2928974628448486,
+    "budget_iters": 30,
+    "definition": "Proxy computed from model probabilities: regeneration_scope = P(TargetedRegenerate) + 2*P(WholeRepoRegenerate); files_touched = 1 + 4.5*regen_scope. pass@budget uses per-item p_success = 0.5+0.5*max_prob and assumes budget_iters independent tries."
+  },
+  "artifacts": {
+    "vectorizer_vocab_size": 1500
+  }
+}

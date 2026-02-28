@@ -1,11 +1,11 @@
 """Tool loader utility for tiny-scientist.
 
 This module provides a unified interface for loading tools either as:
-1. Native smolagents Tool classes (default, faster)
-2. MCP servers via smolagents ToolCollection (optional, for interoperability)
+1. Native TinyScientist tool classes (default)
+2. MCP servers via optional smolagents ToolCollection compatibility
 
 Usage:
-    # Default: Native smolagents tools
+    # Default: Native TinyScientist tools
     from tiny_scientist.tool_loader import get_paper_search_tool, get_code_search_tool
 
     paper_tool = get_paper_search_tool()
@@ -25,8 +25,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from tiny_scientist.budget_checker import BudgetChecker
 
-# Native smolagents tools (always available)
-from tiny_scientist.smolagents_tools import (
+# Native TinyScientist tools (always available)
+from tiny_scientist.tool_impls import (
     ArxivDailyWatchTool,
     BenchmarkSearchTool,
     ClaimVerifierTool,
@@ -244,14 +244,14 @@ def load_tools_from_mcp(
     server_names: Optional[List[str]] = None,
 ) -> List[Any]:
     """
-    Load tools from MCP servers via smolagents ToolCollection.
+    Load tools from MCP servers via optional smolagents ToolCollection.
 
     Args:
         server_names: List of server names to load. If None, loads all available.
                      Options: "paper_search", "code_search", "drawer", "docker_runner"
 
     Returns:
-        List of smolagents tools loaded from MCP servers.
+        List of tools loaded from MCP servers.
 
     Raises:
         ImportError: If MCP dependencies are not installed.
@@ -286,7 +286,7 @@ def load_tools_from_mcp(
         spec = MCP_SERVER_SPECS[name]
 
         try:
-            # Load tools from MCP server using smolagents
+            # Load tools from MCP server using optional smolagents compatibility
             tool_collection = ToolCollection.from_mcp(
                 name,
                 server_parameters={
@@ -309,7 +309,7 @@ def get_tools(
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
-    Get tools using either native smolagents or MCP approach.
+    Get tools using either native classes or the MCP compatibility approach.
 
     Args:
         use_mcp: If True, load tools from MCP servers. Default False (native).

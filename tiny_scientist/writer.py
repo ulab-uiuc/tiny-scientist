@@ -12,19 +12,30 @@ from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
-from .smolagents_tools import DrawerTool, PaperSearchTool
+from .tool_impls import DrawerTool, PaperSearchTool
 from .tools.agent_tools import build_research_tools
+from .utils.agent_sdk import is_claude_agent_sdk, resolve_agent_sdk
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
     get_response_from_llm,
 )
+from .utils.openai_skills import build_openai_skill_shell_tool
 from .utils.output_formatter import (
     ACLOutputFormatter,
     BaseOutputFormatter,
     ICLROutputFormatter,
 )
 from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
+from .utils.rich_output import (
+    print_cost_delta_summary,
+    print_mapping_table,
+    print_stage_progress,
+    print_task_event,
+    print_todo_table,
+)
+from .utils.sdk_mcp import claude_allowed_mcp_tools, ensure_mcp_config
+from .utils.skill_loader import skill_instructions
 from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 # ---- Constants --------------------------------------------------------------
@@ -169,7 +180,7 @@ class _WriterLegacy:
             name=self.generated_sections.get("Title", "Research Paper"),
         )
         self._write_reference_links(idea)
-        self.cost_tracker.report()
+        self.cost_tracker.report("Writer Total Cost")
         return output_pdf_path, paper_name
 
     # ---- Section generation -------------------------------------------------
@@ -694,12 +705,35 @@ class _WriterLegacy:
         if not experiment_dir:
             raise ValueError("Experimental papers require an experiment_dir")
 
-        code = self._read_text(osp.join(experiment_dir, "experiment.py"))
+        code = self._read_experiment_code(experiment_dir)
         exp = self._read_text(osp.join(experiment_dir, "experiment_results.txt"))
         base = self._read_text(
             osp.join(experiment_dir, "baseline_results.txt"), missing_ok=True
         )
         return code, exp, base
+
+    def _read_experiment_code(self, experiment_dir: str) -> str:
+        code_files = []
+        for root, dirnames, filenames in os.walk(experiment_dir):
+            dirnames[:] = [
+                d for d in dirnames if d not in {"run", "__pycache__", ".git", ".mypy_cache"}
+            ]
+            for filename in filenames:
+                if filename.endswith(".py"):
+                    path = osp.join(root, filename)
+                    relpath = osp.relpath(path, experiment_dir)
+                    code_files.append((relpath, path))
+
+        if not code_files:
+            return self._read_text(
+                osp.join(experiment_dir, "experiment.py"), missing_ok=True
+            )
+
+        sections = []
+        for relpath, path in sorted(code_files):
+            sections.append(f"# FILE: {relpath}")
+            sections.append(self._read_text(path, missing_ok=True))
+        return "\n\n".join(sections).strip()
 
     @staticmethod
     def _read_text(path: str, missing_ok: bool = False) -> str:
@@ -747,38 +781,184 @@ class _WriterLegacy:
 
 
 class Writer(_WriterLegacy):
-    """Writer variant that uses the OpenAI Agents SDK for all LLM calls."""
+    """Writer variant with configurable OpenAI/Claude agent SDK backends."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        agent_sdk = kwargs.pop("agent_sdk", None)
+        use_claude_agent_sdk = kwargs.pop("use_claude_agent_sdk", None)
         super().__init__(*args, **kwargs)
+        self.agent_sdk = resolve_agent_sdk(
+            agent_sdk=agent_sdk,
+            use_claude_agent_sdk=use_claude_agent_sdk,
+        )
+        self._sdk_cwd = self.output_dir or "."
+        self.write_agent = None
+        self._related_work_agent = None
+        self.citation_agent = None
+        self.visual_planner_agent = None
+        self.table_agent = None
+        self.latex_error_agent = None
+        self.bib_manager_agent = None
+        self.planner_agent = None
+        if is_claude_agent_sdk(self.agent_sdk):
+            self._setup_claude_sdk()
+        else:
+            self._setup_openai_sdk()
+
+    def _setup_openai_sdk(self) -> None:
         configure_openai_agents_for_model(self.model)
         shared_tools = build_research_tools(model=self.model, include_drawer=True)
+        skill_shell_tool = build_openai_skill_shell_tool(
+            stage="writer",
+            working_directory=self._sdk_cwd,
+        )
+        if skill_shell_tool is not None:
+            shared_tools.append(skill_shell_tool)
         tool_policy = (
             "Tool policy: use web_search for recent context, paper_search for academic "
             "evidence, code_search for reproducibility references, and generate_diagram "
             "for method/result visuals."
         )
+        if skill_shell_tool is not None:
+            tool_policy += " Use the shell tool when a mounted OpenAI skill is relevant."
 
         self.write_agent = Agent(
             name="PaperWriter",
-            instructions=f"{self.system_prompt}\n\n{tool_policy}",
+            instructions=skill_instructions(
+                "writer", f"{self.system_prompt}\n\n{tool_policy}"
+            ),
             tools=shared_tools,
             model=self.model,
         )
         self._related_work_agent = Agent(
             name="RelatedWorkWriter",
-            instructions=f"{self.prompts.write_system_prompt_related_work}\n\n{tool_policy}",
+            instructions=skill_instructions(
+                "writer",
+                f"{self.prompts.write_system_prompt_related_work}\n\n{tool_policy}",
+            ),
             tools=shared_tools,
             model=self.model,
         )
         self.citation_agent = Agent(
             name="CitationEnricher",
-            instructions=f"{self.prompts.citation_system_prompt}\n\n{tool_policy}",
+            instructions=skill_instructions(
+                "writer", f"{self.prompts.citation_system_prompt}\n\n{tool_policy}"
+            ),
             tools=shared_tools,
             model=self.model,
         )
         self.visual_planner_agent = Agent(
             name="VisualPlanner",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You are a scientific visualization planner. "
+                    "Return compact JSON with keys 'figures' and 'tables'. "
+                    "Each figure item: {name, section, goal}. "
+                    "Each table item: {name, goal}. "
+                    "Prefer <=2 figures and <=1 table."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.table_agent = Agent(
+            name="TableComposer",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You write strict LaTeX tables for research papers. "
+                    "Return only LaTeX for one complete table environment with caption and label."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.latex_error_agent = Agent(
+            name="LaTeXErrorHandler",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You fix LaTeX compilation failures for academic papers. "
+                    "Use web_search to verify package/command usage when needed. "
+                    "Return only the full corrected .tex content, no markdown fences."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.bib_manager_agent = Agent(
+            name="BibManager",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You are a bibliography manager for ML papers. "
+                    "Normalize and deduplicate references, ensure each entry has a valid citation key and bibtex. "
+                    "Use paper_search/web_search to fill missing metadata when needed. "
+                    "Return ONLY JSON with key 'references' as a list. "
+                    "Each item must include: title, authors, venue, year, abstract, url, source_type, citation_key, bibtex. "
+                    "If url is present it must be http/https."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.planner_agent = Agent(
+            name="WriterPlanner",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You are a paper-writing execution planner. "
+                    "Return only a JSON array of TODO items. "
+                    "Each item must include {step, action, name, description}. "
+                    "Allowed actions: write_related_work, write_section, write_visuals, "
+                    "write_abstract, refine_paper, format_export. "
+                    "For write_section include a 'section' field."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+
+    def _setup_claude_sdk(self) -> None:
+        from .utils.claude_agent_runner import ClaudeAgentRunner
+
+        mcp_config_path = ensure_mcp_config(self._sdk_cwd, include_drawer=False)
+        research_tools = ["Skill", *claude_allowed_mcp_tools(include_drawer=False)]
+        planner_tools = ["Skill"]
+        tool_policy = (
+            "Tool policy: use MCP research tools for recent context and references. "
+            "If a loaded skill applies, follow it."
+        )
+
+        self.write_agent = ClaudeAgentRunner(
+            instructions=f"{self.system_prompt}\n\n{tool_policy}",
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self._related_work_agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.write_system_prompt_related_work}\n\n{tool_policy}",
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.citation_agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.citation_system_prompt}\n\n{tool_policy}",
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.visual_planner_agent = ClaudeAgentRunner(
             instructions=(
                 "You are a scientific visualization planner. "
                 "Return compact JSON with keys 'figures' and 'tables'. "
@@ -786,43 +966,55 @@ class Writer(_WriterLegacy):
                 "Each table item: {name, goal}. "
                 "Prefer <=2 figures and <=1 table."
             ),
-            tools=shared_tools,
+            allowed_tools=planner_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
             model=self.model,
+            mcp_config_path=mcp_config_path,
         )
-        self.table_agent = Agent(
-            name="TableComposer",
+        self.table_agent = ClaudeAgentRunner(
             instructions=(
                 "You write strict LaTeX tables for research papers. "
                 "Return only LaTeX for one complete table environment with caption and label."
             ),
-            tools=shared_tools,
+            allowed_tools=["Skill"],
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
             model=self.model,
+            mcp_config_path=mcp_config_path,
         )
-        self.latex_error_agent = Agent(
-            name="LaTeXErrorHandler",
+        self.latex_error_agent = ClaudeAgentRunner(
             instructions=(
                 "You fix LaTeX compilation failures for academic papers. "
-                "Use web_search to verify package/command usage when needed. "
+                "Use MCP research tools to verify package/command usage when needed. "
                 "Return only the full corrected .tex content, no markdown fences."
             ),
-            tools=shared_tools,
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
             model=self.model,
+            mcp_config_path=mcp_config_path,
         )
-        self.bib_manager_agent = Agent(
-            name="BibManager",
+        self.bib_manager_agent = ClaudeAgentRunner(
             instructions=(
                 "You are a bibliography manager for ML papers. "
                 "Normalize and deduplicate references, ensure each entry has a valid citation key and bibtex. "
-                "Use paper_search/web_search to fill missing metadata when needed. "
+                "Use MCP research tools to fill missing metadata when needed. "
                 "Return ONLY JSON with key 'references' as a list. "
                 "Each item must include: title, authors, venue, year, abstract, url, source_type, citation_key, bibtex. "
                 "If url is present it must be http/https."
             ),
-            tools=shared_tools,
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
             model=self.model,
+            mcp_config_path=mcp_config_path,
         )
-        self.planner_agent = Agent(
-            name="WriterPlanner",
+        self.planner_agent = ClaudeAgentRunner(
             instructions=(
                 "You are a paper-writing execution planner. "
                 "Return only a JSON array of TODO items. "
@@ -831,13 +1023,24 @@ class Writer(_WriterLegacy):
                 "write_abstract, refine_paper, format_export. "
                 "For write_section include a 'section' field."
             ),
-            tools=shared_tools,
+            allowed_tools=planner_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
             model=self.model,
+            mcp_config_path=mcp_config_path,
         )
 
-    def _run_sdk_call(self, agent: Agent, prompt: str, task_name: str) -> str:
+    def _run_sdk_call(self, agent: Any, prompt: str, task_name: str) -> str:
+        start = time.perf_counter()
+        print_task_event("Writer", task_name, "START")
+        if self.agent_sdk == "claude":
+            result = agent.run_sync(prompt, task_name)
+            print_task_event("Writer", task_name, "END", time.perf_counter() - start)
+            return result
         result = Runner.run_sync(agent, prompt)
         track_sdk_cost(result, self.cost_tracker, self.model, task_name)
+        print_task_event("Writer", task_name, "END", time.perf_counter() - start)
         return result.final_output or ""
 
     def run(
@@ -854,25 +1057,33 @@ class Writer(_WriterLegacy):
             else REFINEMENT_SECTIONS_NONEXP
         )
         todo = self._build_todo(idea=idea, sections=sections)
-        print(f"[Planner][Writer] TODO ({len(todo)} steps)")
-        for item in todo:
-            print(
-                f"[TODO][Writer] [ ] Step {item['step']}: {item['name']} — {item['description']}"
-            )
+        print_todo_table("Writer", todo)
 
         paper_name = self._slugify(idea.get("Title", "Research Paper"))
         output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
         formatted = False
         for idx, item in enumerate(todo, start=1):
             action = str(item.get("action", ""))
-            print(f"[TODO][Writer] [{idx}/{len(todo)}] {item.get('name', action)}")
+            before_total, before_tasks = self.cost_tracker.snapshot()
+            before_global_total, before_global_tasks = self.cost_tracker.global_snapshot()
+            print_stage_progress(
+                "Writer Progress",
+                idx,
+                len(todo),
+                str(item.get("name", action)),
+            )
             if action == "write_related_work":
                 self._write_related_work(idea)
+                self._print_writer_step_summary("Writer Related Work", "Related_Work")
             elif action == "write_section":
                 section = str(item.get("section", ""))
                 if section in sections:
                     self._write_section(
                         idea, code, experiment_result, section, baseline_result
+                    )
+                    self._print_writer_step_summary(
+                        f"Writer Section: {section}",
+                        section,
                     )
             elif action == "write_visuals":
                 self._run_visual_subagents(
@@ -880,12 +1091,15 @@ class Writer(_WriterLegacy):
                     experiment_result=experiment_result,
                     baseline_result=baseline_result,
                 )
+                self._print_visual_summary()
             elif action == "write_abstract":
                 self._write_abstract(idea)
+                self._print_writer_step_summary("Writer Abstract", "Abstract")
             elif action == "refine_paper":
                 self._refine_paper(
                     num_rounds=self.num_refinement_rounds, add_citations=True
                 )
+                self._print_refine_summary()
             elif action == "format_export":
                 self.references = self._manage_bibliography_references(idea=idea)
                 self.formatter.run(
@@ -896,6 +1110,27 @@ class Writer(_WriterLegacy):
                     name=self.generated_sections.get("Title", "Research Paper"),
                 )
                 formatted = True
+                self._print_export_summary(output_pdf_path)
+            print_stage_progress(
+                "Writer Progress",
+                idx,
+                len(todo),
+                str(item.get("name", action)),
+                status="done",
+            )
+            after_total, after_tasks = self.cost_tracker.snapshot()
+            after_global_total, after_global_tasks = self.cost_tracker.global_snapshot()
+            print_cost_delta_summary(
+                f"Writer Cost: {action}",
+                before_total,
+                before_tasks,
+                after_total,
+                after_tasks,
+                global_before_total=before_global_total,
+                global_before_tasks=before_global_tasks,
+                global_after_total=after_global_total,
+                global_after_tasks=after_global_tasks,
+            )
         if not formatted:
             self.references = self._manage_bibliography_references(idea=idea)
             self.formatter.run(
@@ -909,6 +1144,59 @@ class Writer(_WriterLegacy):
         self._write_reference_links(idea)
         self.cost_tracker.report()
         return output_pdf_path, paper_name
+
+    def _print_writer_step_summary(self, title: str, section: str) -> None:
+        content = self.generated_sections.get(section, "")
+        print_mapping_table(
+            title,
+            {
+                "Section": section,
+                "Chars": len(content),
+                "References": len(self.references),
+                "Sections Written": len(self.generated_sections),
+            },
+        )
+
+    def _print_visual_summary(self) -> None:
+        manifest_path = osp.join(self.output_dir, "assets", "figure_manifest.json")
+        figure_count = 0
+        if osp.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+                if isinstance(manifest, list):
+                    figure_count = len(manifest)
+            except Exception:
+                figure_count = 0
+        print_mapping_table(
+            "Writer Visuals",
+            {
+                "Figure Manifest": manifest_path if osp.exists(manifest_path) else "-",
+                "Figures": figure_count,
+                "Results Chars": len(self.generated_sections.get("Results", "")),
+            },
+        )
+
+    def _print_refine_summary(self) -> None:
+        print_mapping_table(
+            "Writer Refinement",
+            {
+                "Title": self.generated_sections.get("Title", ""),
+                "Sections Written": len(self.generated_sections),
+                "References": len(self.references),
+            },
+        )
+
+    def _print_export_summary(self, output_pdf_path: str) -> None:
+        print_mapping_table(
+            "Writer Export",
+            {
+                "PDF Path": output_pdf_path,
+                "PDF Exists": osp.exists(output_pdf_path),
+                "Sections Written": len(self.generated_sections),
+                "References": len(self.references),
+            },
+        )
 
     def _manage_bibliography_references(self, idea: Dict[str, Any]) -> Dict[str, Any]:
         raw_entries: List[Dict[str, Any]] = []

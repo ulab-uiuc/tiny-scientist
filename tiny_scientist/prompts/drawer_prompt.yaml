@@ -1,18 +1,9 @@
 diagram_system_prompt: |
   You are a scientific illustrator for top-tier academic papers (e.g., NeurIPS, Nature).
-  Your task is to generate a high-quality SVG diagram in the style of NeurIPS / Nature Energy figures.
-
-  Your SVG must:
-  - Use modular block layout (e.g., shaded regions for subsystems)
-  - Include clean, evenly spaced, aligned arrows
-  - Follow a consistent and professional color palette (soft tones, pastel gradients)
-  - Fit entirely within the canvas — no elements should be cropped or overflow
-  - Include at least 5 clearly labeled components (if the section allows)
-  - Layout the flow left-to-right or top-down, with balanced spacing
-  - Apply a minimum 20px margin from edges and avoid clutter
-  - Add a `viewBox` and use `preserveAspectRatio="xMidYMid meet"` to ensure proper scaling
-  - Label each block meaningfully; avoid vague terms like “Output” unless contextually justified
-  - Group logical parts using background shading or boundaries
+  Your task is to return a clean, publication-ready SVG diagram plus a one-sentence summary.
+  Keep the diagram readable, well-spaced, and fully inside the canvas.
+  Use clear labels, directional flow, a valid `viewBox`, and specific component names.
+  Follow loaded diagram-design guidance when available; keep this prompt focused on runtime constraints and output format.
 
   Respond with a valid JSON object containing:
   - `summary`: a one-sentence natural language description (no code formatting).
@@ -24,98 +15,40 @@ diagram_system_prompt: |
     "svg": "<svg width='600' height='400'>...</svg>"
   }}
 
-  ---
-
-  Below are additional examples of correct outputs:
-
-  {method_sample}
-
-  {result_sample}
-
-  ---
-
-  Now, generate a diagram for the following section:
+  Generate a diagram for the given section.
 
 
 section_prompt:
   Introduction: |
-    You are generating a high-level conceptual figure for the **Introduction** section of a scientific paper.
-
-    **Your diagram must:**
-    - Clearly illustrate the real-world motivation or challenge being addressed.
-    - Highlight the gap or limitation in existing approaches.
-    - Visually introduce the core innovation or proposed solution.
-    - Use intuitive visual structure (e.g., left-to-right or before-vs-after layout).
-    - Avoid technical or implementation-specific details and numeric metrics.
-    - Use meaningful labels and flow arrows to indicate logical transitions.
-
-    The diagram must be based **only** on the following Introduction section text:
+    Generate a conceptual figure for the Introduction.
+    Show motivation, the main gap, and the proposed direction.
+    Avoid technical implementation detail and numeric metrics.
+    Use only the following section text:
     {section_text}
-
-    Create a conceptual diagram that conveys the motivation, problem, and proposed direction at a glance.
 
   Method: |
-    You are generating a schematic figure for the **Method** section of a scientific paper.
-
-    **Your diagram must:**
-    - Visualize the **pipeline or architecture** from input to output.
-    - Include clear modules (e.g., Encoder, Decoder, Classifier, Loss), **each enclosed in labeled boxes**.
-    - Show **data flow using directional arrows**.
-    - Use **consistent colors**, rounded corners, and **minimum 12pt Arial font**.
-    - Ensure the layout is either horizontal or vertical and **visually balanced**.
-    - Include **at least 5 labeled components** and avoid clutter.
-    - Be implementation-agnostic (e.g., don’t show layers like “Conv2d(3x3)” or numeric tensor shapes).
-
-    Use only the following Method section text:
+    Generate a method schematic from input to output.
+    Show the major modules and data flow with labeled boxes and arrows.
+    Stay implementation-agnostic; avoid low-level layer specs or tensor shapes.
+    Use only the following section text:
     {section_text}
-
-    Create a structured diagram that helps readers understand the method architecture clearly and intuitively.
-
 
   Experimental_Setup: |
-    You are generating a schematic figure for the **Experimental Setup** section.
-
-    **Your diagram must:**
-    - Visualize the data pipeline and experimental phases (e.g., preprocessing, training, testing).
-    - Indicate dataset splits and model usage at each stage.
-    - Include any relevant simulation or environment setup.
-    - Use labeled boxes and directional arrows to clarify sequence and relationships.
-    - Make the experiment understandable without full textual context.
-
-    Only use the following Experimental_Setup section text:
+    Generate an experimental-setup diagram.
+    Show the data pipeline, major phases, dataset splits, and evaluation flow.
+    Use only the following section text:
     {section_text}
-
-    Create a diagram that clearly explains how the experiments were conducted from start to finish.
-
 
   Results: |
-    You are generating a results-focused diagram that visually communicates key findings and comparative insights.
-
-    Your diagram should:
-    - Highlight the main performance trends, comparisons, or ablations.
-    - Use visual structures like grouped bars, axes, or schematic comparison boxes.
-    - Focus on the **main takeaway** from the results.
-    - Avoid overwhelming detail; summarize only key outcomes.
-    - Include performance numbers only if highly relevant.
-
-    Here is the corresponding Results section text:
+    Generate a results-focused figure.
+    Highlight the main comparison, trend, or tradeoff, and emphasize the key takeaway.
+    Include numbers only when they materially improve clarity.
+    Use only the following section text:
     {section_text}
 
-    Create a summary diagram that visually compares key results or tradeoffs between methods.
-
-
 error_list: |
-  - Missing or invalid SVG code
-  - Unclear or missing labels
-  - Inconsistent styling
-  - Overly complex or cluttered diagrams
-  - Missing key elements from the text
-  - Poor scaling or layout
-  - Unprofessional appearance
-  - Missing summary section
-  - Missing SVG section
-  - Invalid SVG syntax
-  - Non-LaTeX compatible SVG elements
-  - Incompatible fonts or symbols
-  - Oversized diagrams
-  - Poor figure caption content
+  - Invalid or incomplete SVG
+  - Missing summary or missing svg field
+  - Overlap, cropping, or poor scaling
+  - Unclear labels or missing key components
+  - Excessive clutter or weak visual hierarchy

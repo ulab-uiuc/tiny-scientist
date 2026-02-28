@@ -1,0 +1,378 @@
+RUN 1 WRITEUP NOTES (verbatim)
+Run number: 1
+Experiment description:
+- Goal: Build a 5-way 'action' classifier as a proxy for a verifier-driven software agent policy.
+- Dataset: AG News (4-class news topic classification dataset). A mapping or transformation was used to create 5 action labels:
+  [LocalPatch, TargetedRegenerate, RefineDecomposition, ContractUpdate, WholeRepoRegenerate].
+- Model: TF-IDF (max_features=1500, ngrams=(1,2)) feeding a small 2-layer MLP (hidden_dim=64, dropout=0.2) with 5 outputs.
+- Data sizes: train=5000, val=2000, test=2000.
+Run 1 reported results (from prior run):
+{
+  "dataset": "ag_news",
+  "task": "5-way action classification proxy for verifier-driven decomposition/localization policy",
+  "actions": [
+    "LocalPatch",
+    "TargetedRegenerate",
+    "RefineDecomposition",
+    "ContractUpdate",
+    "WholeRepoRegenerate"
+  ],
+  "model": {
+    "type": "TF-IDF + 2-layer MLP",
+    "tfidf_max_features": 1500,
+    "tfidf_ngrams": [
+      1,
+      2
+    ],
+    "input_dim": 1500,
+    "hidden_dim": 64,
+    "dropout_p": 0.2,
+    "num_classes": 5,
+    "param_count_comment": "Approx 96,389 parameters: (1500*64+64) + (64*5+5)."
+  },
+  "sizes": {
+    "train": 5000,
+    "val": 2000,
+    "test": 2000
+  },
+  "train_stats": {
+    "train_loss_last": 0.023860071962581404,
+    "train_loss_mean": 0.3526673573811975
+  },
+  "val_metrics": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "ece10": 0.018795825123786927,
+    "confusion_matrix": [
+      [
+        1000,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1000,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "confusion_focus_contractupdate_vs_targetedregenerate": {
+      "labels": [
+        "LocalPatch",
+        "TargetedRegenerate",
+        "RefineDecomposition",
+        "ContractUpdate",
+        "WholeRepoRegenerate"
+      ],
+      "contractupdate_as_targetedregenerate": 0,
+      "targetedregenerate_as_contractupdate": 0,
+      "contractupdate_support": 1000,
+      "targetedregenerate_support": 0
+    }
+  },
+  "test_metrics": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "ece10": 0.017078947722911835,
+    "confusion_matrix": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1000,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1000,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "confusion_focus_contractupdate_vs_targetedregenerate": {
+      "labels": [
+        "LocalPatch",
+        "TargetedRegenerate",
+        "RefineDecomposition",
+        "ContractUpdate",
+        "WholeRepoRegenerate"
+      ],
+      "contractupdate_as_targetedregenerate": 0,
+      "targetedregenerate_as_contractupdate": 0,
+      "contractupdate_support": 0,
+      "targetedregenerate_support": 1000
+    }
+  },
+  "downstream_agent_loop_metrics": {
+    "pass_at_budget_expected": 0.9999991232152697,
+    "mean_regeneration_scope_proxy_files_touched": 5.5,
+    "budget_iters": 30
+  }
+}
+
+Important interpretation / concerns:
+- The reported val/test confusion matrices indicate some classes have *zero support* in a split.
+  For example, in val: TargetedRegenerate_support=0; in test: ContractUpdate_support=0.
+- Achieving 100% accuracy/macro-F1 with missing classes strongly suggests a pipeline bug:
+  likely label mapping error (e.g., collapsing to fewer than 5 classes), incorrect split construction,
+  or leakage / data duplication between splits.
+- Therefore the next experiment (Run 2) will re-plan to enforce:
+  (1) deterministic, explicit mapping from AG News labels to 5 action labels,
+  (2) stratified splitting to ensure all 5 actions appear in train/val/test,
+  (3) explicit sanity checks on label distribution per split,
+  (4) metrics computed from real model execution.
+
+
+--------------------------------------------------------------------------------
+
+RUN 2 PLAN AND IMPLEMENTATION
+Run number: 2
+Change from Run 1:
+- Replanned due to suspiciously perfect metrics and missing-class splits.
+- Deterministic 5-way mapping from AG News labels (split original label=3 into two actions by per-class parity).
+- Stratified subset + stratified train/val/test splits to preserve 5-way class presence.
+- Added label distribution logging and computed metrics from executed model outputs.
+Key hyperparameters:
+- TF-IDF: max_features=1500, ngram_range=(1,2)
+- MLP: input_dim=1500, hidden_dim=64, dropout_p=0.2, num_classes=5
+- Train: epochs=6, lr=0.001, weight_decay=0.0001
+- Params: 96389
+Results are saved in final_info.json
+
+--------------------------------------------------------------------------------
+
+RUN 1 WRITEUP NOTES (verbatim)
+Run number: 1
+Experiment description:
+- Goal: Build a 5-way 'action' classifier as a proxy for a verifier-driven software agent policy.
+- Dataset: AG News (4-class news topic classification dataset). A mapping or transformation was used to create 5 action labels:
+  [LocalPatch, TargetedRegenerate, RefineDecomposition, ContractUpdate, WholeRepoRegenerate].
+- Model: TF-IDF (max_features=1500, ngrams=(1,2)) feeding a small 2-layer MLP (hidden_dim=64, dropout=0.2) with 5 outputs.
+- Data sizes: train=5000, val=2000, test=2000.
+Run 1 reported results (from prior run):
+{
+  "dataset": "ag_news",
+  "task": "5-way action classification proxy for verifier-driven decomposition/localization policy",
+  "actions": [
+    "LocalPatch",
+    "TargetedRegenerate",
+    "RefineDecomposition",
+    "ContractUpdate",
+    "WholeRepoRegenerate"
+  ],
+  "model": {
+    "type": "TF-IDF + 2-layer MLP",
+    "tfidf_max_features": 1500,
+    "tfidf_ngrams": [
+      1,
+      2
+    ],
+    "input_dim": 1500,
+    "hidden_dim": 64,
+    "dropout_p": 0.2,
+    "num_classes": 5,
+    "param_count_comment": "Approx 96,389 parameters: (1500*64+64) + (64*5+5)."
+  },
+  "sizes": {
+    "train": 5000,
+    "val": 2000,
+    "test": 2000
+  },
+  "train_stats": {
+    "train_loss_last": 0.023860071962581404,
+    "train_loss_mean": 0.3526673573811975
+  },
+  "val_metrics": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "ece10": 0.018795825123786927,
+    "confusion_matrix": [
+      [
+        1000,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1000,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "confusion_focus_contractupdate_vs_targetedregenerate": {
+      "labels": [
+        "LocalPatch",
+        "TargetedRegenerate",
+        "RefineDecomposition",
+        "ContractUpdate",
+        "WholeRepoRegenerate"
+      ],
+      "contractupdate_as_targetedregenerate": 0,
+      "targetedregenerate_as_contractupdate": 0,
+      "contractupdate_support": 1000,
+      "targetedregenerate_support": 0
+    }
+  },
+  "test_metrics": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "ece10": 0.017078947722911835,
+    "confusion_matrix": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1000,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1000,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "confusion_focus_contractupdate_vs_targetedregenerate": {
+      "labels": [
+        "LocalPatch",
+        "TargetedRegenerate",
+        "RefineDecomposition",
+        "ContractUpdate",
+        "WholeRepoRegenerate"
+      ],
+      "contractupdate_as_targetedregenerate": 0,
+      "targetedregenerate_as_contractupdate": 0,
+      "contractupdate_support": 0,
+      "targetedregenerate_support": 1000
+    }
+  },
+  "downstream_agent_loop_metrics": {
+    "pass_at_budget_expected": 0.9999991232152697,
+    "mean_regeneration_scope_proxy_files_touched": 5.5,
+    "budget_iters": 30
+  }
+}
+
+Important interpretation / concerns:
+- The reported val/test confusion matrices indicate some classes have *zero support* in a split.
+  For example, in val: TargetedRegenerate_support=0; in test: ContractUpdate_support=0.
+- Achieving 100% accuracy/macro-F1 with missing classes strongly suggests a pipeline bug:
+  likely label mapping error (e.g., collapsing to fewer than 5 classes), incorrect split construction,
+  or leakage / data duplication between splits.
+- Therefore the next experiment (Run 2) will re-plan to enforce:
+  (1) deterministic, explicit mapping from AG News labels to 5 action labels,
+  (2) stratified splitting to ensure all 5 actions appear in train/val/test,
+  (3) explicit sanity checks on label distribution per split,
+  (4) metrics computed from real model execution.
+
+
+--------------------------------------------------------------------------------
+
+RUN 2 PLAN AND IMPLEMENTATION
+Run number: 2
+Change from Run 1:
+- Replanned due to suspiciously perfect metrics and missing-class splits.
+- Deterministic 5-way mapping from AG News labels (split original label=3 into two actions by per-class parity).
+- Stratified subset + stratified train/val/test splits to preserve 5-way class presence.
+- Added label distribution logging and computed metrics from executed model outputs.
+Key hyperparameters:
+- TF-IDF: max_features=1500, ngram_range=(1,2)
+- MLP: input_dim=1500, hidden_dim=64, dropout_p=0.2, num_classes=5
+- Train: epochs=6, lr=0.001, weight_decay=0.0001
+- Params: 96389
+Results are saved in final_info.json
+
+--------------------------------------------------------------------------------
+

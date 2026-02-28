@@ -4,6 +4,7 @@ import json
 import os
 from typing import Any, Dict, cast
 
+import _bootstrap
 from tiny_scientist.thinker import Thinker
 from tiny_scientist.utils.input_formatter import InputFormatter
 from tiny_scientist.utils.llm import AVAILABLE_LLMS
@@ -17,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
+        default="claude-3-5-sonnet-20241022",
         choices=AVAILABLE_LLMS,
         help="Model to use for generating ideas",
     )
@@ -65,6 +66,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--pdf", type=str, help="Path to the PDF paper for idea generation"
+    )
+    parser.add_argument(
+        "--agent-sdk",
+        type=str,
+        default="claude",
+        choices=["openai", "claude"],
+        help="Agent SDK backend to use",
     )
     return parser.parse_args()
 
@@ -116,6 +124,7 @@ def main() -> int:
             temperature=args.temperature,
             iter_num=args.num_reflections,
             tools=[],
+            agent_sdk=args.agent_sdk,
         )
 
         # Get initial idea

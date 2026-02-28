@@ -22,6 +22,8 @@ MODEL_PRICING = {
     "claude-3-5-sonnet": (3, 15),
     "claude-3-5-sonnet-20240620": (3, 15),
     "claude-3-5-sonnet-20241022": (3, 15),
+    # Claude Sonnet 4.x pricing alias, kept aligned with Sonnet until dedicated pricing is configured.
+    "claude-sonnet-4-6": (3, 15),
     "claude-3-haiku-v1": (0.25, 1.25),
     "claude-3-haiku": (0.25, 1.25),
     "claude-3-opus-v1": (15, 75),

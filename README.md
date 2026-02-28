@@ -66,7 +66,7 @@ poetry install
 
 # Get started
 
-TinyScientist now uses OpenAI Agents SDK-backed stages by default (`think`, `code`, `write`, `review`).
+TinyScientist now uses Claude Agent SDK-backed stages by default (`think`, `code`, `write`, `review`). OpenAI Agents SDK remains available as an explicit runtime choice.
 
 #### 1) Required runtime setup
 
@@ -77,11 +77,19 @@ export OPENAI_API_KEY=your-key-here
 # or DEEPSEEK_API_KEY / ANTHROPIC_API_KEY depending on your model
 ```
 
-If you installed from source and see `ModuleNotFoundError: No module named 'agents'`, install:
+If you installed from source and see `ModuleNotFoundError: No module named 'claude_agent_sdk'`, install:
+
+```bash
+pip install claude-agent-sdk
+```
+
+If you want the OpenAI runtime as well, install:
 
 ```bash
 pip install openai-agents
 ```
+
+`smolagents` is no longer required for the main TinyScientist runtime. It is only needed for legacy compatibility helpers.
 
 #### 2) Tool providers (strict mode)
 
@@ -117,7 +125,7 @@ The minimal Python API is still the same:
 ```python
 from tiny_scientist import TinyScientist
 
-scientist = TinyScientist(model="gpt-4o", budget=1.0)
+scientist = TinyScientist(model="claude-3-5-sonnet-20241022", budget=1.0)
 
 idea = scientist.think(
     intent="Benchmarking adaptive step size strategies using a convex quadratic optimization function"
@@ -127,6 +135,46 @@ status, experiment_dir = scientist.code(idea=idea)
 if status:
     pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
     review = scientist.review(pdf_path=pdf_path)
+```
+
+Use `agent_sdk` to select the runtime explicitly when you want the OpenAI backend:
+
+```python
+scientist = TinyScientist(model="gpt-4o", agent_sdk="openai")
+```
+
+Supported values today are `claude` and `openai`. The default is `claude`.
+
+#### 3.1) Skills and MCP
+
+TinyScientist now supports project skills from both:
+
+- `.claude/skills`
+- `.agents/skills`
+
+Claude backend:
+
+- Uses Claude's native filesystem skill loading via `.claude/skills`
+- Loads Claude skills from both user and project settings sources
+- Does not inject `SKILL.md` contents into prompts; skills are consumed only through Claude's native `Skill` tool flow
+- Uses generated `.tiny_scientist.generated.mcp.json` to mount TinyScientist MCP research tools
+
+OpenAI backend:
+
+- Continues to inject local `SKILL.md` content into agent instructions
+- Also supports official OpenAI shell-mounted skills when you provide skill specs as JSON:
+
+```bash
+export OPENAI_AGENT_SKILLS_JSON='[{"type":"skill_reference","skill_id":"skill_xxx","version":"1"}]'
+```
+
+You can also scope mounted OpenAI skills per stage:
+
+```bash
+export OPENAI_AGENT_SKILLS_THINKER_JSON='[...]'
+export OPENAI_AGENT_SKILLS_CODER_JSON='[...]'
+export OPENAI_AGENT_SKILLS_WRITER_JSON='[...]'
+export OPENAI_AGENT_SKILLS_REVIEWER_JSON='[...]'
 ```
 
 #### 4) Non-OpenAI-compatible endpoints (advanced)

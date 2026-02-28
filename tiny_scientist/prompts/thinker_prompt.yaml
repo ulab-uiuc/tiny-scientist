@@ -334,30 +334,14 @@ idea_first_prompt: |
   {related_works_string}
   ```
 
-  Please make sure the following requirements are kept:
-  1. **Problem**
-    * The problem should be a precise, not too large and not ambiguous problem.
-    * Think from demand: what are the attractive/necessary demands from the research community that have not been fully satisfied?
-    * A question that can be answered with yes/no + some reason. For example, Can LLM do well on NER task?
-  2. **Importance**
-    * Explain why the problem matters and is interesting.
-    * Use recent literature to support your points.
-    * Relate to the community consensus/trend to show your importance. We point out the gap/potential/opportunities between our idea and the current consensus.
-    * Recent example: Scalable LLM ranker? Graph based ranker
-  3. **Difficulty**
-    * Explain why the problem is technically challenging and why simple methods fail.
-    * Cite prior works that highlight these challenges.
-    * List 2-4 reason why this is very challenging. List with (1) (2) (3)
-  4. **NoveltyComparison**
-    * Write a **detailed comparison (≥150 words)** explaining how your idea differs from existing work.
-    * Discuss related works, their approaches, and limitations. Analyze your prior work’s limitations, and argue that yours is better
-    * Explain why past methods don’t fully solve the problem and what’s new about yours.
-    * Prove your novelty. No one has solved XYZ, but we did. These limitations can be perfectly solved after our paper.
-  5. **Approach**
-    * Describe the **core algorithm/mechanism** of your proposed method.
-    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for each point in the difficulty
-    * Focus on your novel component, not standard preprocessing or ethics.
-    * IMPORTANT! You need to make sure that your proposed method can solve the problem you propose. Need to include the reason why such method can solve.
+  Quality requirements:
+  1. **Problem**: precise, bounded, demand-driven, and not ambiguous.
+  2. **Importance**: grounded in recent literature and current community interest.
+  3. **Difficulty**: 2-4 concrete technical obstacles showing why naive methods fail.
+  4. **NoveltyComparison**: detailed compare-and-contrast against adjacent work, including the remaining gap.
+  5. **Approach**: explain the core novel mechanism and map it explicitly to the stated difficulties.
+
+  Follow loaded thinker skills for deeper ideation and proposal-rigor methodology when relevant.
 
 
   The output should be this format:
@@ -403,35 +387,19 @@ idea_reflection_prompt: |
   Key Reflection Priorities
   1. **Intent Alignment** – Make sure the idea directly solves the original intent. If not, refocus.
   2. **Problem** – Add concrete examples, numbers, and proper citations. Show clearly why this problem matters and persists.
-  3. **Importance** – Strengthen with real evidence (scale, impact, urgency).
-  4. **Difficulty** – List more bullet points why ours is better
-  5. **Novelty Comparison** – Include more papers for comparison
-  6. **Approach (Most Important)** List more bullet points corresponding to Difficulty and check how to design methods that ours is better
+  3. **Importance** – Strengthen with concrete evidence (scale, impact, urgency).
+  4. **Difficulty** – Clarify the real technical blockers and why standard methods fail.
+  5. **Novelty Comparison** – Include stronger compare-and-contrast against prior work.
+  6. **Approach (Most Important)** – Tighten the mapping from each difficulty to a concrete design choice.
 
-  Please make sure the following requirements are kept:
-  1. **Problem**
-    * The problem should be a precise, not too large and not ambiguous problem.
-    * Think from demand: what are the attractive/necessary demands from the research community that have not been fully satisfied?
-    * A question that can be answered with yes/no + some reason. For example, Can LLM do well on NER task?
-  2. **Importance**
-    * Explain why the problem matters and is interesting.
-    * Use recent literature to support your points.
-    * Relate to the community consensus/trend to show your importance. We point out the gap/potential/opportunities between our idea and the current consensus.
-    * Recent example: Scalable LLM ranker? Graph based ranker
-  3. **Difficulty**
-    * Explain why the problem is technically challenging and why simple methods fail.
-    * Cite prior works that highlight these challenges.
-    * List 2-4 reason why this is very challenging. List with (1) (2) (3)
-  4. **NoveltyComparison**
-    * Write a **detailed comparison (≥150 words)** explaining how your idea differs from existing work.
-    * Discuss related works, their approaches, and limitations. Analyze your prior work’s limitations, and argue that yours is better
-    * Explain why past methods don’t fully solve the problem and what’s new about yours.
-    * Prove your novelty. No one has solved XYZ, but we did. These limitations can be perfectly solved after our paper.
-  5. **Approach**
-    * Describe the **core algorithm/mechanism** of your proposed method.
-    * Need to explain each point in the difficulty why our proposed method can solve them. List explanation for each in the difficulty
-    * Focus on your novel component, not standard preprocessing or ethics.
-    * IMPORTANT! You need to make sure that your proposed method can solve the problem you propose. Need to include the reason why such method can solve.
+  Keep these proposal-quality requirements:
+  1. **Problem**: precise, bounded, and demand-driven.
+  2. **Importance**: supported by recent literature and community trends.
+  3. **Difficulty**: 2-4 concrete technical challenges.
+  4. **NoveltyComparison**: detailed gap analysis against existing work.
+  5. **Approach**: core novel mechanism only, with clear reasons it should solve the problem.
+
+  Follow loaded thinker skills for deeper ideation and proposal-rigor methodology when relevant.
 
 
   The output should be in this form
@@ -539,6 +507,7 @@ experiment_plan_prompt: |
     * CRITICAL: Use `dataset_search` (and optionally `web_search`) to pick an intent-aligned, auto-downloadable dataset. Do not default to any fixed dataset name.
   - "Metric": Description of evaluation metrics with justification (use key name "Metric", NOT "Evaluation_Metrics")
     * Include a short self-check note confirming that dataset size limits, model simplicity, and lack of comments are satisfied.
+  - "Success_Criteria": Concrete success conditions for the experiment, including what baseline comparison or absolute threshold would count as a meaningful win.
 
   In <MARKDOWN_TABLE>, provide a DETAILED experimental plan as a Markdown table. This table MUST include the following columns and rows:
   - "Component": The part of the experiment

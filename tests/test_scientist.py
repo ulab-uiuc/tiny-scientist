@@ -22,8 +22,8 @@ def test_output_dir(tmp_path: Path) -> Path:
     output_dir.mkdir()
 
     # Create required files using Path methods
-    experiment_py = output_dir / "experiment.py"
-    experiment_py.write_text("print('Test experiment')")
+    main_py = output_dir / "main.py"
+    main_py.write_text("print('Test experiment')")
 
     prompt_json = output_dir / "prompt.json"
     prompt_json.write_text(

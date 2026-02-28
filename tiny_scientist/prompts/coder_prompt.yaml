@@ -1,5 +1,5 @@
 experiment_plan_prompt: |
-  You are a research experiment planner. Given a research idea, produce a concrete implementation checklist for `experiment.py`.
+  You are a research experiment planner. Given a research idea, produce a concrete implementation checklist for a lightweight experiment workspace whose runnable entrypoint is `main.py`.
 
   ## Research Context
   Title: {title}
@@ -20,7 +20,7 @@ experiment_plan_prompt: |
   {experiment_table}
 
   ## Your Task
-  Break down the implementation of `experiment.py` into 4–6 ordered steps. Each step should map to one or more rows in the experiment blueprint table and be directly implementable.
+  Break down the implementation of the experiment workspace into 4–6 ordered steps. Each step should map to one or more rows in the experiment blueprint table and be directly implementable.
 
   Return ONLY a JSON array with no surrounding text, in this exact format:
   ```json
@@ -36,7 +36,7 @@ experiment_plan_prompt: |
   Keep each description concrete and aligned to the table rows. `row_refs` must reference real row names from the blueprint table.
 
 experiment_step_prompt: |
-  You are implementing step {step_num} of {total_steps} for a machine learning experiment script.
+  You are implementing step {step_num} of {total_steps} for a machine learning experiment workspace.
 
   ## Step to Implement
   Step {step_num}: {step_name}
@@ -63,7 +63,7 @@ experiment_step_prompt: |
   ## TODO Plan (from TODO.md)
   {todo_plan}
 
-  ## Current experiment.py content
+  ## Current main.py content
   {current_code}
 
   ## Hard Constraints (apply to all steps)
@@ -74,10 +74,10 @@ experiment_step_prompt: |
   - Script must accept --out_dir argument and save final_info.json there
 
   ## Instructions
-  1. Read the current experiment.py using the read_file tool (if it exists)
+  1. Read the current `main.py` and any helper files you need using the read_file tool
   2. Implement ONLY the current step — do not skip ahead or leave placeholders
-  3. Write the complete updated experiment.py using the write_file tool
-  4. The file must remain runnable after each step (add pass stubs for functions not yet implemented)
+  3. Create or update the workspace files you need using the write_file tool
+  4. `main.py` must remain runnable after each step (add pass stubs for functions not yet implemented)
   5. Follow TODO.md ordering strictly and do not work on unchecked future steps
 
   After writing, respond with "STEP_DONE".
@@ -105,7 +105,7 @@ experiment_keyword_prompt: |
   }}
 
 experiment_prompt: |
-  You are writing a Python script named `experiment.py` that must be runnable.
+  You are building a Python experiment workspace whose runnable entrypoint is `main.py`.
 
   ## Research Context
   Title: {title}
@@ -135,7 +135,7 @@ experiment_prompt: |
   - Always subsample large datasets: cap training examples at ≤5,000 and validation/test at ≤2,000 each (use `select(range(...))` or appropriate slicing). Document this in code comments.
 
   ## Required Script Structure
-  Your script MUST include the following components (you may adapt names, but all roles must be present):
+  Your workspace MUST include the following components (you may adapt names, but all roles must be present). You may keep them all in `main.py` or split them across helper modules, but `main.py` must remain the execution entrypoint:
   1. `load_data()` – downloads the dataset using the loader above, subsamples to the limits (≤5k train / ≤2k val/test), and converts examples into explicit tensors/arrays (`torch.tensor` or `numpy.array`). If using HuggingFace datasets, call `.set_format(type="torch", columns=[...])` or manually build tensors, then wrap them with `torch.utils.data.TensorDataset` + `DataLoader` (or sklearn splits if you stay in sklearn). Include a brief comment explaining why this preprocessing keeps the experiment lightweight.
   2. `build_model()` – constructs the lightweight model defined in the plan. Document input/output dimensions explicitly, and add a short justification for why this architecture is the simplest option that still addresses the task.
   3. `train(model, train_loader, optimizer, criterion, device)` – iterates over batches, moves tensors to `device`, computes loss, `loss.backward()`, `optimizer.step()`. Log the epoch count and explain in a comment why the number of epochs is sufficient.
@@ -146,10 +146,10 @@ experiment_prompt: |
 
   ## Execution Command (DO NOT MODIFY):
   Use a single execution target directory. The script will be executed using:
-  `python experiment.py --out_dir=run`
+  `python main.py --out_dir=run`
 
-  ## YOU MUST ENSURE experiment.py:
-  1. Parses the `--out_dir` argument and calls `os.makedirs(out_dir, exist_ok=True)`.
+  ## YOU MUST ENSURE the workspace:
+  1. `main.py` parses the `--out_dir` argument and calls `os.makedirs(out_dir, exist_ok=True)`.
   2. Loads the dataset using the specified loader with NO manual file paths.
   3. Builds a lightweight model that matches the dataset feature shape; document tensor dimensions in code comments when not obvious. No hidden “placeholder embeddings”.
   4. Performs REAL training with gradient updates (`optimizer.zero_grad()`, `loss.backward()`, `optimizer.step()`) on actual features (no zero/random stand-ins).
@@ -172,7 +172,7 @@ experiment_prompt: |
   - [ ] `final_info.json` is written in `out_dir` with real metric values.
   - [ ] Sanity check: print or log dataset sizes and confirm they respect the limits; mention parameter count estimate in a comment.
 
-  If your current experiment.py has placeholder code like `...`, replace them with runnable implementations.
+  If your current `main.py` or helper files have placeholder code like `...`, replace them with runnable implementations.
   If any external functions like `compute_loss`, `evaluate_model`, or `log_results` are used, implement them too.
 
   ## Baseline Results
@@ -180,7 +180,7 @@ experiment_prompt: |
     {baseline_results}
 
   ---
-  Please begin writing the `experiment.py` file now.
+  Please begin writing the workspace now, with `main.py` as the entrypoint.
 
 experiment_success_prompt: |
   Run completed. Here are the results:
@@ -192,7 +192,7 @@ experiment_success_prompt: |
   Please include *all* relevant information for the writeup on this run, including an experiment description. Be as verbose as necessary.
 
   Then, implement the next thing on your list.
-  If further fixes are needed, the command remains `python experiment.py --out_dir=run`.
+  If further fixes are needed, the command remains `python main.py --out_dir=run`.
   YOUR PROPOSED CHANGE MUST USE THIS COMMAND FORMAT, DO NOT ADD ADDITIONAL COMMAND LINE ARGS.
 
 experiment_error_prompt: |
@@ -201,9 +201,9 @@ experiment_error_prompt: |
   Your goal is still to implement this experiment: {Title}.
   The purpose is: {Experiment}.
   Use the single run target `run`.
-  Please fix `experiment.py` so that it runs successfully with:
-  `python experiment.py --out_dir=run`.
-  Make sure to implement any missing parts like model definition, loss function, data loading, and final_info.json saving.
+  Please fix the experiment workspace so that `main.py` runs successfully with:
+  `python main.py --out_dir=run`.
+  Make sure to implement any missing parts like model definition, loss function, data loading, helper modules, and final_info.json saving.
 
 
 experiment_timeout_prompt: |

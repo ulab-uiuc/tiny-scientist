@@ -1,0 +1,55 @@
+{
+  "dataset_meta": {
+    "dataset": "imdb",
+    "label_distribution": {
+      "test": {
+        "neg": 984,
+        "pos": 1016
+      },
+      "train": {
+        "neg": 2500,
+        "pos": 2500
+      },
+      "val": {
+        "neg": 1016,
+        "pos": 984
+      }
+    },
+    "n_features": 20000,
+    "sizes": {
+      "test": 2000,
+      "train": 5000,
+      "val": 2000
+    },
+    "subsample_seed": 12345,
+    "tfidf": {
+      "max_df": 0.9,
+      "max_features": 20000,
+      "min_df": 2,
+      "ngram_range": [
+        1,
+        2
+      ],
+      "norm": "l2"
+    }
+  },
+  "initial_point": {
+    "f_test": 1000.0,
+    "f_train": 2500.0,
+    "f_val": 1000.0,
+    "grad_norm_train": 179.17013549804688,
+    "theta0": "zeros"
+  },
+  "lambda": 0.01,
+  "oracle": {
+    "d": 20000,
+    "dim_with_bias": 20001,
+    "n": 5000,
+    "objective": "0.5*||Xw + b - y||^2 + 0.5*lambda*||w||^2",
+    "y_transform": "y_ls = 2*y - 1"
+  },
+  "seed": 12345,
+  "step": 2,
+  "suite": "imdb_quadratic",
+  "what": "dataset_induced_quadratic_oracle"
+}

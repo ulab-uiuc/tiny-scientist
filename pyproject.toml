@@ -20,9 +20,9 @@ pymupdf = "^1.22.3"
 pymupdf4llm = "*"
 pypdf = "^5.3.1"
 anthropic = "*"
+claude-agent-sdk = "*"
 google-generativeai = "*"
 openai = "*"
-smolagents = { version = "*", extras = ["litellm"] }
 openai-agents = "*"
 toml = "*"
 spacy = "^3.0.0"
@@ -38,9 +38,11 @@ docker = "^7.1.0"
 psutil = "*"
 fastmcp = { version = "*", optional = true }
 mcp = { version = "*", optional = true }
+smolagents = { version = "*", extras = ["litellm"], optional = true }
 
 [tool.poetry.extras]
 mcp = ["fastmcp", "mcp"]
+smolagents-compat = ["smolagents"]
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

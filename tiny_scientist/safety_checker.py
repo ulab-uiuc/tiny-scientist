@@ -9,6 +9,7 @@ from .budget_checker import BudgetChecker
 from .configs import Config
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import create_client, get_response_from_llm
+from .utils.rich_output import print_mapping_table
 
 
 class RiskLevel(Enum):
@@ -194,12 +195,16 @@ class SafetyChecker:
         else:
             print("✅ SAFE: Input passed safety checks")
 
-        print(f"Risk Level: {risk_level}")
-        print(f"Attack Detected: {is_attacked}")
-        if safety_report["risk_assessment"]["reason"]:
-            print(f"Reason: {safety_report['risk_assessment']['reason']}")
+        print_mapping_table(
+            "Safety Report",
+            {
+                "Risk Level": risk_level,
+                "Attack Detected": is_attacked,
+                "Reason": safety_report["risk_assessment"]["reason"],
+                "Attack Type": safety_report["attack_detection"]["attack_type"],
+            },
+        )
 
-        self.cost_tracker.report()
         return is_safe, safety_report
 
     def _load_ethics_prompts(self) -> Dict[str, Any]:
@@ -267,7 +272,6 @@ class SafetyChecker:
             parsed_response = self._parse_ethics_response(response)
 
             print("✅ Ethics evaluation completed")
-            self.cost_tracker.report()
             return parsed_response
 
         except Exception as e:

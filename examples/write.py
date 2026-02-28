@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 
+import _bootstrap
 from tiny_scientist.writer import Writer
 
 
@@ -18,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
+        default="claude-3-5-sonnet-20241022",
         help="Model to use for writing and refinement",
     )
     parser.add_argument(
@@ -40,6 +41,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Path to save final paper PDF (defaults to experiment directory)",
     )
+    parser.add_argument(
+        "--agent-sdk",
+        type=str,
+        default="claude",
+        choices=["openai", "claude"],
+        help="Agent SDK backend to use",
+    )
 
     return parser.parse_args()
 
@@ -53,6 +61,7 @@ def main() -> int:
             model=args.model,
             output_dir=args.experiment,
             template=args.template,
+            agent_sdk=args.agent_sdk,
         )
 
         # idea should be import from args.experiemnt and idea.json
