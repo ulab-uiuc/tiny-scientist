@@ -1,9 +1,6 @@
-"""Model adapter for smolagents LiteLLM integration."""
+"""Optional compatibility adapter for smolagents LiteLLM integration."""
 
 from __future__ import annotations
-
-from smolagents import LiteLLMModel
-
 
 # Model name mappings from tiny-scientist format to LiteLLM format
 MODEL_MAPPING = {
@@ -31,7 +28,7 @@ MODEL_MAPPING = {
 }
 
 
-def create_smolagents_model(model: str) -> LiteLLMModel:
+def create_smolagents_model(model: str):
     """
     Create a smolagents LiteLLMModel from a tiny-scientist model name.
 
@@ -41,6 +38,13 @@ def create_smolagents_model(model: str) -> LiteLLMModel:
     Returns:
         LiteLLMModel configured for the specified model
     """
-    # Map to LiteLLM format, or use as-is if not in mapping
+    try:
+        from smolagents import LiteLLMModel
+    except ImportError as exc:
+        raise ImportError(
+            "smolagents is not installed. Install the optional compatibility "
+            "dependency if you need create_smolagents_model()."
+        ) from exc
+
     model_id = MODEL_MAPPING.get(model, model)
     return LiteLLMModel(model_id=model_id)

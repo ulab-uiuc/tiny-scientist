@@ -2,7 +2,8 @@
 import argparse
 import json
 
-from tiny_scientist.smolagents_tools import PaperSearchTool
+import _bootstrap
+from tiny_scientist.tool_impls import PaperSearchTool
 
 
 def parse_args() -> argparse.Namespace:

@@ -13,7 +13,8 @@ import re
 from typing import Any, Dict, List, Optional
 
 from rich import print
-from smolagents import Tool
+
+from tiny_scientist.tool_base import Tool
 
 
 class PaperSearchTool(Tool):

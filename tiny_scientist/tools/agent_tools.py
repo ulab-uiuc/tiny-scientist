@@ -1,4 +1,4 @@
-"""OpenAI Agents SDK @function_tool wrappers for smolagents tool instances."""
+"""OpenAI Agents SDK @function_tool wrappers for TinyScientist tool instances."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, List
 from agents import function_tool
 
 if TYPE_CHECKING:
-    from tiny_scientist.smolagents_tools import (
+    from tiny_scientist.tool_impls import (
         CodeSearchTool,
         DrawerTool,
         PaperSearchTool,
@@ -36,7 +36,7 @@ def make_write_file_tool(tool_instance: "WriteFileTool"):
     def write_file(filename: str, content: str) -> str:
         """Write content to a file in the experiment directory.
 
-        Use this to create or update experiment.py with complete Python code.
+        Use this to create or update main.py or helper files with complete Python code.
         """
         return tool_instance.forward(filename, content)
 
@@ -50,7 +50,7 @@ def make_read_file_tool(tool_instance: "ReadFileTool"):
     def read_file(filename: str) -> str:
         """Read content from a file in the experiment directory.
 
-        Use this to inspect the current content of experiment.py.
+        Use this to inspect the current content of main.py or helper files.
         """
         return tool_instance.forward(filename)
 
@@ -62,9 +62,9 @@ def make_run_experiment_tool(tool_instance: "RunExperimentTool"):
 
     @function_tool
     def run_experiment(run_num: int) -> str:
-        """Run the experiment.py script in Docker or locally and return the result.
+        """Run the main.py entrypoint in Docker or locally and return the result.
 
-        After writing experiment.py, call this to execute it.
+        After writing main.py and helper files, call this to execute the workspace.
         """
         return tool_instance.forward(run_num)
 
@@ -240,6 +240,51 @@ def make_claim_verifier_tool(tool_instance: "ClaimVerifierTool"):
     return claim_verifier
 
 
+def make_claude_bash_tool(working_directory: str, timeout: int = 300):
+    """Create a bash execution function_tool for Claude-backed agents.
+
+    Provides capability equivalent to OpenAI's codex_tool for Claude and other
+    non-Codex models: the agent can execute arbitrary shell commands in the
+    experiment workspace (write files, run Python, inspect output, install
+    packages, etc.).
+
+    Args:
+        working_directory: Absolute path to the experiment output directory.
+        timeout: Max seconds per command before raising TimeoutExpired.
+    """
+    import subprocess
+
+    @function_tool
+    def bash(command: str) -> str:
+        """Execute a bash command in the experiment working directory.
+
+        Use this to write files (e.g. via Python heredoc or echo), run Python
+        scripts, install packages, and inspect workspace output.
+        Returns combined stdout + stderr with exit code on failure.
+        """
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                cwd=working_directory,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            output = result.stdout or ""
+            if result.stderr:
+                output += ("\n[stderr]\n" if output else "[stderr]\n") + result.stderr
+            if result.returncode != 0:
+                output += f"\n[exit code: {result.returncode}]"
+            return output.strip() or "(no output)"
+        except subprocess.TimeoutExpired:
+            return f"[Error] Command timed out after {timeout}s"
+        except Exception as exc:
+            return f"[Error] {exc}"
+
+    return bash
+
+
 def build_research_tools(
     model: str, include_drawer: bool = False, include_extended: bool = True
 ) -> List[Any]:
@@ -253,7 +298,7 @@ def build_research_tools(
     Optionally includes:
     - generate_diagram (when include_drawer=True)
     """
-    from tiny_scientist.smolagents_tools import (
+    from tiny_scientist.tool_impls import (
         ArxivDailyWatchTool,
         BenchmarkSearchTool,
         ClaimVerifierTool,

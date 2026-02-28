@@ -3,6 +3,7 @@ import argparse
 import os
 from typing import Any, Dict
 
+import _bootstrap
 from tiny_scientist.budget_checker import BudgetChecker
 
 # Import the Coder class - assuming it's in a module called "coder"
@@ -13,7 +14,7 @@ from tiny_scientist.coder import Coder
 def test_docker_availability() -> bool:
     """Test if Docker is available."""
     try:
-        from tiny_scientist.smolagents_tools import DockerExperimentRunner
+        from tiny_scientist.tool_impls import DockerExperimentRunner
 
         runner = DockerExperimentRunner()
         if runner.use_docker:
@@ -108,7 +109,7 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
+        default="claude-3-5-sonnet-20241022",
         help="Model to use (e.g., llama3.1-405b, deepseek-coder-v2-0724)",
     )
     parser.add_argument(
@@ -119,6 +120,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--prompt_template_dir", type=str, default="./configs", help="Config directory"
+    )
+    parser.add_argument(
+        "--agent_sdk",
+        type=str,
+        default="claude",
+        choices=["openai", "claude"],
+        help="Agent SDK backend for the coder",
     )
     parser.add_argument(
         "--use_docker",
@@ -146,6 +154,7 @@ def main() -> None:
     print(f"Max runs: {args.max_runs}")
     print(f"Docker enabled: {args.use_docker}")
     print(f"Auto-install enabled: {args.auto_install}")
+    print(f"Agent SDK: {args.agent_sdk}")
 
     # Create the Coder instance
     coder = Coder(
@@ -156,6 +165,7 @@ def main() -> None:
         prompt_template_dir=args.prompt_template_dir,
         use_docker=args.use_docker,
         auto_install=args.auto_install,
+        agent_sdk=args.agent_sdk,
         cost_tracker=BudgetChecker(),
     )
 
