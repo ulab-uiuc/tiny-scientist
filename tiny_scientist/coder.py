@@ -10,6 +10,7 @@ from subprocess import TimeoutExpired
 from typing import Any, Dict, List, Optional, Tuple
 
 from agents import Agent, Runner
+from agents.exceptions import MaxTurnsExceeded
 from rich import print
 
 from .budget_checker import BudgetChecker
@@ -48,6 +49,7 @@ class Coder:
     STEP_TEXT_CONTEXT_LIMIT = 4000
     STEP_TABLE_CONTEXT_LIMIT = 5000
     STEP_TODO_CONTEXT_LIMIT = 3000
+    OPENAI_CODER_MAX_TURNS = 24
 
     def __init__(
         self,
@@ -295,7 +297,17 @@ class Coder:
         self.setup_agent()
 
         # Run experiments
-        success = self._run_experiment_loop(idea, baseline_results)
+        recovery_note: Optional[str] = None
+        try:
+            success = self._run_experiment_loop(idea, baseline_results)
+        except MaxTurnsExceeded:
+            success, recovery_note = self._recover_from_codegen_interruption(
+                idea,
+                interruption_reason=(
+                    "Code generation hit the agent max-turn limit; "
+                    "using the current workspace state."
+                ),
+            )
 
         if not success:
             # Even if failed, save an empty result file to avoid breaking writer
@@ -326,7 +338,42 @@ class Coder:
 
         self.cost_tracker.report("Coder Total Cost")
 
-        return True, self.output_dir, None
+        return True, self.output_dir, recovery_note
+
+    def _recover_from_codegen_interruption(
+        self,
+        idea: Dict[str, Any],
+        interruption_reason: str,
+    ) -> Tuple[bool, Optional[str]]:
+        """Try to continue from the current workspace when agent coding is interrupted."""
+        main_path = self._entrypoint_path()
+        if not osp.exists(main_path):
+            print("[System] Code generation stopped before main.py was created.")
+            return False, None
+
+        experiment_table = str(idea.get("ExperimentTable", "")).strip()
+        if not experiment_table:
+            print("[System] Cannot recover coder run without ExperimentTable.")
+            return False, None
+
+        table_rows = self._extract_table_rows(experiment_table)
+        print(
+            "[System] Code generation stopped early. "
+            "Attempting to run the current workspace and continue with partial results..."
+        )
+        return_code, message = self._run_single_experiment(
+            run_num=1,
+            idea=idea,
+            experiment_table=experiment_table,
+            table_rows=table_rows,
+        )
+        if return_code != 0:
+            print("[System] Recovery run failed after code generation interruption.")
+            self._print_run_summary(success=False, error_message=message)
+            return False, None
+
+        self._print_run_summary(success=True)
+        return True, f"{interruption_reason} Recovered by running the current workspace."
 
     def _format_experiment_for_prompt(
         self, exp: Dict[str, Any]
@@ -716,7 +763,11 @@ class Coder:
 
         if self.agent is None:
             raise RuntimeError("Agent not initialized. Call setup_agent() first.")
-        result = Runner.run_sync(self.agent, task_prompt)
+        result = Runner.run_sync(
+            self.agent,
+            task_prompt,
+            max_turns=self.OPENAI_CODER_MAX_TURNS,
+        )
         track_sdk_cost(result, self.cost_tracker, self.model, "generate_experiment")
         return result.final_output or "CONTINUE"
 

@@ -242,8 +242,9 @@ class TinyScientist:
             print_mapping_table(
                 "Coding Result",
                 {
-                    "Status": "success",
+                    "Status": "partial" if error_details else "success",
                     "Experiment Dir": exp_path,
+                    "Note": error_details or "-",
                 },
             )
         else:
