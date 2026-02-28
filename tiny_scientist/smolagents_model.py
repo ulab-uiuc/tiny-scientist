@@ -53,4 +53,4 @@ def create_smolagents_model(model: str) -> LiteLLMModel:
     """
     # Map to LiteLLM format, or use as-is if not in mapping
     model_id = MODEL_MAPPING.get(model, model)
-    return LiteLLMModel(model_id=model_id)
+    return LiteLLMModel(model_id=model_id, model_kwargs={"drop_params": True})

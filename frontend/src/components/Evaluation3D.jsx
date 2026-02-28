@@ -251,9 +251,10 @@ const Node3D = ({ node, position, color, isSelected, isHovered, onPointerOver, o
       const thresh = 8;
       allNodes.forEach(other => {
         if (other.id === node.id || other.isGhost) return;
-        const px = scoreToPos(other.scores?.[`${dims[0]?.dimensionA}-${dims[0]?.dimensionB}`] ?? 0);
-        const py = scoreToPos(other.scores?.[`${dims[1]?.dimensionA}-${dims[1]?.dimensionB}`] ?? 0);
-        const pz = scoreToPos(other.scores?.[`${dims[2]?.dimensionA}-${dims[2]?.dimensionB}`] ?? 0);
+        const otherScores = other.scores || other.originalData?.scores || {};
+        const px = scoreToPos(otherScores?.[`${dims[0]?.dimensionA}-${dims[0]?.dimensionB}`] ?? 0);
+        const py = scoreToPos(otherScores?.[`${dims[1]?.dimensionA}-${dims[1]?.dimensionB}`] ?? 0);
+        const pz = scoreToPos(otherScores?.[`${dims[2]?.dimensionA}-${dims[2]?.dimensionB}`] ?? 0);
         const facePos = projectToFace(new THREE.Vector3(px, py, pz));
         const dragFace = projectToFace(curr);
         const d = Math.hypot(dragFace.a - facePos.a, dragFace.b - facePos.b);
@@ -699,6 +700,7 @@ const SceneContent = ({
       if (!dimObj) return 0;
       const key = `${dimObj.dimensionA}-${dimObj.dimensionB}`;
       if (targetNode.scores && targetNode.scores[key] !== undefined) return targetNode.scores[key];
+      if (targetNode.originalData && targetNode.originalData.scores && targetNode.originalData.scores[key] !== undefined) return targetNode.originalData.scores[key];
       return 0;
     };
 
@@ -874,7 +876,9 @@ const SceneContent = ({
           if (activeCount === 2 && !activeDimensionIndices.includes(idx)) return true;
 
           const key = `${dimObj.dimensionA}-${dimObj.dimensionB}`;
-          return node.scores && node.scores[key] !== undefined;
+          if (node.scores && node.scores[key] !== undefined) return true;
+          if (node.originalData && node.originalData.scores && node.originalData.scores[key] !== undefined) return true;
+          return false;
         });
 
         // Don't render node if scoring is incomplete
@@ -884,6 +888,7 @@ const SceneContent = ({
           if (!dimObj) return 0; // Changed from 50 to 0 (center in -50 to 50 range)
           const key = `${dimObj.dimensionA}-${dimObj.dimensionB}`;
           if (node.scores && node.scores[key] !== undefined) return node.scores[key];
+          if (node.originalData && node.originalData.scores && node.originalData.scores[key] !== undefined) return node.originalData.scores[key];
           return 0; // Changed from 50 to 0
         };
 

@@ -1,0 +1,1780 @@
+\begin{thebibliography}{265}
+\providecommand{\natexlab}[1]{#1}
+
+\bibitem[{Addepalli et~al.(2024)Addepalli, Dey, and Babu}]{profeat2024}
+Sravanti Addepalli, Priyam Dey, and R.~Venkatesh Babu. 2024.
+\newblock Profeat: Projected feature adversarial training for self-supervised
+  learning of robust representations.
+\newblock \emph{arXiv}.
+
+\bibitem[{Agarwal et~al.(2009)Agarwal, Biegler, and Zitney}]{a2009}
+A.~Agarwal, L.~Biegler, and S.~Zitney. 2009.
+\newblock A trust-region algorithm for the optimization of psa processes using
+  reduced-order modeling.
+
+\bibitem[{Agrawal and Sembium(2025)}]{rtsm2025}
+Sanjay Agrawal and Vivek Sembium. 2025.
+\newblock Rtsm: Knowledge distillation with diverse signals for efficient
+  real-time semantic matching in e-commerce.
+\newblock \emph{North American Chapter of the Association for Computational
+  Linguistics}.
+
+\bibitem[{Ahadzi et~al.(2025)Ahadzi, Singh, Kinnunen, and
+  Hautamaki}]{continuous2025}
+Edem Ahadzi, Vishwanath~Pratap Singh, Tomi Kinnunen, and Ville Hautamaki. 2025.
+\newblock Continuous learning for children's asr: Overcoming catastrophic
+  forgetting with elastic weight consolidation and synaptic intelligence.
+\newblock \emph{arXiv}.
+
+\bibitem[{Ahmad et~al.(2025)Ahmad, Mazzara, Distefano, and Khan}]{byte2025}
+Muhammad Ahmad, Manuel Mazzara, Salvatore Distefano, and Adil~Mehmood Khan.
+  2025.
+\newblock Byte latent mamba with state space and knowledge distillation for
+  hyperspectral image classification.
+\newblock \emph{IEEE Transactions on Geoscience and Remote Sensing}.
+
+\bibitem[{Alarab et~al.(2021)Alarab, Prakoonwit, and Nacer}]{illustrative2021}
+Ismail Alarab, S.~Prakoonwit, and Mohamed~Ikbal Nacer. 2021.
+\newblock Illustrative discussion of mc-dropout in general dataset: Uncertainty
+  estimation in bitcoin.
+\newblock \emph{Neural Processing Letters}.
+
+\bibitem[{Alpak et~al.(2021)Alpak, Wang, Gao, and Jain}]{benchmarking2021}
+F.~Alpak, Yixuan Wang, G.~Gao, and V.~Jain. 2021.
+\newblock Benchmarking and field-testing of the distributed quasi-newton
+  derivative-free optimization method for field development optimization.
+\newblock \emph{Day 2 Wed, September 22, 2021}.
+
+\bibitem[{Alshahwan et~al.(2024)Alshahwan, Chheda, Finegenova, Gokkaya, Harman,
+  Harper, Marginean, Sengupta, and Wang}]{automated2024}
+Nadia Alshahwan, Jubin Chheda, Anastasia Finegenova, Beliz Gokkaya, Mark
+  Harman, Inna Harper, Alexandru Marginean, Shubho Sengupta, and Eddy Wang.
+  2024.
+\newblock Automated unit test improvement using large language models at meta.
+\newblock \emph{arXiv}.
+
+\bibitem[{Amer and Maul(2019)}]{reducing2019}
+Mohammed Amer and Tomás Maul. 2019.
+\newblock Reducing catastrophic forgetting in modular neural networks by
+  dynamic information balancing.
+\newblock \emph{arXiv}.
+
+\bibitem[{Amir et~al.(2022)Amir, Zelazny, Katz, and
+  Schapira}]{verificationaided2022}
+Guy Amir, Tom Zelazny, Guy Katz, and Michael Schapira. 2022.
+\newblock Verification-aided deep ensemble selection.
+\newblock \emph{arXiv}.
+
+\bibitem[{Antal and Hajdu(2014)}]{an2014}
+Balint Antal and Andras Hajdu. 2014.
+\newblock An ensemble-based system for automatic screening of diabetic
+  retinopathy.
+\newblock \emph{arXiv}.
+
+\bibitem[{Arazo et~al.(2019)Arazo, Ortego, Albert, O'Connor, and
+  McGuinness}]{pseudolabeling2019}
+Eric Arazo, Diego Ortego, Paul Albert, Noel~E. O'Connor, and Kevin McGuinness.
+  2019.
+\newblock Pseudo-labeling and confirmation bias in deep semi-supervised
+  learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Asimopoulos et~al.(2025)Asimopoulos, Radoglou-Grammatikis, Fouliras,
+  Panitsidis, Efstathopoulos, Lagkas, Argyriou, Kotsiuba, and
+  Sarigiannidis}]{surrogateguided2025}
+D.~Asimopoulos, Panagiotis~I. Radoglou-Grammatikis, Panagiotis~E. Fouliras,
+  Konstandinos Panitsidis, G.~Efstathopoulos, Thomas~D. Lagkas, Vasileios
+  Argyriou, Igor Kotsiuba, and Panagiotis~G. Sarigiannidis. 2025.
+\newblock Surrogate-guided adversarial attacks: Enabling white-box methods in
+  black-box scenarios.
+\newblock \emph{Computer Science Symposium in Russia}.
+
+\bibitem[{Balanya et~al.(2022)Balanya, Maroñas, and Ramos}]{adaptive2022}
+Sergio~A. Balanya, Juan Maroñas, and Daniel Ramos. 2022.
+\newblock Adaptive temperature scaling for robust calibration of deep neural
+  networks.
+\newblock \emph{arXiv}.
+
+\bibitem[{Baldovin(2018)}]{physical2018}
+Marco Baldovin. 2018.
+\newblock Physical interpretation of the canonical ensemble for long-range
+  interacting systems in the absence of ensemble equivalence.
+\newblock \emph{arXiv}.
+
+\bibitem[{Banerjee et~al.(2023)Banerjee, Summerfield, Dong, and
+  Glide-Hurst}]{volumetric2023}
+Soumyanil Banerjee, Nicholas Summerfield, Ming Dong, and Carri Glide-Hurst.
+  2023.
+\newblock Volumetric medical image segmentation through dual self-distillation
+  in u-shaped networks.
+\newblock \emph{arXiv}.
+
+\bibitem[{Baran et~al.(2013)Baran, Horányi, and Nemoda}]{comparison2013}
+Sándor Baran, András Horányi, and Dóra Nemoda. 2013.
+\newblock Comparison of bma and emos statistical calibration methods for
+  temperature and wind speed ensemble weather prediction.
+\newblock \emph{arXiv}.
+
+\bibitem[{Batool et~al.(2025)Batool, Mukhtar, Khawaja, Alghamdi, Khan, Qayyum,
+  Adil, Khan, Akram, Akbar, and Eklund}]{knowledge2025}
+Humaira Batool, Asmat Mukhtar, Sajid~Gul Khawaja, N.~Alghamdi, Asad~Mansoor
+  Khan, Adil Qayyum, R.~Adil, Zawar Khan, M.~Usman Akram, Muhammad~Usman Akbar,
+  and Anders Eklund. 2025.
+\newblock Knowledge distillation and transformer-based framework for automatic
+  spine ct report generation.
+\newblock \emph{IEEE Access}.
+
+\bibitem[{Borup and Andersen(2023)}]{selfdistillation2023}
+Kenneth Borup and Lars~Nørvang Andersen. 2023.
+\newblock Self-distillation for gaussian process regression and classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Bouallegue(2015)}]{assessment2015}
+Zied~Ben Bouallegue. 2015.
+\newblock Assessment and added value estimation of an ensemble approach with a
+  focus on global radiation forecasts.
+\newblock \emph{arXiv}.
+
+\bibitem[{Boudjoghra et~al.(2024)Boudjoghra, Lahoud, Cholakkal, Anwer, Khan,
+  and Khan}]{continual2024}
+Mohamed El~Amine Boudjoghra, Jean Lahoud, Hisham Cholakkal, R.~Anwer, Salman~H.
+  Khan, and F.~Khan. 2024.
+\newblock Continual learning and unknown object discovery in 3d scenes via
+  self-distillation.
+\newblock \emph{European Conference on Computer Vision}.
+
+\bibitem[{Bragg et~al.(2025)Bragg, Dorsey, Prior, Ajit, Kim, Willis, and
+  Rivas}]{robust2025}
+Landon Bragg, Nathan Dorsey, Josh Prior, John Ajit, Ben Kim, Nate Willis, and
+  Pablo Rivas. 2025.
+\newblock Robust ddos-attack classification with 3d cnns against adversarial
+  methods.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Bundele et~al.(2025)Bundele, Hosseinzadeh, and Lensch}]{you2025}
+Valay Bundele, Mehran Hosseinzadeh, and Hendrik P.~A. Lensch. 2025.
+\newblock You are your best teacher: Semi-supervised surgical point tracking
+  with cycle-consistent self-distillation.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Calzavara et~al.(2024)Calzavara, Cazzaro, Lucchese, and
+  Pibiri}]{verifiable2024}
+Stefano Calzavara, Lorenzo Cazzaro, Claudio Lucchese, and Giulio~Ermanno
+  Pibiri. 2024.
+\newblock Verifiable boosted tree ensembles.
+\newblock \emph{arXiv}.
+
+\bibitem[{Calzavara et~al.(2023)Calzavara, Cazzaro, Pibiri, and
+  Prezza}]{verifiable2023}
+Stefano Calzavara, Lorenzo Cazzaro, Giulio~Ermanno Pibiri, and Nicola Prezza.
+  2023.
+\newblock Verifiable learning for robust tree ensembles.
+\newblock \emph{arXiv}.
+
+\bibitem[{Campos et~al.(2023)Campos, Zhang, Yang, Kieu, Guo, and
+  Jensen}]{lightts2023}
+David Campos, Miao Zhang, Bin Yang, Tung Kieu, Chenjuan Guo, and Christian~S.
+  Jensen. 2023.
+\newblock Lightts: Lightweight time series classification with adaptive
+  ensemble distillation -- extended version.
+\newblock \emph{arXiv}.
+
+\bibitem[{Cha et~al.(2021)Cha, Ko, Yoo, and Moon}]{selfsupervised2021}
+Sungmin Cha, Naeun Ko, Y.~Yoo, and Taesup Moon. 2021.
+\newblock Self-supervised iterative contextual smoothing for efficient
+  adversarial defense against gray- and black-box attack.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Chakravarty et~al.(2020)Chakravarty, Sarkar, Ghosh, Sethuraman, and
+  Sheet}]{learning2020}
+Arunava Chakravarty, Tandra Sarkar, Nirmalya Ghosh, Ramanathan Sethuraman, and
+  Debdoot Sheet. 2020.
+\newblock Learning decision ensemble using a graph neural network for
+  comorbidity aware chest radiograph screening.
+\newblock \emph{arXiv}.
+
+\bibitem[{Chanda et~al.(2025)Chanda, Choudhury, Roy, Biswas, and
+  Kuiry}]{evaluating2025}
+Ankur Chanda, Kushan Choudhury, Shubhrodeep Roy, Shubhajit Biswas, and Somenath
+  Kuiry. 2025.
+\newblock Evaluating temperature scaling calibration effectiveness for cnns
+  under varying noise levels in brain tumour detection.
+\newblock \emph{BIO Web of Conferences}.
+
+\bibitem[{Chaves et~al.(2021)Chaves, Bissoto, Valle, and Avila}]{an2021}
+Levy Chaves, Alceu Bissoto, Eduardo Valle, and Sandra Avila. 2021.
+\newblock An evaluation of self-supervised pre-training for skin-lesion
+  analysis.
+\newblock \emph{arXiv}.
+
+\bibitem[{Chen et~al.(2023)Chen, Yang, Gan, Gudovskiy, Dong, Wang, Okuno,
+  Nakata, Keutzer, and Zhang}]{splitensemble2023}
+Anthony Chen, Huanrui Yang, Yulu Gan, Denis~A Gudovskiy, Zhen Dong, Haofan
+  Wang, Tomoyuki Okuno, Yohei Nakata, Kurt Keutzer, and Shanghang Zhang. 2023.
+\newblock Split-ensemble: Efficient ood-aware ensemble via task and model
+  splitting.
+\newblock \emph{arXiv}.
+
+\bibitem[{Chen et~al.(2022)Chen, Jiang, Wang, Wang, and Long}]{debiased2022}
+Baixu Chen, Junguang Jiang, Ximei Wang, Jianmin Wang, and Mingsheng Long. 2022.
+\newblock Debiased pseudo labeling in self-training.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Chen et~al.(2010)Chen, Wang, Li, and Reynolds}]{closedloop2010}
+Chaohui Chen, Yudou Wang, Gaoming Li, and A.~Reynolds. 2010.
+\newblock Closed-loop reservoir management on the brugge test case.
+
+\bibitem[{Chen et~al.(2021)Chen, Cheng, Du, Xu, Jiang, and Wang}]{two2021}
+Mingcai Chen, Hao Cheng, Yuntao Du, Ming Xu, Wenyu Jiang, and Chongjun Wang.
+  2021.
+\newblock Two wrongs don't make a right: Combating confirmation bias in
+  learning with label noise.
+\newblock \emph{arXiv}.
+
+\bibitem[{Chen et~al.(2020{\natexlab{a}})Chen, Liu, Ni, Cao, Liu, and
+  Zhang}]{pseudolabeling2020}
+Qilei Chen, Ping Liu, Jing Ni, Yu~Cao, Benyuan Liu, and Honggang Zhang.
+  2020{\natexlab{a}}.
+\newblock Pseudo-labeling for small lesion detection on diabetic retinopathy
+  images.
+\newblock \emph{arXiv}.
+
+\bibitem[{Chen et~al.(2024)Chen, Shuai, Hu, and Cheng}]{sdda2024}
+Xiaohao Chen, Qianjun Shuai, F.~Hu, and Yongqiang Cheng. 2024.
+\newblock Sdda: A progressive self-distillation with decoupled alignment for
+  multimodal image-text classification.
+\newblock \emph{Neurocomputing}.
+
+\bibitem[{Chen et~al.(2020{\natexlab{b}})Chen, Chen, Chen, Yuan, Gong, Chen,
+  and Wang}]{selfpu2020}
+Xuxi Chen, Wuyang Chen, Tianlong Chen, Ye~Yuan, Chen Gong, Kewei Chen, and
+  Zhangyang Wang. 2020{\natexlab{b}}.
+\newblock Self-pu: Self boosted and calibrated positive-unlabeled training.
+\newblock \emph{International Conference on Machine Learning}.
+
+\bibitem[{Chen et~al.(2020{\natexlab{c}})Chen, Bian, Xiao, Rong, Xu, and
+  Huang}]{on2020}
+Yuzhao Chen, Yatao Bian, Xi~Xiao, Yu~Rong, Tingyang Xu, and Junzhou Huang.
+  2020{\natexlab{c}}.
+\newblock On self-distilling graph neural network.
+\newblock \emph{arXiv}.
+
+\bibitem[{Chen et~al.(2025)Chen, Wong, Liao, and Qu}]{confidence2025}
+Zhewei Chen, Wai~Keung Wong, Jinpiao Liao, and Ying Qu. 2025.
+\newblock Confidence calibration and uncertainty estimation in convolutional
+  neural network for fabric defect segmentation: a benchmark study.
+\newblock \emph{Textile research journal}.
+
+\bibitem[{Chen(2025)}]{selfsupervised2025}
+Zhiliang Chen. 2025.
+\newblock Self-supervised distillation method for lightweight convolutional
+  networks.
+\newblock \emph{2025 6th International Conference on Computer Engineering and
+  Intelligent Control (ICCEIC)}.
+
+\bibitem[{Cheng et~al.(2019)Cheng, Chen, Liu, Chang, Hsieh, and
+  Das}]{sprout2019}
+Minhao Cheng, Pin-Yu Chen, Sijia Liu, Shiyu Chang, Cho-Jui Hsieh, and Payel
+  Das. 2019.
+\newblock Sprout: Self-progressing robust training.
+
+\bibitem[{Cheng et~al.(2020)Cheng, Chen, Liu, Chang, Hsieh, and
+  Das}]{selfprogressing2020}
+Minhao Cheng, Pin-Yu Chen, Sijia Liu, Shiyu Chang, Cho-Jui Hsieh, and Payel
+  Das. 2020.
+\newblock Self-progressing robust training.
+\newblock \emph{AAAI Conference on Artificial Intelligence}.
+
+\bibitem[{Chhipa et~al.(2025)Chhipa, Vashishtha, Jithamanyu, Saini, Shah, and
+  Liwicki}]{astra2025}
+Prakash~Chandra Chhipa, Gautam Vashishtha, Settur Jithamanyu, Rajkumar Saini,
+  Mubarak Shah, and Marcus Liwicki. 2025.
+\newblock Astra: Adversarial self-supervised training with adaptive-attacks.
+\newblock \emph{International Conference on Learning Representations}.
+
+\bibitem[{Chikhaoui(2025)}]{explainable2025}
+Belkacem Chikhaoui. 2025.
+\newblock Explainable ai via large language models: Translating neural network
+  behavior into interpretable decision trees.
+\newblock \emph{2025 3rd International Conference on Foundation and Large
+  Language Models (FLLM)}.
+
+\bibitem[{Cho et~al.(2025)Cho, Lee, and Kim}]{longtailed2025}
+Seungju Cho, Hongsin Lee, and Changick Kim. 2025.
+\newblock Long-tailed adversarial training with self-distillation.
+\newblock \emph{International Conference on Learning Representations}.
+
+\bibitem[{Ciravegna et~al.(2021)Ciravegna, Precioso, Betti, Mottin, and
+  Gori}]{knowledgedriven2021}
+Gabriele Ciravegna, Frédéric Precioso, Alessandro Betti, Kevin Mottin, and
+  Marco Gori. 2021.
+\newblock Knowledge-driven active learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Dabah and Tirer(2024)}]{on2024}
+Lahav Dabah and Tom Tirer. 2024.
+\newblock On temperature scaling and conformal prediction of deep classifiers.
+\newblock \emph{International Conference on Machine Learning}.
+
+\bibitem[{Deng et~al.(2022)Deng, Yin, and Yang}]{a2022}
+Shaochang Deng, Mengxiao Yin, and Feng Yang. 2022.
+\newblock A self-improving skin lesions diagnosis framework via pseudo-labeling
+  and self-distillation.
+\newblock \emph{Asian Conference on Machine Learning}.
+
+\bibitem[{Dereka et~al.(2023)Dereka, Karpukhin, Zhdanov, and
+  Kolesnikov}]{diversifying2023}
+Stanislav Dereka, Ivan Karpukhin, Maksim Zhdanov, and Sergey Kolesnikov. 2023.
+\newblock Diversifying deep ensembles: A saliency map approach for enhanced ood
+  detection, calibration, and accuracy.
+\newblock \emph{arXiv}.
+
+\bibitem[{Devassy et~al.(2016)Devassy, Durisi, Lindqvist, Yang, and
+  Dalai}]{nonasymptotic2016}
+Rahul Devassy, Giuseppe Durisi, Benjamin Lindqvist, Wei Yang, and Marco Dalai.
+  2016.
+\newblock Nonasymptotic coding-rate bounds for binary erasure channels with
+  feedback.
+\newblock \emph{arXiv}.
+
+\bibitem[{Ding et~al.(2023)Ding, Yin, Zhang, and Gao}]{combating2023}
+Qijie Ding, Jie Yin, Daokun Zhang, and Junbin Gao. 2023.
+\newblock Combating confirmation bias: A unified pseudo-labeling framework for
+  entity alignment.
+\newblock \emph{arXiv}.
+
+\bibitem[{Ding et~al.(2025)Ding, Zuo, Jing, Yang, He, and Xie}]{synergy2025}
+Yongqi Ding, Lin Zuo, Mengmeng Jing, Kunshan Yang, Pei He, and Tonglan Xie.
+  2025.
+\newblock Synergy between the strong and the weak: Spiking neural networks are
+  inherently self-distillers.
+\newblock \emph{arXiv}.
+
+\bibitem[{Dong et~al.(2024)Dong, Lin, Belkin, Huerta, and Vulić}]{undial2024}
+Yijiang~River Dong, Hongzhou Lin, Mikhail Belkin, Ramon Huerta, and Ivan
+  Vulić. 2024.
+\newblock Undial: Self-distillation with adjusted logits for robust unlearning
+  in large language models.
+\newblock \emph{arXiv}.
+
+\bibitem[{Dong et~al.(2025)Dong, Lu, Feng, Guo, Wang, Wu, and Lu}]{bioofl2025}
+Zhe Dong, Zhi Lu, Yuanqing Feng, Shuai Guo, Zilong Wang, Yutong Wu, and
+  Songfeng Lu. 2025.
+\newblock Bio-ofl: Biomedical privacy and auditable one-shot federated
+  learning.
+\newblock \emph{IEEE International Conference on Bioinformatics and
+  Biomedicine}.
+
+\bibitem[{Dorigatti et~al.(2022)Dorigatti, Goschenhofer, Schubert, Rezaei, and
+  Bischl}]{uncertaintyaware2022}
+Emilio Dorigatti, Jann Goschenhofer, Benjamin Schubert, Mina Rezaei, and Bernd
+  Bischl. 2022.
+\newblock Uncertainty-aware pseudo-label selection for positive-unlabeled
+  learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Ejigu et~al.(2023)Ejigu, Hong, and Hong}]{robust2023}
+Girum~Fitihamlak Ejigu, S.~Hong, and C.~Hong. 2023.
+\newblock Robust federated learning with local mixed co-teaching.
+\newblock \emph{International Conference on Information Networking}.
+
+\bibitem[{Eltahan et~al.(2023)Eltahan, Alpak, and Sepehrnoori}]{a2023}
+Esmail Eltahan, F.~Alpak, and K.~Sepehrnoori. 2023.
+\newblock A quasi-newton trust-region method for optimization under uncertainty
+  using stochastic simplex approximate gradients.
+\newblock \emph{Computational Geosciences}.
+
+\bibitem[{Feldman et~al.(2023)Feldman, Kellogg, and Chaparro}]{on2023}
+Kobi Feldman, Martin Kellogg, and Oscar Chaparro. 2023.
+\newblock On the relationship between code verifiability and understandability.
+\newblock \emph{arXiv}.
+
+\bibitem[{Finn et~al.(2022)Finn, Geppert, and Ament}]{towards2022}
+Tobias Finn, Gernot Geppert, and Felix Ament. 2022.
+\newblock Towards hourly three-dimensional ensemble data assimilation of
+  screen-level observations into coupled atmosphere-land models.
+\newblock \emph{arXiv}.
+
+\bibitem[{Fonseca and Lopes(2017)}]{calibration2017}
+Pedro~G. Fonseca and Hugo~D. Lopes. 2017.
+\newblock Calibration of machine learning classifiers for probability of
+  default modelling.
+\newblock \emph{arXiv}.
+
+\bibitem[{Frenkel and Goldberger(2021)}]{network2021}
+L.~Frenkel and J.~Goldberger. 2021.
+\newblock Network calibration by class-based temperature scaling.
+\newblock \emph{European Signal Processing Conference}.
+
+\bibitem[{Frenkel and Goldberger(2022)}]{network2022}
+L.~Frenkel and Jacob Goldberger. 2022.
+\newblock Network calibration by temperature scaling based on the predicted
+  confidence.
+\newblock \emph{European Signal Processing Conference}.
+
+\bibitem[{Fu et~al.(2018)Fu, Cheng, Xu, Zhang, Wong, Liu, and
+  Cao}]{discaware2018}
+Huazhu Fu, Jun Cheng, Yanwu Xu, Changqing Zhang, Damon Wing~Kee Wong, Jiang
+  Liu, and Xiaochun Cao. 2018.
+\newblock Disc-aware ensemble network for glaucoma screening from fundus image.
+\newblock \emph{arXiv}.
+
+\bibitem[{Gaire et~al.(2024)Gaire, Tabrizchi, and
+  Roohi}]{resourceefficient2024}
+R.~Gaire, Sepehr Tabrizchi, and A.~Roohi. 2024.
+\newblock Resource-efficient adaptive-network inference framework with
+  knowledge distillation-based unified learning.
+\newblock \emph{IEEE Computer Society Annual Symposium on VLSI}.
+
+\bibitem[{Gao et~al.(2021)Gao, Wang, Vink, Wells, and Saaf}]{distributed2021}
+G.~Gao, Yu~Wang, J.~Vink, T.~Wells, and F.~Saaf. 2021.
+\newblock Distributed quasi-newton derivative-free optimization method for
+  optimization problems with multiple local optima.
+\newblock \emph{Computational Geosciences}.
+
+\bibitem[{Gao et~al.(2022)Gao, Li, Shan, Qu, Wang, Wang, and
+  Zhang}]{forget2022}
+Jiaqi Gao, Jingqi Li, Hongming Shan, Yanyun Qu, James~Z. Wang, Fei-Yue Wang,
+  and Junping Zhang. 2022.
+\newblock Forget less, count better: A domain-incremental self-distillation
+  learning benchmark for lifelong crowd counting.
+\newblock \emph{arXiv}.
+
+\bibitem[{Gao and Zhao(2024)}]{research2024}
+Yunxiang Gao and Wang Zhao. 2024.
+\newblock Research on supply chain optimization and management based on deep
+  reinforcement learning.
+\newblock \emph{Scalable Computing : Practice and Experience}.
+
+\bibitem[{Gijsen et~al.(2025)Gijsen, Schulz, and Ritter}]{brainsemantoks2025}
+Sam Gijsen, Marc-Andre Schulz, and Kerstin Ritter. 2025.
+\newblock Brain-semantoks: Learning semantic tokens of brain dynamics with a
+  self-distilled foundation model.
+\newblock \emph{arXiv}.
+
+\bibitem[{Grassucci et~al.(2021)Grassucci, Cicero, and
+  Comminiello}]{quaternion2021}
+Eleonora Grassucci, Edoardo Cicero, and Danilo Comminiello. 2021.
+\newblock Quaternion generative adversarial networks.
+\newblock \emph{arXiv}.
+
+\bibitem[{Gross et~al.(2020)Gross, Jansen, Pérez, and
+  Raaijmakers}]{robustness2020}
+Dennis Gross, Nils Jansen, Guillermo~A. Pérez, and Stephan Raaijmakers. 2020.
+\newblock Robustness verification for classifier ensembles.
+\newblock \emph{arXiv}.
+
+\bibitem[{Gu et~al.(2025)Gu, Cao, Caccamo, and Hovakimyan}]{bregman2025}
+Yuliang Gu, Hongpeng Cao, Marco Caccamo, and N.~Hovakimyan. 2025.
+\newblock Bregman centroid guided cross-entropy method.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Gudovskiy et~al.(2020)Gudovskiy, Hodgkinson, Yamaguchi, and
+  Tsukizawa}]{deep2020}
+Denis~A. Gudovskiy, Alec Hodgkinson, Takuya Yamaguchi, and Sotaro Tsukizawa.
+  2020.
+\newblock Deep active learning for biased datasets via fisher kernel
+  self-supervision.
+\newblock \emph{Computer Vision and Pattern Recognition}.
+
+\bibitem[{Guo et~al.(2023)Guo, Wu, Zhan, and Ji}]{dualbranch2023}
+Jialin Guo, Zhenyu Wu, Zhiqiang Zhan, and Yang Ji. 2023.
+\newblock Dual-branch temperature scaling calibration for long-tailed
+  recognition.
+\newblock \emph{arXiv}.
+
+\bibitem[{Guo et~al.(2024)Guo, Ma, Zhao, Su, and Zou}]{cross2024}
+Yuxin Guo, Shijie Ma, Yuhao Zhao, Hu~Su, and Wei Zou. 2024.
+\newblock Cross pseudo-labeling for semi-supervised audio-visual source
+  localization.
+\newblock \emph{arXiv}.
+
+\bibitem[{Gurioli et~al.(2025)Gurioli, Pennino, Monteiro, and
+  Gabbrielli}]{mose2025}
+Andrea Gurioli, Federico Pennino, Joao Monteiro, and Maurizio Gabbrielli. 2025.
+\newblock Mose: Hierarchical self-distillation enhances early layer embeddings.
+
+\bibitem[{Haase and da~Silva(2025)}]{hpmkd2025}
+Gustavo~Coelho Haase and Paulo Henrique~Dourado da~Silva. 2025.
+\newblock Hpm-kd: Hierarchical progressive multi-teacher framework for
+  knowledge distillation and efficient model compression.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Hannanu et~al.(2025)Hannanu, Silva, Camponogara, and Hovd}]{a2025}
+M.~Hannanu, T.~L. Silva, E.~Camponogara, and M.~Hovd. 2025.
+\newblock A trust region method for output-constrained reservoir optimization
+  under geological uncertainty.
+\newblock \emph{Computational Geosciences}.
+
+\bibitem[{Harang and Sanders(2023)}]{catastrophic2023}
+Rich Harang and Hillary Sanders. 2023.
+\newblock Catastrophic forgetting in the context of model updates.
+\newblock \emph{arXiv}.
+
+\bibitem[{Hareendranathan and Jaremko(2025)}]{impact2025}
+A.~Hareendranathan and Jacob~L. Jaremko. 2025.
+\newblock Impact of adversarial attack on pediatric hip ultrasound deep
+  learning models.
+\newblock \emph{Annual International Conference of the IEEE Engineering in
+  Medicine and Biology Society}.
+
+\bibitem[{Hasan and Linte(2022)}]{stamp2022}
+S.~Hasan and C.~Linte. 2022.
+\newblock Stamp: A self-training student-teacher augmentation-driven meta
+  pseudo-labeling framework for 3d cardiac mri image segmentation.
+\newblock \emph{Annual Conference on Medical Image Understanding and Analysis}.
+
+\bibitem[{Hayes et~al.(2019)Hayes, Das, Odom, and Natarajan}]{user2019}
+Alexander~L. Hayes, Mayukh Das, Phillip Odom, and Sriraam Natarajan. 2019.
+\newblock User friendly automatic construction of background knowledge: Mode
+  construction from er diagrams.
+\newblock \emph{arXiv}.
+
+\bibitem[{Hayes and Kanan(2021)}]{selective2021}
+Tyler~L. Hayes and Christopher Kanan. 2021.
+\newblock Selective replay enhances learning in online continual analogical
+  reasoning.
+\newblock \emph{arXiv}.
+
+\bibitem[{He et~al.(2023{\natexlab{a}})He, Jia, Liang, Lou, Liu, and
+  Cao}]{saattack2023}
+Bangyan He, Xiaojun Jia, Siyuan Liang, Tianrui Lou, Yang Liu, and Xiaochun Cao.
+  2023{\natexlab{a}}.
+\newblock Sa-attack: Improving adversarial transferability of vision-language
+  pre-training models via self-augmentation.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{He et~al.(2023{\natexlab{b}})He, Summerfield, Dong, and
+  Glide-Hurst}]{modalityagnostic2023}
+Qisheng He, Nicholas Summerfield, Ming Dong, and Carri Glide-Hurst.
+  2023{\natexlab{b}}.
+\newblock Modality-agnostic learning for medical image segmentation using
+  multi-modality self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{He et~al.(2023{\natexlab{c}})He, Li, Chen, and
+  Huang}]{investigating2023}
+Zhengbao He, Tao Li, Sizhe Chen, and Xiaolin Huang. 2023{\natexlab{c}}.
+\newblock Investigating catastrophic overfitting in fast adversarial training:
+  A self-fitting perspective.
+\newblock \emph{arXiv}.
+
+\bibitem[{Hinge et~al.(2025)Hinge, Rodell, Zuehlsdorff, Spottiswoode, Korsholm,
+  Fischer, Ladefoged, and Andersen}]{normal2025}
+Christian Hinge, A.~B. Rodell, Sven Zuehlsdorff, Bruce Spottiswoode, Kirsten
+  Korsholm, B.~M. Fischer, C.~Ladefoged, and F.~Andersen. 2025.
+\newblock Normal twin pet: personalized generative modeling for confounder
+  correction and anomaly detection in whole-body pet/ct.
+\newblock \emph{Scientific Reports}.
+
+\bibitem[{Hitaj et~al.(2021)Hitaj, Pagnotta, Masi, and
+  Mancini}]{evaluating2021}
+Dorjan Hitaj, Giulio Pagnotta, Iacopo Masi, and Luigi~V. Mancini. 2021.
+\newblock Evaluating the robustness of geometry-aware instance-reweighted
+  adversarial training.
+\newblock \emph{arXiv}.
+
+\bibitem[{Hou(2018)}]{measuring2018}
+Fujun Hou. 2018.
+\newblock Measuring knowledge for recognition and knowledge entropy.
+\newblock \emph{arXiv}.
+
+\bibitem[{Huaman and Fensel(2022)}]{knowledge2022}
+Elwin Huaman and Dieter Fensel. 2022.
+\newblock Knowledge graph curation: A practical framework.
+\newblock \emph{arXiv}.
+
+\bibitem[{Huang et~al.(2024)Huang, Liang, Yi, Ye, Jin, and
+  Li}]{metalearning2024}
+Kai Huang, Le~Liang, Xinping Yi, Hao Ye, Shi Jin, and Geoffrey~Ye Li. 2024.
+\newblock Meta-learning empowered graph neural networks for radio resource
+  management.
+\newblock \emph{arXiv}.
+
+\bibitem[{Hwang et~al.(2025)Hwang, Kim, and Whang}]{tcil2025}
+Seonghyeon Hwang, Minsu Kim, and Steven~Euijong Whang. 2025.
+\newblock T-cil: Temperature scaling using adversarial perturbation for
+  calibration in class-incremental learning.
+\newblock \emph{Computer Vision and Pattern Recognition}.
+
+\bibitem[{Imam et~al.(2023)Imam, Almakky, Alrashdi, Alrashdi, and
+  Yaqub}]{seda2023}
+Raza Imam, Ibrahim Almakky, Salma Alrashdi, Baketah Alrashdi, and Mohammad
+  Yaqub. 2023.
+\newblock Seda: Self-ensembling vit with defensive distillation and adversarial
+  training for robust chest x-rays classification.
+\newblock \emph{DART@MICCAI}.
+
+\bibitem[{Ingrisch et~al.(2025)Ingrisch, Schilling, Chmielewski, and
+  Twieg}]{determining2025}
+Max~Andreas Ingrisch, Rani~Marcel Schilling, Ingo Chmielewski, and Stefan
+  Twieg. 2025.
+\newblock Determining the optimal t-value for the temperature scaling
+  calibration method using the open-vocabulary detection model yolo-world.
+\newblock \emph{Applied Sciences}.
+
+\bibitem[{Intelligence and Neuroscience(2023)}]{retracted2023}
+Computational Intelligence and Neuroscience. 2023.
+\newblock Retracted: Deep unsupervised hashing for large-scale cross-modal
+  retrieval using knowledge distillation model.
+\newblock \emph{Computational Intelligence and Neuroscience}.
+
+\bibitem[{Islam et~al.(2025)Islam, Ahad, Rahman, Amin, Mohammed, and
+  Rahman}]{dynamic2025}
+Sibgat~Ul Islam, Jawad~Ibn Ahad, Fuad Rahman, Mohammad~Ruhul Amin, Nabeel
+  Mohammed, and Shafin Rahman. 2025.
+\newblock Dynamic temperature scheduler for knowledge distillation.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Jeanneret et~al.(2021)Jeanneret, Perez, and Arbelaez}]{a2021}
+Guillaume Jeanneret, Juan~C Perez, and Pablo Arbelaez. 2021.
+\newblock A hierarchical assessment of adversarial severity.
+\newblock \emph{arXiv}.
+
+\bibitem[{Jewson et~al.(2003)Jewson, Brix, and Ziehmann}]{a2003}
+Stephen Jewson, Anders Brix, and Christine Ziehmann. 2003.
+\newblock A new framework for the assessment and calibration of medium range
+  ensemble temperature forecasts.
+\newblock \emph{arXiv}.
+
+\bibitem[{Ji et~al.(2019)Ji, Jung, Yoon, Kim, and Shin}]{binwise2019}
+Byeongmoon Ji, Hyemin Jung, Jihyeun Yoon, Kyungyul Kim, and Younghak Shin.
+  2019.
+\newblock Bin-wise temperature scaling (bts): Improvement in confidence
+  calibration performance through simple scaling techniques.
+\newblock \emph{arXiv}.
+
+\bibitem[{Jian et~al.(2022)Jian, Wang, Wang, Dy, and Ioannidis}]{pruning2022}
+T.~Jian, Zifeng Wang, Yanzhi Wang, Jennifer~G. Dy, and Stratis Ioannidis. 2022.
+\newblock Pruning adversarially robust neural networks without adversarial
+  examples.
+\newblock \emph{Industrial Conference on Data Mining}.
+
+\bibitem[{Jiang et~al.(2024)Jiang, Wang, Dong, Gui, Shi, Cao, Tang, and
+  Kwok}]{improving2024}
+Chengze Jiang, Junkai Wang, Minjing Dong, Jie Gui, Xinli Shi, Yuan Cao,
+  Yuan~Yan Tang, and James Tin-Yau Kwok. 2024.
+\newblock Improving fast adversarial training via self-knowledge guidance.
+\newblock \emph{IEEE Transactions on Information Forensics and Security}.
+
+\bibitem[{Jiao et~al.(2022)Jiao, Liu, Sato, Chen, and Zhu}]{semisupervised2022}
+Ruochen Jiao, Xiangguo Liu, Takami Sato, Qi~Alfred Chen, and Qi~Zhu. 2022.
+\newblock Semi-supervised semantics-guided adversarial training for trajectory
+  prediction.
+\newblock \emph{arXiv}.
+
+\bibitem[{Jin et~al.(2025)Jin, Shuai, Hu, Zhang, Xie, Shuai, Shen, and
+  Feng}]{candle2025}
+Yuqi Jin, Zhenhao Shuai, Zihan Hu, Weiteng Zhang, Weihao Xie, Jianwei Shuai,
+  Xian Shen, and Zhen Feng. 2025.
+\newblock Candle: A cross-modal agentic knowledge distillation framework for
+  interpretable sarcopenia diagnosis.
+
+\bibitem[{Jing et~al.(2024)Jing, Ding, Gao, Wang, Yan, Wang, Schaefer, Fang,
+  Zhao, and Li}]{hpless2024}
+Linglin Jing, Yiming Ding, Yunpeng Gao, Zhigang Wang, Xu~Yan, Dong Wang, Gerald
+  Schaefer, Hui Fang, Bin Zhao, and Xuelong Li. 2024.
+\newblock Hpl-ess: Hybrid pseudo-labeling for unsupervised event-based semantic
+  segmentation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Jo et~al.(2024)Jo, Ryu, Kim, Yang, and Kim}]{ttd2024}
+Sanghyun Jo, Soohyun Ryu, Sungyub Kim, Eunho Yang, and Kyungsu Kim. 2024.
+\newblock Ttd: Text-tag self-distillation enhancing image-text alignment in
+  clip to alleviate single tag bias.
+\newblock \emph{European Conference on Computer Vision}.
+
+\bibitem[{Joshua and Mohana(2025)}]{enhancing2025}
+R.~R. Joshua and S.~Mohana. 2025.
+\newblock Enhancing gan resilience through adversarial-aware architecture and
+  latent-space defense.
+\newblock \emph{International Conference Emerging Trends Engineering, Science
+  and Technology}.
+
+\bibitem[{Joy et~al.(2022)Joy, Pinto, Lim, Torr, and
+  Dokania}]{sampledependent2022}
+Thomas Joy, Francesco Pinto, S.~Lim, Philip H.~S. Torr, and P.~Dokania. 2022.
+\newblock Sample-dependent adaptive temperature scaling for improved
+  calibration.
+\newblock \emph{AAAI Conference on Artificial Intelligence}.
+
+\bibitem[{Kamraoui et~al.(2021)Kamraoui, Ta, Papadakis, Compaire, Manjon, and
+  Coupé}]{popcorn2021}
+Reda~Abdellah Kamraoui, Vinh-Thong Ta, Nicolas Papadakis, Fanny Compaire,
+  José~V Manjon, and Pierrick Coupé. 2021.
+\newblock Popcorn: Progressive pseudo-labeling with consistency regularization
+  and neighboring.
+\newblock \emph{arXiv}.
+
+\bibitem[{Kang et~al.(2023)Kang, Ryu, and Han}]{binarized2023}
+Ju~Yeon Kang, Chang~Ho Ryu, and T.~Han. 2023.
+\newblock Binarized neural network with parameterized weight clipping and
+  quantization gap minimization for online knowledge distillation.
+\newblock \emph{IEEE Access}.
+
+\bibitem[{Kara et~al.(2024)Kara, Ammar, Denize, Chabot, and Pham}]{diod2024}
+Sandra Kara, Hejer Ammar, Julien Denize, Florian Chabot, and Quoc-Cuong Pham.
+  2024.
+\newblock Diod: Self-distillation meets object discovery.
+\newblock \emph{Computer Vision and Pattern Recognition}.
+
+\bibitem[{Karani et~al.(2020)Karani, Erdil, Chaitanya, and
+  Konukoglu}]{testtime2020}
+Neerav Karani, Ertunc Erdil, Krishna Chaitanya, and Ender Konukoglu. 2020.
+\newblock Test-time adaptable neural networks for robust medical image
+  segmentation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Kauvar et~al.(2023)Kauvar, Doyle, Zhou, and Haber}]{curious2023}
+Isaac Kauvar, Chris Doyle, Linqi Zhou, and Nick Haber. 2023.
+\newblock Curious replay for model-based adaptation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Kelsch et~al.(2026)Kelsch, Pereira, Mola, Arribas, and
+  Avedillo}]{fade2026}
+Carolina~R. Kelsch, Leonardo S.~B. Pereira, Natnael Mola, Luis~H. Arribas, and
+  Juan C. S.~M. Avedillo. 2026.
+\newblock Fade: Selective forgetting via sparse lora and self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Kim et~al.(2022)Kim, Suh, Baek, Kim, Jeong, Cho, and Kim}]{aikd2022}
+Hyungmin Kim, Sungho Suh, Sunghyun Baek, Daehwan Kim, Daun Jeong, Hansang Cho,
+  and Junmo Kim. 2022.
+\newblock Ai-kd: Adversarial learning and implicit regularization for
+  self-knowledge distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Kim and Kim(2021)}]{semisupervised2021}
+Yoonhyung Kim and Changick Kim. 2021.
+\newblock Semi-supervised domain adaptation via selective pseudo labeling and
+  progressive self-training.
+\newblock \emph{International Conference on Pattern Recognition}.
+
+\bibitem[{Kose and Zhou(2025)}]{adversarial2025}
+Kubra Kose and Bing Zhou. 2025.
+\newblock Adversarial training for aerial disaster recognition: A
+  curriculum-based defense against pgd attacks.
+\newblock \emph{Electronics}.
+
+\bibitem[{Kull et~al.(2019)Kull, Perello-Nieto, Kängsepp, Filho, Song, and
+  Flach}]{beyond2019}
+Meelis Kull, Miquel Perello-Nieto, Markus Kängsepp, T.~S. Filho, Hao Song, and
+  Peter~A. Flach. 2019.
+\newblock Beyond temperature scaling: Obtaining well-calibrated multiclass
+  probabilities with dirichlet calibration.
+\newblock \emph{Neural Information Processing Systems}.
+
+\bibitem[{Kurmi et~al.(2021)Kurmi, Patro, Subramanian, and Namboodiri}]{do2021}
+Vinod~K Kurmi, Badri~N. Patro, Venkatesh~K. Subramanian, and Vinay~P.
+  Namboodiri. 2021.
+\newblock Do not forget to attend to uncertainty while mitigating catastrophic
+  forgetting.
+\newblock \emph{arXiv}.
+
+\bibitem[{Küppers(2023)}]{uncertainty2023}
+Fabian Küppers. 2023.
+\newblock Uncertainty calibration and its application to object detection.
+\newblock \emph{arXiv}.
+
+\bibitem[{Laves et~al.(2019)Laves, Ihler, Kortmann, and
+  Ortmaier}]{wellcalibrated2019}
+M.~Laves, Sontje Ihler, Karl-Philipp Kortmann, and T.~Ortmaier. 2019.
+\newblock Well-calibrated model uncertainty with temperature scaling for
+  dropout variational inference.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Le et~al.(2025)Le, Le, Nguyen, Nguyen, Nguyen, Le, Nguyen, Kha,
+  Nguyen, Le, Huynh, Ho, Nguyen, Nguyen, Xu, Huynh, and Le}]{oasisnet2025}
+Minh H.~N. Le, Tran Quoc~Khanh Le, Thanh-Huy Nguyen, Dang Nguyen, Hien~Quang
+  Nguyen, N.~Le, Kien~Dang Nguyen, H.~Kha, P.~Nguyen, H.~Le, H.~Huynh,
+  Dang-Manh Ho, Thanh-Minh Nguyen, Quan Nguyen, Min Xu, Phat~K. Huynh, and
+  Nguyen Quoc~Khanh Le. 2025.
+\newblock Oasis-net: An obstetric adversarial semi-supervised image
+  segmentation network for cervical and fetal head ultrasound imaging.
+\newblock \emph{IEEE journal of biomedical and health informatics}.
+
+\bibitem[{Lee et~al.(2016)Lee, Kim, Seshadri, Liu, Subramanian, and
+  Mutlu}]{tieredlatency2016}
+Donghyuk Lee, Yoongu Kim, Vivek Seshadri, Jamie Liu, Lavanya Subramanian, and
+  Onur Mutlu. 2016.
+\newblock Tiered-latency dram (tl-dram).
+\newblock \emph{arXiv}.
+
+\bibitem[{Lee and Yeung(2019)}]{knowledge2019}
+Jinseok Lee and Dit-Yan Yeung. 2019.
+\newblock Knowledge query network: How knowledge interacts with skills.
+\newblock \emph{arXiv}.
+
+\bibitem[{Lee et~al.(2022)Lee, Prabhushankar, and AlRegib}]{gradientbased2022}
+Jinsol Lee, Mohit Prabhushankar, and Ghassan AlRegib. 2022.
+\newblock Gradient-based adversarial and out-of-distribution detection.
+\newblock \emph{arXiv}.
+
+\bibitem[{Li and Li(2020)}]{adversarial2020}
+Deqiang Li and Qianmu Li. 2020.
+\newblock Adversarial deep ensemble: Evasion attacks and defenses for malware
+  detection.
+\newblock \emph{arXiv}.
+
+\bibitem[{Li et~al.(2023{\natexlab{a}})Li, Huang, Li, Zhang, Wang, and
+  Li}]{seml2023}
+Hui Li, Guimin Huang, Yiqun Li, Xiaowei Zhang, Yabing Wang, and Jun Li.
+  2023{\natexlab{a}}.
+\newblock Seml: Self-supervised information-enhanced meta-learning for few-shot
+  text classification.
+\newblock \emph{International Journal of Computational Intelligence Systems}.
+
+\bibitem[{Li and Zhang(2020)}]{ensemble2020}
+Jr-Shin Li and Wei Zhang. 2020.
+\newblock Ensemble control on lie groups.
+\newblock \emph{arXiv}.
+
+\bibitem[{Li and Éric Gaussier(2022)}]{domain2022}
+Minghan Li and Éric Gaussier. 2022.
+\newblock Domain adaptation for dense retrieval through self-supervision by
+  pseudo-relevance labeling.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Li et~al.(2013)Li, Zhu, He, Wang, Zhu, Shi, Qiu, Ye, and
+  Wei}]{steroid2013}
+Qiaoxin Li, Yao Zhu, Jing He, Mengyun Wang, Meiling Zhu, Tingyan Shi, L.~Qiu,
+  D.~Ye, and Q.~Wei. 2013.
+\newblock Steroid 5-alpha-reductase type 2 (srd5a2) v89l and a49t polymorphisms
+  and sporadic prostate cancer risk: a meta-analysis.
+\newblock \emph{Molecular Biology Reports}.
+
+\bibitem[{Li et~al.(2025)Li, Liu, Guo, Gao, Chen, Wang, Gao, van Harmelen, and
+  Gu}]{reviewing2025}
+Qiyuan Li, Haijiang Liu, Caicai Guo, Chao Gao, Deyu Chen, Meng Wang, Feng Gao,
+  Frank van Harmelen, and Jinguang Gu. 2025.
+\newblock Reviewing clinical knowledge in medical large language models:
+  Training and beyond.
+\newblock \emph{arXiv}.
+
+\bibitem[{Li et~al.(2024)Li, Ye, Huang, Jin, Xu, and Guo}]{a2024}
+Ruipeng Li, Jianming Ye, Yueqi Huang, Wei Jin, Peng Xu, and Lilin Guo. 2024.
+\newblock A continuous learning approach to brain tumor segmentation:
+  integrating multi-scale spatial distillation and pseudo-labeling strategies.
+\newblock \emph{Frontiers in Oncology}.
+
+\bibitem[{Li et~al.(2023{\natexlab{b}})Li, Peng, Hu, Ma, Yang, and
+  Xie}]{uslnet2023}
+Xiaofan Li, Bo~Peng, Jie Hu, Changyou Ma, Daipeng Yang, and Zhuyang Xie.
+  2023{\natexlab{b}}.
+\newblock Usl-net: Uncertainty self-learning network for unsupervised skin
+  lesion segmentation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Liang et~al.(2025)Liang, Sun, and Li}]{generalized2025}
+Zhanbo Liang, Yuping Sun, and Si~Li. 2025.
+\newblock Generalized nesterov-boosted adversarial data augmentation framework
+  for multi-label chest x-ray image classification.
+\newblock \emph{IEEE International Conference on Bioinformatics and
+  Biomedicine}.
+
+\bibitem[{Lin et~al.(2025)Lin, He, Zhao, Liang, Li, and Wu}]{egrte2025}
+Zijin Lin, Jinwen He, Yue Zhao, Ruigang Liang, Hu~Li, and ZhenDong Wu. 2025.
+\newblock Egrte: adversarially training a self-explaining smoothed classifier
+  for certified robustness.
+\newblock \emph{Cybersecurity}.
+
+\bibitem[{Ling et~al.(2025)Ling, Nie, Yu, and Li}]{selflabeling2025}
+Yunzhi Ling, Feiping Nie, Weizhong Yu, and Xuelong Li. 2025.
+\newblock Self-labeling and self-knowledge distillation unsupervised feature
+  selection.
+\newblock \emph{IEEE Transactions on Knowledge and Data Engineering}.
+
+\bibitem[{Liu et~al.(2021)Liu, Tian, Chen, Liu, Belagiannis, and
+  Carneiro}]{acpl2021}
+Fengbei Liu, Yu~Tian, Yuanhong Chen, Yuyuan Liu, Vasileios Belagiannis, and
+  Gustavo Carneiro. 2021.
+\newblock Acpl: Anti-curriculum pseudo-labelling for semi-supervised medical
+  image classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Liu et~al.(2023)Liu, Wei, Lu, Sun, Wang, and Zheng}]{m3ae2023}
+Hong Liu, Dong Wei, Donghuan Lu, Jinghan Sun, Liansheng Wang, and Yefeng Zheng.
+  2023.
+\newblock M3ae: Multimodal representation learning for brain tumor segmentation
+  with missing modalities.
+\newblock \emph{arXiv}.
+
+\bibitem[{Lourenço et~al.(2025)Lourenço, Gama, Xing, and
+  Marreiros}]{bridging2025}
+Afonso Lourenço, João Gama, Eric~P. Xing, and Goreti Marreiros. 2025.
+\newblock Bridging streaming continual learning via in-context large tabular
+  models.
+\newblock \emph{arXiv}.
+
+\bibitem[{Lourenço and Paes(2022)}]{learning2022}
+Vítor Lourenço and Aline Paes. 2022.
+\newblock Learning attention-based representations from multiple patterns for
+  relation prediction in knowledge graphs.
+\newblock \emph{arXiv}.
+
+\bibitem[{Lu et~al.(2023)Lu, Huang, Zhao, Tian, Liu, and Li}]{damstf2023}
+Menglong Lu, Zhen Huang, Yunxiang Zhao, Zhiliang Tian, Yang Liu, and Dongsheng
+  Li. 2023.
+\newblock Damstf: Domain adversarial learning enhanced meta self-training for
+  domain adaptation.
+\newblock \emph{Annual Meeting of the Association for Computational
+  Linguistics}.
+
+\bibitem[{Luo et~al.(2022)Luo, Chen, Zhou, and Gao}]{selfdistillation2022}
+Yang Luo, Zhineng Chen, Shengtian Zhou, and Xieping Gao. 2022.
+\newblock Self-distillation augmented masked autoencoders for histopathological
+  image classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Lux and Vu(2021)}]{metalearning2021}
+Florian Lux and Ngoc~Thang Vu. 2021.
+\newblock Meta-learning for improving rare word recognition in end-to-end asr.
+\newblock \emph{arXiv}.
+
+\bibitem[{Ma and Bi(2019)}]{a2019}
+Xiang Ma and Linfeng Bi. 2019.
+\newblock A robust adaptive iterative ensemble smoother scheme for practical
+  history matching applications.
+\newblock \emph{Computational Geosciences}.
+
+\bibitem[{Mahmood et~al.(2023)Mahmood, Raj, Agarwal, Kumari, and
+  Singh}]{splal2023}
+Md~Junaid Mahmood, Pranaw Raj, Divyansh Agarwal, Suruchi Kumari, and Pravendra
+  Singh. 2023.
+\newblock Splal: Similarity-based pseudo-labeling with alignment loss for
+  semi-supervised medical image classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Majchrowska et~al.(2024)Majchrowska, Hildeman, Mokhtari, and
+  Teare}]{interpretable2024}
+Sylwia Majchrowska, Anders~G.F. Hildeman, Ricardo Mokhtari, and Philip~A.
+  Teare. 2024.
+\newblock Interpretable echo analysis using self-supervised parcels.
+\newblock \emph{International Conference on Computing in Cardiology}.
+
+\bibitem[{Malik et~al.(2025)Malik, Kunhimon, Naseer, Khan, and
+  Khan}]{hierarchical2025}
+H.~Malik, Shahina~K. Kunhimon, Muzammal Naseer, F.~Khan, and Salman~H. Khan.
+  2025.
+\newblock Hierarchical self-supervised adversarial training for robust vision
+  models in histopathology.
+\newblock \emph{International Conference on Medical Image Computing and
+  Computer-Assisted Intervention}.
+
+\bibitem[{Maniram et~al.(2025)Maniram, Nithishkumar, and Ajibah}]{multi2025}
+G.J. Maniram, S.~Nithishkumar, and A.~H. Ajibah. 2025.
+\newblock Multi- task lesion segmentation and classification with explainable
+  ai and uncertainty estimation for trustworthy diabetic retinopathy screening.
+\newblock \emph{2025 2nd International Conference on Artificial Intelligence
+  and Knowledge Discovery in Concurrent Engineering (ICECONF)}.
+
+\bibitem[{Martin et~al.(2020)Martin, Gardner, and Swift}]{tracking2020}
+Charles Martin, Henry Gardner, and Ben Swift. 2020.
+\newblock Tracking ensemble performance on touch-screens with gesture
+  classification and transition matrices.
+\newblock \emph{arXiv}.
+
+\bibitem[{Martínez et~al.(2025)Martínez, Jacome, Gualdrón-Hurtado, Esnaola,
+  and Arguello}]{compressive2025}
+Emmanuel Martínez, Roman Jacome, Romario Gualdrón-Hurtado, Iñaki Esnaola,
+  and Henry Arguello. 2025.
+\newblock Compressive sensing with augmented measurements via generative
+  self-distillation.
+\newblock \emph{Symposium on Software Performance}.
+
+\bibitem[{Micah and Qiong(2023)}]{face2023}
+Kouassi Joshua~Caleb Micah and Lou Qiong. 2023.
+\newblock Face mask image classification using fine-tuning and the effect of
+  fgsm and pgd attacks.
+\newblock \emph{International Journal For Multidisciplinary Research}.
+
+\bibitem[{Miok et~al.(2025)Miok, Škrlj, Zaharie, and
+  Robnik-Sikonja}]{ttxai2025}
+Kristian Miok, Blaž Škrlj, Daniela Zaharie, and Marko Robnik-Sikonja. 2025.
+\newblock Tt-xai: Trustworthy clinical text explanations via keyword
+  distillation and llm reasoning.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Moayedi et~al.(2023)Moayedi, Keramatfar, Goldani, Fallahi,
+  Jahangirisisakht, Saboori, and badiei}]{an2023}
+Behzad Moayedi, Abdalsamad Keramatfar, Mohammad~Hadi Goldani, Mohammad~Javad
+  Fallahi, Alborz Jahangirisisakht, Mohammad Saboori, and Leyla badiei. 2023.
+\newblock An ensemble machine learning approach for screening covid-19 based on
+  urine parameters.
+\newblock \emph{arXiv}.
+
+\bibitem[{Monte et~al.(2025)Monte, Pezze, and Susto}]{teach2025}
+Riccardo~De Monte, Davide~Dalle Pezze, and Gian~Antonio Susto. 2025.
+\newblock Teach yolo to remember: A self-distillation approach for continual
+  object detection.
+\newblock \emph{arXiv}.
+
+\bibitem[{Moshavash et~al.(2021)Moshavash, Eftekhari, and
+  Bahraman}]{momentum2021}
+Monireh Moshavash, M.~Eftekhari, and Kaveh Bahraman. 2021.
+\newblock Momentum contrast self-supervised based training for adversarial
+  robustness.
+
+\bibitem[{Mukhamediya and Zollanvari(2024)}]{srpmst2024}
+Azamat Mukhamediya and A.~Zollanvari. 2024.
+\newblock Srpm-st: Sequential retraining and pseudo-labeling in mini-batches
+  for self-training.
+\newblock \emph{Neurocomputing}.
+
+\bibitem[{Mundt et~al.(2019)Mundt, Pliushch, Majumder, Hong, and
+  Ramesh}]{unified2019}
+Martin Mundt, Iuliia Pliushch, Sagnik Majumder, Yongwon Hong, and Visvanathan
+  Ramesh. 2019.
+\newblock Unified probabilistic deep continual learning through generative
+  replay and open set recognition.
+\newblock \emph{arXiv}.
+
+\bibitem[{Nabavi et~al.(2024)Nabavi, Anvari, Moghaddam, Abin, and
+  Frangi}]{multiple2024}
+Shahabedin Nabavi, Kian Anvari, Mohsen~Ebrahimi Moghaddam, A.~A. Abin, and
+  A.~Frangi. 2024.
+\newblock Multiple teachers-meticulous student: A domain adaptive
+  meta-knowledge distillation model for medical image classification.
+\newblock \emph{Medical Physics (Lancaster)}.
+
+\bibitem[{Nagata et~al.(2024)Nagata, Ono, and Hotta}]{reducing2024}
+Kotaro Nagata, Hiromu Ono, and Kazuhiro Hotta. 2024.
+\newblock Reducing catastrophic forgetting in online class incremental learning
+  using self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Nalluri et~al.(2025)Nalluri, Shariff, T.P, Hegde, and
+  Mahesh}]{aslmdfd2025}
+Suryarprakash Nalluri, Aiman Shariff, Chethan T.P, Aisirii~V Hegde, and Indu
+  Mahesh. 2025.
+\newblock Asl-mdfd: Adversarial self-supervised learning for generalizable
+  gan-resilient multimodal deepfake detection.
+\newblock \emph{International Journal of Global Innovations and Solutions}.
+
+\bibitem[{Nama et~al.(2026)Nama, Liebert, Abaji, DeLaroche, Carlin, Jewell,
+  D'Arienzo, Fung, Gremse, Bonkowsky, Chen, Sagiv, Herman, Lu, Gill, Tieder,
+  and Coon}]{infant2026}
+Nassr Nama, Stephanie Liebert, Mario Abaji, Amy~M DeLaroche, Kristy Carlin,
+  Teresa Jewell, D.~D'Arienzo, Alastair Fung, David Gremse, J.~Bonkowsky, Maida
+  Chen, E.~Sagiv, Bruce Herman, E.~Lu, Peter~J Gill, Joel~S. Tieder, and Eric
+  Coon. 2026.
+\newblock Infant outcomes, risk factors, and diagnostic yield after a brief
+  resolved unexplained event: A systematic review and meta-analysis.
+\newblock \emph{JAMA pediatrics}.
+
+\bibitem[{Narayanan et~al.(2020)Narayanan, Zhang, and Li}]{momentbased2020}
+Vignesh Narayanan, Wei Zhang, and Jr-Shin Li. 2020.
+\newblock Moment-based ensemble control.
+\newblock \emph{arXiv}.
+
+\bibitem[{Neill et~al.(2021)Neill, Dutta, and Assem}]{deep2021}
+James~O' Neill, Sourav Dutta, and Haytham Assem. 2021.
+\newblock Deep neural compression via concurrent pruning and self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Niño and Sandu(2014)}]{variational2014}
+E.~Niño and Adrian Sandu. 2014.
+\newblock Variational data assimilation based on derivative-free optimization.
+\newblock \emph{International Conference on Dynamic Data-Driven Environmental
+  Systems Science}.
+
+\bibitem[{Ohamouddou et~al.(2025)Ohamouddou, Ohamouddou, Afia, and
+  Lasri}]{atmskd2025}
+Mohamed Ohamouddou, Said Ohamouddou, A.~E. Afia, and R.~Lasri. 2025.
+\newblock Atms-kd: Adaptive temperature and mixed sample knowledge distillation
+  for a lightweight residual cnn in agricultural embedded systems.
+\newblock \emph{Smart Agricultural Technology}.
+
+\bibitem[{Osuala et~al.(2021)Osuala, Kushibar, Garrucho, Linardos,
+  Szafranowska, Klein, Glocker, Diaz, and Lekadir}]{data2021}
+Richard Osuala, Kaisar Kushibar, Lidia Garrucho, Akis Linardos, Zuzanna
+  Szafranowska, Stefan Klein, Ben Glocker, Oliver Diaz, and Karim Lekadir.
+  2021.
+\newblock Data synthesis and adversarial networks: A review and meta-analysis
+  in cancer imaging.
+\newblock \emph{arXiv}.
+
+\bibitem[{P and G(2024)}]{resilience2024}
+H.~P and Padmavathi G. 2024.
+\newblock Resilience in remote sensing image classification: Evaluating deep
+  learning models against adversarial attacks.
+\newblock \emph{International Conference on Computing Communication and
+  Networking Technologies}.
+
+\bibitem[{Pan et~al.(2023)Pan, Luo, Wang, Chen, Wang, and Wu}]{unifying2023}
+Shirui Pan, Linhao Luo, Yufei Wang, Chen Chen, Jiapu Wang, and Xindong Wu.
+  2023.
+\newblock Unifying large language models and knowledge graphs: A roadmap.
+\newblock \emph{arXiv}.
+
+\bibitem[{Park(2024)}]{diverse2024}
+Sejik Park. 2024.
+\newblock Diverse feature learning by self-distillation and reset.
+\newblock \emph{arXiv}.
+
+\bibitem[{Pei et~al.(2024)Pei, Zhang, Hu, Zhang, Wang, Wu, Zhai, Yang, Shen,
+  and Tao}]{deepfake2024}
+Gan Pei, Jiangning Zhang, Menghan Hu, Zhenyu Zhang, Chengjie Wang, Yunsheng Wu,
+  Guangtao Zhai, Jian Yang, Chunhua Shen, and Dacheng Tao. 2024.
+\newblock Deepfake generation and detection: A benchmark and survey.
+\newblock \emph{arXiv}.
+
+\bibitem[{Peng et~al.(2023)Peng, Tian, Wu, Wang, Liu, Su, and
+  Jia}]{hierarchical2023}
+Bohao Peng, Zhuotao Tian, Xiaoyang Wu, Chengyao Wang, Shu Liu, Jingyong Su, and
+  Jiaya Jia. 2023.
+\newblock Hierarchical dense correlation distillation for few-shot
+  segmentation-extended abstract.
+\newblock \emph{arXiv}.
+
+\bibitem[{Peng et~al.(2024)Peng, Liu, Liu, Liu, and Liu}]{enhancing2024}
+Bowen Peng, Li~Liu, Tianpeng Liu, Zhen Liu, and Yongxiang Liu. 2024.
+\newblock Enhancing transferability of targeted adversarial examples: A
+  self-universal perspective.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Peshevski et~al.(2025)Peshevski, Stojanov, and Trajanov}]{ai2025}
+Dimitar Peshevski, Riste Stojanov, and Dimitar Trajanov. 2025.
+\newblock Ai agent-driven framework for automated product knowledge graph
+  construction in e-commerce.
+\newblock \emph{arXiv}.
+
+\bibitem[{Qamar(2025)}]{confidenceweighted2025}
+Saqib Qamar. 2025.
+\newblock Confidence-weighted semi-supervised learning for skin lesion
+  segmentation using hybrid cnn-transformer networks.
+\newblock \emph{arXiv}.
+
+\bibitem[{Qi et~al.(2021)Qi, Yin, Niu, and Xu}]{neighborhood2021}
+Chao Qi, Jianqin Yin, Yingchun Niu, and Jinghang Xu. 2021.
+\newblock Neighborhood spatial aggregation mc dropout for efficient
+  uncertainty-aware semantic segmentation in point clouds.
+\newblock \emph{IEEE Transactions on Geoscience and Remote Sensing}.
+
+\bibitem[{Qi et~al.(2025)Qi, Zhang, Wu, Zhang, Hou, and Wang}]{fdas2025}
+Xiaoran Qi, Guoning Zhang, Jianghao Wu, Shaoting Zhang, Xiaorong Hou, and
+  Guotai Wang. 2025.
+\newblock Fdas: Foundation model distillation and anatomic structure-aware
+  multi-task learning for self-supervised medical image segmentation.
+\newblock \emph{International Conference on Medical Image Computing and
+  Computer-Assisted Intervention}.
+
+\bibitem[{Qing et~al.(2024)Qing, Li, Xia, Lin, and
+  Zheng}]{communicationefficient2024}
+Chen Qing, Xinwei Li, Jinhong Xia, Yifeng Lin, and Shenhai Zheng. 2024.
+\newblock Communication-efficient federated self-distillation method for
+  medical image segmentation.
+\newblock \emph{Computer Science and Technology}.
+
+\bibitem[{Qiu et~al.(2026)Qiu, Ma, Lv, Fang, Zhou, and
+  Yao}]{semisupervised2026}
+Yunfei Qiu, Qiqiong Ma, Tianhua Lv, Li~Fang, Shudong Zhou, and Wei Yao. 2026.
+\newblock Semi-supervised hyperspectral image classification with edge-aware
+  superpixel label propagation and adaptive pseudo-labeling.
+\newblock \emph{arXiv}.
+
+\bibitem[{Roads and Services(2014)}]{disclosure2014}
+Nsw Roads and Maritime Services. 2014.
+\newblock Disclosure of government contracts with the private sector class 2
+  contract (including wads) (as per sec (14) foi amendment act 2006 no 115).
+
+\bibitem[{Rodemann(2023)}]{pseudo2023}
+Julian Rodemann. 2023.
+\newblock Pseudo label selection is a decision problem.
+\newblock \emph{arXiv}.
+
+\bibitem[{Rutkowski(2004)}]{artificial2004}
+L.~Rutkowski. 2004.
+\newblock Artificial intelligence and soft computing - icaisc 2004 : 7th
+  international conference, zakopane, poland, june 7-11, 2004 : proceedings.
+
+\bibitem[{Sampath et~al.(2022)Sampath, Maurtua, Martín, Iriondo, Lluvia, and
+  Rivera}]{vision2022}
+Vignesh Sampath, I.~Maurtua, Juan José~Aguilar Martín, A.~Iriondo, Iker
+  Lluvia, and Andoni Rivera. 2022.
+\newblock Vision transformer based knowledge distillation for fasteners defect
+  detection.
+\newblock \emph{2022 International Conference on Electrical, Computer and
+  Energy Technologies (ICECET)}.
+
+\bibitem[{Schöttle et~al.(2018)Schöttle, Schlögl, Pasquini, and
+  Böhme}]{detecting2018}
+Pascal Schöttle, Alexander Schlögl, Cecilia Pasquini, and Rainer Böhme.
+  2018.
+\newblock Detecting adversarial examples - a lesson from multimedia forensics.
+\newblock \emph{arXiv}.
+
+\bibitem[{Shao et~al.(2026)Shao, Li, Xia, Shao, Lu, Zheng, and
+  Zhang}]{dsvmunet2026}
+Renrong Shao, Dongyan Li, Dong Xia, Ling Shao, Jiangdong Lu, Fen Zheng, and
+  Lulu Zhang. 2026.
+\newblock Dsvm-unet : Enhancing vm-unet with dual self-distillation for medical
+  image segmentation.
+
+\bibitem[{Shao et~al.(2022)Shao, Yi, Hsieh, and Chen}]{how2022}
+Rulin Shao, Jinfeng Yi, Cho-Jui Hsieh, and Pin-Yu Chen. 2022.
+\newblock How and when adversarial robustness improves in knowledge
+  distillation?
+
+\bibitem[{Sharma et~al.(2025)Sharma, Lodhi, Srivastava, and Chandra}]{nord2025}
+Saurabh Sharma, Shikhar~Singh Lodhi, Vanshika Srivastava, and Joydeep Chandra.
+  2025.
+\newblock Nord: A framework for noise-resilient self-distillation through
+  relative supervision.
+\newblock \emph{Applied intelligence (Boston)}.
+
+\bibitem[{Shen et~al.(2021)Shen, Liu, Qin, Huang, Cheng, and
+  Savvides}]{s2bnn2021}
+Zhiqiang Shen, Zechun Liu, Jie Qin, Lei Huang, Kwang-Ting Cheng, and Marios
+  Savvides. 2021.
+\newblock S2-bnn: Bridging the gap between self-supervised real and 1-bit
+  neural networks via guided distribution calibration.
+\newblock \emph{arXiv}.
+
+\bibitem[{Shenfeld et~al.(2026)Shenfeld, Damani, Hübotter, and
+  Agrawal}]{selfdistillation2026}
+Idan Shenfeld, Mehul Damani, Jonas Hübotter, and Pulkit Agrawal. 2026.
+\newblock Self-distillation enables continual learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Shevlin et~al.(2024)Shevlin, Hyland, Cloitre, Brewin, Martsenkovskyi,
+  Ben-Ezra, Bondjers, Karatzias, Duffy, and Redican}]{assessing2024}
+M.~Shevlin, P.~Hyland, M.~Cloitre, Chris~R. Brewin, Dmytro Martsenkovskyi,
+  M.~Ben-Ezra, Kristina Bondjers, T.~Karatzias, Michael Duffy, and E.~Redican.
+  2024.
+\newblock Assessing self‐reported prolonged grief disorder with “clinical
+  checks”: A proof of principle study.
+\newblock \emph{Journal of Traumatic Stress}.
+
+\bibitem[{Storks et~al.(2021)Storks, Gao, Zhang, and Chai}]{tiered2021}
+Shane Storks, Qiaozi Gao, Yichi Zhang, and Joyce Chai. 2021.
+\newblock Tiered reasoning for intuitive physics: Toward verifiable commonsense
+  language understanding.
+\newblock \emph{arXiv}.
+
+\bibitem[{Su et~al.(2024)Su, Zhang, and Xu}]{genetic2024}
+Yue Su, Youqian Zhang, and Jinfu Xu. 2024.
+\newblock Genetic variations in anti-diabetic drug targets and copd risk:
+  evidence from mendelian randomization.
+\newblock \emph{BMC Pulmonary Medicine}.
+
+\bibitem[{Sun et~al.(2021{\natexlab{a}})Sun, Wei, Ma, Wang, and
+  Zheng}]{unsupervised2021}
+Jinghan Sun, Dong Wei, Kai Ma, Liansheng Wang, and Yefeng Zheng.
+  2021{\natexlab{a}}.
+\newblock Unsupervised representation learning meets pseudo-label supervised
+  self-distillation: A new approach to rare disease classification.
+\newblock \emph{International Conference on Medical Image Computing and
+  Computer-Assisted Intervention}.
+
+\bibitem[{Sun et~al.(2023)Sun, Yin, and Bohté}]{efficient2023}
+Tao Sun, Bojian Yin, and S.~Bohté. 2023.
+\newblock Efficient uncertainty estimation in spiking neural networks via
+  mc-dropout.
+\newblock \emph{International Conference on Artificial Neural Networks}.
+
+\bibitem[{Sun et~al.(2021{\natexlab{b}})Sun, Huang, Zhou, and Zhang}]{srpn2021}
+Yibao Sun, Xingru Huang, Huiyu Zhou, and Qianni Zhang. 2021{\natexlab{b}}.
+\newblock Srpn: similarity-based region proposal networks for nuclei and cells
+  detection in histology images.
+\newblock \emph{arXiv}.
+
+\bibitem[{Takashima et~al.(2024)Takashima, Sawa, Aihara, Takiguchi, and
+  Imai}]{dysarthric2024}
+R.~Takashima, Yuya Sawa, Ryo Aihara, Tetsuya Takiguchi, and Yoshie Imai. 2024.
+\newblock Dysarthric speech recognition using pseudo-labeling, self-supervised
+  feature learning, and a joint multi-task learning approach.
+\newblock \emph{IEEE Access}.
+
+\bibitem[{Tan et~al.(2025)Tan, Zhang, Su, Peng, Dai, Zheng, and
+  Zhong}]{msdkmamba2025}
+Dayu Tan, Ziwei Zhang, Yansan Su, Xin Peng, Yike Dai, Chunhou Zheng, and Weimin
+  Zhong. 2025.
+\newblock Msd-kmamba: Bidirectional spatial-aware multi-modal 3d brain
+  segmentation via multi-scale self-distilled fusion strategy.
+\newblock \emph{arXiv}.
+
+\bibitem[{Tan et~al.(2017)Tan, Caruana, Hooker, and Lou}]{auditing2017}
+S.~Tan, R.~Caruana, G.~Hooker, and Yin Lou. 2017.
+\newblock Auditing black-box models using transparent model distillation with
+  side information.
+
+\bibitem[{Tarasiou and Zafeiriou(2022)}]{embedding2022}
+Michail Tarasiou and Stefanos Zafeiriou. 2022.
+\newblock Embedding earth: Self-supervised contrastive pre-training for dense
+  land cover classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Teimuri et~al.(2025)Teimuri, Dehghanian, Aminian, and
+  Rabiee}]{upl2025}
+Mohammad~T. Teimuri, Zahra Dehghanian, Gholamali Aminian, and Hamid~R. Rabiee.
+  2025.
+\newblock Upl: Uncertainty-aware pseudo-labeling for imbalance transductive
+  node classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Terlizzi et~al.(2025)Terlizzi, Nazzaro, Bernardi, Bardozzo, and
+  Tagliaferri}]{rsdix2025}
+Andrea Terlizzi, Angelo Nazzaro, Lorenzo Bernardi, Francesco Bardozzo, and
+  R.~Tagliaferri. 2025.
+\newblock Rsdix: Lightweight and data-efficient vlms for remote sensing through
+  self-distillation.
+\newblock \emph{IEEE International Joint Conference on Neural Network}.
+
+\bibitem[{Thorne and Vlachos(2020)}]{elastic2020}
+James Thorne and Andreas Vlachos. 2020.
+\newblock Elastic weight consolidation for better bias inoculation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Tian and Feng(2021)}]{rase2021}
+Ye~Tian and Yang Feng. 2021.
+\newblock Rase: A variable screening framework via random subspace ensembles.
+\newblock \emph{arXiv}.
+
+\bibitem[{Tomani et~al.(2021)Tomani, Cremers, and Buettner}]{parameterized2021}
+Christian Tomani, Daniel Cremers, and Florian Buettner. 2021.
+\newblock Parameterized temperature scaling for boosting the expressive power
+  in post-hoc uncertainty calibration.
+\newblock \emph{arXiv}.
+
+\bibitem[{Tužil et~al.(2023)Tužil, Matějka, Mamas, and
+  Doležal}]{shortterm2023}
+Jan Tužil, J.~Matějka, M.~Mamas, and T.~Doležal. 2023.
+\newblock Short-term risk of periprocedural stroke relative to radial vs.
+  femoral access: systematic review, meta-analysis, study sequential analysis
+  and meta-regression of 2,188,047 real-world cardiac catheterizations.
+\newblock \emph{Expert Review of Cardiovascular Therapy}.
+
+\bibitem[{Ullah et~al.(2025)Ullah, Zaidi, and Munir}]{improving2025}
+Hayat Ullah, Syed Muhammad~Talha Zaidi, and Arslan Munir. 2025.
+\newblock Improving adversarial robustness through adaptive learning-driven
+  multi-teacher knowledge distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Valverde et~al.(2025)Valverde, Koga, Otsuka, and
+  Dahl}]{topomortar2025}
+Juan~Miguel Valverde, Motoya Koga, Nijihiko Otsuka, and Anders~Bjorholm Dahl.
+  2025.
+\newblock Topomortar: A dataset to evaluate image segmentation methods focused
+  on topology accuracy.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Vepakomma et~al.(2020)Vepakomma, Pushpita, and Raskar}]{dams2020}
+Praneeth Vepakomma, Subha~Nawer Pushpita, and R.~Raskar. 2020.
+\newblock Dams: Meta-estimation of private sketch data structures for
+  diﬀerentially private covid-19 contact tracing.
+
+\bibitem[{Vidal et~al.(2020)Vidal, Pacheco, and Schiffer}]{bornagain2020}
+Thibaut Vidal, Toni Pacheco, and Maximilian Schiffer. 2020.
+\newblock Born-again tree ensembles.
+\newblock \emph{arXiv}.
+
+\bibitem[{Voggu et~al.(2025)Voggu, Siddiqui, and
+  Fatima}]{efficientnetbased2025}
+Soujenya Voggu, Shadab Siddiqui, and Shahin Fatima. 2025.
+\newblock Efficientnet-based melanoma classification with cbam attention and
+  monte carlo dropout for robust uncertainty estimation.
+\newblock \emph{International Journal of Advanced Computer Science and
+  Applications}.
+
+\bibitem[{Vyas et~al.(2025)Vyas, Kapadia, Kadia, and Patel}]{augmented2025}
+Dhairya Vyas, Viral~V. Kapadia, Viranchkumar~Mayurbhai Kadia, and Vipinchandra
+  Patel. 2025.
+\newblock Augmented smoothing for robust cnn image classification against
+  adversarial attacks.
+\newblock \emph{Journal of Computing &amp; Biomedical Informatics}.
+
+\bibitem[{Waghela et~al.(2024{\natexlab{a}})Waghela, Sen, and
+  Rakshit}]{adversarial2024}
+Hetvi Waghela, Jaydip Sen, and Sneha Rakshit. 2024{\natexlab{a}}.
+\newblock Adversarial resilience in image classification: A hybrid approach to
+  defense.
+\newblock \emph{2024 International Conference on Innovation and Intelligence
+  for Informatics, Computing, and Technologies (3ICT)}.
+
+\bibitem[{Waghela et~al.(2024{\natexlab{b}})Waghela, Sen, and
+  Rakshit}]{robust2024}
+Hetvi Waghela, Jaydip Sen, and Sneha Rakshit. 2024{\natexlab{b}}.
+\newblock Robust image classification: Defensive strategies against fgsm and
+  pgd adversarial attacks.
+\newblock \emph{2024 Asian Conference on Intelligent Technologies (ACOIT)}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{a}})Wang, Teng, Sun, and
+  Zhao}]{symmatch2024}
+Chunshi Wang, Shougan Teng, Shaohua Sun, and Bin Zhao. 2024{\natexlab{a}}.
+\newblock Symmatch: Symmetric bi-scale matching with self-knowledge
+  distillation in semi-supervised medical image segmentation.
+\newblock \emph{IEEE International Conference on Bioinformatics and
+  Biomedicine}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{b}})Wang, Zhao, and
+  Liu}]{distillmatch2024}
+Chunshi Wang, Bin Zhao, and Zhiyang Liu. 2024{\natexlab{b}}.
+\newblock Distillmatch: Revisiting self-knowledge distillation in
+  semi-supervised medical image segmentation.
+\newblock \emph{IEEE International Conference on Bioinformatics and
+  Biomedicine}.
+
+\bibitem[{Wang et~al.(2021)Wang, Fu, Li, Zhang, Zhou, and Yan}]{reminding2021}
+Han Wang, Ruiliu Fu, Chengzhang Li, Xuejun Zhang, Jun Zhou, and Yonghong Yan.
+  2021.
+\newblock Reminding the incremental language model via data-free
+  self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wang et~al.(2023{\natexlab{a}})Wang, Ahn, Bi, and
+  Kim}]{selfsupervised2023}
+Hao Wang, Euijoon Ahn, Lei Bi, and Jinman Kim. 2023{\natexlab{a}}.
+\newblock Self-supervised multi-modality learning for multi-label skin lesion
+  classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wang et~al.(2022)Wang, Lin, Li, Li, Shen, Gao, and Ma}]{missu2022}
+Nan Wang, Shaohui Lin, Xiaoxiao Li, Ke~Li, Yunhang Shen, Yue Gao, and Lizhuang
+  Ma. 2022.
+\newblock Missu: 3d medical image segmentation via self-distilling transunet.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wang et~al.(2023{\natexlab{b}})Wang, Liu, He, Zhang, Chen, Shen,
+  Zhang, and Li}]{cmmasksd2023}
+Wenxuan Wang, Jing Liu, Xingjian He, Yisi Zhang, Chen Chen, Jiachen Shen, Yan
+  Zhang, and Jiangyun Li. 2023{\natexlab{b}}.
+\newblock Cm-masksd: Cross-modality masked self-distillation for referring
+  image segmentation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{c}})Wang, Wang, Qi, Ye, Qian, Wang, and
+  Zhang}]{sustainable2024}
+Wenxuan Wang, Chenglei Wang, Huihui Qi, Meng Ye, Xuelin Qian, Peng Wang, and
+  Yanning Zhang. 2024{\natexlab{c}}.
+\newblock Sustainable self-evolution adversarial training.
+\newblock \emph{ACM Multimedia}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{d}})Wang, Wang, Ma, Wong, and
+  Li}]{exhaustive2024}
+Xubin Wang, Yunhe Wang, Zhiqing Ma, Ka-Chun Wong, and Xiangtao Li.
+  2024{\natexlab{d}}.
+\newblock Exhaustive exploitation of nature-inspired computation for cancer
+  screening in an ensemble manner.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wang and Niu(2024)}]{federated2024}
+Yingchao Wang and Wenqi Niu. 2024.
+\newblock Federated progressive self-distillation with logits calibration for
+  personalized iiot edge intelligence.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{e}})Wang, Yin, and Li}]{towards2024}
+Yu~Wang, Yuxuan Yin, and Peng Li. 2024{\natexlab{e}}.
+\newblock Towards the mitigation of confirmation bias in semi-supervised
+  learning: a debiased training perspective.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wei et~al.(2025)Wei, Luo, Xie, and Yang}]{federated2025}
+Haomin Wei, YuJiang Luo, Tao Xie, and Yunong Yang. 2025.
+\newblock Federated learning with dual-end gradient correction and proxy-free
+  self-distillation.
+\newblock \emph{IEEE Access}.
+
+\bibitem[{Wei et~al.(2024)Wei, Sun, Zhang, Zhang, and Hou}]{ftsmartaudit2024}
+Zhiyuan Wei, Jing Sun, Zijian Zhang, Xianhao Zhang, and Zhe Hou. 2024.
+\newblock Ftsmartaudit: A knowledge distillation-enhanced framework for
+  automated smart contract auditing using fine-tuned llms.
+
+\bibitem[{Wen and Itti(2018)}]{overcoming2018}
+Shixian Wen and Laurent Itti. 2018.
+\newblock Overcoming catastrophic forgetting problem by weight consolidation
+  and long-term memory.
+\newblock \emph{arXiv}.
+
+\bibitem[{Weng et~al.(2022)Weng, Ma, Sun, Shan, Li, Zhu, Wang, and Xu}]{an2022}
+Futian Weng, Yuanting Ma, Jinghan Sun, Shijun Shan, Qiyuan Li, Jianping Zhu,
+  Yang Wang, and Yan Xu. 2022.
+\newblock An interpretable imbalanced semi-supervised deep learning framework
+  for improving differential diagnosis of skin diseases.
+\newblock \emph{arXiv}.
+
+\bibitem[{Winata et~al.(2025)Winata, Andryani, Gunawan, , and
+  Gaol}]{diverse2025}
+Andreas Winata, Nur Afny~Catur Andryani, Alexander Agung~Santoso Gunawan, , and
+  Ford~Lumban Gaol. 2025.
+\newblock Diverse representation knowledge distillation for efficient edge ai
+  teledermatology in skin disease diagnosis.
+\newblock \emph{IEEE Access}.
+
+\bibitem[{Wu et~al.(2025)Wu, Li, Ye, Chen, Zhou, Lou, Zheng, and
+  Ng}]{tsrating2025}
+Shunyu Wu, Dan Li, Haozheng Ye, Zhuomin Chen, Jiahui Zhou, Jian Lou, Zibin
+  Zheng, and See-Kiong Ng. 2025.
+\newblock Tsrating: Rating quality of diverse time series data by meta-learning
+  from llm judgment.
+\newblock \emph{arXiv}.
+
+\bibitem[{Wu et~al.(2023)Wu, Wang, and Chen}]{annealing2023}
+Yuehua Wu, Hung-Jui Wang, and Shang-Tse Chen. 2023.
+\newblock Annealing self-distillation rectification improves adversarial
+  training.
+\newblock \emph{International Conference on Learning Representations}.
+
+\bibitem[{Xiao et~al.(2023)Xiao, Chen, Zhu, Zeng, Cai, and
+  Zhu}]{association2023}
+Q.~Xiao, Jian Chen, Jia Zhu, Shu-Xin Zeng, H.~Cai, and Guomin Zhu. 2023.
+\newblock Association of several loci of smad7 with colorectal cancer: A
+  meta-analysis based on case–control studies.
+\newblock \emph{Medicine}.
+
+\bibitem[{Xiao et~al.(2024)Xiao, Lai, Yang, Wu, Yue, and Zhu}]{drive2024}
+Ruiqiang Xiao, Songning Lai, Yijun Yang, Jiemin Wu, Yutao Yue, and Lei Zhu.
+  2024.
+\newblock Drive: Dual-robustness via information variability and entropic
+  consistency in source-free unsupervised domain adaptation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Xie et~al.(2025)Xie, Wu, Ai, Min, Jiang, Geng, and Wang}]{ccsd2025}
+Dongqing Xie, Yonghuang Wu, Zisheng Ai, Jun Min, Zhencun Jiang, Shaojin Geng,
+  and Lei Wang. 2025.
+\newblock Ccsd: Cross-modal compositional self-distillation for robust brain
+  tumor segmentation with missing modalities.
+\newblock \emph{arXiv}.
+
+\bibitem[{Xie et~al.(2024)Xie, Chen, Lee, Mitchell, and Finn}]{calibrating2024}
+Johnathan Xie, Annie~S. Chen, Yoonho Lee, Eric Mitchell, and Chelsea Finn.
+  2024.
+\newblock Calibrating language models with adaptive temperature scaling.
+\newblock \emph{arXiv}.
+
+\bibitem[{Xie et~al.(2023)Xie, Xiao, Liu, Niu, Sugiyama, and
+  Huang}]{classdistributionaware2023}
+Ming-Kun Xie, Jia-Hao Xiao, Hao-Zhe Liu, Gang Niu, Masashi Sugiyama, and
+  Sheng-Jun Huang. 2023.
+\newblock Class-distribution-aware pseudo labeling for semi-supervised
+  multi-label learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Xing et~al.(2023)Xing, Zhou, Fan, Tian, and Zhao}]{raediff2023}
+Fan Xing, Xiaoyi Zhou, Xuefeng Fan, Zhuo Tian, and Yan Zhao. 2023.
+\newblock Raediff: Denoising diffusion probabilistic models based reversible
+  adversarial examples self-generation and self-recovery.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Xiong et~al.(2023)Xiong, Deng, Koh, Wu, Li, Xu, and
+  Hooi}]{proximityinformed2023}
+Miao Xiong, Ailin Deng, Pang~Wei Koh, Jiaying Wu, Shen Li, Jianqing Xu, and
+  Bryan Hooi. 2023.
+\newblock Proximity-informed calibration for deep neural networks.
+\newblock \emph{arXiv}.
+
+\bibitem[{Xu et~al.(2022)Xu, Zhu, Li, Gong, Li, Chen, Cui, Wu, Xu, and
+  Yan}]{2d2022}
+Anding Xu, Qingwen Zhu, Guilan Li, Caihong Gong, Xia Li, H.~Chen, J.~Cui,
+  Songping Wu, Zhiguang Xu, and Yurong Yan. 2022.
+\newblock 2d bismuth@n-doped carbon sheets for ultrahigh rate and stable
+  potassium storage.
+\newblock \emph{Small}.
+
+\bibitem[{Xu et~al.(2019)Xu, Ma, Liu, Deb, Liu, Tang, and
+  Jain}]{adversarial2019}
+Han Xu, Yao Ma, Haochen Liu, Debayan Deb, Hui Liu, Jiliang Tang, and Anil~K.
+  Jain. 2019.
+\newblock Adversarial attacks and defenses in images, graphs and text: A
+  review.
+\newblock \emph{arXiv}.
+
+\bibitem[{Xu et~al.(2025)Xu, Li, Wu, Zhang, Li, Cheng, Tong, Chen, and
+  Loy}]{dstdet2025}
+Shilin Xu, Xiangtai Li, Size Wu, Wenwei Zhang, Yining Li, Guangliang Cheng,
+  Yunhai Tong, Kai Chen, and Chen~Change Loy. 2025.
+\newblock Dst-det: Open-vocabulary object detection via dynamic self-training.
+\newblock \emph{IEEE transactions on circuits and systems for video technology
+  (Print)}.
+
+\bibitem[{Yan et~al.(2024)Yan, Wang, Ma, and Zhong}]{orchestrate2024}
+Hongwei Yan, Liyuan Wang, Kaisheng Ma, and Yi~Zhong. 2024.
+\newblock Orchestrate latent expertise: Advancing online continual learning
+  with multi-level supervision and reverse self-distillation.
+\newblock \emph{Computer Vision and Pattern Recognition}.
+
+\bibitem[{Yang et~al.(2023)Yang, Wang, and van~de Weijer}]{scrollnet2023}
+Fei Yang, Kai Wang, and Joost van~de Weijer. 2023.
+\newblock Scrollnet: Dynamic weight importance for continual learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Yang et~al.(2026)Yang, Nakata, Saito, and Saruwatari}]{distilmos2026}
+Jianing Yang, Wataru Nakata, Yuki Saito, and Hiroshi Saruwatari. 2026.
+\newblock Distilmos: Layer-wise self-distillation for self-supervised learning
+  model-based mos prediction.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Yang et~al.(2024{\natexlab{a}})Yang, Zheng, Lv, Tang, Zhong, Luo, Bi,
+  Yang, Zhong, Chen, and Lu}]{the2024}
+Yujie Yang, Xuwei Zheng, Haiying Lv, Bin Tang, Y.~Zhong, Qianqian Luo, Yang Bi,
+  Kexin Yang, Haixin Zhong, Haiming Chen, and Chuanjian Lu. 2024{\natexlab{a}}.
+\newblock The causal relationship between serum metabolites and the risk of
+  psoriasis: a mendelian randomization and meta-analysis study.
+\newblock \emph{Frontiers in Immunology}.
+
+\bibitem[{Yang et~al.(2024{\natexlab{b}})Yang, Liu, Pang, Wang, Feng, Zhu, and
+  Chen}]{selfdistillation2024}
+Zhaorui Yang, Qian Liu, Tianyu Pang, Han Wang, H.~Feng, Minfeng Zhu, and Wei
+  Chen. 2024{\natexlab{b}}.
+\newblock Self-distillation bridges distribution gap in language model
+  fine-tuning.
+\newblock \emph{Annual Meeting of the Association for Computational
+  Linguistics}.
+
+\bibitem[{Yang(2025)}]{efficient2025}
+Zonglin Yang. 2025.
+\newblock Efficient uncertainty estimation and calibration on edge cpus: A
+  lightweight framework with temperature scaling and calibration-aware early
+  stopping.
+\newblock \emph{2025 10th International Conference on Computer and Information
+  Processing Technology (ISCIPT)}.
+
+\bibitem[{Ye et~al.(2022)Ye, Zhang, Chen, and Xia}]{desd2022}
+Yiwen Ye, Jianpeng Zhang, Ziyang Chen, and Yong Xia. 2022.
+\newblock Desd: Self-supervised learning with deep self-distillation for 3d
+  medical image segmentation.
+\newblock \emph{International Conference on Medical Image Computing and
+  Computer-Assisted Intervention}.
+
+\bibitem[{Yin et~al.(2019)Yin, Kolouri, and Rohde}]{gat2019}
+Xuwang Yin, Soheil Kolouri, and Gustavo~K. Rohde. 2019.
+\newblock Gat: Generative adversarial training for adversarial example
+  detection and robust classification.
+\newblock \emph{arXiv}.
+
+\bibitem[{Yoon et~al.(2023)Yoon, Ahn, Lee, Kim, Kim, and Kim}]{emnetwork2023}
+Ji~Won Yoon, Sunghwan Ahn, Hyeonseung Lee, Minchan Kim, Seok~Min Kim, and
+  Nam~Soo Kim. 2023.
+\newblock Em-network: Oracle guided self-distillation for sequence learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Yu et~al.(2022)Yu, Bates, Ma, and Jordan}]{robust2022}
+Yaodong Yu, Stephen Bates, Yi-An Ma, and Michael~I. Jordan. 2022.
+\newblock Robust calibration with multi-domain temperature scaling.
+\newblock \emph{Neural Information Processing Systems}.
+
+\bibitem[{Yuan et~al.(2025)Yuan, Chen, and Zhang}]{labelguided2025}
+Bo~Yuan, Yulin Chen, and Yin Zhang. 2025.
+\newblock Label-guided self-knowledge distillation for multi-class text
+  classification.
+\newblock \emph{Natural Language Processing and Chinese Computing}.
+
+\bibitem[{Zampierin et~al.(2024)Zampierin, Hacene, Nguyen, and
+  Ravanelli}]{skill2024}
+Luca Zampierin, Ghouthi~Boukli Hacene, Bac Nguyen, and Mirco Ravanelli. 2024.
+\newblock Skill: Similarity-aware knowledge distillation for speech
+  self-supervised learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zeevi et~al.(2024)Zeevi, Venkataraman, Staib, and
+  Onofrey}]{montecarlo2024}
+Tal Zeevi, R.~Venkataraman, Lawrence~H. Staib, and John~A. Onofrey. 2024.
+\newblock Monte-carlo frequency dropout for predictive uncertainty estimation
+  in deep learning.
+\newblock \emph{IEEE International Symposium on Biomedical Imaging}.
+
+\bibitem[{Zeng et~al.(2025)Zeng, Wang, Zhao, Cheng, Zhou, and
+  Shi}]{uncertainty2025}
+Ximin Zeng, Hongmei Wang, Long Zhao, Yue Cheng, Danping Zhou, and Shaoping Shi.
+  2025.
+\newblock Uncertainty quantification and temperature scaling calibration for
+  protein-rna binding site prediction.
+\newblock \emph{Journal of Chemical Information and Modeling}.
+
+\bibitem[{Zhai et~al.(2025)Zhai, Zhang, Wu, Zeng, Liu, and Wang}]{improved2025}
+Hao Zhai, Tengfei Zhang, Yicong Wu, Dequan Zeng, Zhengfa Liu, and Helin Wang.
+  2025.
+\newblock Improved self-distillation and memorized spatial local clustering for
+  test time adaptation.
+\newblock \emph{2025 2nd International Symposium on AI and Cybersecurity
+  (ISAICS)}.
+
+\bibitem[{Zhang et~al.(2020{\natexlab{a}})Zhang, Lin, Liu, Zhou, Tang, Liang,
+  and Xing}]{iterative2020}
+Hanlin Zhang, Shuai Lin, Weiyang Liu, Pan Zhou, Jian Tang, Xiaodan Liang, and
+  Eric~P. Xing. 2020{\natexlab{a}}.
+\newblock Iterative graph self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhang et~al.(2024{\natexlab{a}})Zhang, Ye, Ma, Li, Yang, Sang, and
+  Yeung}]{anyattack2024}
+Jiaming Zhang, Junhong Ye, Xingjun Ma, Yige Li, Yunfan Yang, Jitao Sang, and
+  Dit-Yan Yeung. 2024{\natexlab{a}}.
+\newblock Anyattack: Towards large-scale self-supervised generation of targeted
+  adversarial examples for vision-language models.
+\newblock \emph{arXiv.org}.
+
+\bibitem[{Zhang et~al.(2021)Zhang, Yuan, Zheng, Krikidis, and
+  Wong}]{embedding2021}
+Juping Zhang, Yi~Yuan, Gan Zheng, Ioannis Krikidis, and Kai-Kit Wong. 2021.
+\newblock Embedding model based fast meta learning for downlink beamforming
+  adaptation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhang et~al.(2023)Zhang, Shen, Lin, Yuan, Wang, Li, and
+  Ye}]{replayenhanced2023}
+Tiantian Zhang, Kevin~Zehua Shen, Zichuan Lin, Bo~Yuan, Xueqian Wang, Xiu Li,
+  and Deheng Ye. 2023.
+\newblock Replay-enhanced continual reinforcement learning.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhang et~al.(2020{\natexlab{b}})Zhang, feng He, and
+  Ye}]{association2020}
+Wenping Zhang, Xiao feng He, and X.~Ye. 2020{\natexlab{b}}.
+\newblock Association between the combined effects of gstm1 present/null and
+  cyp1a1 mspi polymorphisms with lung cancer risk: an updated meta-analysis.
+\newblock \emph{Bioscience Reports}.
+
+\bibitem[{Zhang et~al.(2024{\natexlab{b}})Zhang, Xu, Xu, and Zhu}]{maskts2024}
+Yudian Zhang, Chenhao Xu, Kaiye Xu, and Haijiang Zhu. 2024{\natexlab{b}}.
+\newblock Mask-ts net: Mask temperature scaling uncertainty calibration for
+  polyp segmentation.
+\newblock \emph{International Conference on Pattern Recognition}.
+
+\bibitem[{Zhang et~al.(2025)Zhang, Chen, Li, Tu, and Li}]{rlvmr2025}
+Zijing Zhang, Ziyang Chen, Mingxiao Li, Zhaopeng Tu, and Xiaolong Li. 2025.
+\newblock Rlvmr: Reinforcement learning with verifiable meta-reasoning rewards
+  for robust long-horizon agents.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhao et~al.(2025)Zhao, Yu, Yu, Liu, and Wang}]{enhanced2025}
+Xiaochen Zhao, Chengting Yu, Kairong Yu, Lei Liu, and Aili Wang. 2025.
+\newblock Enhanced self-distillation framework for efficient spiking neural
+  network training.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhao et~al.(2022)Zhao, Wang, Zhang, ju~Liu, Wang, Shi, Wang, Shen,
+  and feng He}]{individual2022}
+Yan Zhao, Dingxian Wang, Cheng-Yu Zhang, Yan ju~Liu, Xiaohong Wang, Mengxin
+  Shi, Wei Wang, Xueqing Shen, and Xiao feng He. 2022.
+\newblock Individual and combined effects of the gstm1, gstt1, and gstp1
+  polymorphisms on leukemia risk: An updated meta-analysis.
+\newblock \emph{Frontiers in Genetics}.
+
+\bibitem[{Zheng et~al.(2023)Zheng, He, and Li}]{decoupled2023}
+Yilin Zheng, Lingmin He, and Jianbao Li. 2023.
+\newblock Decoupled adversarial network and self-training with weighted
+  pseudo-labels for domain adaptive semantic segmentation.
+\newblock \emph{IEEE International Conference on Systems, Man and Cybernetics}.
+
+\bibitem[{Zhou et~al.(2022)Zhou, Raman, Sowerby, and Littman}]{tiered2022}
+Zhiyuan Zhou, Shreyas~Sundara Raman, Henry Sowerby, and Michael~L. Littman.
+  2022.
+\newblock Tiered reward: Designing rewards for specification and fast learning
+  of desired behavior.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhu et~al.(2023)Zhu, Li, Liu, and Wang}]{improving2023}
+Xunyu Zhu, Jian Li, Yong Liu, and Weiping Wang. 2023.
+\newblock Improving differentiable architecture search via self-distillation.
+\newblock \emph{arXiv}.
+
+\bibitem[{Zhuang et~al.(2024)Zhuang, Jiang, Zheng, Wang, and Zhao}]{gets2024}
+Dingyi Zhuang, Chonghe Jiang, Yunhan Zheng, Shenhao Wang, and Jinhua Zhao.
+  2024.
+\newblock Gets: Ensemble temperature scaling for calibration in graph neural
+  networks.
+\newblock \emph{arXiv}.
+
+\end{thebibliography}

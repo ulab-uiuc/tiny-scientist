@@ -1316,7 +1316,12 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
         # Check if file exists
         if not os.path.exists(absolute_pdf_path):
             return jsonify({"error": "PDF file not found"}), 404
-        reviewer_model = session["model"]
+        reviewer_model = (
+            data.get("model")
+            or session.get("model")
+            or os.environ.get("DEMO_CACHE_MODEL")
+            or "gpt-5-mini"
+        )
         print("🔍 Starting paper review...")
         try:
             _, _, session_allocation = TinyScientist.resolve_budget_settings(

@@ -35,6 +35,7 @@
     "demo:server": "DEMO_CACHE_PORT=3030 node demo_cache/server.js",
     "demo:generate-cache": "python demo_cache/generate_demo_cache.py",
     "demo:rerun-writer": "python demo_cache/rerun_writer_only.py",
+    "demo:rerun-review": "python demo_cache/rerun_reviewer_only.py",
     "demo": "npm run build && npm run demo:server",
     "eject": "react-scripts eject",
     "shadcn-ui": "shadcn-ui"

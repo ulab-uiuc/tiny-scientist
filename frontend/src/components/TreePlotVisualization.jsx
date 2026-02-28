@@ -989,12 +989,7 @@ const TreePlotVisualization = () => {
       return { xDimension: null, yDimension: null, faceIndex: 0, faceName: '', xFlip: false, yFlip: false };
     }
 
-    const visualPairs = (() => {
-      if (selectedDimensionPairs.length >= 5) {
-        return [selectedDimensionPairs[0], selectedDimensionPairs[2], selectedDimensionPairs[4]].filter(Boolean);
-      }
-      return selectedDimensionPairs.slice(0, 3);
-    })();
+    const visualPairs = selectedDimensionPairs.slice(0, 3);
 
     // Cube faces: 0 (Front), 1 (Right), 2 (Top), 3 (Back), 4 (Left), 5 (Bottom)
     if (visualPairs.length >= 3) {
@@ -2619,6 +2614,7 @@ const TreePlotVisualization = () => {
           mergeTimestamp: Date.now(),
           problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || [],
           originalData: mergedOriginalData,
+          scores: data.scores || mergedOriginalData?.scores || {},
           x: (firstNode.x || 0 + secondNode.x || 0) / 2,
           y: Math.max(firstNode.y || 0, secondNode.y || 0) + 150
         };
@@ -2651,7 +2647,8 @@ const TreePlotVisualization = () => {
           title: data.title,
           content: data.content,
           problemHighlights: data.problemHighlights || data.originalData?.problem_highlights || [],
-          originalData: mergedOriginalData
+          originalData: mergedOriginalData,
+          scores: data.scores || mergedOriginalData?.scores || {},
         };
         setIdeasList(prevIdeas => [...prevIdeas, newIdea]);
 
@@ -3577,7 +3574,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-      .text(xAxisLabel || xAxisMetric);
+          .text(xAxisLabel || xAxisMetric);
 
         g.append('text')
           .attr('transform', 'rotate(-90)')
@@ -3586,7 +3583,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-      .text(yAxisLabel || yAxisMetric);
+          .text(yAxisLabel || yAxisMetric);
       }
 
       // (Zoom controls removed previously)
@@ -3788,7 +3785,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-      .text(xAxisLabel || xAxisMetric);
+          .text(xAxisLabel || xAxisMetric);
 
         g.append('text')
           .attr('transform', 'rotate(-90)')
@@ -3797,7 +3794,7 @@ const TreePlotVisualization = () => {
           .style('text-anchor', 'middle')
           .style('fill', '#374151')
           .style('font-size', '1.2rem')
-      .text(yAxisLabel || yAxisMetric);
+          .text(yAxisLabel || yAxisMetric);
       }
 
       // Ensure node/content layer is above grids & axes (z-order)
@@ -4795,7 +4792,7 @@ const TreePlotVisualization = () => {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Review failed');
-      setReviewResult(data.review);
+      setReviewResult(data.review ?? data);
       setWorkflowStep('review_done');
     } catch (err) {
       setWorkflowError(err.message);
@@ -6702,9 +6699,7 @@ const TreePlotVisualization = () => {
 
           {/* ============ Paper View ============ */}
           {currentView === 'paper_view' && (
-            <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '16px', color: '#0F172A' }}>Paper</h2>
-
+            <div style={{ padding: '24px', width: '90%', maxWidth: '1400px', margin: '0 auto' }}>
               {workflowStep === 'writing' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 40px', gap: '20px' }}>
                   <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#0F172A', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -6719,77 +6714,98 @@ const TreePlotVisualization = () => {
                 </div>
               ) : (
                 <>
-                  <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <span>✅</span>
-                      <strong style={{ color: '#15803D' }}>Paper generated: {paperResult.paper_name}</strong>
-                    </div>
-                    <a
-                      href={paperResult.pdf_path}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: '0.85rem', color: '#2563EB', textDecoration: 'underline' }}
-                    >
-                      View PDF
-                    </a>
-                  </div>
-
-                  {/* Review section */}
-                  <div style={{ padding: '16px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', marginBottom: '16px' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>Review Paper</h3>
-                    {workflowStep === 'reviewing' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6B7280', fontSize: '0.875rem' }}>
-                        <div style={{ width: '16px', height: '16px', border: '2px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                        Reviewing paper...
+                    <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <span>✅</span>
+                        <strong style={{ color: '#15803D' }}>Paper generated: {paperResult.paper_name}</strong>
                       </div>
-                    ) : workflowStep === 'review_done' && reviewResult ? null : (
-                      <button
-                        onClick={handleReviewPaper}
-                        style={{ padding: '8px 16px', backgroundColor: '#0F172A', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        Review Paper
-                      </button>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Review results */}
-                  {workflowStep === 'review_done' && reviewResult && (
-                    <div style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>Review Results</h3>
-                      {typeof reviewResult === 'object' ? (
-                        <div>
-                          {reviewResult.Summary && <div style={{ marginBottom: '12px' }}><strong>Summary:</strong><p style={{ margin: '4px 0 0', color: '#4B5563', lineHeight: 1.6 }}>{reviewResult.Summary}</p></div>}
-                          {reviewResult.Strengths && Array.isArray(reviewResult.Strengths) && (
-                            <div style={{ marginBottom: '12px' }}>
-                              <strong>Strengths:</strong>
-                              <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#4B5563' }}>
-                                {reviewResult.Strengths.map((s, i) => <li key={i}>{s}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                          {reviewResult.Weaknesses && Array.isArray(reviewResult.Weaknesses) && (
-                            <div style={{ marginBottom: '12px' }}>
-                              <strong>Weaknesses:</strong>
-                              <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#4B5563' }}>
-                                {reviewResult.Weaknesses.map((w, i) => <li key={i}>{w}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                          {reviewResult.Decision && (
-                            <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px' }}>
-                              <strong>Decision:</strong> {reviewResult.Decision}
-                              {reviewResult.Rating && <span style={{ marginLeft: '12px', fontWeight: 700 }}>Rating: {reviewResult.Rating}/10</span>}
-                            </div>
-                          )}
-                          {(!reviewResult.Summary && !reviewResult.Decision) && (
-                            <pre style={{ fontSize: '0.8rem', overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify(reviewResult, null, 2)}</pre>
-                          )}
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '2 1 0', minWidth: '420px' }}>
+                      {paperResult?.pdf_path && (
+                        <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
+                          <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0F172A' }}>PDF Viewer</div>
+                            <a
+                              href={paperResult.pdf_path}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: '0.85rem', color: '#2563EB', textDecoration: 'underline', whiteSpace: 'nowrap' }}
+                            >
+                              Open in new tab
+                            </a>
+                          </div>
+                          <iframe
+                            title="Generated Paper"
+                            src={`${paperResult.pdf_path}#view=FitH`}
+                            style={{ width: '100%', height: '78vh', border: '0', display: 'block', background: '#fff' }}
+                          />
                         </div>
-                      ) : (
-                        <pre style={{ fontSize: '0.8rem', overflow: 'auto', whiteSpace: 'pre-wrap' }}>{String(reviewResult)}</pre>
                       )}
                     </div>
-                  )}
+
+                    <div style={{ flex: '1 1 0', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ padding: '16px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, color: '#374151' }}>Review Paper</h3>
+                          {workflowStep === 'reviewing' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6B7280', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                              <div style={{ width: '16px', height: '16px', border: '2px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                              Reviewing...
+                            </div>
+                          ) : (
+                            <button
+                              onClick={handleReviewPaper}
+                              style={{ padding: '8px 12px', backgroundColor: '#0F172A', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              Generate Reviews
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', flex: 1, overflow: 'auto', maxHeight: '78vh' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>Review Results</h3>
+                        {workflowStep === 'review_done' && reviewResult ? (
+                          typeof reviewResult === 'object' ? (
+                            <div>
+                              {reviewResult.Summary && <div style={{ marginBottom: '12px' }}><strong>Summary:</strong><p style={{ margin: '4px 0 0', color: '#4B5563', lineHeight: 1.6 }}>{reviewResult.Summary}</p></div>}
+                              {reviewResult.Strengths && Array.isArray(reviewResult.Strengths) && (
+                                <div style={{ marginBottom: '12px' }}>
+                                  <strong>Strengths:</strong>
+                                  <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#4B5563' }}>
+                                    {reviewResult.Strengths.map((s, i) => <li key={i}>{s}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {reviewResult.Weaknesses && Array.isArray(reviewResult.Weaknesses) && (
+                                <div style={{ marginBottom: '12px' }}>
+                                  <strong>Weaknesses:</strong>
+                                  <ul style={{ margin: '4px 0 0', paddingLeft: '20px', color: '#4B5563' }}>
+                                    {reviewResult.Weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {reviewResult.Decision && (
+                                <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px' }}>
+                                  <strong>Decision:</strong> {reviewResult.Decision}
+                                  {reviewResult.Rating && <span style={{ marginLeft: '12px', fontWeight: 700 }}>Rating: {reviewResult.Rating}/10</span>}
+                                </div>
+                              )}
+                              {(!reviewResult.Summary && !reviewResult.Decision) && (
+                                <pre style={{ fontSize: '0.8rem', overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify(reviewResult, null, 2)}</pre>
+                              )}
+                            </div>
+                          ) : (
+                            <pre style={{ fontSize: '0.8rem', overflow: 'auto', whiteSpace: 'pre-wrap' }}>{String(reviewResult)}</pre>
+                          )
+                        ) : (
+                          <div style={{ color: '#9CA3AF', fontSize: '0.875rem' }}>No review generated yet.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

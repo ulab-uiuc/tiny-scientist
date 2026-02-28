@@ -140,7 +140,6 @@ def get_batch_responses_from_llm(
                 *new_msg_history,
             ],
             "n": n_responses,
-            "stop": None,
         }
 
         # Apply model-specific parameter constraints
@@ -184,7 +183,6 @@ def get_batch_responses_from_llm(
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
             n=n_responses,
-            stop=None,
         )
         content = [r.message.content for r in response.choices]
         new_msg_history = [
@@ -213,7 +211,6 @@ def get_batch_responses_from_llm(
                 temperature=temperature,
                 max_tokens=MAX_NUM_TOKENS,
                 n=1,
-                stop=None,
             )
             resp_content = response.choices[0].message.content
             content.append(resp_content)
@@ -335,7 +332,6 @@ def get_response_from_llm(
                 *new_msg_history,
             ],
             "n": 1,
-            "stop": None,
         }
 
         # Apply model-specific parameter constraints
@@ -397,7 +393,6 @@ def get_response_from_llm(
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
             n=1,
-            stop=None,
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
@@ -415,7 +410,6 @@ def get_response_from_llm(
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
             n=1,
-            stop=None,
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
@@ -431,7 +425,6 @@ def get_response_from_llm(
                 *new_msg_history,
             ],
             n=1,
-            stop=None,
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
@@ -466,7 +459,6 @@ def get_response_from_llm(
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
             n=1,
-            stop=None,
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
@@ -488,7 +480,6 @@ def get_response_from_llm(
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
             n=1,
-            stop=None,
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
@@ -566,7 +557,6 @@ def get_batch_responses_from_llm_with_tools(
                 temperature=temperature,
                 max_tokens=MAX_NUM_TOKENS,
                 n=n_responses,
-                stop=None,
                 seed=0,  # Seed might not be available for all models or with tool use
             )
 

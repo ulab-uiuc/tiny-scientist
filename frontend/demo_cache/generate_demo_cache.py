@@ -87,6 +87,43 @@ def _write_bytes(path: Path, content: bytes) -> None:
     path.write_bytes(content)
 
 
+def _write_cache_snapshot(path: Path, cache: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    temp_path.replace(path)
+
+
+def _mark_stage(cache: Dict[str, Any], stage: str) -> None:
+    meta = cache.setdefault("meta", {})
+    meta["current_stage"] = stage
+    completed = meta.setdefault("completed_stages", [])
+    if isinstance(completed, list) and stage not in completed:
+        completed.append(stage)
+
+
+def _validate_final_cache(cache: Dict[str, Any]) -> None:
+    dimension_pairs = cache.get("dimension_pairs") or []
+    if len(dimension_pairs) < 5:
+        raise RuntimeError(
+            f"Final cache invalid: expected >=5 dimension pairs, got {len(dimension_pairs)}"
+        )
+
+    queues = cache.get("queues") or {}
+    required_queues = [
+        "generate_initial",
+        "modify",
+        "merge",
+        "evaluate",
+        "code",
+        "write",
+    ]
+    for key in required_queues:
+        value = queues.get(key) or []
+        if not isinstance(value, list) or len(value) == 0:
+            raise RuntimeError(f"Final cache invalid: queues.{key} is empty")
+
+
 def _build_dynamic_modifications(
     dimension_pairs: List[Dict[str, Any]],
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -119,10 +156,7 @@ def _build_dynamic_modifications(
             legacy_mods.append({"metric": key, "direction": "increase"})
         return score_mods, legacy_mods
 
-    return (
-        [{"metric": "noveltyScore", "previousScore": 0, "newScore": 20, "change": 20}],
-        [{"metric": "noveltyScore", "direction": "increase"}],
-    )
+    raise RuntimeError("No usable dynamic dimension pair keys were generated")
 
 
 def _local_fallback_modified_idea(
@@ -194,214 +228,322 @@ def main() -> int:
         "GET", f"{backend_base}/api/get-prompts", payload=None, timeout_s=60
     )
 
-    dimension_pairs = _collect_dimension_pairs(
-        backend_base=backend_base, intent=args.intent, want=5
-    )
-
-    gen_initial = _http_json(
-        "POST",
-        f"{backend_base}/api/generate-initial",
-        payload={
-            "intent": args.intent,
-            "num_ideas": 1,
-            "dimension_pairs": dimension_pairs,
-        },
-        timeout_s=600,
-    )
-    ideas0 = gen_initial.get("ideas") or []
-    if not ideas0:
-        raise RuntimeError("/api/generate-initial returned no ideas")
-
-    root_idea = ideas0[0]
-    root_original = root_idea.get("originalData") or {}
-    root_id = root_idea.get("id") or root_original.get("id")
-    if not root_id:
-        raise RuntimeError("Missing root idea id")
-
-    gen_child = _http_json(
-        "POST",
-        f"{backend_base}/api/generate-children",
-        payload={
-            "parent_content": root_idea.get("content", ""),
-            "parent_id": root_id,
-            "context": "",
-        },
-        timeout_s=600,
-    )
-
-    score_mods, legacy_mods = _build_dynamic_modifications(dimension_pairs)
-    modify_payload_base = {
-        "original_idea": root_original,
-        "original_id": root_id,
-        "behind_idea": (gen_child.get("ideas") or [{}])[0].get("originalData"),
-        "dimension_pairs": dimension_pairs,
-    }
-
-    modify: Dict[str, Any]
-    try:
-        modify = _http_json(
-            "POST",
-            f"{backend_base}/api/modify",
-            payload={**modify_payload_base, "modifications": score_mods},
-            timeout_s=900,
-        )
-    except Exception:
-        try:
-            modify = _http_json(
-                "POST",
-                f"{backend_base}/api/modify",
-                payload={**modify_payload_base, "modifications": legacy_mods},
-                timeout_s=900,
-            )
-        except Exception:
-            modify = _local_fallback_modified_idea(root_original, root_id)
-
-    merge = _http_json(
-        "POST",
-        f"{backend_base}/api/merge",
-        payload={
-            "idea_a": root_original,
-            "idea_b": (modify.get("originalData") or modify),
-            "idea_a_id": root_id,
-            "idea_b_id": modify.get("id"),
-            "dimension_pairs": dimension_pairs,
-        },
-        timeout_s=600,
-    )
-
-    request_ideas: List[Dict[str, Any]] = []
-    for item in [
-        root_original,
-        (gen_child.get("ideas") or [{}])[0].get("originalData"),
-        modify.get("originalData"),
-        merge.get("originalData"),
-    ]:
-        if isinstance(item, dict) and item:
-            request_ideas.append(item)
-    request_ideas = [i for i in request_ideas if isinstance(i, dict)]
-
-    evaluate = _http_json(
-        "POST",
-        f"{backend_base}/api/evaluate",
-        payload={
-            "ideas": request_ideas,
-            "intent": args.intent,
-            "dimension_pairs": dimension_pairs,
-            "mode": "full",
-        },
-        timeout_s=600,
-    )
-
-    workflow_idea = merge.get("originalData") or merge
-    code = _http_json(
-        "POST",
-        f"{backend_base}/api/code",
-        payload={"idea": {"originalData": workflow_idea}},
-        timeout_s=3600,
-    )
-
-    downloaded_text: Dict[str, str] = {}
-    downloaded_bin: Dict[str, str] = {}
-
-    exp_dir = code.get("experiment_dir")
-    if exp_dir:
-        candidates = [
-            "experiment.py",
-            "experiment_results.txt",
-            "notes.txt",
-        ]
-        for i in range(1, 6):
-            candidates.append(f"run_{i}.py")
-            candidates.append(f"run_{i}/final_info.json")
-
-        for name in candidates:
-            api_rel = f"{exp_dir}/{name}"
-            url = f"{backend_base}/api/files/{api_rel}"
-            try:
-                data = _http_json("GET", url, payload=None, timeout_s=60)
-                content = data.get("content")
-                if isinstance(content, str):
-                    local_rel = Path("experiments") / exp_dir / name
-                    local_path = files_root / local_rel
-                    _write_text(local_path, content)
-                    downloaded_text[f"experiments/{api_rel}"] = str(
-                        Path("files") / local_rel
-                    ).replace(os.path.sep, "/")
-            except Exception:
-                continue
-
-    write = _http_json(
-        "POST",
-        f"{backend_base}/api/write",
-        payload={"idea": {"originalData": workflow_idea}, "experiment_dir": exp_dir},
-        timeout_s=3600,
-    )
-
-    pdf_path = write.get("pdf_path")
-    if isinstance(pdf_path, str) and pdf_path.startswith("/api/files/"):
-        pdf_rel = pdf_path[len("/api/files/") :]
-        pdf_url = f"{backend_base}{pdf_path}"
-        pdf_bytes = _http_get_bytes(pdf_url, timeout_s=3600)
-        local_rel = Path(pdf_rel)
-        local_path = files_root / local_rel
-        _write_bytes(local_path, pdf_bytes)
-        downloaded_bin[pdf_rel] = str(Path("files") / local_rel).replace(
-            os.path.sep, "/"
-        )
-
-    review: Optional[Dict[str, Any]] = None
-    if isinstance(pdf_path, str):
-        try:
-            review = _http_json(
-                "POST",
-                f"{backend_base}/api/review",
-                payload={"pdf_path": pdf_path},
-                timeout_s=3600,
-            )
-        except Exception:
-            review = None
-
-    cache = {
+    cache: Dict[str, Any] = {
         "meta": {
             "intent": args.intent,
             "created_at": _now_iso(),
             "schema_version": 1,
             "source_backend_base": backend_base,
+            "status": "running",
+            "current_stage": "init",
+            "completed_stages": [],
+            "error": None,
         },
-        "dimension_pairs": dimension_pairs,
+        "dimension_pairs": [],
         "prompts": {
             "system_prompt": prompts.get("system_prompt"),
             "criteria": (prompts.get("criteria") or {}),
             "defaults": (prompts.get("defaults") or {}),
         },
         "queues": {
-            "generate_initial": [gen_initial],
-            "generate_children": [gen_child],
-            "evaluate": [evaluate],
-            "modify": [modify],
-            "merge": [merge],
-            "code": [code],
-            "write": [write],
-            "review": [review] if review else [],
+            "generate_initial": [],
+            "generate_children": [],
+            "evaluate": [],
+            "modify": [],
+            "merge": [],
+            "code": [],
+            "write": [],
+            "review": [],
         },
         "files": {
-            "text": downloaded_text,
-            "binary": downloaded_bin,
+            "text": {},
+            "binary": {},
         },
         "logs": [
             {
-                "message": "(cached) demo_cache generated",
+                "message": "(cached) demo_cache generation started",
                 "level": "info",
                 "timestamp": 0,
             },
         ],
     }
+    _write_cache_snapshot(out_path, cache)
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
-    print(f"Wrote cache JSON: {out_path}")
-    print(f"Wrote files under: {files_root}")
-    return 0
+    try:
+        _mark_stage(cache, "collect_dimensions")
+        _write_cache_snapshot(out_path, cache)
+
+        dimension_pairs = _collect_dimension_pairs(
+            backend_base=backend_base, intent=args.intent, want=5
+        )
+
+        if len(dimension_pairs) < 5:
+            raise RuntimeError(
+                f"Expected at least 5 unique dimension pairs, got {len(dimension_pairs)}"
+            )
+
+        cache["dimension_pairs"] = dimension_pairs
+        _write_cache_snapshot(out_path, cache)
+
+        _mark_stage(cache, "generate_initial")
+        _write_cache_snapshot(out_path, cache)
+        gen_initial = _http_json(
+            "POST",
+            f"{backend_base}/api/generate-initial",
+            payload={
+                "intent": args.intent,
+                "num_ideas": 1,
+                "dimension_pairs": dimension_pairs,
+            },
+            timeout_s=600,
+        )
+        ideas0 = gen_initial.get("ideas") or []
+        if not ideas0:
+            raise RuntimeError("/api/generate-initial returned no ideas")
+
+        cache["queues"]["generate_initial"] = [gen_initial]
+        _write_cache_snapshot(out_path, cache)
+
+        root_idea = ideas0[0]
+        root_original = root_idea.get("originalData") or {}
+        root_id = root_idea.get("id") or root_original.get("id")
+        if not root_id:
+            raise RuntimeError("Missing root idea id")
+
+        gen_child: Dict[str, Any] = {"ideas": []}
+
+        score_mods, legacy_mods = _build_dynamic_modifications(dimension_pairs)
+        modify_payload_base = {
+            "original_idea": root_original,
+            "original_id": root_id,
+            "behind_idea": None,
+            "dimension_pairs": dimension_pairs,
+        }
+
+        _mark_stage(cache, "modify")
+        _write_cache_snapshot(out_path, cache)
+        modify: Dict[str, Any]
+        try:
+            modify = _http_json(
+                "POST",
+                f"{backend_base}/api/modify",
+                payload={**modify_payload_base, "modifications": score_mods},
+                timeout_s=900,
+            )
+        except Exception:
+            try:
+                modify = _http_json(
+                    "POST",
+                    f"{backend_base}/api/modify",
+                    payload={**modify_payload_base, "modifications": legacy_mods},
+                    timeout_s=900,
+                )
+            except Exception:
+                modify = _local_fallback_modified_idea(root_original, root_id)
+
+        cache["queues"]["modify"] = [modify]
+        _write_cache_snapshot(out_path, cache)
+
+        _mark_stage(cache, "merge")
+        _write_cache_snapshot(out_path, cache)
+        merge = _http_json(
+            "POST",
+            f"{backend_base}/api/merge",
+            payload={
+                "idea_a": root_original,
+                "idea_b": (modify.get("originalData") or modify),
+                "idea_a_id": root_id,
+                "idea_b_id": modify.get("id"),
+                "dimension_pairs": dimension_pairs,
+            },
+            timeout_s=600,
+        )
+
+        cache["queues"]["merge"] = [merge]
+        _write_cache_snapshot(out_path, cache)
+
+        request_ideas: List[Dict[str, Any]] = []
+        for item in [
+            root_original,
+            modify.get("originalData"),
+            merge.get("originalData"),
+        ]:
+            if isinstance(item, dict) and item:
+                request_ideas.append(item)
+        request_ideas = [i for i in request_ideas if isinstance(i, dict)]
+
+        target_ids = {
+            str(root_id),
+            str(modify.get("id") or ""),
+            str(merge.get("id") or ""),
+        }
+        target_ids = {x for x in target_ids if x}
+
+        _mark_stage(cache, "evaluate")
+        _write_cache_snapshot(out_path, cache)
+        evaluate = _http_json(
+            "POST",
+            f"{backend_base}/api/evaluate",
+            payload={
+                "ideas": request_ideas,
+                "intent": args.intent,
+                "dimension_pairs": dimension_pairs,
+                "mode": "full",
+            },
+            timeout_s=600,
+        )
+
+        if isinstance(evaluate, dict):
+            eval_ideas = evaluate.get("ideas") or []
+            if isinstance(eval_ideas, list):
+                filtered = [
+                    it
+                    for it in eval_ideas
+                    if isinstance(it, dict)
+                    and isinstance(it.get("id"), str)
+                    and it.get("id") in target_ids
+                ]
+                evaluate["ideas"] = filtered
+                meta = evaluate.get("meta")
+                if isinstance(meta, dict):
+                    meta["totalIdeas"] = len(filtered)
+                    meta["scoredCount"] = len(filtered)
+                    meta["targets"] = [it.get("id") for it in filtered if it.get("id")]
+
+        cache["queues"]["evaluate"] = [evaluate]
+        _write_cache_snapshot(out_path, cache)
+
+        workflow_idea = merge.get("originalData") or merge
+        _mark_stage(cache, "code")
+        _write_cache_snapshot(out_path, cache)
+        code = _http_json(
+            "POST",
+            f"{backend_base}/api/code",
+            payload={"idea": {"originalData": workflow_idea}},
+            timeout_s=3600,
+        )
+
+        cache["queues"]["code"] = [code]
+        _write_cache_snapshot(out_path, cache)
+
+        downloaded_text: Dict[str, str] = {}
+        downloaded_bin: Dict[str, str] = {}
+
+        exp_dir = code.get("experiment_dir")
+        if exp_dir:
+            _mark_stage(cache, "download_experiment_files")
+            _write_cache_snapshot(out_path, cache)
+            candidates = [
+                "experiment.py",
+                "experiment_results.txt",
+                "notes.txt",
+            ]
+            for i in range(1, 6):
+                candidates.append(f"run_{i}.py")
+                candidates.append(f"run_{i}/final_info.json")
+
+            for name in candidates:
+                api_rel = f"{exp_dir}/{name}"
+                url = f"{backend_base}/api/files/{api_rel}"
+                try:
+                    data = _http_json("GET", url, payload=None, timeout_s=60)
+                    content = data.get("content")
+                    if isinstance(content, str):
+                        local_rel = Path(exp_dir) / name
+                        local_path = files_root / local_rel
+                        _write_text(local_path, content)
+                        downloaded_text[api_rel] = str(
+                            Path("files") / local_rel
+                        ).replace(os.path.sep, "/")
+                        cache["files"]["text"] = downloaded_text
+                        _write_cache_snapshot(out_path, cache)
+                except Exception:
+                    continue
+
+        _mark_stage(cache, "write")
+        _write_cache_snapshot(out_path, cache)
+        write = _http_json(
+            "POST",
+            f"{backend_base}/api/write",
+            payload={
+                "idea": {
+                    "originalData": {
+                        **workflow_idea,
+                        "is_experimental": bool(exp_dir),
+                    }
+                },
+                "model": args.model,
+                "experiment_dir": exp_dir,
+            },
+            timeout_s=3600,
+        )
+
+        cache["queues"]["write"] = [write]
+        _write_cache_snapshot(out_path, cache)
+
+        pdf_path = write.get("pdf_path")
+        if isinstance(pdf_path, str) and pdf_path.startswith("/api/files/"):
+            _mark_stage(cache, "download_pdf")
+            _write_cache_snapshot(out_path, cache)
+            pdf_rel = pdf_path[len("/api/files/") :]
+            pdf_url = f"{backend_base}{pdf_path}"
+            pdf_bytes = _http_get_bytes(pdf_url, timeout_s=3600)
+            local_rel = Path(pdf_rel)
+            local_path = files_root / local_rel
+            _write_bytes(local_path, pdf_bytes)
+            downloaded_bin[pdf_rel] = str(Path("files") / local_rel).replace(
+                os.path.sep, "/"
+            )
+            cache["files"]["binary"] = downloaded_bin
+            _write_cache_snapshot(out_path, cache)
+
+        _mark_stage(cache, "review")
+        _write_cache_snapshot(out_path, cache)
+        review: Optional[Dict[str, Any]] = None
+        if isinstance(pdf_path, str):
+            try:
+                review = _http_json(
+                    "POST",
+                    f"{backend_base}/api/review",
+                    payload={"pdf_path": pdf_path},
+                    timeout_s=3600,
+                )
+            except Exception:
+                review = None
+
+        cache["queues"]["review"] = [review] if review else []
+        cache["files"]["text"] = downloaded_text
+        cache["files"]["binary"] = downloaded_bin
+
+        _mark_stage(cache, "final_validation")
+        _validate_final_cache(cache)
+
+        cache["meta"]["status"] = "ok"
+        cache["meta"]["error"] = None
+        cache["logs"] = [
+            {
+                "message": "(cached) demo_cache generated",
+                "level": "info",
+                "timestamp": 0,
+            },
+        ]
+        _write_cache_snapshot(out_path, cache)
+        print(f"Wrote cache JSON: {out_path}")
+        print(f"Wrote files under: {files_root}")
+        return 0
+    except Exception as e:
+        cache.setdefault("meta", {})["status"] = "error"
+        cache["meta"]["error"] = str(e)
+        cache.setdefault("logs", [])
+        cache["logs"] = [
+            {
+                "message": f"(cached) demo_cache generation failed: {e}",
+                "level": "error",
+                "timestamp": 0,
+            },
+        ]
+        _write_cache_snapshot(out_path, cache)
+        raise
 
 
 if __name__ == "__main__":
