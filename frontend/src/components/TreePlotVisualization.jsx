@@ -2192,8 +2192,9 @@ const TreePlotVisualization = () => {
   };
 
   // ============== 段落5：生成子节点 (generateChildNodes) ==============
-  const generateChildNodes = async () => {
-    if (!selectedNode) return;
+  const generateChildNodes = async (overrideNode) => {
+    const activeNode = overrideNode || selectedNode;
+    if (!activeNode) return;
     setIsGenerating(true);
     setOperationStatus('Generating child ideas...');
     setError(null);
@@ -2206,8 +2207,8 @@ const TreePlotVisualization = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          parent_content: selectedNode.content,
-          parent_id: selectedNode.id,
+          parent_content: activeNode.content,
+          parent_id: activeNode.id,
           context: userInput
         }),
       });
@@ -2233,21 +2234,21 @@ const TreePlotVisualization = () => {
       // 布局
       const childSpacing = 200;
       const totalWidth = (ideas.length - 1) * childSpacing;
-      const startX = selectedNode.x - totalWidth / 2;
+      const startX = activeNode.x - totalWidth / 2;
 
       const newNodes = newIdeasWithId.map((hyp, i) => ({
         id: hyp.id,
-        level: selectedNode.level + 1,
+        level: activeNode.level + 1,
         title: hyp.title.trim(),
         content: hyp.content.trim(),
         type: 'complex',
         x: startX + i * childSpacing + Math.random() * 20 - 10,
-        y: selectedNode.y + 150 + Math.random() * 20 - 10,
+        y: activeNode.y + 150 + Math.random() * 20 - 10,
         originalData: hyp.originalData,
         problemHighlights: hyp.problemHighlights || hyp.originalData?.problem_highlights || []
       }));
 
-      const newLinks = newNodes.map((nd) => ({ source: selectedNode.id, target: nd.id }));
+      const newLinks = newNodes.map((nd) => ({ source: activeNode.id, target: nd.id }));
       setNodes((prev) => {
         const existingIds = new Set(prev.map(n => n.id));
         const uniqueNewNodes = newNodes.filter(n => !existingIds.has(n.id));
@@ -4654,6 +4655,7 @@ const TreePlotVisualization = () => {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Code generation failed');
+      if (data.success === false) throw new Error(data.error_details || data.message || 'Code execution failed');
       setCodeResult(data);
       setWorkflowStep('code_done');
 
@@ -4736,6 +4738,7 @@ const TreePlotVisualization = () => {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Code generation failed');
+      if (data.success === false) throw new Error(data.error_details || data.message || 'Code execution failed');
       setCodeResult(data);
       setWorkflowStep('code_done');
       if (data.experiment_dir) {
@@ -7004,7 +7007,7 @@ const TreePlotVisualization = () => {
                     cursor: 'pointer',
                   }}
                   onClick={() => {
-                    // 生成子节点
+                    // 生成子节点: pass source node directly to avoid stale selectedNode state
                     generateChildNodes(pendingMerge.sourceNode);
                     setPendingMerge(null);
                   }}

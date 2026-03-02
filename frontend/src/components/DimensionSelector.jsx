@@ -19,8 +19,10 @@ const DimensionSelector = ({ intent, onDimensionsSelected }) => {
             const response = await fetch('/api/suggest-dimensions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ intent }),
             });
+            if (!response.ok) throw new Error('Failed to fetch dimension suggestions');
             const data = await response.json();
             setSuggestedPairs(data.dimension_pairs || []);
         } catch (error) {
