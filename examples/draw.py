@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 
-from tiny_scientist.smolagents_tools import DrawerTool
+from tiny_scientist.tool_impls import DrawerTool
 
 
 def parse_args() -> argparse.Namespace:

@@ -2,26 +2,41 @@ import json
 import os
 import os.path as osp
 import re
+import subprocess
 import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
+from agents import Agent, Runner
 from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
-from .smolagents_tools import DrawerTool, PaperSearchTool
+from .tool_impls import DrawerTool, PaperSearchTool
+from .tools.agent_tools import build_research_tools
+from .utils.agent_sdk import is_claude_agent_sdk, resolve_agent_sdk
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
     get_response_from_llm,
 )
+from .utils.openai_skills import build_openai_skill_shell_tool
 from .utils.output_formatter import (
     ACLOutputFormatter,
     BaseOutputFormatter,
     ICLROutputFormatter,
 )
 from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
+from .utils.rich_output import (
+    print_cost_delta_summary,
+    print_mapping_table,
+    print_stage_progress,
+    print_task_event,
+    print_todo_table,
+)
+from .utils.sdk_mcp import claude_allowed_mcp_tools, ensure_mcp_config
+from .utils.skill_loader import skill_instructions
+from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 # ---- Constants --------------------------------------------------------------
 
@@ -59,7 +74,7 @@ SLEEP_SEARCH = 0.8
 SLEEP_REFINE = 0.5
 
 
-class Writer:
+class _WriterLegacy:
     """
     End-to-end paper writer with:
       - Section generation (intro/method/etc.)
@@ -164,7 +179,8 @@ class Writer:
             output_pdf_path=output_pdf_path,
             name=self.generated_sections.get("Title", "Research Paper"),
         )
-        self.cost_tracker.report()
+        self._write_reference_links(idea)
+        self.cost_tracker.report("Writer Total Cost")
         return output_pdf_path, paper_name
 
     # ---- Section generation -------------------------------------------------
@@ -450,7 +466,7 @@ class Writer:
         content_snippet: str = "",
         max_queries: int = 6,
     ) -> List[str]:
-        """Ask LLM to propose queries; robust JSON parse with fallback."""
+        """Ask LLM to propose citation search queries."""
         # Build a single idea string for searching
         idea_str = self._format_idea_as_string(idea)
 
@@ -509,6 +525,7 @@ class Writer:
             abstract = (pdata.get("abstract", "") or "")[:MAX_ABSTRACT_SNIPPET]
             year = pdata.get("year", "")
             venue = pdata.get("venue", "")
+            link = str(pdata.get("url") or pdata.get("source") or "").strip()
             bibtex = pdata.get("bibtex", "") or ""
 
             bibkey = "UNKNOWN"
@@ -518,9 +535,72 @@ class Writer:
 
             # Use format that doesn't conflict with .format() syntax
             entry = f"- [CITE_KEY: {bibkey}] {title} ({authors}, {venue}, {year})\n  Abstract: {abstract}"
+            if link:
+                entry += f"\n  URL: {link}"
             entries.append(entry)
 
         return "\n\n".join(entries)
+
+    def _collect_reference_links(self, idea: Dict[str, Any]) -> List[Dict[str, str]]:
+        links: List[Dict[str, str]] = []
+        seen: set[str] = set()
+
+        def _add(title: str, url: str, source_type: str) -> None:
+            clean_url = (url or "").strip()
+            if not clean_url.startswith(("http://", "https://")):
+                return
+            key = clean_url.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            links.append(
+                {
+                    "title": (title or "Untitled").strip() or "Untitled",
+                    "url": clean_url,
+                    "source_type": (source_type or "unknown").strip() or "unknown",
+                }
+            )
+
+        for title, pdata in self.references.items():
+            if not isinstance(pdata, dict):
+                continue
+            _add(
+                title=str(title),
+                url=str(pdata.get("url") or pdata.get("source") or ""),
+                source_type=str(pdata.get("source_type") or "paper_search"),
+            )
+
+        citations = idea.get("Citations", [])
+        if isinstance(citations, list):
+            for c in citations:
+                if not isinstance(c, dict):
+                    continue
+                _add(
+                    title=str(c.get("title", "Untitled")),
+                    url=str(c.get("url", "")),
+                    source_type=str(c.get("source_type", "idea_citation")),
+                )
+
+        grounding = idea.get("ResearchGrounding", {})
+        if isinstance(grounding, dict):
+            grounded_citations = grounding.get("citations", [])
+            if isinstance(grounded_citations, list):
+                for c in grounded_citations:
+                    if not isinstance(c, dict):
+                        continue
+                    _add(
+                        title=str(c.get("title", "Untitled")),
+                        url=str(c.get("url", "")),
+                        source_type=str(c.get("source_type", "research_grounding")),
+                    )
+
+        return links
+
+    def _write_reference_links(self, idea: Dict[str, Any]) -> None:
+        links = self._collect_reference_links(idea)
+        path = osp.join(self.output_dir, "reference_links.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"reference_links": links}, f, indent=2, ensure_ascii=False)
 
     def _format_authors(self, authors: Any) -> str:
         """Accept strings, list[str], or list[dict{name}]."""
@@ -625,12 +705,35 @@ class Writer:
         if not experiment_dir:
             raise ValueError("Experimental papers require an experiment_dir")
 
-        code = self._read_text(osp.join(experiment_dir, "experiment.py"))
+        code = self._read_experiment_code(experiment_dir)
         exp = self._read_text(osp.join(experiment_dir, "experiment_results.txt"))
         base = self._read_text(
             osp.join(experiment_dir, "baseline_results.txt"), missing_ok=True
         )
         return code, exp, base
+
+    def _read_experiment_code(self, experiment_dir: str) -> str:
+        code_files = []
+        for root, dirnames, filenames in os.walk(experiment_dir):
+            dirnames[:] = [
+                d for d in dirnames if d not in {"run", "__pycache__", ".git", ".mypy_cache"}
+            ]
+            for filename in filenames:
+                if filename.endswith(".py"):
+                    path = osp.join(root, filename)
+                    relpath = osp.relpath(path, experiment_dir)
+                    code_files.append((relpath, path))
+
+        if not code_files:
+            return self._read_text(
+                osp.join(experiment_dir, "experiment.py"), missing_ok=True
+            )
+
+        sections = []
+        for relpath, path in sorted(code_files):
+            sections.append(f"# FILE: {relpath}")
+            sections.append(self._read_text(path, missing_ok=True))
+        return "\n\n".join(sections).strip()
 
     @staticmethod
     def _read_text(path: str, missing_ok: bool = False) -> str:
@@ -675,3 +778,1018 @@ class Writer:
             .replace(",", "")
             .replace(":", "")
         )
+
+
+class Writer(_WriterLegacy):
+    """Writer variant with configurable OpenAI/Claude agent SDK backends."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        agent_sdk = kwargs.pop("agent_sdk", None)
+        use_claude_agent_sdk = kwargs.pop("use_claude_agent_sdk", None)
+        super().__init__(*args, **kwargs)
+        self.agent_sdk = resolve_agent_sdk(
+            agent_sdk=agent_sdk,
+            use_claude_agent_sdk=use_claude_agent_sdk,
+        )
+        self._sdk_cwd = self.output_dir or "."
+        self.write_agent = None
+        self._related_work_agent = None
+        self.citation_agent = None
+        self.visual_planner_agent = None
+        self.table_agent = None
+        self.latex_error_agent = None
+        self.bib_manager_agent = None
+        self.planner_agent = None
+        if is_claude_agent_sdk(self.agent_sdk):
+            self._setup_claude_sdk()
+        else:
+            self._setup_openai_sdk()
+
+    def _setup_openai_sdk(self) -> None:
+        configure_openai_agents_for_model(self.model)
+        shared_tools = build_research_tools(model=self.model, include_drawer=True)
+        skill_shell_tool = build_openai_skill_shell_tool(
+            stage="writer",
+            working_directory=self._sdk_cwd,
+        )
+        if skill_shell_tool is not None:
+            shared_tools.append(skill_shell_tool)
+        tool_policy = (
+            "Tool policy: use web_search for recent context, paper_search for academic "
+            "evidence, code_search for reproducibility references, and generate_diagram "
+            "for method/result visuals."
+        )
+        if skill_shell_tool is not None:
+            tool_policy += " Use the shell tool when a mounted OpenAI skill is relevant."
+
+        self.write_agent = Agent(
+            name="PaperWriter",
+            instructions=skill_instructions(
+                "writer", f"{self.system_prompt}\n\n{tool_policy}"
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self._related_work_agent = Agent(
+            name="RelatedWorkWriter",
+            instructions=skill_instructions(
+                "writer",
+                f"{self.prompts.write_system_prompt_related_work}\n\n{tool_policy}",
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.citation_agent = Agent(
+            name="CitationEnricher",
+            instructions=skill_instructions(
+                "writer", f"{self.prompts.citation_system_prompt}\n\n{tool_policy}"
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.visual_planner_agent = Agent(
+            name="VisualPlanner",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You are a scientific visualization planner. "
+                    "Return compact JSON with keys 'figures' and 'tables'. "
+                    "Each figure item: {name, section, goal}. "
+                    "Each table item: {name, goal}. "
+                    "Prefer <=2 figures and <=1 table."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.table_agent = Agent(
+            name="TableComposer",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You write strict LaTeX tables for research papers. "
+                    "Return only LaTeX for one complete table environment with caption and label."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.latex_error_agent = Agent(
+            name="LaTeXErrorHandler",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You fix LaTeX compilation failures for academic papers. "
+                    "Use web_search to verify package/command usage when needed. "
+                    "Return only the full corrected .tex content, no markdown fences."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.bib_manager_agent = Agent(
+            name="BibManager",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You are a bibliography manager for ML papers. "
+                    "Normalize and deduplicate references, ensure each entry has a valid citation key and bibtex. "
+                    "Use paper_search/web_search to fill missing metadata when needed. "
+                    "Return ONLY JSON with key 'references' as a list. "
+                    "Each item must include: title, authors, venue, year, abstract, url, source_type, citation_key, bibtex. "
+                    "If url is present it must be http/https."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.planner_agent = Agent(
+            name="WriterPlanner",
+            instructions=skill_instructions(
+                "writer",
+                (
+                    "You are a paper-writing execution planner. "
+                    "Return only a JSON array of TODO items. "
+                    "Each item must include {step, action, name, description}. "
+                    "Allowed actions: write_related_work, write_section, write_visuals, "
+                    "write_abstract, refine_paper, format_export. "
+                    "For write_section include a 'section' field."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+
+    def _setup_claude_sdk(self) -> None:
+        from .utils.claude_agent_runner import ClaudeAgentRunner
+
+        mcp_config_path = ensure_mcp_config(self._sdk_cwd, include_drawer=False)
+        research_tools = ["Skill", *claude_allowed_mcp_tools(include_drawer=False)]
+        planner_tools = ["Skill"]
+        tool_policy = (
+            "Tool policy: use MCP research tools for recent context and references. "
+            "If a loaded skill applies, follow it."
+        )
+
+        self.write_agent = ClaudeAgentRunner(
+            instructions=f"{self.system_prompt}\n\n{tool_policy}",
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self._related_work_agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.write_system_prompt_related_work}\n\n{tool_policy}",
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.citation_agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.citation_system_prompt}\n\n{tool_policy}",
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.visual_planner_agent = ClaudeAgentRunner(
+            instructions=(
+                "You are a scientific visualization planner. "
+                "Return compact JSON with keys 'figures' and 'tables'. "
+                "Each figure item: {name, section, goal}. "
+                "Each table item: {name, goal}. "
+                "Prefer <=2 figures and <=1 table."
+            ),
+            allowed_tools=planner_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.table_agent = ClaudeAgentRunner(
+            instructions=(
+                "You write strict LaTeX tables for research papers. "
+                "Return only LaTeX for one complete table environment with caption and label."
+            ),
+            allowed_tools=["Skill"],
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.latex_error_agent = ClaudeAgentRunner(
+            instructions=(
+                "You fix LaTeX compilation failures for academic papers. "
+                "Use MCP research tools to verify package/command usage when needed. "
+                "Return only the full corrected .tex content, no markdown fences."
+            ),
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.bib_manager_agent = ClaudeAgentRunner(
+            instructions=(
+                "You are a bibliography manager for ML papers. "
+                "Normalize and deduplicate references, ensure each entry has a valid citation key and bibtex. "
+                "Use MCP research tools to fill missing metadata when needed. "
+                "Return ONLY JSON with key 'references' as a list. "
+                "Each item must include: title, authors, venue, year, abstract, url, source_type, citation_key, bibtex. "
+                "If url is present it must be http/https."
+            ),
+            allowed_tools=research_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.planner_agent = ClaudeAgentRunner(
+            instructions=(
+                "You are a paper-writing execution planner. "
+                "Return only a JSON array of TODO items. "
+                "Each item must include {step, action, name, description}. "
+                "Allowed actions: write_related_work, write_section, write_visuals, "
+                "write_abstract, refine_paper, format_export. "
+                "For write_section include a 'section' field."
+            ),
+            allowed_tools=planner_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+
+    def _run_sdk_call(self, agent: Any, prompt: str, task_name: str) -> str:
+        start = time.perf_counter()
+        print_task_event("Writer", task_name, "START")
+        if self.agent_sdk == "claude":
+            result = agent.run_sync(prompt, task_name)
+            print_task_event("Writer", task_name, "END", time.perf_counter() - start)
+            return result
+        result = Runner.run_sync(agent, prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, task_name)
+        print_task_event("Writer", task_name, "END", time.perf_counter() - start)
+        return result.final_output or ""
+
+    def run(
+        self, idea: Dict[str, Any], experiment_dir: Optional[str] = None
+    ) -> Tuple[str, str]:
+        """SDK writer pipeline with planner TODO execution."""
+        is_experimental = idea.get("is_experimental", True)
+        code, experiment_result, baseline_result = self._load_experiment_bundle(
+            is_experimental, experiment_dir
+        )
+        sections = (
+            REFINEMENT_SECTIONS_EXPERIMENTAL
+            if is_experimental
+            else REFINEMENT_SECTIONS_NONEXP
+        )
+        todo = self._build_todo(idea=idea, sections=sections)
+        print_todo_table("Writer", todo)
+
+        paper_name = self._slugify(idea.get("Title", "Research Paper"))
+        output_pdf_path = f"{self.output_dir}/{paper_name}.pdf"
+        formatted = False
+        for idx, item in enumerate(todo, start=1):
+            action = str(item.get("action", ""))
+            before_total, before_tasks = self.cost_tracker.snapshot()
+            before_global_total, before_global_tasks = self.cost_tracker.global_snapshot()
+            print_stage_progress(
+                "Writer Progress",
+                idx,
+                len(todo),
+                str(item.get("name", action)),
+            )
+            if action == "write_related_work":
+                self._write_related_work(idea)
+                self._print_writer_step_summary("Writer Related Work", "Related_Work")
+            elif action == "write_section":
+                section = str(item.get("section", ""))
+                if section in sections:
+                    self._write_section(
+                        idea, code, experiment_result, section, baseline_result
+                    )
+                    self._print_writer_step_summary(
+                        f"Writer Section: {section}",
+                        section,
+                    )
+            elif action == "write_visuals":
+                self._run_visual_subagents(
+                    idea=idea,
+                    experiment_result=experiment_result,
+                    baseline_result=baseline_result,
+                )
+                self._print_visual_summary()
+            elif action == "write_abstract":
+                self._write_abstract(idea)
+                self._print_writer_step_summary("Writer Abstract", "Abstract")
+            elif action == "refine_paper":
+                self._refine_paper(
+                    num_rounds=self.num_refinement_rounds, add_citations=True
+                )
+                self._print_refine_summary()
+            elif action == "format_export":
+                self.references = self._manage_bibliography_references(idea=idea)
+                self.formatter.run(
+                    content=self.generated_sections,
+                    references=self.references,
+                    output_dir=self.output_dir,
+                    output_pdf_path=output_pdf_path,
+                    name=self.generated_sections.get("Title", "Research Paper"),
+                )
+                formatted = True
+                self._print_export_summary(output_pdf_path)
+            print_stage_progress(
+                "Writer Progress",
+                idx,
+                len(todo),
+                str(item.get("name", action)),
+                status="done",
+            )
+            after_total, after_tasks = self.cost_tracker.snapshot()
+            after_global_total, after_global_tasks = self.cost_tracker.global_snapshot()
+            print_cost_delta_summary(
+                f"Writer Cost: {action}",
+                before_total,
+                before_tasks,
+                after_total,
+                after_tasks,
+                global_before_total=before_global_total,
+                global_before_tasks=before_global_tasks,
+                global_after_total=after_global_total,
+                global_after_tasks=after_global_tasks,
+            )
+        if not formatted:
+            self.references = self._manage_bibliography_references(idea=idea)
+            self.formatter.run(
+                content=self.generated_sections,
+                references=self.references,
+                output_dir=self.output_dir,
+                output_pdf_path=output_pdf_path,
+                name=self.generated_sections.get("Title", "Research Paper"),
+            )
+        self._recover_latex_if_missing_pdf(output_pdf_path)
+        self._write_reference_links(idea)
+        self.cost_tracker.report("Writer Total Cost")
+        return output_pdf_path, paper_name
+
+    def _print_writer_step_summary(self, title: str, section: str) -> None:
+        content = self.generated_sections.get(section, "")
+        print_mapping_table(
+            title,
+            {
+                "Section": section,
+                "Chars": len(content),
+                "References": len(self.references),
+                "Sections Written": len(self.generated_sections),
+            },
+        )
+
+    def _print_visual_summary(self) -> None:
+        manifest_path = osp.join(self.output_dir, "assets", "figure_manifest.json")
+        figure_count = 0
+        if osp.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+                if isinstance(manifest, list):
+                    figure_count = len(manifest)
+            except Exception:
+                figure_count = 0
+        print_mapping_table(
+            "Writer Visuals",
+            {
+                "Figure Manifest": manifest_path if osp.exists(manifest_path) else "-",
+                "Figures": figure_count,
+                "Results Chars": len(self.generated_sections.get("Results", "")),
+            },
+        )
+
+    def _print_refine_summary(self) -> None:
+        print_mapping_table(
+            "Writer Refinement",
+            {
+                "Title": self.generated_sections.get("Title", ""),
+                "Sections Written": len(self.generated_sections),
+                "References": len(self.references),
+            },
+        )
+
+    def _print_export_summary(self, output_pdf_path: str) -> None:
+        print_mapping_table(
+            "Writer Export",
+            {
+                "PDF Path": output_pdf_path,
+                "PDF Exists": osp.exists(output_pdf_path),
+                "Sections Written": len(self.generated_sections),
+                "References": len(self.references),
+            },
+        )
+
+    def _manage_bibliography_references(self, idea: Dict[str, Any]) -> Dict[str, Any]:
+        raw_entries: List[Dict[str, Any]] = []
+
+        for title, pdata in self.references.items():
+            if not isinstance(pdata, dict):
+                continue
+            raw_entries.append(
+                {
+                    "title": str(title),
+                    "authors": pdata.get("authors", ""),
+                    "venue": pdata.get("venue", ""),
+                    "year": pdata.get("year", ""),
+                    "abstract": pdata.get("abstract", ""),
+                    "url": pdata.get("url", pdata.get("source", "")),
+                    "source_type": pdata.get("source_type", "paper_search"),
+                    "bibtex": pdata.get("bibtex", ""),
+                }
+            )
+
+        for c in idea.get("Citations", []) if isinstance(idea.get("Citations", []), list) else []:
+            if not isinstance(c, dict):
+                continue
+            raw_entries.append(
+                {
+                    "title": str(c.get("title", "Untitled")),
+                    "authors": "",
+                    "venue": "",
+                    "year": "",
+                    "abstract": "",
+                    "url": str(c.get("url", "")),
+                    "source_type": str(c.get("source_type", "idea_citation")),
+                    "bibtex": "",
+                }
+            )
+
+        prompt = (
+            "Manage bibliography for this paper. Deduplicate and complete entries.\n\n"
+            f"Paper title: {idea.get('Title', '')}\n"
+            "Current references JSON:\n"
+            f"{json.dumps(raw_entries, ensure_ascii=False, indent=2)}\n\n"
+            "Return JSON only."
+        )
+        text = self._run_sdk_call(self.bib_manager_agent, prompt, "manage_bibliography")
+        parsed = extract_json_between_markers(text)
+        if not isinstance(parsed, dict):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+        if not isinstance(parsed, dict):
+            raise RuntimeError("[Writer][BibManager] invalid JSON output.")
+
+        refs = parsed.get("references", [])
+        if not isinstance(refs, list) or not refs:
+            raise RuntimeError("[Writer][BibManager] no references returned.")
+
+        normalized: Dict[str, Any] = {}
+        manifest: List[Dict[str, Any]] = []
+        for entry in refs:
+            if not isinstance(entry, dict):
+                continue
+            title = str(entry.get("title", "")).strip()
+            bibtex = str(entry.get("bibtex", "")).strip()
+            if not title or not bibtex:
+                continue
+            url = str(entry.get("url", "")).strip()
+            if url and not url.startswith(("http://", "https://")):
+                continue
+            citation_key = str(entry.get("citation_key", "")).strip()
+            normalized[title] = {
+                "title": title,
+                "authors": entry.get("authors", ""),
+                "venue": entry.get("venue", ""),
+                "year": entry.get("year", ""),
+                "abstract": entry.get("abstract", ""),
+                "url": url,
+                "source_type": entry.get("source_type", "bib_manager"),
+                "citation_key": citation_key,
+                "bibtex": bibtex,
+            }
+            manifest.append(normalized[title])
+
+        if not normalized:
+            raise RuntimeError("[Writer][BibManager] all references invalid after normalization.")
+
+        manifest_path = osp.join(self.output_dir, "bibliography_manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({"references": manifest}, f, indent=2, ensure_ascii=False)
+        print(f"[Writer][BibManager] managed {len(normalized)} references -> {manifest_path}")
+        return normalized
+
+    def _recover_latex_if_missing_pdf(self, output_pdf_path: str) -> None:
+        if osp.exists(output_pdf_path):
+            return
+        latex_dir = osp.join(self.output_dir, "latex")
+        tex_file = (
+            "acl_latex.tex" if self.template == "acl" else "iclr2025_conference.tex"
+        )
+        tex_path = osp.join(latex_dir, tex_file)
+        log_path = osp.join(latex_dir, tex_file.replace(".tex", ".log"))
+        if not osp.exists(tex_path):
+            raise RuntimeError(
+                f"LaTeX compilation failed and tex source not found: {tex_path}"
+            )
+
+        for attempt in range(2):
+            tex_content = self._read_text(tex_path)
+            log_excerpt = self._read_text(log_path, missing_ok=True)[-12000:]
+            prompt = (
+                "LaTeX compilation failed. Produce a corrected full .tex file.\n\n"
+                f"Template: {self.template}\n"
+                f"Attempt: {attempt + 1}\n\n"
+                "Compiler log excerpt:\n"
+                f"{log_excerpt}\n\n"
+                "Current tex:\n"
+                f"{tex_content}"
+            )
+            candidate = self._run_sdk_call(
+                self.latex_error_agent, prompt, "latex_error_recovery"
+            )
+            fixed_tex = self._extract_tex(candidate)
+            if not fixed_tex.strip():
+                raise RuntimeError(
+                    "[Writer][LaTeX] latex_error_agent returned empty tex content."
+                )
+            with open(tex_path, "w", encoding="utf-8") as f:
+                f.write(fixed_tex)
+
+            self._compile_latex_once(latex_dir, tex_file)
+            produced_pdf = osp.join(latex_dir, tex_file.replace(".tex", ".pdf"))
+            if osp.exists(produced_pdf):
+                os.makedirs(osp.dirname(output_pdf_path), exist_ok=True)
+                if osp.exists(output_pdf_path):
+                    os.remove(output_pdf_path)
+                os.replace(produced_pdf, output_pdf_path)
+                return
+
+        raise RuntimeError(
+            "[Writer][LaTeX] failed to compile PDF after latex_error_agent recovery attempts."
+        )
+
+    @staticmethod
+    def _extract_tex(text: str) -> str:
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            lines = stripped.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            return "\n".join(lines).strip()
+        return stripped
+
+    def _compile_latex_once(self, cwd: str, tex_file: str) -> None:
+        base = tex_file.replace(".tex", "")
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex_file],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+        subprocess.run(
+            ["bibtex", base],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex_file],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", "-file-line-error", tex_file],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+
+    def _build_todo(self, idea: Dict[str, Any], sections: List[str]) -> List[Dict[str, Any]]:
+        prompt = (
+            "Build writing TODO for this idea.\n"
+            f"Idea:\n{self._format_idea_as_string(idea)[:3000]}\n\n"
+            f"Required sections: {sections}\n"
+            "Return JSON array only."
+        )
+        text = self._run_sdk_call(self.planner_agent, prompt, "plan_writer_todo")
+        parsed = extract_json_between_markers(text)
+        if not isinstance(parsed, list):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+        if isinstance(parsed, list) and parsed:
+            allowed = {
+                "write_related_work",
+                "write_section",
+                "write_visuals",
+                "write_abstract",
+                "refine_paper",
+                "format_export",
+            }
+            normalized: List[Dict[str, Any]] = []
+            for idx, item in enumerate(parsed, start=1):
+                if not isinstance(item, dict):
+                    continue
+                action = str(item.get("action", "")).strip()
+                if action not in allowed:
+                    continue
+                section = str(item.get("section", "")).strip()
+                if action == "write_section" and section not in sections:
+                    continue
+                normalized.append(
+                    {
+                        "step": int(item.get("step", idx)),
+                        "action": action,
+                        "name": str(item.get("name", action)),
+                        "description": str(item.get("description", "")),
+                        **({"section": section} if section else {}),
+                    }
+                )
+            actions = {str(it.get("action", "")) for it in normalized}
+            if (
+                normalized
+                and "write_related_work" in actions
+                and "write_abstract" in actions
+                and "format_export" in actions
+            ):
+                return normalized
+        raise RuntimeError(
+            "[Planner][Writer] invalid TODO from planner: must include related_work, abstract, and export steps."
+        )
+
+    def _run_visual_subagents(
+        self, idea: Dict[str, Any], experiment_result: str, baseline_result: str
+    ) -> None:
+        """Plan and materialize figures/tables via dedicated sub-agents."""
+        plan_prompt = (
+            "Research idea:\n"
+            f"{self._format_idea_as_string(idea)}\n\n"
+            "Current section status:\n"
+            f"{self._sections_as_markdown(exclude={'Abstract'})[:5000]}\n\n"
+            "Experiment results:\n"
+            f"{experiment_result[:3000]}\n\n"
+            "Baseline results:\n"
+            f"{baseline_result[:2000]}"
+        )
+        plan_text = self._run_sdk_call(
+            self.visual_planner_agent, plan_prompt, "plan_visual_assets"
+        )
+        plan = extract_json_between_markers(plan_text)
+        if not isinstance(plan, dict):
+            try:
+                plan = json.loads(plan_text)
+            except Exception:
+                plan = {}
+
+        figures = plan.get("figures", []) if isinstance(plan, dict) else []
+        tables = plan.get("tables", []) if isinstance(plan, dict) else []
+
+        self._materialize_figure_assets(figures)
+        self._materialize_results_table(tables, experiment_result, baseline_result)
+
+    def _materialize_figure_assets(self, figures: Any) -> None:
+        if not isinstance(figures, list) or not figures:
+            return
+        assets_dir = osp.join(self.output_dir, "assets")
+        os.makedirs(assets_dir, exist_ok=True)
+        manifest: List[Dict[str, str]] = []
+
+        for idx, fig in enumerate(figures[:2], start=1):
+            section = str(fig.get("section", "Results")) if isinstance(fig, dict) else "Results"
+            name = str(fig.get("name", f"figure_{idx}")) if isinstance(fig, dict) else f"figure_{idx}"
+            goal = str(fig.get("goal", "")) if isinstance(fig, dict) else ""
+            section_content = self.generated_sections.get(section, "")[:4000]
+            if not section_content:
+                continue
+            result = self.drawer.run(
+                json.dumps(
+                    {
+                        "section_name": section if section in self.prompts.section_prompt else "Results",
+                        "section_content": section_content,
+                    }
+                )
+            )
+            diagram = result.get("diagram", {})
+            svg = diagram.get("svg", "")
+            if not svg:
+                continue
+            filename = f"{self._slugify(name)}.svg"
+            path = osp.join(assets_dir, filename)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(svg)
+            manifest.append(
+                {
+                    "name": name,
+                    "section": section,
+                    "goal": goal,
+                    "summary": diagram.get("summary", ""),
+                    "path": path,
+                }
+            )
+
+        if manifest:
+            manifest_path = osp.join(assets_dir, "figure_manifest.json")
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2, ensure_ascii=False)
+            print(f"[visual] Saved figure manifest: {manifest_path}")
+
+    def _materialize_results_table(
+        self, tables: Any, experiment_result: str, baseline_result: str
+    ) -> None:
+        if not isinstance(tables, list) or not tables:
+            return
+        table_goal = ""
+        first = tables[0]
+        if isinstance(first, dict):
+            table_goal = str(first.get("goal", "Summarize key metrics and comparisons"))
+        prompt = (
+            "Create one high-signal Results table in LaTeX.\n"
+            f"Goal: {table_goal}\n\n"
+            "Experiment results:\n"
+            f"{experiment_result[:5000]}\n\n"
+            "Baseline results:\n"
+            f"{baseline_result[:3000]}"
+        )
+        table_latex = self._run_sdk_call(self.table_agent, prompt, "compose_results_table")
+        table_latex = table_latex.strip()
+        if "\\begin{table" not in table_latex or "\\end{table" not in table_latex:
+            return
+        current_results = self.generated_sections.get("Results", "")
+        if "\\begin{table" in current_results:
+            return
+        self.generated_sections["Results"] = f"{current_results}\n\n{table_latex}"
+
+    def _write_abstract(self, idea: Dict[str, Any]) -> None:
+        full_context = self._sections_as_markdown(exclude={"Abstract"})
+        idea_str = self._format_idea_as_string(idea)
+        abstract_prompt = self.prompts.abstract_prompt.format(
+            abstract_tips=self.prompts.section_tips.get("Abstract", ""),
+            idea=idea_str,
+            full_paper_content=full_context,
+        )
+        abstract_content = self._run_sdk_call(
+            self.write_agent, abstract_prompt, "Abstract"
+        )
+        self.generated_sections["Abstract"] = abstract_content
+
+    def _write_section(
+        self,
+        idea: Dict[str, Any],
+        code: str,
+        experiment_result: str,
+        section: str,
+        baseline_result: str = "",
+    ) -> None:
+        print(f"[section] {section}")
+        ctx = self._build_section_context(idea, code, experiment_result, baseline_result)
+        ctx["section_tips"] = self.prompts.section_tips.get(section, "")
+
+        template = self.prompts.section_prompt.get(section)
+        if not template:
+            print(f"[warn] No prompt template for section: {section}")
+            return
+
+        prompt = template.format(**ctx)
+        content = self._run_sdk_call(self.write_agent, prompt, f"{section} section")
+        self.generated_sections[section] = content
+
+        try:
+            enriched = self._enrich_section_with_citations(
+                section=section, idea=idea, max_queries=5
+            )
+            if enriched:
+                self.generated_sections[section] = enriched
+        except Exception as e:
+            print(f"[warn] Citation enrichment failed in {section}: {e}")
+            traceback.print_exc()
+
+    def _write_related_work(self, idea: Dict[str, Any]) -> None:
+        try:
+            queries = self._generate_search_queries(
+                idea, section="Related_Work", max_queries=6
+            )
+            papers = self._search_papers_by_queries(queries)
+            if not papers:
+                print("[warn] No papers found for Related Work")
+                return
+
+            self.references = papers
+
+            paper_ctx = self._format_paper_context(papers)
+            experiment = idea.get("Experiment", "No experiment details provided")
+            prompt = self.prompts.related_work_prompt.format(
+                related_work_tips=self.prompts.section_tips["Related_Work"],
+                experiment=experiment,
+                references=paper_ctx,
+            )
+            content = self._run_sdk_call(
+                self._related_work_agent, prompt, "Related_Work"
+            )
+            self.generated_sections["Related_Work"] = content
+            print(f"[info] Related Work generated with {len(papers)} references")
+        except Exception as e:
+            print(f"[warn] Related Work generation failed: {e}")
+            traceback.print_exc()
+
+    def _enrich_section_with_citations(
+        self,
+        section: str,
+        idea: Dict[str, Any],
+        max_queries: int = 4,
+    ) -> Optional[str]:
+        original = self.generated_sections.get(section, "")
+        if not original or len(original) < 50:
+            return None
+
+        queries = self._generate_search_queries(
+            idea,
+            section=section,
+            content_snippet=original[:600],
+            max_queries=max_queries,
+        )
+        papers = self._search_papers_by_queries(queries)
+        if not papers:
+            return None
+
+        print(f"[cite] {section}: found {len(papers)} candidates")
+
+        for title, pdata in papers.items():
+            self.references.setdefault(title, pdata)
+
+        paper_ctx = self._format_paper_context(papers)
+        embed_prompt = self.prompts.add_new_citations_prompt.format(
+            section=section,
+            section_content=original,
+            paper_context=paper_ctx,
+            num_papers=len(papers),
+        )
+        enriched = self._run_sdk_call(
+            self.citation_agent, embed_prompt, f"Add_Citations_{section}"
+        )
+        return enriched
+
+    def _refine_paper(self, num_rounds: int = 2, add_citations: bool = True) -> None:
+        remaining_budget = self._effective_remaining_budget()
+
+        full_draft = self._sections_as_latex()
+        title_prompt = self.prompts.title_refinement_prompt.format(
+            full_draft=full_draft
+        )
+
+        if remaining_budget is not None:
+            title_cost = estimate_prompt_cost(
+                self.model,
+                [self.system_prompt, title_prompt],
+                expected_output_tokens=estimate_tokens_from_text(
+                    self.generated_sections.get("Title", "")
+                ),
+            )
+            if title_cost is not None and title_cost > remaining_budget:
+                print(
+                    "[Writer] Skipping refinement stage due to estimated budget constraints."
+                )
+                return
+            if title_cost:
+                remaining_budget -= title_cost
+
+        refined_title = self._run_sdk_call(
+            self.write_agent, title_prompt, "Title Refinement"
+        )
+        self.generated_sections["Title"] = refined_title
+
+        refinement_priority = [
+            "Method",
+            "Introduction",
+            "Experimental_Setup",
+            "Results",
+            "Discussion",
+            "Conclusion",
+        ]
+
+        for r in range(1, num_rounds + 1):
+            print(f"[refine] Round {r}/{num_rounds}")
+            for section in refinement_priority:
+                if section not in self.generated_sections:
+                    continue
+
+                other_ctx = self._other_sections_context(exclude={section})
+                focus = (
+                    "Add mathematical rigor, expand technical details, improve structure"
+                    if r == 1
+                    else "Deepen analysis, add design rationale, enhance clarity"
+                    if r == 2
+                    else "Polish writing, ensure coherence, strengthen arguments"
+                )
+                method_hint = (
+                    "For Method: Add more \\paragraph{} blocks, equations, and technical depth"
+                    if section == "Method"
+                    else "Enhance technical detail and clarity"
+                )
+
+                prompt = self.prompts.multi_round_refinement_prompt.format(
+                    section=section,
+                    round_num=r,
+                    total_rounds=num_rounds,
+                    focus=focus,
+                    section_content=self.generated_sections[section],
+                    section_tips=self.prompts.section_tips.get(section, ""),
+                    other_sections_context=other_ctx,
+                    method_specific_instruction=method_hint,
+                    error_list=self.prompts.error_list,
+                )
+
+                estimated_cost = None
+                if remaining_budget is not None:
+                    estimated_cost = estimate_prompt_cost(
+                        self.model,
+                        [self.system_prompt, prompt],
+                        expected_output_tokens=estimate_tokens_from_text(
+                            self.generated_sections.get(section, "")
+                        ),
+                    )
+                    if estimated_cost is not None and estimated_cost > remaining_budget:
+                        print(
+                            f"[Writer] Skipping refinement for {section} in round {r} "
+                            "due to estimated budget constraints."
+                        )
+                        continue
+
+                refined = self._run_sdk_call(
+                    self.write_agent, prompt, f"Refine_R{r}_{section}"
+                )
+                self.generated_sections[section] = refined
+
+                if remaining_budget is not None and estimated_cost:
+                    remaining_budget -= estimated_cost
+
+                if add_citations:
+                    try:
+                        idea_proxy = {"Title": self.generated_sections.get("Title", "")}
+                        enriched = self._enrich_section_with_citations(
+                            section, idea_proxy, max_queries=2
+                        )
+                        if enriched:
+                            self.generated_sections[section] = enriched
+                    except Exception as e:
+                        print(
+                            f"[warn] Citation add failed in round {r} for {section}: {e}"
+                        )
+                        traceback.print_exc()
+
+                time.sleep(SLEEP_REFINE)
+
+    def _generate_search_queries(
+        self,
+        idea: Dict[str, Any],
+        section: str = "",
+        content_snippet: str = "",
+        max_queries: int = 6,
+    ) -> List[str]:
+        idea_str = self._format_idea_as_string(idea)
+        prompt = self.prompts.citation_search_query_prompt.format(
+            idea=idea_str,
+            section=section or "General",
+            snippet=content_snippet or "",
+        )
+        resp = self._run_sdk_call(
+            self.citation_agent,
+            prompt,
+            f"generate_queries_{section or 'general'}",
+        )
+
+        queries: List[str] = []
+        try:
+            parsed = json.loads(resp)
+        except json.JSONDecodeError:
+            parsed = extract_json_between_markers(resp)
+
+        if isinstance(parsed, list):
+            for q in parsed:
+                s = self._to_text(q)
+                if s:
+                    queries.append(s)
+
+        return queries[:max_queries]

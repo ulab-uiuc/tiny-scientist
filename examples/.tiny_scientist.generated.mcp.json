@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "tiny_scientist_research": {
+      "command": "/Users/yuhaofei/anaconda3/envs/research-town-new/bin/python",
+      "args": [
+        "-m",
+        "tiny_scientist.mcp.research_server"
+      ],
+      "cwd": "/Users/yuhaofei/Downloads/tiny-scientist"
+    }
+  }
+}

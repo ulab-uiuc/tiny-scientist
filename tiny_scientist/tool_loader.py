@@ -1,11 +1,11 @@
 """Tool loader utility for tiny-scientist.
 
 This module provides a unified interface for loading tools either as:
-1. Native smolagents Tool classes (default, faster)
-2. MCP servers via smolagents ToolCollection (optional, for interoperability)
+1. Native TinyScientist tool classes (default)
+2. MCP servers via optional smolagents ToolCollection compatibility
 
 Usage:
-    # Default: Native smolagents tools
+    # Default: Native TinyScientist tools
     from tiny_scientist.tool_loader import get_paper_search_tool, get_code_search_tool
 
     paper_tool = get_paper_search_tool()
@@ -25,14 +25,24 @@ from typing import Any, Dict, List, Optional, Union
 
 from tiny_scientist.budget_checker import BudgetChecker
 
-# Native smolagents tools (always available)
-from tiny_scientist.smolagents_tools import (
+# Native TinyScientist tools (always available)
+from tiny_scientist.tool_impls import (
+    ArxivDailyWatchTool,
+    BenchmarkSearchTool,
+    ClaimVerifierTool,
     CodeSearchTool,
+    DatasetSearchTool,
     DockerExperimentRunner,
     DrawerTool,
+    NewsSearchTool,
+    PatentSearchTool,
     PaperSearchTool,
     ReadFileTool,
+    RepoRuntimeProbeTool,
     RunExperimentTool,
+    ScholarGraphSearchTool,
+    TableExtractorTool,
+    WebSearchTool,
     WriteFileTool,
 )
 
@@ -40,6 +50,16 @@ __all__ = [
     # Tool getter functions (native)
     "get_paper_search_tool",
     "get_code_search_tool",
+    "get_web_search_tool",
+    "get_scholar_graph_search_tool",
+    "get_patent_search_tool",
+    "get_dataset_search_tool",
+    "get_benchmark_search_tool",
+    "get_arxiv_daily_watch_tool",
+    "get_news_search_tool",
+    "get_repo_runtime_probe_tool",
+    "get_table_extractor_tool",
+    "get_claim_verifier_tool",
     "get_drawer_tool",
     "get_docker_runner",
     "get_write_file_tool",
@@ -51,6 +71,16 @@ __all__ = [
     # Direct tool classes
     "PaperSearchTool",
     "CodeSearchTool",
+    "WebSearchTool",
+    "ScholarGraphSearchTool",
+    "PatentSearchTool",
+    "DatasetSearchTool",
+    "BenchmarkSearchTool",
+    "ArxivDailyWatchTool",
+    "NewsSearchTool",
+    "RepoRuntimeProbeTool",
+    "TableExtractorTool",
+    "ClaimVerifierTool",
     "DrawerTool",
     "DockerExperimentRunner",
     "WriteFileTool",
@@ -96,6 +126,49 @@ def get_code_search_tool(
 ) -> CodeSearchTool:
     """Get a native CodeSearchTool instance."""
     return CodeSearchTool(cost_tracker=cost_tracker)
+
+
+def get_web_search_tool(
+    cost_tracker: Optional[BudgetChecker] = None,
+) -> WebSearchTool:
+    """Get a native WebSearchTool instance."""
+    return WebSearchTool(cost_tracker=cost_tracker)
+
+
+def get_scholar_graph_search_tool() -> ScholarGraphSearchTool:
+    return ScholarGraphSearchTool()
+
+
+def get_patent_search_tool() -> PatentSearchTool:
+    return PatentSearchTool()
+
+
+def get_dataset_search_tool() -> DatasetSearchTool:
+    return DatasetSearchTool()
+
+
+def get_benchmark_search_tool() -> BenchmarkSearchTool:
+    return BenchmarkSearchTool()
+
+
+def get_arxiv_daily_watch_tool() -> ArxivDailyWatchTool:
+    return ArxivDailyWatchTool()
+
+
+def get_news_search_tool() -> NewsSearchTool:
+    return NewsSearchTool()
+
+
+def get_repo_runtime_probe_tool() -> RepoRuntimeProbeTool:
+    return RepoRuntimeProbeTool()
+
+
+def get_table_extractor_tool() -> TableExtractorTool:
+    return TableExtractorTool()
+
+
+def get_claim_verifier_tool() -> ClaimVerifierTool:
+    return ClaimVerifierTool()
 
 
 def get_drawer_tool(
@@ -171,14 +244,14 @@ def load_tools_from_mcp(
     server_names: Optional[List[str]] = None,
 ) -> List[Any]:
     """
-    Load tools from MCP servers via smolagents ToolCollection.
+    Load tools from MCP servers via optional smolagents ToolCollection.
 
     Args:
         server_names: List of server names to load. If None, loads all available.
                      Options: "paper_search", "code_search", "drawer", "docker_runner"
 
     Returns:
-        List of smolagents tools loaded from MCP servers.
+        List of tools loaded from MCP servers.
 
     Raises:
         ImportError: If MCP dependencies are not installed.
@@ -213,7 +286,7 @@ def load_tools_from_mcp(
         spec = MCP_SERVER_SPECS[name]
 
         try:
-            # Load tools from MCP server using smolagents
+            # Load tools from MCP server using optional smolagents compatibility
             tool_collection = ToolCollection.from_mcp(
                 name,
                 server_parameters={
@@ -236,7 +309,7 @@ def get_tools(
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
-    Get tools using either native smolagents or MCP approach.
+    Get tools using either native classes or the MCP compatibility approach.
 
     Args:
         use_mcp: If True, load tools from MCP servers. Default False (native).
@@ -267,4 +340,16 @@ def get_tools(
         "code_search": get_code_search_tool(
             cost_tracker=kwargs.get("cost_tracker"),
         ),
+        "web_search": get_web_search_tool(
+            cost_tracker=kwargs.get("cost_tracker"),
+        ),
+        "scholar_graph_search": get_scholar_graph_search_tool(),
+        "patent_search": get_patent_search_tool(),
+        "dataset_search": get_dataset_search_tool(),
+        "benchmark_search": get_benchmark_search_tool(),
+        "arxiv_daily_watch": get_arxiv_daily_watch_tool(),
+        "news_search": get_news_search_tool(),
+        "repo_runtime_probe": get_repo_runtime_probe_tool(),
+        "table_extractor": get_table_extractor_tool(),
+        "claim_verifier": get_claim_verifier_tool(),
     }

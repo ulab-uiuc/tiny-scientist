@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import anthropic
 import backoff
-import google.generativeai as genai
 import openai
 import toml
 import yaml
@@ -22,64 +21,45 @@ if os.path.exists(config_path):
 else:
     config = {"core": {}}
 
-MAX_NUM_TOKENS = 8192
+MAX_NUM_TOKENS = 4096
 
 AVAILABLE_LLMS = [
-    # Anthropic models - Latest (Claude 4.6 and 4.5 series)
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-5-20250929",
-    "claude-opus-4-6",
-    "claude-opus-4-6-20260205",
-    "claude-haiku-4-5",
-    "claude-haiku-4-5-20251001",
-    # Anthropic models - Claude 4 series
-    "claude-opus-4",
-    "claude-sonnet-4",
-    # OpenAI models - GPT-5 family (latest flagship)
-    "gpt-5",
-    "gpt-5-pro",
-    "gpt-5-mini",
-    "gpt-5-nano",
+    # Anthropic models
+    "claude-3-5-sonnet-20240620",
+    "claude-3-5-sonnet-20241022",
+    # OpenAI models
     "gpt-5.2",
-    "gpt-5.2-2025-12-11",
-    "gpt-5.2-pro",
     "gpt-5.2-codex",
-    # OpenAI models - GPT-4.1 family (non-reasoning)
-    "gpt-4.1",
-    "gpt-4.1-mini",
-    "gpt-4.1-nano",
-    # OpenAI models - O-series (deep research/reasoning)
-    "o3",
-    "o4-mini-deep-research",
+    "gpt-4o-mini-2024-07-18",
+    "gpt-4o-2024-05-13",
+    "gpt-4o-2024-08-06",
+    "o1-preview-2024-09-12",
+    "o1-mini-2024-09-12",
+    "o1-2024-12-17",
     # OpenRouter models
     "llama3.1-405b",
-    # Anthropic Claude models via Amazon Bedrock (Claude 3.x legacy, EOL March 1, 2026)
+    # Anthropic Claude models via Amazon Bedrock
     "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
     "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
     "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
     "bedrock/anthropic.claude-3-haiku-20240307-v1:0",
     "bedrock/anthropic.claude-3-opus-20240229-v1:0",
-    # Anthropic Claude models Vertex AI (Claude 3.x legacy, Haiku 3.5 EOL July 5, 2026)
+    # Anthropic Claude models Vertex AI
     "vertex_ai/claude-3-opus@20240229",
     "vertex_ai/claude-3-5-sonnet@20240620",
     "vertex_ai/claude-3-5-sonnet-v2@20241022",
     "vertex_ai/claude-3-sonnet@20240229",
     "vertex_ai/claude-3-haiku@20240307",
-    # DeepSeek models (V3.2 as of Dec 2025)
+    # DeepSeek models
     "deepseek-chat",
+    "deepseek-coder",
     "deepseek-reasoner",
-    # Google Gemini models - Gemini 3 series (latest flagship, released Nov-Dec 2025)
-    "gemini-3-pro",
-    "gemini-3-flash",
-    # Google Gemini models - Gemini 2.5 series (stable production)
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    # Google Gemini models - Gemini 2.0 series
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-thinking-exp-01-21",
-    "gemini-2.0-flash-exp",
+    # Google Gemini models
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
     # Together AI models - Meta Llama models
+    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "meta-llama/Llama-4-Scout-17B-16E-Instruct",
     "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
     "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
     "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
@@ -88,11 +68,32 @@ AVAILABLE_LLMS = [
     # Together AI models - Qwen models
     "Qwen/Qwen2.5-7B-Instruct-Turbo",
     "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    "Qwen/Qwen3-235B-A22B-fp8-tput",
     # Together AI models - DeepSeek models
     "deepseek-ai/DeepSeek-V3",
     # Together AI models - Mistral models
     "mistralai/Mistral-Small-24B-Instruct-2501",
 ]
+
+
+def _is_openai_chat_model(model: str) -> bool:
+    """Return True for OpenAI chat-completions style models."""
+    if model.startswith("gpt-"):
+        return True
+    return model in [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4o-2024-05-13",
+        "gpt-4o-mini-2024-07-18",
+        "gpt-4o-2024-08-06",
+    ]
+
+
+def _completion_tokens_kwargs(model: str) -> Dict[str, int]:
+    """Return the correct completion-length parameter for each model family."""
+    if model.startswith("gpt-5"):
+        return {"max_completion_tokens": MAX_NUM_TOKENS}
+    return {"max_tokens": MAX_NUM_TOKENS}
 
 
 # Get N responses from a single message, used for ensembling.
@@ -115,55 +116,20 @@ def get_batch_responses_from_llm(
     input_tokens = 0
     output_tokens = 0
     response = None
-    if model in [
-        # GPT-5 family (standard chat models)
-        "gpt-5",
-        "gpt-5-pro",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-5.2",
-        "gpt-5.2-2025-12-11",
-        "gpt-5.2-pro",
-        "gpt-5.2-codex",
-        # GPT-4.1 family (non-reasoning)
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-    ]:
+    if _is_openai_chat_model(model):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
-
-        # Prepare completion parameters with model-specific constraints
-        completion_params = {
-            "model": model,
-            "messages": [
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
                 {"role": "system", "content": system_message},
                 *new_msg_history,
             ],
-            "n": n_responses,
-            "stop": None,
-        }
-
-        # Apply model-specific parameter constraints
-        if "gpt-5.2" in model:
-            # GPT-5.2 variants use max_completion_tokens instead of max_tokens
-            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
-            completion_params["temperature"] = temperature
-            completion_params["seed"] = 0
-        elif model == "gpt-5-mini":
-            # gpt-5-mini only supports temperature=1 and max_completion_tokens
-            completion_params["temperature"] = 1.0
-            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
-            completion_params["seed"] = 0
-        elif model == "gpt-5":
-            # Base gpt-5 does not support temperature or max_tokens
-            pass
-        else:
-            # Standard GPT models (gpt-5-pro, gpt-5-nano, gpt-4.1 family)
-            completion_params["temperature"] = temperature
-            completion_params["max_tokens"] = MAX_NUM_TOKENS
-            completion_params["seed"] = 0
-
-        response = client.chat.completions.create(**completion_params)
+            temperature=temperature,
+            **_completion_tokens_kwargs(model),
+            n=n_responses,
+            stop=None,
+            seed=0,
+        )
         content = [r.message.content for r in response.choices]
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
@@ -310,65 +276,26 @@ def get_response_from_llm(
         if hasattr(response, "usage"):
             input_tokens = getattr(response.usage, "input_tokens", 0)
             output_tokens = getattr(response.usage, "output_tokens", 0)
-    elif model in [
-        # GPT-5 family (standard chat models)
-        "gpt-5",
-        "gpt-5-pro",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-5.2",
-        "gpt-5.2-2025-12-11",
-        "gpt-5.2-pro",
-        "gpt-5.2-codex",
-        # GPT-4.1 family (non-reasoning)
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-    ]:
+    elif _is_openai_chat_model(model):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
-
-        # Prepare completion parameters with model-specific constraints
-        completion_params = {
-            "model": model,
-            "messages": [
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
                 {"role": "system", "content": system_message},
                 *new_msg_history,
             ],
-            "n": 1,
-            "stop": None,
-        }
-
-        # Apply model-specific parameter constraints
-        if "gpt-5.2" in model:
-            # GPT-5.2 variants use max_completion_tokens instead of max_tokens
-            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
-            completion_params["temperature"] = temperature
-            completion_params["seed"] = 0
-        elif model == "gpt-5-mini":
-            # gpt-5-mini only supports temperature=1 and max_completion_tokens
-            completion_params["temperature"] = 1.0
-            completion_params["max_completion_tokens"] = MAX_NUM_TOKENS
-            completion_params["seed"] = 0
-        elif model == "gpt-5":
-            # Base gpt-5 does not support temperature or max_tokens
-            pass
-        else:
-            # Standard GPT models (gpt-5-pro, gpt-5-nano, gpt-4.1 family)
-            completion_params["temperature"] = temperature
-            completion_params["max_tokens"] = MAX_NUM_TOKENS
-            completion_params["seed"] = 0
-
-        response = client.chat.completions.create(**completion_params)
+            temperature=temperature,
+            **_completion_tokens_kwargs(model),
+            n=1,
+            stop=None,
+            seed=0,
+        )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
         if hasattr(response, "usage"):
             input_tokens = getattr(response.usage, "prompt_tokens", 0)
             output_tokens = getattr(response.usage, "completion_tokens", 0)
-    elif model in [
-        # O3/O4 series (latest reasoning models)
-        "o3",
-        "o4-mini-deep-research",
-    ]:
+    elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -404,7 +331,7 @@ def get_response_from_llm(
         if hasattr(response, "usage"):
             input_tokens = getattr(response.usage, "prompt_tokens", 0)
             output_tokens = getattr(response.usage, "completion_tokens", 0)
-    elif model in ["deepseek-chat"]:
+    elif model in ["deepseek-chat", "deepseek-coder"]:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -501,13 +428,6 @@ def get_response_from_llm(
     if cost_tracker is not None:
         cost_tracker.add_cost(model, input_tokens, output_tokens, task_name)
 
-    # Guard: some models (e.g. gpt-5-mini) return None content when truncated
-    if content is None:
-        print(
-            f"[WARN] get_response_from_llm: model={model} returned None content (likely truncated). Returning empty string."
-        )
-        content = ""
-
     if print_debug:
         print()
         print("*" * 20 + " LLM START " + "*" * 20)
@@ -564,7 +484,7 @@ def get_batch_responses_from_llm_with_tools(
                 tools=tools,
                 tool_choice="auto",  # Or specify a tool like {"type": "function", "function": {"name": "my_function"}}
                 temperature=temperature,
-                max_tokens=MAX_NUM_TOKENS,
+                **_completion_tokens_kwargs(model),
                 n=n_responses,
                 stop=None,
                 seed=0,  # Seed might not be available for all models or with tool use
@@ -841,7 +761,7 @@ def create_client(
         client = anthropic.AnthropicVertex()
         return client, model.split("/")[-1]
 
-    elif "gpt" in model or "o1" in model or "o3" in model or "o4" in model:
+    elif "gpt" in model or model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
         api_key = os.environ.get("OPENAI_API_KEY", llm_api_key)
         if not api_key:
             raise ValueError(
@@ -886,16 +806,6 @@ def create_client(
             )
         base_url = os.environ.get("OPENAI_API_BASE", "http://localhost/v1")
         client = openai.OpenAI(api_key=api_key, base_url=base_url)
-        return client, model
-
-    elif "gemini" in model:
-        api_key = os.environ.get("GOOGLE_API_KEY", llm_api_key)
-        if not api_key:
-            raise ValueError(
-                f"Missing Google API key to use {model}. Set GOOGLE_API_KEY or llm_api_key in config.toml."
-            )
-        genai.configure(api_key=api_key)
-        client = genai.GenerativeModel(model)
         return client, model
 
     elif any(

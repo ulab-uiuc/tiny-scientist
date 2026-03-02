@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from rich import print
 
 from .utils.pricing import calculate_pricing
+from .utils.rich_output import print_rows_table
 
 
 class BudgetExceededError(Exception):
@@ -72,13 +73,35 @@ class BudgetChecker:
             self.per_task_cost[task_name] += cost
         return float(cost)
 
-    def report(self) -> None:
-        print(f"Total cost: ${self.total_cost:.4f}")
-        for task, cost in self.per_task_cost.items():
-            print(f"  Task '{task}': ${cost:.4f}")
+    def report(self, title: str = "Cost Summary") -> None:
+        if self.total_cost <= 0 and not self.per_task_cost:
+            return
+        rows = [{"task": "TOTAL", "cost": f"${self.total_cost:.4f}"}]
+        rows.extend(
+            {"task": task, "cost": f"${cost:.4f}"}
+            for task, cost in self.per_task_cost.items()
+        )
+        print_rows_table(
+            title,
+            [("task", "Task"), ("cost", "Cost")],
+            rows,
+        )
 
     def get_total_cost(self) -> float:
         return self.total_cost
+
+    def snapshot(self) -> Tuple[float, Dict[str, float]]:
+        return self.total_cost, dict(self.per_task_cost)
+
+    def root(self) -> "BudgetChecker":
+        tracker = self
+        while tracker.parent is not None:
+            tracker = tracker.parent
+        return tracker
+
+    def global_snapshot(self) -> Tuple[float, Dict[str, float]]:
+        tracker = self.root()
+        return tracker.total_cost, dict(tracker.per_task_cost)
 
     def get_task_cost(self, task_name: str) -> float:
         return self.per_task_cost.get(task_name, 0.0)

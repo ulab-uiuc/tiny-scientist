@@ -66,65 +66,145 @@ poetry install
 
 # Get started
 
-Before running any code, set your API key:
+TinyScientist now uses Claude Agent SDK-backed stages by default (`think`, `code`, `write`, `review`). OpenAI Agents SDK remains available as an explicit runtime choice.
+
+#### 1) Required runtime setup
+
+Set your model API key:
 
 ```bash
 export OPENAI_API_KEY=your-key-here
-# or use DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY
+# or DEEPSEEK_API_KEY / ANTHROPIC_API_KEY depending on your model
 ```
 
-If you want to use local ollama models, set the API base:
+If you installed from source and see `ModuleNotFoundError: No module named 'claude_agent_sdk'`, install:
 
 ```bash
-export OLLAMA_API_BASE=http://192.168.23.11:11434
+pip install claude-agent-sdk
 ```
 
-You can then specify ollama models like so: `ollama/llama3.2:latest` for example.
-
-For LM Studio it is similar:
+If you want the OpenAI runtime as well, install:
 
 ```bash
-export LM_STUDIO_API_BASE=http://localhost:1234/v1
+pip install openai-agents
 ```
 
-but you do need to specify an API key, even if it's a dummy value:
+`smolagents` is no longer required for the main TinyScientist runtime. It is only needed for legacy compatibility helpers.
+
+#### 2) Tool providers (strict mode)
+
+Tooling runs in strict provider mode (no automatic fallback). If a selected provider is unavailable, the tool call fails.
+
+Core switches:
 
 ```bash
-export LM_STUDIO_API_KEY=dummy-api-key
+# Web search provider: duckduckgo | tavily | serpapi | brave
+export WEB_SEARCH_PROVIDER=duckduckgo
+
+# Diagram backend: llm_svg | nano-banana
+export DRAWER_BACKEND=llm_svg
 ```
 
-And the models are specified like so: `lm_studio/qwen2.5-coder-32b-instruct-mlx`
-
-For other openAI compatible backend providers, set the following variables:
+Optional provider keys:
 
 ```bash
-export OPENAI_API_BASE=http://192.168.9.14/v1
-export OPENAI_API_KEY=your-key-here
+export S2_API_KEY=...             # semantic scholar tools
+export NEWSAPI_KEY=...            # news_search
+export TAVILY_API_KEY=...         # if WEB_SEARCH_PROVIDER=tavily
+export SERPAPI_API_KEY=...        # if WEB_SEARCH_PROVIDER=serpapi
+export BRAVE_SEARCH_API_KEY=...   # if WEB_SEARCH_PROVIDER=brave
+
+# nano-banana image generation (optional)
+export NANO_BANANA_MODEL=gpt-image-1
 ```
 
-and specify your model like so: `openai/qwen3-30b-a3b`
+#### 3) Minimal Python usage (unchanged API)
 
-Now you can use Tiny-Scientist in Python with only a few lines of code:
+The minimal Python API is still the same:
 
 ```python
 from tiny_scientist import TinyScientist
 
-scientist = TinyScientist(model="gpt-4o", budget=1.0)
+scientist = TinyScientist(model="claude-3-5-sonnet-20241022", budget=1.0)
 
-# Step 1: Generate a json-format research idea
-idea = scientist.think(intent="Benchmarking adaptive step size strategies using a convex quadratic optimization function")
-
-# Step 2: Run experiments (you can provide baseline_results if available)
+idea = scientist.think(
+    intent="Benchmarking adaptive step size strategies using a convex quadratic optimization function"
+)
 status, experiment_dir = scientist.code(idea=idea)
 
-# if the experiments run successfully
-if status is True:
-    # Step 3: Write a paper
+if status:
     pdf_path = scientist.write(idea=idea, experiment_dir=experiment_dir)
-
-    # Step 4: Review the paper
     review = scientist.review(pdf_path=pdf_path)
 ```
+
+Use `agent_sdk` to select the runtime explicitly when you want the OpenAI backend:
+
+```python
+scientist = TinyScientist(model="gpt-4o", agent_sdk="openai")
+```
+
+Supported values today are `claude` and `openai`. The default is `claude`.
+
+#### 3.1) Skills and MCP
+
+TinyScientist now supports project skills from both:
+
+- `.claude/skills`
+- `.agents/skills`
+
+Claude backend:
+
+- Uses Claude's native filesystem skill loading via `.claude/skills`
+- Loads Claude skills from both user and project settings sources
+- Does not inject `SKILL.md` contents into prompts; skills are consumed only through Claude's native `Skill` tool flow
+- Uses generated `.tiny_scientist.generated.mcp.json` to mount TinyScientist MCP research tools
+
+OpenAI backend:
+
+- Continues to inject local `SKILL.md` content into agent instructions
+- Also supports official OpenAI shell-mounted skills when you provide skill specs as JSON:
+
+```bash
+export OPENAI_AGENT_SKILLS_JSON='[{"type":"skill_reference","skill_id":"skill_xxx","version":"1"}]'
+```
+
+You can also scope mounted OpenAI skills per stage:
+
+```bash
+export OPENAI_AGENT_SKILLS_THINKER_JSON='[...]'
+export OPENAI_AGENT_SKILLS_CODER_JSON='[...]'
+export OPENAI_AGENT_SKILLS_WRITER_JSON='[...]'
+export OPENAI_AGENT_SKILLS_REVIEWER_JSON='[...]'
+```
+
+#### 4) Non-OpenAI-compatible endpoints (advanced)
+
+For OpenAI-compatible gateways:
+
+```bash
+export OPENAI_API_BASE=http://your-endpoint/v1
+export OPENAI_API_KEY=your-key-here
+```
+
+Then use models like `openai/qwen3-30b-a3b`.
+
+#### 5) Built-in research tools
+
+Agents can use these built-in tools during thinking/coding/writing/review:
+
+- `web_search`
+- `paper_search`
+- `scholar_graph_search`
+- `benchmark_search`
+- `dataset_search`
+- `code_search`
+- `repo_runtime_probe`
+- `arxiv_daily_watch`
+- `news_search`
+- `patent_search`
+- `table_extractor`
+- `claim_verifier`
+- `generate_diagram` (writer path)
 
 # Managing API Keys (Optional)
 

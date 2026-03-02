@@ -1,28 +1,45 @@
 import json
 import os.path as osp
+import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Union
 
+from agents import Agent, Runner
 from rich import print
 
 from .budget_checker import BudgetChecker
 from .configs import Config
 from .safety_checker import SafetyChecker
-from .smolagents_tools import PaperSearchTool
+from .tool_impls import PaperSearchTool
+from .tools.agent_tools import build_research_tools
+from .utils.agent_sdk import is_claude_agent_sdk, resolve_agent_sdk
 from .utils.error_handler import api_calling_error_exponential_backoff
 from .utils.llm import (
     create_client,
     extract_json_between_markers,
     get_response_from_llm,
 )
+from .utils.openai_skills import build_openai_skill_shell_tool
 from .utils.pricing import estimate_prompt_cost, estimate_tokens_from_text
+from .utils.rich_output import (
+    print_cost_delta_summary,
+    print_mapping_table,
+    print_stage_progress,
+    print_task_event,
+    print_todo_table,
+    summarize_idea,
+)
+from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
+from .utils.sdk_mcp import claude_allowed_mcp_tools, ensure_mcp_config
+from .utils.skill_loader import skill_instructions
 
 
-class Thinker:
+class _ThinkerLegacy:
     def __init__(
         self,
-        tools: List[Any],
-        iter_num: int,
+        tools: Optional[List[Any]] = None,
+        iter_num: int = 3,
         search_papers: bool = True,
         generate_exp_plan: bool = True,
         model: str = "",
@@ -34,7 +51,7 @@ class Thinker:
         pre_reflection_threshold: float = 0.5,
         post_reflection_threshold: float = 0.8,
     ):
-        self.tools = tools
+        self.tools = tools or []
         self.iter_num = iter_num
         self.client, self.model = create_client(model)
         self.output_dir = output_dir
@@ -122,7 +139,7 @@ Be critical and realistic in your assessments."""
             related_works_string = "No Related Works Found"
         idea = self._generate_idea(intent, related_works_string, pdf_content)
 
-        self.cost_tracker.report()
+        self.cost_tracker.report("Thinker Total Cost")
         return idea
 
     def rethink(self, idea_json: str, current_round: int = 1) -> str:
@@ -941,7 +958,6 @@ Respond in JSON format:
             else:
                 print("❎ No Related Works Found")
 
-        self.cost_tracker.report()
         return self._format_paper_results(related_papers)
 
     def _generate_search_query(
@@ -1056,7 +1072,6 @@ Respond in JSON format:
             # No comparison table found, continue without it
             pass
 
-        self.cost_tracker.report()
         return json.dumps(idea, indent=2)
 
     @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
@@ -1128,9 +1143,12 @@ Respond in JSON format:
         for i, paper in enumerate(papers):
             title = paper.get("title", "No title")
             abstract = paper.get("abstract", "")
+            url = str(paper.get("url") or paper.get("source") or "").strip()
 
             # Format: Title. Authors. Venue.\nAbstract: ...
             paper_str = f"{i}: {title}."
+            if url:
+                paper_str += f"\nURL: {url}"
             if abstract and len(abstract.strip()) > 0:
                 # Truncate very long abstracts
                 abstract_text = abstract.strip()
@@ -1188,3 +1206,794 @@ Respond in JSON format:
         except Exception as e:
             print(f"⚠️ Safety check error: {str(e)}, using original idea")
             return idea_json
+
+
+class Thinker(_ThinkerLegacy):
+    """Thinker variant with configurable OpenAI/Claude agent SDK backends."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        agent_sdk = kwargs.pop("agent_sdk", None)
+        use_claude_agent_sdk = kwargs.pop("use_claude_agent_sdk", None)
+        super().__init__(*args, **kwargs)
+        self.agent_sdk = resolve_agent_sdk(
+            agent_sdk=agent_sdk,
+            use_claude_agent_sdk=use_claude_agent_sdk,
+        )
+        self._sdk_cwd = self.output_dir or "."
+        self.agent = None
+        self._novelty_agent = None
+        self._evaluation_agent = None
+        self.evidence_scout_agent = None
+        self.spec_refiner_agent = None
+        if is_claude_agent_sdk(self.agent_sdk):
+            self._setup_claude_sdk()
+        else:
+            self._setup_openai_sdk()
+
+    def _setup_openai_sdk(self) -> None:
+        configure_openai_agents_for_model(self.model)
+        shared_tools = build_research_tools(model=self.model, include_drawer=False)
+        skill_shell_tool = build_openai_skill_shell_tool(
+            stage="thinker",
+            working_directory=self._sdk_cwd,
+        )
+        if skill_shell_tool is not None:
+            shared_tools.append(skill_shell_tool)
+        tool_policy = (
+            "Tool policy: use web_search for latest facts, paper_search for scholarly "
+            "support and citations, and code_search for implementation baselines."
+        )
+        if skill_shell_tool is not None:
+            tool_policy += (
+                " Use the shell tool when a mounted OpenAI skill is relevant."
+            )
+
+        self.agent = Agent(
+            name="IdeaGenerator",
+            instructions=skill_instructions(
+                "thinker", f"{self.prompts.idea_system_prompt}\n\n{tool_policy}"
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self._novelty_agent = Agent(
+            name="NoveltyChecker",
+            instructions=skill_instructions(
+                "thinker", f"{self.prompts.novelty_system_prompt}\n\n{tool_policy}"
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self._evaluation_agent = Agent(
+            name="IdeaEvaluator",
+            instructions=skill_instructions(
+                "thinker", f"{self.prompts.evaluation_system_prompt}\n\n{tool_policy}"
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.evidence_scout_agent = Agent(
+            name="EvidenceScout",
+            instructions=skill_instructions(
+                "thinker",
+                (
+                    "You are an evidence scout. Use web_search, paper_search, dataset_search, "
+                    "benchmark_search, and code_search to ground the idea with concrete choices. "
+                    "Return ONLY JSON with keys: model_candidates, dataset_candidates, benchmark_candidates, "
+                    "implementation_notes, and citations. "
+                    "The 'citations' field must be a list of objects with keys: title, url, source_type, relevance. "
+                    "Every citation must include a real URL."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+        self.spec_refiner_agent = Agent(
+            name="SpecRefiner",
+            instructions=skill_instructions(
+                "thinker",
+                (
+                    "You refine research ideas into implementation-ready structure. "
+                    "Return ONLY JSON with detailed fields: Problem, Approach, Experiment, Metric, "
+                    "Risks, and Success_Criteria. Keep details concrete and reproducible."
+                ),
+            ),
+            tools=shared_tools,
+            model=self.model,
+        )
+
+    def _setup_claude_sdk(self) -> None:
+        from .utils.claude_agent_runner import ClaudeAgentRunner
+
+        mcp_config_path = ensure_mcp_config(self._sdk_cwd, include_drawer=False)
+        allowed_tools = ["Skill", *claude_allowed_mcp_tools(include_drawer=False)]
+        tool_policy = (
+            "Tool policy: use MCP research tools for current facts and supporting references. "
+            "If a loaded skill applies, follow it."
+        )
+
+        self.agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.idea_system_prompt}\n\n{tool_policy}",
+            allowed_tools=allowed_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self._novelty_agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.novelty_system_prompt}\n\n{tool_policy}",
+            allowed_tools=allowed_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self._evaluation_agent = ClaudeAgentRunner(
+            instructions=f"{self.prompts.evaluation_system_prompt}\n\n{tool_policy}",
+            allowed_tools=allowed_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.evidence_scout_agent = ClaudeAgentRunner(
+            instructions=(
+                "You are an evidence scout. Use MCP research tools to ground the idea with "
+                "concrete model, dataset, benchmark, and implementation references. "
+                "Return ONLY JSON with keys: model_candidates, dataset_candidates, "
+                "benchmark_candidates, implementation_notes, and citations. "
+                "The 'citations' field must be a list of objects with keys: title, "
+                "url, source_type, relevance. Every citation must include a real URL."
+            ),
+            allowed_tools=allowed_tools,
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+        self.spec_refiner_agent = ClaudeAgentRunner(
+            instructions=(
+                "You refine research ideas into implementation-ready structure. "
+                "Return ONLY JSON with detailed fields: Problem, Approach, Experiment, "
+                "Metric, Risks, and Success_Criteria. Keep details concrete and reproducible."
+            ),
+            allowed_tools=["Skill"],
+            cwd=self._sdk_cwd,
+            permission_mode="bypassPermissions",
+            cost_tracker=self.cost_tracker,
+            model=self.model,
+            mcp_config_path=mcp_config_path,
+        )
+
+    def _build_todo(
+        self,
+        check_novelty: bool,
+    ) -> List[Dict[str, Any]]:
+        def make_item(step: int, action: str, description: str) -> Dict[str, Any]:
+            return {
+                "step": step,
+                "action": action,
+                "name": action,
+                "description": description,
+            }
+
+        def default_todo() -> List[Dict[str, Any]]:
+            items: List[Dict[str, Any]] = [
+                make_item(
+                    1,
+                    "generate_idea",
+                    "Draft an initial research idea from the user intent and retrieved context.",
+                ),
+                make_item(
+                    2,
+                    "augment_idea_research",
+                    "Ground the draft with concrete references, benchmarks, datasets, and citation links.",
+                ),
+            ]
+            next_step = len(items) + 1
+            if self.generate_exp_plan:
+                items.append(
+                    make_item(
+                        next_step,
+                        "experiment_plan",
+                        "Add an implementation-ready experiment plan.",
+                    )
+                )
+                next_step += 1
+            if check_novelty:
+                items.append(
+                    make_item(
+                        next_step,
+                        "novelty_check",
+                        "Check novelty against nearby prior work and benchmarks.",
+                    )
+                )
+                next_step += 1
+            if self.enable_safety_check:
+                items.append(
+                    make_item(
+                        next_step,
+                        "safety_check",
+                        "Run a final safety pass on the completed idea.",
+                    )
+                )
+            return items
+
+        return default_todo()
+
+    def run(
+        self,
+        intent: str,
+        num_ideas: int = 1,
+        check_novelty: bool = False,
+        pdf_content: Optional[str] = None,
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        self.intent = intent
+        pdf_context = self._load_pdf_content(pdf_content)
+        todo = self._build_todo(
+            check_novelty=check_novelty,
+        )
+        print_todo_table("Thinker", todo)
+
+        ideas: List[Dict[str, Any]] = []
+        for idea_idx in range(1, num_ideas + 1):
+            print(f"[TODO][Thinker] Processing idea {idea_idx}/{num_ideas}")
+            current_idea_json = json.dumps({})
+            related_works_string = ""
+            for idx, item in enumerate(todo, start=1):
+                action = item.get("action", "")
+                before_total, before_tasks = self.cost_tracker.snapshot()
+                (
+                    before_global_total,
+                    before_global_tasks,
+                ) = self.cost_tracker.global_snapshot()
+                print_stage_progress(
+                    "Thinker Progress",
+                    idx,
+                    len(todo),
+                    str(item.get("name", action)),
+                )
+
+                if action == "generate_idea":
+                    if self.search_papers:
+                        query = self._generate_search_query(intent)
+                        related_works_string = self._get_related_works(query)
+                    else:
+                        related_works_string = "No Related Works Found"
+                    current_idea_json = self._generate_idea(
+                        intent, related_works_string, pdf_context
+                    )
+                    self._print_stage_idea_summary(
+                        "Thinker Draft",
+                        current_idea_json,
+                    )
+                elif action == "augment_idea_research":
+                    current_idea_json = self._augment_idea_with_research(
+                        current_idea_json, intent, related_works_string
+                    )
+                    self._print_stage_idea_summary(
+                        "Thinker Grounding",
+                        current_idea_json,
+                    )
+                elif action == "experiment_plan":
+                    current_idea_json = self.generate_experiment_plan(current_idea_json)
+                    self._print_stage_idea_summary(
+                        "Thinker Experiment Plan",
+                        current_idea_json,
+                    )
+                elif action == "novelty_check":
+                    if check_novelty:
+                        current_idea_json = self._check_novelty(current_idea_json)
+                        self._print_stage_idea_summary(
+                            "Thinker Novelty Check",
+                            current_idea_json,
+                        )
+                elif action == "safety_check":
+                    current_idea_json = self._safety_check(current_idea_json)
+                    self._print_stage_idea_summary(
+                        "Thinker Safety Result",
+                        current_idea_json,
+                    )
+                print_stage_progress(
+                    "Thinker Progress",
+                    idx,
+                    len(todo),
+                    str(item.get("name", action)),
+                    status="done",
+                )
+                after_total, after_tasks = self.cost_tracker.snapshot()
+                (
+                    after_global_total,
+                    after_global_tasks,
+                ) = self.cost_tracker.global_snapshot()
+                print_cost_delta_summary(
+                    f"Thinker Cost: {action}",
+                    before_total,
+                    before_tasks,
+                    after_total,
+                    after_tasks,
+                    global_before_total=before_global_total,
+                    global_before_tasks=before_global_tasks,
+                    global_after_total=after_global_total,
+                    global_after_tasks=after_global_tasks,
+                )
+
+            try:
+                idea_obj = json.loads(current_idea_json)
+            except json.JSONDecodeError:
+                idea_obj = {}
+            if isinstance(idea_obj, dict) and idea_obj:
+                citations = idea_obj.get("Citations", [])
+                if not isinstance(citations, list) or not citations:
+                    raise RuntimeError(
+                        "[Thinker] final idea missing citation links. Evidence grounding is required."
+                    )
+                ideas.append(idea_obj)
+
+        self.cost_tracker.report("Thinker Total Cost")
+        if len(ideas) > 1:
+            return ideas
+        if len(ideas) == 1:
+            return ideas[0]
+        return {}
+
+    def _print_stage_idea_summary(self, title: str, idea_json: str) -> None:
+        try:
+            idea_obj = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return
+        if not isinstance(idea_obj, dict) or not idea_obj:
+            return
+        print_mapping_table(title, summarize_idea(idea_obj))
+
+    def _run_sdk_call(self, agent: Any, prompt: str, task_name: str) -> str:
+        start = time.perf_counter()
+        print_task_event("Thinker", task_name, "START")
+        if self.agent_sdk == "claude":
+            result = agent.run_sync(prompt, task_name)
+            print_task_event("Thinker", task_name, "END", time.perf_counter() - start)
+            return result
+        result = Runner.run_sync(agent, prompt)
+        track_sdk_cost(result, self.cost_tracker, self.model, task_name)
+        print_task_event("Thinker", task_name, "END", time.perf_counter() - start)
+        return result.final_output or ""
+
+    def _augment_idea_with_research(
+        self, idea_json: str, intent: str, related_works_string: str = ""
+    ) -> str:
+        try:
+            idea_obj = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return idea_json
+        prompt = (
+            "Intent:\n"
+            f"{intent}\n\n"
+            "Current idea JSON:\n"
+            f"{json.dumps(idea_obj, ensure_ascii=False)}\n\n"
+            "Find concrete model, dataset, benchmark and implementation references."
+        )
+        text = self._run_sdk_call(
+            self.evidence_scout_agent, prompt, "augment_idea_research"
+        )
+        payload = extract_json_between_markers(text)
+        if not isinstance(payload, dict):
+            try:
+                payload = json.loads(text)
+            except Exception:
+                payload = {}
+        normalized_citations = self._extract_citations_with_urls(payload)
+        if not normalized_citations:
+            normalized_citations = self._extract_citations_from_text(text)
+        if not normalized_citations:
+            normalized_citations = self._extract_citations_from_related_works(
+                related_works_string
+            )
+        if not normalized_citations:
+            raise RuntimeError(
+                "[Thinker] evidence scout returned no valid citation URLs."
+            )
+        payload["citations"] = normalized_citations
+        idea_obj["ResearchGrounding"] = payload
+        idea_obj["Citations"] = normalized_citations
+        return json.dumps(idea_obj, indent=2, ensure_ascii=False)
+
+    def _extract_citations_with_urls(
+        self, payload: Dict[str, Any]
+    ) -> List[Dict[str, str]]:
+        normalized: List[Dict[str, str]] = []
+        seen: set[str] = set()
+
+        def _add(title: str, url: str, source_type: str, relevance: str) -> None:
+            clean_url = (url or "").strip()
+            if not clean_url.startswith(("http://", "https://")):
+                return
+            key = clean_url.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            normalized.append(
+                {
+                    "title": (title or "Untitled").strip() or "Untitled",
+                    "url": clean_url,
+                    "source_type": (source_type or "unknown").strip() or "unknown",
+                    "relevance": (relevance or "").strip(),
+                }
+            )
+
+        citations = payload.get("citations", [])
+        if isinstance(citations, list):
+            for c in citations:
+                if not isinstance(c, dict):
+                    continue
+                _add(
+                    title=str(c.get("title", "")),
+                    url=str(c.get("url") or c.get("link") or c.get("source") or ""),
+                    source_type=str(c.get("source_type", "")),
+                    relevance=str(c.get("relevance", "")),
+                )
+                for url in self._extract_candidate_urls(c):
+                    _add(
+                        title=str(c.get("title") or c.get("name") or ""),
+                        url=url,
+                        source_type=str(c.get("source_type", "citation")),
+                        relevance=str(c.get("relevance", "")),
+                    )
+
+        # Backup extraction from other candidate blocks in payload
+        for key in (
+            "model_candidates",
+            "dataset_candidates",
+            "benchmark_candidates",
+            "implementation_notes",
+        ):
+            items = payload.get(key, [])
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                _add(
+                    title=str(item.get("title") or item.get("name") or key),
+                    url=str(
+                        item.get("url") or item.get("link") or item.get("source") or ""
+                    ),
+                    source_type=str(item.get("source_type") or key),
+                    relevance=str(item.get("relevance") or ""),
+                )
+                for url in self._extract_candidate_urls(item):
+                    _add(
+                        title=str(item.get("title") or item.get("name") or key),
+                        url=url,
+                        source_type=str(item.get("source_type") or key),
+                        relevance=str(item.get("relevance") or ""),
+                    )
+
+        return normalized
+
+    def _extract_candidate_urls(self, payload: Dict[str, Any]) -> List[str]:
+        urls: List[str] = []
+        for key in (
+            "key_reference_urls",
+            "reference_urls",
+            "urls",
+            "links",
+        ):
+            value = payload.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        urls.append(item.strip())
+            elif isinstance(value, str):
+                urls.append(value.strip())
+
+        doi = str(payload.get("doi", "")).strip()
+        if doi:
+            if doi.startswith(("http://", "https://")):
+                urls.append(doi)
+            else:
+                urls.append(f"https://doi.org/{doi.lstrip('/')}")
+
+        return [url for url in urls if url]
+
+    def _extract_citations_from_text(self, text: str) -> List[Dict[str, str]]:
+        if not text:
+            return []
+        normalized: List[Dict[str, str]] = []
+        seen: set[str] = set()
+        current_title = "Untitled"
+        for line in text.splitlines():
+            stripped = line.strip().strip('",')
+            if '"name"' in stripped or '"title"' in stripped:
+                match = re.search(r'"(?:name|title)"\s*:\s*"([^"]+)"', stripped)
+                if match:
+                    current_title = match.group(1).strip() or "Untitled"
+            for url in re.findall(r"https?://[^\s\"'<>]+", stripped):
+                key = url.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                normalized.append(
+                    {
+                        "title": current_title,
+                        "url": url.rstrip(",]}"),
+                        "source_type": "research_grounding_text",
+                        "relevance": "extracted from raw evidence scout output",
+                    }
+                )
+        return normalized
+
+    def _extract_citations_from_related_works(
+        self, related_works_string: str
+    ) -> List[Dict[str, str]]:
+        if not related_works_string:
+            return []
+        lines = [ln.strip() for ln in related_works_string.splitlines() if ln.strip()]
+        out: List[Dict[str, str]] = []
+        seen: set[str] = set()
+        for i, line in enumerate(lines):
+            if not line.startswith("URL:"):
+                continue
+            url = line.replace("URL:", "", 1).strip()
+            if not url.startswith(("http://", "https://")):
+                continue
+            key = url.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            title = "Untitled"
+            if i > 0:
+                prev = lines[i - 1]
+                m = re.match(r"^\d+:\s*(.+?)\.$", prev)
+                if m:
+                    title = m.group(1).strip()
+                else:
+                    title = prev[:180]
+            out.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "source_type": "related_works",
+                    "relevance": "retrieved from related works context",
+                }
+            )
+        return out
+
+    def _refine_idea_components(self, idea_json: str) -> str:
+        try:
+            idea_obj = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return idea_json
+        prompt = (
+            "Refine this idea to be specific and execution-ready:\n"
+            f"{json.dumps(idea_obj, ensure_ascii=False)}"
+        )
+        text = self._run_sdk_call(
+            self.spec_refiner_agent, prompt, "refine_idea_components"
+        )
+        refined = extract_json_between_markers(text)
+        if not isinstance(refined, dict):
+            try:
+                refined = json.loads(text)
+            except Exception:
+                refined = None
+        if not isinstance(refined, dict):
+            raise RuntimeError("[Thinker] component refiner did not return valid JSON.")
+        for key in (
+            "Problem",
+            "Approach",
+            "Experiment",
+            "Metric",
+            "Risks",
+            "Success_Criteria",
+        ):
+            if key in refined:
+                idea_obj[key] = refined[key]
+        return json.dumps(idea_obj, indent=2, ensure_ascii=False)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _generate_idea(
+        self,
+        intent: str,
+        related_works_string: str,
+        pdf_content: Optional[str] = None,
+    ) -> str:
+        pdf_section = (
+            f"Based on the content of the following paper:\n\n{pdf_content}\n\n"
+            if pdf_content
+            else ""
+        )
+        prompt = self.prompts.idea_first_prompt.format(
+            intent=intent,
+            related_works_string=related_works_string,
+            num_reflections=1,
+            pdf_section=pdf_section,
+        )
+        text = self._run_sdk_call(self.agent, prompt, "generate_idea")
+        idea = extract_json_between_markers(text)
+        if isinstance(idea, list) and idea:
+            idea = idea[0]
+        if not idea:
+            return json.dumps({})
+        try:
+            idea["ComparisonTable"] = (
+                text.split("```markdown")[1].split("```")[0].strip()
+            )
+        except IndexError:
+            pass
+        self.cost_tracker.report()
+        return json.dumps(idea, indent=2)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _reflect_idea(
+        self, idea_json: str, current_round: int, related_works_string: str
+    ) -> str:
+        prompt = self.prompts.idea_reflection_prompt.format(
+            intent=self.intent,
+            current_round=current_round,
+            num_reflections=self.iter_num,
+            current_idea=idea_json,
+            related_works_string=related_works_string,
+        )
+        text = self._run_sdk_call(self.agent, prompt, "reflect_idea")
+        new_idea = extract_json_between_markers(text)
+        if isinstance(new_idea, list) and new_idea:
+            new_idea = new_idea[0]
+        if not new_idea:
+            return idea_json
+        return json.dumps(new_idea, indent=2)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def generate_experiment_plan(self, idea: str) -> str:
+        idea_dict = json.loads(idea)
+        is_experimental = idea_dict.get("is_experimental", True)
+        if is_experimental:
+            prompt = self.prompts.experiment_plan_prompt.format(
+                idea=idea, intent=self.intent
+            )
+        else:
+            prompt = self.prompts.non_experiment_plan_prompt.format(
+                idea=idea, intent=self.intent
+            )
+        text = self._run_sdk_call(self.agent, prompt, "generate_experiment_plan")
+        experiment_plan_json = extract_json_between_markers(text)
+        try:
+            experiment_plan_table = text.split("```markdown")[1].split("```")[0].strip()
+        except IndexError:
+            experiment_plan_table = None
+        if not experiment_plan_json or not experiment_plan_table:
+            return idea
+        idea_dict["Experiment"] = experiment_plan_json
+        idea_dict["ExperimentTable"] = experiment_plan_table
+        if isinstance(experiment_plan_json, dict):
+            metric = experiment_plan_json.get("Metric")
+            if metric:
+                idea_dict["Metric"] = metric
+            success_criteria = experiment_plan_json.get("Success_Criteria")
+            if success_criteria:
+                idea_dict["Success_Criteria"] = success_criteria
+            elif not idea_dict.get("Success_Criteria") and metric:
+                idea_dict["Success_Criteria"] = (
+                    "Show consistent improvement on the defined Metric over strong baselines "
+                    "while satisfying the benchmark's runtime and simplicity constraints."
+                )
+        return json.dumps(idea_dict, indent=2)
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def _check_novelty(self, idea_json: str, max_iterations: int = 10) -> str:
+        try:
+            idea_dict = json.loads(idea_json)
+        except json.JSONDecodeError:
+            return idea_json
+        for iteration in range(max_iterations):
+            query = self._generate_search_query(
+                idea_json, intent=self.intent, query_type="novelty"
+            )
+            papers_str = self._get_related_works(query)
+            prompt = self.prompts.novelty_prompt.format(
+                current_round=iteration + 1,
+                num_rounds=max_iterations,
+                intent=self.intent,
+                idea=idea_json,
+                last_query_results=papers_str,
+            )
+            text = self._run_sdk_call(self._novelty_agent, prompt, "check_novelty")
+            if "NOVELTY CHECK: NOVEL" in text:
+                idea_dict["novel"] = True
+                break
+            if "NOVELTY CHECK: NOT NOVEL" in text:
+                idea_dict["novel"] = False
+                break
+        if "novel" not in idea_dict:
+            idea_dict["novel"] = False
+        return json.dumps(idea_dict, indent=2)
+
+    def _get_idea_evaluation(
+        self, ideas_json: str, intent: str, custom_criteria: Optional[str] = None
+    ) -> str:
+        prompt = self.prompts.idea_evaluation_prompt.format(
+            intent=intent,
+            ideas=ideas_json,
+            novelty_criteria=self.novelty_criteria,
+            feasibility_criteria=self.feasibility_criteria,
+            impact_criteria=self.impact_criteria,
+        )
+        if custom_criteria:
+            prompt = prompt.replace(self.default_criteria_descriptions, custom_criteria)
+        text = self._run_sdk_call(self._evaluation_agent, prompt, "get_idea_evaluation")
+        return text
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def modify_idea(
+        self,
+        original_idea: Dict[str, Any],
+        modifications: List[Dict[str, Any]],
+        behind_idea: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        instruction_lines = []
+        behind_content = (
+            behind_idea.get("content", "") if behind_idea else "(No reference idea)"
+        )
+        for mod in modifications:
+            metric_name = {
+                "noveltyScore": "Novelty",
+                "feasibilityScore": "Feasibility",
+                "impactScore": "Impact",
+            }.get(mod["metric"])
+            direction = mod["direction"]
+            instruction_lines.append(
+                {
+                    "metric": metric_name,
+                    "direction": direction,
+                    "reference": behind_content,
+                }
+            )
+        prompt = self.prompts.modify_idea_prompt.format(
+            idea=json.dumps(original_idea),
+            modifications=json.dumps(instruction_lines),
+            intent=self.intent,
+        )
+        text = self._run_sdk_call(self.agent, prompt, "modify_idea")
+        modified_idea = extract_json_between_markers(text)
+        if not modified_idea:
+            return original_idea
+        return modified_idea
+
+    @api_calling_error_exponential_backoff(retries=5, base_wait_time=2)
+    def merge_ideas(
+        self,
+        idea_a: Dict[str, Any],
+        idea_b: Dict[str, Any],
+        all_ideas: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        prompt = self.prompts.merge_ideas_prompt.format(
+            idea_a=json.dumps(idea_a), idea_b=json.dumps(idea_b), intent=self.intent
+        )
+        text = self._run_sdk_call(self.agent, prompt, "merge_ideas")
+        merged_idea = extract_json_between_markers(text)
+        if not merged_idea:
+            return None
+        return merged_idea
+
+    def _generate_search_query(
+        self,
+        content: str,
+        intent: Optional[str] = None,
+        query_type: str = "standard",
+    ) -> str:
+        prompt_mapping = {
+            "standard": self.prompts.query_prompt.format(intent=content),
+            "rethink": self.prompts.rethink_query_prompt.format(
+                intent=intent, idea=content
+            ),
+            "novelty": self.prompts.novelty_query_prompt.format(
+                intent=intent, idea=content
+            ),
+        }
+        prompt = prompt_mapping.get(query_type, "")
+        text = self._run_sdk_call(self.agent, prompt, "generate_search_query")
+        query_data = extract_json_between_markers(text)
+        return str(query_data.get("Query", "")) if query_data else ""
