@@ -322,6 +322,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
         output_dir="./",
         search_papers=False,
         generate_exp_plan=True,
+        temperature=1.0,
         cost_tracker=BudgetChecker(
             budget=allocation.get("thinker"), parent=global_cost_tracker
         ),
@@ -1310,7 +1311,7 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
             tools=[],
             num_reviews=1,
             num_reflections=1,
-            temperature=0.75,
+            temperature=1.0,
             s2_api_key=s2_api_key,
             cost_tracker=BudgetChecker(
                 budget=session_allocation.get("reviewer"),
