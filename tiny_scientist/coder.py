@@ -29,6 +29,11 @@ from .tools.agent_tools import (
     make_write_file_tool,
 )
 from .utils.agent_sdk import AgentSdk, is_claude_agent_sdk, resolve_agent_sdk
+from .utils.llm import (
+    create_client,
+    extract_json_between_markers,
+    get_response_from_llm,
+)
 from .utils.openai_skills import build_openai_skill_shell_tool
 from .utils.rich_output import (
     print_cost_delta_summary,
@@ -36,10 +41,9 @@ from .utils.rich_output import (
     print_rows_table,
     print_stage_progress,
 )
+from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 from .utils.sdk_mcp import claude_allowed_mcp_tools, ensure_mcp_config
 from .utils.skill_loader import skill_instructions
-from .utils.llm import create_client, extract_json_between_markers, get_response_from_llm
-from .utils.sdk_client import configure_openai_agents_for_model, track_sdk_cost
 
 
 class Coder:
@@ -71,7 +75,7 @@ class Coder:
         self.client, self.model = create_client(model)
         self.output_dir = osp.abspath(output_dir)
         self.max_iters = max_iters
-        self.max_runs = 1
+        self.max_runs = max_runs
         self.max_stderr_output = max_stderr_output
         self.auto_install = auto_install
         self.config = Config()
@@ -213,13 +217,9 @@ class Coder:
             code_tools.append(skill_shell_tool)
 
         coder_instructions = coder_base + self._openai_coder_tool_instructions()
-        coder_instructions += (
-            "Stay focused on implementing the current workspace step with the local files and blueprint."
-        )
+        coder_instructions += "Stay focused on implementing the current workspace step with the local files and blueprint."
         if skill_shell_tool is not None:
-            coder_instructions += (
-                " When a mounted OpenAI skill is relevant, use the shell tool to apply it."
-            )
+            coder_instructions += " When a mounted OpenAI skill is relevant, use the shell tool to apply it."
 
         self.agent = Agent(
             name="ExperimentCoder",
@@ -273,15 +273,15 @@ class Coder:
         return [
             make_write_file_tool(WriteFileTool(self.output_dir)),
             make_read_file_tool(ReadFileTool(self.output_dir)),
-            make_run_experiment_tool(RunExperimentTool(self.output_dir, self.docker_runner)),
+            make_run_experiment_tool(
+                RunExperimentTool(self.output_dir, self.docker_runner)
+            ),
         ]
 
     def _openai_coder_tool_instructions(self) -> str:
         """Describe the active code tools for the OpenAI Agents SDK backend."""
         if self.use_codex_tool and self.model.startswith(("gpt-", "o1", "o3", "codex")):
-            return (
-                "Use the codex tool to write main.py and helper files, inspect files, and execute the script. "
-            )
+            return "Use the codex tool to write main.py and helper files, inspect files, and execute the script. "
         return (
             "Use write_file to save main.py and helper files, read_file to inspect them, "
             "and run_experiment to execute the workspace entrypoint. "
@@ -373,7 +373,10 @@ class Coder:
             return False, None
 
         self._print_run_summary(success=True)
-        return True, f"{interruption_reason} Recovered by running the current workspace."
+        return (
+            True,
+            f"{interruption_reason} Recovered by running the current workspace.",
+        )
 
     def _format_experiment_for_prompt(
         self, exp: Dict[str, Any]
@@ -449,20 +452,27 @@ class Coder:
             if baseline_results
             else ""
         )
-        prompt = self.prompts.experiment_plan_prompt.format(
-            title=idea["Title"],
-            problem=idea["Problem"],
-            approach=idea["Approach"],
-            model_details=model_text,
-            dataset_details=dataset_text,
-            metric_details=metric_text,
-            experiment_table=experiment_table,
-        ) + baseline_note
+        prompt = (
+            self.prompts.experiment_plan_prompt.format(
+                title=idea["Title"],
+                problem=idea["Problem"],
+                approach=idea["Approach"],
+                model_details=model_text,
+                dataset_details=dataset_text,
+                metric_details=metric_text,
+                experiment_table=experiment_table,
+            )
+            + baseline_note
+        )
 
         if self.agent_sdk == "claude":
             if self.claude_runners is None:
-                raise RuntimeError("Claude planner runner is not initialized for coder.")
-            response = self.claude_runners["planner"].run_sync(prompt, "experiment_plan")
+                raise RuntimeError(
+                    "Claude planner runner is not initialized for coder."
+                )
+            response = self.claude_runners["planner"].run_sync(
+                prompt, "experiment_plan"
+            )
         else:
             if self.planner_agent is None:
                 raise RuntimeError("Planner agent is not initialized for coder.")
@@ -492,7 +502,9 @@ class Coder:
                             "step": int(item.get("step", idx)),
                             "name": str(item.get("name", f"Step {idx}")),
                             "description": str(item.get("description", "")),
-                            "row_refs": [str(r).strip() for r in row_refs if str(r).strip()],
+                            "row_refs": [
+                                str(r).strip() for r in row_refs if str(r).strip()
+                            ],
                         }
                     )
                 if normalized:
@@ -565,7 +577,14 @@ class Coder:
         table_rows = self._extract_table_rows(experiment_table)
 
         experiment_spec = idea["Experiment"]
-        _, _, _, model_text, dataset_text, metric_text = self._format_experiment_for_prompt(experiment_spec)
+        (
+            _,
+            _,
+            _,
+            model_text,
+            dataset_text,
+            metric_text,
+        ) = self._format_experiment_for_prompt(experiment_spec)
 
         # Phase 1: Plan — generate implementation checklist
         before_total, before_tasks = self.cost_tracker.snapshot()
@@ -604,7 +623,10 @@ class Coder:
         total_steps = len(checklist)
         for step in checklist:
             before_total, before_tasks = self.cost_tracker.snapshot()
-            before_global_total, before_global_tasks = self.cost_tracker.global_snapshot()
+            (
+                before_global_total,
+                before_global_tasks,
+            ) = self.cost_tracker.global_snapshot()
             print_stage_progress(
                 "Coder Step Progress",
                 step["step"],
@@ -680,7 +702,10 @@ class Coder:
         next_prompt = ""
         while current_iter < self.max_iters:
             before_total, before_tasks = self.cost_tracker.snapshot()
-            before_global_total, before_global_tasks = self.cost_tracker.global_snapshot()
+            (
+                before_global_total,
+                before_global_tasks,
+            ) = self.cost_tracker.global_snapshot()
             if next_prompt:
                 self._generate_experiment(next_prompt)
 
@@ -694,7 +719,10 @@ class Coder:
             if return_code == 0:
                 self._print_run_summary(success=True)
                 after_total, after_tasks = self.cost_tracker.snapshot()
-                after_global_total, after_global_tasks = self.cost_tracker.global_snapshot()
+                (
+                    after_global_total,
+                    after_global_tasks,
+                ) = self.cost_tracker.global_snapshot()
                 print_cost_delta_summary(
                     "Coder Cost: run",
                     before_total,
@@ -759,7 +787,9 @@ class Coder:
         if self.agent_sdk == "claude":
             if self.claude_runners is None:
                 raise RuntimeError("Claude coder runner is not initialized.")
-            return self.claude_runners["coder"].run_sync(task_prompt, "generate_experiment")
+            return self.claude_runners["coder"].run_sync(
+                task_prompt, "generate_experiment"
+            )
 
         if self.agent is None:
             raise RuntimeError("Agent not initialized. Call setup_agent() first.")
@@ -858,7 +888,9 @@ class Coder:
         active_step: Optional[Dict[str, Any]],
     ) -> List[Dict[str, str]]:
         active_refs = (
-            set(self._resolve_row_refs(active_step, table_rows)) if active_step else set()
+            set(self._resolve_row_refs(active_step, table_rows))
+            if active_step
+            else set()
         )
         row_to_steps: Dict[str, List[Dict[str, Any]]] = {row: [] for row in table_rows}
         for item in checklist:
@@ -920,9 +952,7 @@ class Coder:
             },
         )
 
-    def _print_run_summary(
-        self, success: bool, error_message: str = ""
-    ) -> None:
+    def _print_run_summary(self, success: bool, error_message: str = "") -> None:
         results_path = osp.join(self.output_dir, "run", "final_info.json")
         keys = 0
         if osp.exists(results_path):
@@ -1160,13 +1190,19 @@ class Coder:
 
         if self.agent_sdk == "claude":
             if self.claude_runners is None:
-                raise RuntimeError("Claude validator runner is not initialized for coder.")
-            text = self.claude_runners["validator"].run_sync(prompt, "validate_experiment_run")
+                raise RuntimeError(
+                    "Claude validator runner is not initialized for coder."
+                )
+            text = self.claude_runners["validator"].run_sync(
+                prompt, "validate_experiment_run"
+            )
         else:
             if self.validation_agent is None:
                 raise RuntimeError("Validation agent is not initialized for coder.")
             result = Runner.run_sync(self.validation_agent, prompt)
-            track_sdk_cost(result, self.cost_tracker, self.model, "validate_experiment_run")
+            track_sdk_cost(
+                result, self.cost_tracker, self.model, "validate_experiment_run"
+            )
             text = result.final_output or ""
         parsed: Any = extract_json_between_markers(text)
         if not isinstance(parsed, dict):
@@ -1212,7 +1248,9 @@ class Coder:
         entries: List[str] = []
         for root, dirnames, filenames in os.walk(self.output_dir):
             dirnames[:] = [
-                d for d in dirnames if d not in {"run", "__pycache__", ".git", ".mypy_cache"}
+                d
+                for d in dirnames
+                if d not in {"run", "__pycache__", ".git", ".mypy_cache"}
             ]
             for filename in filenames:
                 if not filename.endswith(".py"):
