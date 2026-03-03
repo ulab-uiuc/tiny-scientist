@@ -1266,9 +1266,19 @@ const TreePlotVisualization = () => {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to configure model');
+      const responseText = await response.text();
+      let configData = null;
+      try {
+        configData = JSON.parse(responseText);
+      } catch (parseErr) {
+        throw new Error(`Invalid configure response: ${responseText || 'non-JSON response'}`);
       }
+
+      if (!response.ok) {
+        throw new Error(configData?.error || 'Failed to configure model');
+      }
+
+      console.log('[CONFIG] Backend resolved agent_sdk:', configData?.agent_sdk);
 
       setIsConfigured(true);
       setOperationStatus('');
@@ -2073,6 +2083,36 @@ const TreePlotVisualization = () => {
     setShowDimensionPanel(true);
   };
 
+  const parseIdeaGenerationResponse = (responseText, sourceLabel) => {
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (err) {
+      throw new Error(`Invalid ${sourceLabel} response: expected JSON`);
+    }
+
+    if (!data || typeof data !== 'object') {
+      throw new Error(`Invalid ${sourceLabel} response: expected object payload`);
+    }
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    if (!Array.isArray(data.ideas) || data.ideas.length === 0) {
+      throw new Error(`Invalid ${sourceLabel} response: ideas must be a non-empty array`);
+    }
+
+    const missingIdeaId = data.ideas.some((idea) => (
+      !idea || typeof idea !== 'object' || typeof idea.id !== 'string' || !idea.id.trim()
+    ));
+    if (missingIdeaId) {
+      throw new Error(`Invalid ${sourceLabel} response: missing idea id`);
+    }
+
+    return data;
+  };
+
   // ============== 新增：维度确认后生成 Ideas ==============
   const handleDimensionConfirm = async (dimensionPairs) => {
     setSelectedDimensionPairs(dimensionPairs);
@@ -2108,12 +2148,7 @@ const TreePlotVisualization = () => {
       // Wait for the full response as text (handles heartbeat stream)
       const responseText = await response.text();
 
-      // Parse the text into JSON, ignoring heartbeats
-      const data = JSON.parse(responseText);
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      const data = parseIdeaGenerationResponse(responseText, 'generate-initial');
       console.log("Received data from API:", data);
 
       const ideas = data.ideas;
@@ -2220,12 +2255,7 @@ const TreePlotVisualization = () => {
       // Wait for the full response as text (handles heartbeat stream)
       const responseText = await response.text();
 
-      // Parse the text into JSON, ignoring heartbeats
-      const data = JSON.parse(responseText);
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      const data = parseIdeaGenerationResponse(responseText, 'generate-children');
       const ideas = data.ideas;
       const newIdeasWithId = ideas; // backend already supplied hierarchical ids
       const updatedIdeasList = [...ideasList, ...newIdeasWithId];

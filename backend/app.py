@@ -95,6 +95,10 @@ from tiny_scientist.coder import Coder  # noqa: E402
 from tiny_scientist.reviewer import Reviewer  # noqa: E402
 from tiny_scientist.scientist import TinyScientist  # noqa: E402
 from tiny_scientist.thinker import Thinker  # noqa: E402
+from tiny_scientist.utils.agent_sdk import (  # noqa: E402
+    resolve_agent_sdk,
+    validate_agent_sdk_model_combo,
+)
 from tiny_scientist.writer import Writer  # noqa: E402
 
 
@@ -234,6 +238,26 @@ def format_name_for_display(name: Optional[str]) -> str:
     return " ".join(word.capitalize() for word in name.split("_"))
 
 
+def _auto_agent_sdk_for_model(model: str) -> str:
+    normalized = (model or "").strip().lower()
+    if normalized.startswith("claude-"):
+        return "claude"
+    return "openai"
+
+
+def _validate_idea_response_payload(response: Dict[str, Any]) -> bool:
+    ideas = response.get("ideas")
+    if not isinstance(ideas, list) or len(ideas) == 0:
+        return False
+    required = {"id", "title", "content", "originalData"}
+    for idea in ideas:
+        if not isinstance(idea, dict):
+            return False
+        if any(key not in idea for key in required):
+            return False
+    return True
+
+
 # Initialize the Thinker
 @app.route("/api/configure", methods=["POST"])
 def configure() -> Union[Response, tuple[Response, int]]:
@@ -243,11 +267,21 @@ def configure() -> Union[Response, tuple[Response, int]]:
         return jsonify({"error": "No JSON data provided"}), 400
     model = data.get("model")
     api_key = data.get("api_key")
+    requested_agent_sdk = data.get("agent_sdk")
     budget = data.get("budget")
     budget_preference = data.get("budget_preference")
 
     if not model or not api_key:
         return jsonify({"error": "Model and API key are required"}), 400
+
+    try:
+        if requested_agent_sdk:
+            resolved_agent_sdk = resolve_agent_sdk(agent_sdk=requested_agent_sdk)
+        else:
+            resolved_agent_sdk = _auto_agent_sdk_for_model(model)
+        validate_agent_sdk_model_combo(resolved_agent_sdk, model)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     try:
         (
@@ -297,6 +331,7 @@ def configure() -> Union[Response, tuple[Response, int]]:
     session["configured"] = True
     session["budget"] = resolved_budget
     session["budget_preference"] = resolved_preference
+    session["agent_sdk"] = resolved_agent_sdk
 
     # Initialize all components with same parameters as TinyScientist
     global thinker, coder, writer, reviewer, global_cost_tracker
@@ -318,14 +353,15 @@ def configure() -> Union[Response, tuple[Response, int]]:
     thinker = Thinker(
         model=model,
         tools=[],
-        iter_num=0,
+        iter_num=1,
         output_dir="./",
-        search_papers=False,
+        search_papers=True,
         generate_exp_plan=True,
         temperature=1.0,
         cost_tracker=BudgetChecker(
             budget=allocation.get("thinker"), parent=global_cost_tracker
         ),
+        agent_sdk=resolved_agent_sdk,
     )
     coder = Coder(
         model=model,
@@ -335,12 +371,14 @@ def configure() -> Union[Response, tuple[Response, int]]:
         cost_tracker=BudgetChecker(
             budget=allocation.get("coder"), parent=global_cost_tracker
         ),
+        agent_sdk=resolved_agent_sdk,
     )
 
     return jsonify(
         {
             "status": "configured",
             "model": model,
+            "agent_sdk": resolved_agent_sdk,
             "budget": resolved_budget,
             "budget_preference": resolved_preference,
         }
@@ -350,40 +388,45 @@ def configure() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/generate-initial", methods=["POST"])
 def generate_initial() -> Union[Response, tuple[Response, int]]:
     """Generate initial ideas from an intent (handleAnalysisIntentSubmit)"""
-    emit_buffered_logs()
-    data = request.json
-    if data is None:
-        return jsonify({"error": "No JSON data provided"}), 400
-    if thinker is None:
-        return jsonify({"error": "Thinker not configured"}), 400
-    intent = data.get("intent")
+    try:
+        emit_buffered_logs()
+        data = request.json
+        if data is None:
+            return jsonify({"error": "No JSON data provided"}), 400
+        if thinker is None:
+            return jsonify({"error": "Thinker not configured"}), 400
+        intent = data.get("intent")
 
-    idea = thinker.run(intent=intent, num_ideas=1)
+        idea = thinker.run(intent=intent, num_ideas=1)
 
-    if not idea or not isinstance(idea, dict):
-        return jsonify({"error": "Failed to generate idea"}), 500
+        if not idea or not isinstance(idea, dict):
+            return jsonify({"error": "Failed to generate idea"}), 500
 
-    # Ensure experiment plan is generated for experimental ideas (thinker.run may skip it on failure)
-    if idea.get("is_experimental", True) and not idea.get("Experiment"):
-        enriched_json = thinker.generate_experiment_plan(json.dumps(idea))
-        idea = json.loads(enriched_json)
+        # Ensure experiment plan is generated for experimental ideas (thinker.run may skip it on failure)
+        if idea.get("is_experimental", True) and not idea.get("Experiment"):
+            enriched_json = thinker.generate_experiment_plan(json.dumps(idea))
+            idea = json.loads(enriched_json)
 
-    print(f"[generate-initial] Returning idea keys: {list(idea.keys())}")
-    print(f"[generate-initial] Has Experiment: {'Experiment' in idea}")
+        print(f"[generate-initial] Returning idea keys: {list(idea.keys())}")
+        print(f"[generate-initial] Has Experiment: {'Experiment' in idea}")
 
-    new_id = _next_root_id()
-    response = {
-        "ideas": [
-            {
-                "id": new_id,
-                "title": format_name_for_display(idea.get("Name")),
-                "content": format_idea_content(idea),
-                "originalData": idea,
-            }
-        ]
-    }
-
-    return jsonify(response)
+        new_id = _next_root_id()
+        response = {
+            "ideas": [
+                {
+                    "id": new_id,
+                    "title": format_name_for_display(idea.get("Name")),
+                    "content": format_idea_content(idea),
+                    "originalData": idea,
+                }
+            ]
+        }
+        if not _validate_idea_response_payload(response):
+            return jsonify({"error": "Invalid backend idea payload"}), 500
+        return jsonify(response)
+    except Exception as exc:
+        print(f"[ERROR] generate-initial failed: {exc}")
+        return jsonify({"error": f"generate-initial failed: {str(exc)}"}), 500
 
 
 @app.route("/api/set-system-prompt", methods=["POST"])
@@ -429,40 +472,45 @@ def get_prompts() -> Union[Response, tuple[Response, int]]:
 @app.route("/api/generate-children", methods=["POST"])
 def generate_children() -> Union[Response, tuple[Response, int]]:
     """Generate child ideas (generateChildNodes)"""
-    data = request.json
-    if data is None:
-        return jsonify({"error": "No JSON data provided"}), 400
-    if thinker is None:
-        return jsonify({"error": "Thinker not configured"}), 400
-    parent_content = data.get("parent_content")
-    parent_id = data.get("parent_id", "root")
-    context = data.get("context", "")
+    try:
+        data = request.json
+        if data is None:
+            return jsonify({"error": "No JSON data provided"}), 400
+        if thinker is None:
+            return jsonify({"error": "Thinker not configured"}), 400
+        parent_content = data.get("parent_content")
+        parent_id = data.get("parent_id", "root")
+        context = data.get("context", "")
 
-    combined_intent = f"{parent_content}\nAdditional Context: {context}"
-    idea = thinker.run(intent=combined_intent, num_ideas=1)
+        combined_intent = f"{parent_content}\nAdditional Context: {context}"
+        idea = thinker.run(intent=combined_intent, num_ideas=1)
 
-    if not idea or not isinstance(idea, dict):
-        return jsonify({"error": "Failed to generate idea"}), 500
+        if not idea or not isinstance(idea, dict):
+            return jsonify({"error": "Failed to generate idea"}), 500
 
-    # Ensure experiment plan is generated for experimental ideas (thinker.run may skip it on failure)
-    if idea.get("is_experimental", True) and not idea.get("Experiment"):
-        enriched_json = thinker.generate_experiment_plan(json.dumps(idea))
-        idea = json.loads(enriched_json)
+        # Ensure experiment plan is generated for experimental ideas (thinker.run may skip it on failure)
+        if idea.get("is_experimental", True) and not idea.get("Experiment"):
+            enriched_json = thinker.generate_experiment_plan(json.dumps(idea))
+            idea = json.loads(enriched_json)
 
-    child_id = _next_child_id(parent_id)
+        child_id = _next_child_id(parent_id)
 
-    response = {
-        "ideas": [
-            {
-                "id": child_id,
-                "title": format_name_for_display(idea.get("Name")),
-                "content": format_idea_content(idea),
-                "originalData": idea,
-            }
-        ]
-    }
-
-    return jsonify(response)
+        response = {
+            "ideas": [
+                {
+                    "id": child_id,
+                    "title": format_name_for_display(idea.get("Name")),
+                    "content": format_idea_content(idea),
+                    "originalData": idea,
+                }
+            ]
+        }
+        if not _validate_idea_response_payload(response):
+            return jsonify({"error": "Invalid backend idea payload"}), 500
+        return jsonify(response)
+    except Exception as exc:
+        print(f"[ERROR] generate-children failed: {exc}")
+        return jsonify({"error": f"generate-children failed: {str(exc)}"}), 500
 
 
 @app.route("/api/suggest-dimensions", methods=["POST"])
@@ -1145,6 +1193,7 @@ def generate_paper() -> Union[Response, tuple[Response, int]]:
             cost_tracker=BudgetChecker(
                 budget=session_allocation.get("writer"), parent=global_cost_tracker
             ),
+            agent_sdk=session.get("agent_sdk"),
         )
         print(f"Writer initialized for this request with model: {writer.model}")
 
@@ -1317,6 +1366,7 @@ def review_paper() -> Union[Response, tuple[Response, int]]:
                 budget=session_allocation.get("reviewer"),
                 parent=global_cost_tracker,
             ),
+            agent_sdk=session.get("agent_sdk"),
         )
         # Call reviewer.review() to get a single review
         review_result = reviewer.review(absolute_pdf_path)
