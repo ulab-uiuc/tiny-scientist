@@ -196,51 +196,51 @@ const TopNav = ({ currentView, setCurrentView, showCodeView = false }) => {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center' }}>
-      {/* Home View */}
-      <div
-        style={{ ...tabStyle, ...getActiveStyle('home_view'), marginRight: 6 }}
-        onClick={() => setCurrentView('home_view')}
-      >
-        {overviewIcon}
-        Home View
-      </div>
-      {/* Exploration View */}
-      <div
-        style={{ ...tabStyle, ...getActiveStyle('exploration'), marginRight: 6 }}
-        onClick={() => setCurrentView('exploration')}
-      >
-        {explorationIcon}
-        Exploration View
-      </div>
-
-      {/* Evaluation View */}
-      <div
-        style={{ ...tabStyle, ...getActiveStyle('evaluation'), marginRight: 6 }}
-        onClick={() => setCurrentView('evaluation')}
-      >
-        {evaluationIcon}
-        Evaluation View
-      </div>
-
-      {/* Code View - only show if code has been generated */}
-      {showCodeView && (
+        {/* Home View */}
         <div
-          style={{ ...tabStyle, ...getActiveStyle('code_view'), marginRight: 6 }}
-          onClick={() => setCurrentView('code_view')}
+          style={{ ...tabStyle, ...getActiveStyle('home_view'), marginRight: 6 }}
+          onClick={() => setCurrentView('home_view')}
         >
-          {codeIcon}
-          Code View
+          {overviewIcon}
+          Home View
         </div>
-      )}
+        {/* Tree View */}
+        <div
+          style={{ ...tabStyle, ...getActiveStyle('exploration'), marginRight: 6 }}
+          onClick={() => setCurrentView('exploration')}
+        >
+          {explorationIcon}
+          Tree View
+        </div>
 
-      {/* Paper View */}
-      <div
-        style={{ ...tabStyle, ...getActiveStyle('paper_view') }}
-        onClick={() => setCurrentView('paper_view')}
-      >
-        {paperIcon}
-        Paper View
-      </div>
+        {/* Cube View */}
+        <div
+          style={{ ...tabStyle, ...getActiveStyle('evaluation'), marginRight: 6 }}
+          onClick={() => setCurrentView('evaluation')}
+        >
+          {evaluationIcon}
+          Cube View
+        </div>
+
+        {/* Code View - only show if code has been generated */}
+        {showCodeView && (
+          <div
+            style={{ ...tabStyle, ...getActiveStyle('code_view'), marginRight: 6 }}
+            onClick={() => setCurrentView('code_view')}
+          >
+            {codeIcon}
+            Code View
+          </div>
+        )}
+
+        {/* Paper View */}
+        <div
+          style={{ ...tabStyle, ...getActiveStyle('paper_view') }}
+          onClick={() => setCurrentView('paper_view')}
+        >
+          {paperIcon}
+          Paper View
+        </div>
       </div>
 
       {/* GitHub Logo */}

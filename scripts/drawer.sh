@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define default parameters
-MODEL="gpt-4o-mini"
+MODEL="gpt-5-mini"
 OUTPUT="diagram_output.json"
 TEMPERATURE=0.75
 TMP_INPUT="example_input.txt"

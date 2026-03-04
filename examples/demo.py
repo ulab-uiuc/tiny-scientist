@@ -1,7 +1,6 @@
 import json
 import os
 
-import _bootstrap
 from tiny_scientist import TinyScientist
 
 scientist = TinyScientist(

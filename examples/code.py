@@ -3,7 +3,6 @@ import argparse
 import os
 from typing import Any, Dict
 
-import _bootstrap
 from tiny_scientist.budget_checker import BudgetChecker
 
 # Import the Coder class - assuming it's in a module called "coder"

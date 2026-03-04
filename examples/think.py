@@ -4,7 +4,6 @@ import json
 import os
 from typing import Any, Dict, cast
 
-import _bootstrap
 from tiny_scientist.thinker import Thinker
 from tiny_scientist.utils.input_formatter import InputFormatter
 from tiny_scientist.utils.llm import AVAILABLE_LLMS

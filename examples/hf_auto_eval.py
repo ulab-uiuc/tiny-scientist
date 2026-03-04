@@ -1,6 +1,5 @@
 import argparse
 
-import _bootstrap
 from tiny_scientist import TinyScientist
 
 

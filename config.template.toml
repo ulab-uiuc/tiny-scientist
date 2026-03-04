@@ -9,7 +9,7 @@
 #name = "AI Scientist"
 
 # LLM Model
-model = "gpt-4o"
+model = "gpt-5-mini"
 
 # Temperature for controlling randomness in responses
 temperature = 0.75

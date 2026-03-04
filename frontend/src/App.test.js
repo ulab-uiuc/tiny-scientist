@@ -1,8 +1,14 @@
-import { render, screen } from '@testing-library/react';
 import App from './App';
+import { render, screen } from '@testing-library/react';
 
-test('renders learn react link', () => {
+jest.mock('./components/TreePlotVisualization', () => {
+  const React = require('react');
+  return function MockedTreePlotVisualization() {
+    return React.createElement('div', { 'data-testid': 'tree-plot-visualization' });
+  };
+});
+
+test('renders the main visualization container', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByTestId('tree-plot-visualization')).toBeInTheDocument();
 });

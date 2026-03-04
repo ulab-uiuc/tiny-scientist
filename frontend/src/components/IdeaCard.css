@@ -1,0 +1,17 @@
+.problem-highlight {
+  background-color: #fef08a;
+  color: #92400e;
+  border-radius: 4px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.problem-highlight:hover {
+  box-shadow: 0 0 0 2px #fef08a inset;
+}
+
+.problem-content ::selection,
+.dimension-reasoning ::selection {
+  background: #fef08a;
+  color: #92400e;
+}

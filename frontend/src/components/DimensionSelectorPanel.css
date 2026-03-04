@@ -1,0 +1,507 @@
+/* 下拉展开面板容器 - 覆盖在原界面上方 */
+.dimension-selector-panel {
+    position: absolute;
+    top: 100%;
+    /* 紧贴在 Intent 输入框下方 */
+    left: 0;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 面板头部 */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+/* 加载状态 */
+.panel-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #6b7280;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.panel-loading p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* 错误状态 */
+.panel-error {
+    padding: 40px 20px;
+    text-align: center;
+    color: #dc2626;
+}
+
+.panel-error p {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #dc2626;
+}
+
+.panel-error button {
+    padding: 8px 16px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.panel-error button:hover {
+    background: #b91c1c;
+}
+
+/* 左右两列布局容器 */
+.panel-two-columns {
+    display: flex;
+    gap: 24px;
+    padding: 20px;
+    align-items: stretch;
+}
+
+/* AI 建议区域 - 左列 */
+.suggestions-section {
+    flex: 3;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.suggestions-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    text-align: center;
+}
+
+/* 建议列表 - 垂直排列 */
+.suggestions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+}
+
+/* 保留旧的grid样式以备不时之需 */
+.suggestions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.suggestion-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+    flex: 1;
+    /* Distribute available vertical space equally */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.suggestion-card:hover {
+    background: #f3f4f6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    z-index: 1;
+}
+
+.suggestion-card.selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.15);
+}
+
+.suggestion-content {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 8px;
+    flex: 1;
+}
+
+.dimension-side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    /* Allow text wrapping */
+}
+
+.side-a {
+    text-align: right;
+    align-items: flex-end;
+}
+
+.side-b {
+    text-align: left;
+    align-items: flex-start;
+}
+
+.dimension-label-a {
+    color: #3b82f6;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.dimension-label-b {
+    color: #f59e0b;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.description-label-a {
+    color: #60a5fa;
+    /* Lighter blue */
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.3;
+    opacity: 0.8;
+
+}
+
+.description-label-b {
+    color: #f59e0b;
+    /* Same amber/orange but opacity or lighter shade if needed, keeping readable */
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.3;
+    opacity: 0.8;
+}
+
+.vs-separator-vertical {
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: flex-start;
+    /* Align with top (titles) */
+    padding-top: 2px;
+}
+
+.selected-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #dbeafe;
+    color: #1e3a8a;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.selection-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #4b5563;
+}
+
+/* 自定义输入区域 - 右列 */
+.custom-section {
+    flex: 4;
+    /* Increased from 2 to accommodate larger inputs */
+    display: flex;
+    flex-direction: column;
+}
+
+.custom-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+}
+
+/* 输入框容器 - 带背景的盒子 */
+.custom-inputs-box {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    justify-content: space-between;
+    padding: 20px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+/* 垂直排列的输入框 - 保留旧样式 */
+.custom-inputs-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    justify-content: space-between;
+}
+
+/* 保留旧的grid样式以备不时之需 */
+.custom-inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.custom-inputs-grid.three-cols {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.dimension-pair-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: white;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.pair-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+/* New layout for dimension pair inputs */
+.pair-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.dimension-field-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dimension-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.description-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #4b5563;
+    transition: all 0.2s;
+    box-sizing: border-box;
+    background-color: white;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.description-input:focus,
+.dimension-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+}
+
+.dimension-input:focus {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.dimension-input::placeholder {
+    color: #9ca3af;
+}
+
+.description-input::placeholder {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.input-separator {
+    padding-top: 10px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* 底部按钮区 */
+.panel-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+    background: white;
+    position: sticky;
+    bottom: 0;
+}
+
+.btn-cancel,
+.btn-confirm {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cancel {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.btn-cancel:hover {
+    background: #e5e7eb;
+}
+
+.btn-confirm {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-confirm:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+    .panel-two-columns {
+        flex-direction: column;
+    }
+
+    .custom-section {
+        flex: none;
+        width: 100%;
+    }
+
+    .suggestions-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .suggestions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .custom-inputs-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dimension-selector-panel {
+        max-height: 70vh;
+    }
+}
+
+/* 滚动条美化 */
+.dimension-selector-panel::-webkit-scrollbar {
+    width: 8px;
+}
+
+.dimension-selector-panel::-webkit-scrollbar-track {
+    background: #f3f4f6;
+}
+
+.dimension-selector-panel::-webkit-scrollbar-thumb {
+    background: #9ca3af;
+    border-radius: 4px;
+}
+
+.dimension-selector-panel::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}

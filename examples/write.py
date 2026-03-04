@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 
-import _bootstrap
 from tiny_scientist.writer import Writer
 
 

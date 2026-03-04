@@ -4,7 +4,6 @@ import json
 import os.path as osp
 from typing import Any, List
 
-import _bootstrap
 from tiny_scientist.reviewer import Reviewer
 from tiny_scientist.utils.llm import AVAILABLE_LLMS
 
